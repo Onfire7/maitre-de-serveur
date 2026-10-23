@@ -70,6 +70,10 @@ _Avoid_: Storage class, storage location, share
 What a Node builds for a Tier out of the Drives available to it. Always a MergerFS mount, even over a single Drive.
 _Avoid_: Mount, array, volume group
 
+**Placement**:
+A Tier's rule for where data lives: Local (each Node's own Pool, separate data), Synced (full copy on every Node), or Spanning (one Pool across qualifying Drives on all Nodes, remote parts unavailable while their Node is off).
+_Avoid_: Mode, topology, replication type
+
 **Adopt**:
 Bringing an existing Drive and its data into a Node without reformatting it.
 _Avoid_: Import, mount, attach
@@ -86,6 +90,10 @@ _Avoid_: VPN-only, tailnet-only
 **Public**:
 Exposure level of a Service reachable from the open internet, either through a relay (Funnel) or directly via the user's own domain.
 _Avoid_: Exposed, published, external
+
+**Infrastructure Service**:
+A Service the local network itself depends on (DHCP, DNS). Its Node keeps a reserved address and starts it before anything that waits for the network.
+_Avoid_: System service, core service
 
 **Member**:
 A non-admin person (family, friend) granted access to specific Public Services. Not part of v1; reserved so the model stays ready for it.
