@@ -58,12 +58,20 @@ _Avoid_: ISO, live USB, setup disk
 
 ## Storage
 
-**Storage Location**:
-A drive or pool on one Node where Service data can live. Addressable from any Node in the Fleet.
-_Avoid_: Volume, mount, share, disk
+**Drive**:
+A physical disk on one Node, adopted or formatted, carrying automatic tags (ssd, hdd, usb, size, Node) and user tags.
+_Avoid_: Disk, device, volume
+
+**Tier**:
+A Fleet-wide, named set of rules saying which Drives qualify, how data is placed across them, and how it is protected. Services point at Tiers, never at Drives.
+_Avoid_: Storage class, storage location, share
+
+**Pool**:
+What a Node builds for a Tier out of the Drives available to it. Always a MergerFS mount, even over a single Drive.
+_Avoid_: Mount, array, volume group
 
 **Adopt**:
-Bringing an existing drive and its data into a Node as a Storage Location without reformatting it.
+Bringing an existing Drive and its data into a Node without reformatting it.
 _Avoid_: Import, mount, attach
 
 ## Exposure
