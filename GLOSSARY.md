@@ -23,3 +23,11 @@ _Avoid_: Container, app, workload, pod
 **Provisioning**:
 The guided process that turns a freshly installed machine into a Node of an existing Fleet.
 _Avoid_: Joining, bootstrapping, onboarding
+
+**Catalog**:
+The curated list of Service templates the user can install from, maintained in a public git repository.
+_Avoid_: App store, marketplace, registry
+
+**Installer**:
+The bootable media that turns a bare machine into a Node, driven from the management app with the machine's own screen used only to confirm pairing.
+_Avoid_: ISO, live USB, setup disk
