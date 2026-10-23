@@ -1,0 +1,15 @@
+[Unit]
+Description=Maître installer (runs only from installer media)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/run/maitre-installer
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/maitre installer
+Restart=on-failure
+StandardOutput=tty
+TTYPath=/dev/tty1
+
+[Install]
+WantedBy=multi-user.target

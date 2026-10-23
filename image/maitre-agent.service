@@ -1,0 +1,20 @@
+[Unit]
+Description=Maître agent
+Documentation=https://github.com/maitre-de-serveur/maitre
+After=network-online.target podman.socket
+Wants=network-online.target podman.socket
+# Installer media sets this condition false so the installer runs instead.
+ConditionPathExists=!/run/maitre-installer
+
+[Service]
+Type=simple
+# Milestone 0: the real `agent` subcommand lands in Milestone 1. Until then the
+# image runs dev mode so the boot test has something to observe.
+ExecStart=/usr/bin/maitre dev --state /var/lib/maitre --listen 0.0.0.0:7443
+Restart=always
+RestartSec=2
+StateDirectory=maitre
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+# Maître Server: a bootc image. The whole OS is this container image; bootc
+# installs it to disk and updates it atomically. See docs/adr/0001.
+#
+# Build from the repo root:  podman build -f image/Containerfile -t maitre-server .
+
+FROM docker.io/library/golang:1.27 AS agent
+WORKDIR /src
+COPY server/go.mod server/go.sum ./
+RUN go mod download
+COPY server/ ./
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /maitre ./cmd/maitre
+
+FROM quay.io/fedora/fedora-bootc:42
+
+# Runtime for Services, storage, and discovery. Kept deliberately short;
+# anything else is a container.
+RUN dnf -y install \
+      podman \
+      mergerfs \
+      nfs-utils \
+      avahi \
+      nss-mdns \
+    && dnf clean all
+
+COPY --from=agent /maitre /usr/bin/maitre
+COPY image/maitre-agent.service /usr/lib/systemd/system/maitre-agent.service
+COPY image/maitre-installer.service /usr/lib/systemd/system/maitre-installer.service
+COPY image/maitre-firstboot.sh /usr/libexec/maitre-firstboot
+RUN chmod +x /usr/libexec/maitre-firstboot \
+    && systemctl enable maitre-agent.service avahi-daemon.service podman.socket
+
+# bootc lint catches image-layout mistakes at build time.
+RUN bootc container lint
