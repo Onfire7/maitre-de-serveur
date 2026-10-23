@@ -74,6 +74,10 @@ _Avoid_: Mount, array, volume group
 A Tier's rule for where data lives: Local (each Node's own Pool, separate data), Synced (full copy on every Node), or Spanning (one Pool across qualifying Drives on all Nodes, remote parts unavailable while their Node is off).
 _Avoid_: Mode, topology, replication type
 
+**Parity Drive**:
+A Drive on a Node dedicated to parity data protecting every other Drive on that Node. Excluded from all Tiers.
+_Avoid_: Parity disk, backup drive
+
 **Adopt**:
 Bringing an existing Drive and its data into a Node without reformatting it.
 _Avoid_: Import, mount, attach
