@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/maitre-de-serveur/maitre/server/gen/maitre/v1;maitrev1";
+
+// NodeService is served by every Node (and by the agent in dev mode).
+// Callers are Trusted Devices and peer Nodes; the transport is mutual TLS
+// checked against the Fleet trust list, so no auth fields appear here.
+service NodeService {
+  // GetNodeInfo returns identity and liveness facts about this Node.
+  rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse) {}
+}
+
+message GetNodeInfoRequest {}
+
+message GetNodeInfoResponse {
+  NodeInfo node = 1;
+}
+
+message NodeInfo {
+  // Stable identity: the Node's public key fingerprint.
+  string node_id = 1;
+  // Human name chosen at provisioning. Empty before provisioning.
+  string name = 2;
+  // Fleet this Node belongs to. Empty before provisioning.
+  string fleet_id = 3;
+  // Maître Server version, or "dev" when running outside the image.
+  string version = 4;
+  // Seconds since the agent started.
+  uint64 uptime_seconds = 5;
+  // True when running via `maitre dev` rather than on Maître Server.
+  bool dev_mode = 6;
+}

@@ -1,0 +1,9 @@
+# Go
+/server/bin/
+# Node
+node_modules/
+dist/
+# Tauri / Rust
+/desktop/src-tauri/target/
+# local state
+.maitre/
