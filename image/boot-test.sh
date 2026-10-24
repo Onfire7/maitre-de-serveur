@@ -60,8 +60,13 @@ if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
 # 3. Boot under UEFI, like real hardware. The empty target has bootindex 0 so
 #    that after the install the machine boots the new Node; the firmware
 #    skips it while it is blank and boots the installer.
-OVMF_CODE=$(ls /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/ovmf/OVMF_CODE.fd 2>/dev/null | head -1)
-OVMF_VARS=$(ls /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /usr/share/edk2/x64/OVMF_VARS.4m.fd /usr/share/edk2/ovmf/OVMF_VARS.fd 2>/dev/null | head -1)
+OVMF_CODE=""; OVMF_VARS=""
+for f in /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/ovmf/OVMF_CODE.fd; do
+  [ -z "$OVMF_CODE" ] && [ -f "$f" ] && OVMF_CODE=$f
+done
+for f in /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /usr/share/edk2/x64/OVMF_VARS.4m.fd /usr/share/edk2/ovmf/OVMF_VARS.fd; do
+  [ -z "$OVMF_VARS" ] && [ -f "$f" ] && OVMF_VARS=$f
+done
 [ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || { echo "boot-test: OVMF firmware not found (install ovmf/edk2-ovmf)"; exit 1; }
 cp "$OVMF_VARS" "$OUT/vars.fd"
 echo "booting installer $INSTALLER with blank target $TARGET (UEFI $OVMF_CODE)"
