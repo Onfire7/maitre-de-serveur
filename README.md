@@ -12,7 +12,7 @@ Vocabulary is in [GLOSSARY.md](GLOSSARY.md). Decisions are in [docs/adr](docs/ad
 
 ## Status
 
-Milestone 1 in progress. The Console creates a Fleet and shows the Recovery Phrase, finds machines booted from installer media on the LAN, pairs with a six-digit code, and installs Maître Server to a chosen disk. The installed Node boots, mounts its config partition, and accepts only the devices that provisioned it. CI runs the whole thing in QEMU (`make image-boot`). Not yet: Services, a second Node, remote access.
+Milestone 2 in progress. The Console creates a Fleet and shows the Recovery Phrase, finds machines booted from installer media on the LAN, pairs with a six-digit code, and installs Maître Server to a chosen disk. The installed Node boots, mounts its config partition, assembles its default Pool, and accepts only the devices that provisioned it. Services install from the Catalog (`catalog/`) as Podman Quadlet units, are reachable as `<name>.maitre.local` through the Node's Caddy, and open inside the Console through a loopback proxy over the same mutual TLS. CI runs install-from-media, reboot, and a Service install in QEMU (`make image-boot`). Not yet: a second Node, remote access, OS updates.
 
 ## Layout
 
@@ -21,6 +21,7 @@ api/       Protobuf schema (buf); generated code is committed
 server/    Go agent: `maitre agent|installer` on the image; `dev|keygen|info|provision` for development
 desktop/   Tauri app (Rust shell, React + TypeScript UI)
 image/     Containerfile and units for Maître Server
+catalog/   Service Catalog (MIT); becomes its own repository later
 docs/      ADRs and the build plan
 ```
 

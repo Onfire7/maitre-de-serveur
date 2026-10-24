@@ -136,6 +136,11 @@ Demo: a fresh laptop, download Maître Desktop, prepare a USB, install a Node, r
 - 69. Install networking: Ethernet with DHCP only; the Installer screen says so until it has an address.
 - 70. Image source during install: pulled from the registry over the internet (bootc cannot copy the running system). Offline media is deferred.
 
+- 71. Console reaches Private Services through a loopback proxy that tunnels over the agent's mTLS listener (X-Maitre-Service header); Caddy serves plain HTTP on the LAN.
+- 72. Node status screens are plain text.
+- 73. Catalog is delivered as a generated JSON index, baked into the image and refreshed over HTTPS later.
+- 74. Catalog lives in `catalog/` in the monorepo until a separate repository is named.
+
 ## Open questions to settle before Milestone 2
 
 1. Console webview trust for Private Services (see Milestone 2). Recommended: loopback proxy over mTLS.
