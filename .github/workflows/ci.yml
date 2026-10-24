@@ -108,6 +108,9 @@ jobs:
             console=ttyS0,115200n8 console=tty0
           mv "$(find media -name '*.qcow2' | head -1)" media/maitre-installer.qcow2
           echo "$REF:${{ github.sha }}" > media/image-ref.txt
+          # Ship the firmware that booted this media in the boot test (edk2 202505+ faults in GRUB).
+          sudo apt-get install -y ovmf >/dev/null
+          cp /usr/share/OVMF/OVMF_CODE_4M.fd media/OVMF_CODE.fd; cp /usr/share/OVMF/OVMF_VARS_4M.fd media/OVMF_VARS.fd
       - if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
@@ -115,5 +118,7 @@ jobs:
           path: |
             media/maitre-installer.qcow2
             media/image-ref.txt
+            media/OVMF_CODE.fd
+            media/OVMF_VARS.fd
           compression-level: 0
           retention-days: 14
