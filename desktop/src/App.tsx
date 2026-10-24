@@ -306,7 +306,10 @@ function AddNode({
   // Try each advertised address in turn; the user can override when none of
   // them is reachable from here (e.g. a VM behind NAT advertising its guest IP).
   const [addr, setAddr] = useState(found.addresses[0]);
-  const [altAddr, setAltAddr] = useState("");
+  // QEMU's user-mode network gives guests 10.0.2.x; `make vm` forwards the
+  // agent port to 127.0.0.1:17443 on the host, so suggest that.
+  const qemuGuest = found.addresses.some((a) => a.startsWith("10.0.2."));
+  const [altAddr, setAltAddr] = useState(qemuGuest ? "127.0.0.1:17443" : "");
   const [attempt, setAttempt] = useState(0);
   const [fp, setFp] = useState("");
   const [code, setCode] = useState("");
@@ -426,7 +429,8 @@ function AddNode({
             <>
               <p>Could not reach the machine at {found.addresses.join(", ")}.</p>
               <p>
-                If it is reachable at a different address or port (for example a VM behind NAT), enter it:{" "}
+                If it is reachable at a different address or port, enter it
+                {qemuGuest ? " (this looks like the development VM from `make vm`, which the host reaches at 127.0.0.1:17443)" : " (for example a VM behind NAT)"}:{" "}
                 <input value={altAddr} onChange={(e) => setAltAddr(e.target.value)} placeholder="192.168.1.20:7443" style={{ width: 200 }} />{" "}
                 <button
                   disabled={!altAddr.includes(":")}

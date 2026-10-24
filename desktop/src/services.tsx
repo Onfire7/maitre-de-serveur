@@ -101,7 +101,8 @@ export function ServicesPanel({ target }: { target: Target }) {
               <div>
                 <b>{s.spec?.name}</b> <StateBadge s={s} />
                 <div style={{ color: "#555", fontSize: 13 }}>
-                  {s.url || "no web page"} {s.restarts > 0 && `· restarted ${s.restarts}×`} {s.message}
+                  {s.url ? `Open here, or from a browser on your network at ${s.url}` : "no web page"} {s.restarts > 0 && `· restarted ${s.restarts}×`}{" "}
+                  {s.message}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 4 }}>

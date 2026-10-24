@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -67,19 +65,28 @@ func (r *BootcRunner) exec(ctx context.Context, stdout io.Writer, name string, a
 	return cmd.Run()
 }
 
-var pullPct = regexp.MustCompile(`(\d{1,3})%`)
+// execPull is exec on a pseudo-terminal, so podman draws progress bars.
+func (r *BootcRunner) execPull(ctx context.Context, stdout io.Writer, name string, args ...string) error {
+	if r.Exec != nil {
+		return r.Exec(ctx, stdout, name, args...)
+	}
+	return execTTY(ctx, stdout, name, args...)
+}
 
 // Install implements Runner.
 func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress) error {
 	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "downloading Maître Server")
+	pp := newPullProgress(imageSize(ctx, plan.ImageRef))
+	var last uint32
 	pull := &progressWriter{onLine: func(l string) {
-		if m := pullPct.FindStringSubmatch(l); m != nil {
-			if n, err := strconv.Atoi(m[1]); err == nil {
-				progress(maitrev1.Provisioning_PHASE_INSTALLING, uint32(n)/2, "downloading Maître Server")
-			}
+		pp.line(l)
+		f, msg := pp.fraction()
+		if pct := uint32(f * 50); pct > last {
+			last = pct
+			progress(maitrev1.Provisioning_PHASE_INSTALLING, pct, "downloading Maître Server ("+msg+")")
 		}
 	}}
-	if err := r.exec(ctx, pull, "podman", "pull", plan.ImageRef); err != nil {
+	if err := r.execPull(ctx, pull, "podman", "pull", plan.ImageRef); err != nil {
 		return fmt.Errorf("download %s: %w", plan.ImageRef, err)
 	}
 
