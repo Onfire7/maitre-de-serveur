@@ -13,6 +13,7 @@ OUT=${OUT:-$(mktemp -d)}
 TIMEOUT=${TIMEOUT:-900}
 REG_PORT=${REG_PORT:-5000}
 FWD_PORT=${FWD_PORT:-17443}
+WEB_PORT=${WEB_PORT:-18080}
 # 10.0.2.2 is the host as seen from QEMU user networking.
 GUEST_IMAGE="10.0.2.2:${REG_PORT}/maitre-server:test"
 
@@ -76,7 +77,7 @@ qemu-system-x86_64 \
   -drive "if=pflash,format=raw,file=$OUT/vars.fd" \
   -drive "file=$TARGET,format=qcow2,if=none,id=target" -device virtio-blk-pci,drive=target,bootindex=0 \
   -drive "file=$INSTALLER,format=qcow2,if=none,id=installer" -device virtio-blk-pci,drive=installer,bootindex=1 \
-  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443" -device virtio-net-pci,netdev=n0 \
+  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80" -device virtio-net-pci,netdev=n0 \
   >"$OUT/serial.log" 2>&1 &
 QEMU=$!
 
@@ -109,4 +110,18 @@ for i in $(seq 1 30); do
 done
 grep -q "^name      ci-node" "$OUT/info.log"
 grep -q "^dev_mode  false" "$OUT/info.log"
-echo "boot-test: OK (installed from USB-equivalent media, rebooted, answered as a Node)"
+echo "boot-test: node OK (installed from USB-equivalent media, rebooted, answered as a Node)"
+
+# 5. Milestone 2: install a Service from the Catalog and reach it by name
+#    through the Node's Caddy (plain HTTP on the LAN, decision 71).
+"$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" catalog
+"$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" install uptime-kuma --wait 10m
+for i in $(seq 1 30); do
+  code=$(curl -s -o "$OUT/web.html" -w '%{http_code}' -H 'Host: uptime-kuma.maitre.local' "http://127.0.0.1:${WEB_PORT}/" || true)
+  [ "$code" = 200 ] && break
+  [ "$i" -lt 30 ] || { echo "boot-test: service not reachable through caddy (last status $code)"; "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" logs uptime-kuma | tail -30; exit 1; }
+  sleep 2
+done
+grep -qi "uptime kuma" "$OUT/web.html"
+"$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" list
+echo "boot-test: OK (Uptime Kuma installed from the Catalog and served at uptime-kuma.maitre.local)"

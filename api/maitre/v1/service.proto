@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// ServiceService manages Services on the Node that serves it. Definitions
+// are Records of kind "service" owned by the running Node (ADR 0003); these
+// calls change the Record and apply it, so the Console never edits Quadlet
+// files or talks to Podman.
+service ServiceService {
+  // GetCatalog returns the Catalog index this Node currently holds.
+  rpc GetCatalog(GetCatalogRequest) returns (GetCatalogResponse) {}
+  // InstallService creates a Service from a Catalog entry and starts it.
+  rpc InstallService(InstallServiceRequest) returns (InstallServiceResponse) {}
+  // ControlService starts, stops, restarts or removes a Service.
+  rpc ControlService(ControlServiceRequest) returns (ControlServiceResponse) {}
+  // ListServices returns every Service on this Node with live status.
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {}
+  // GetServiceLogs returns the last lines of a Service's log.
+  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {}
+}
+
+message GetCatalogRequest {}
+
+message GetCatalogResponse {
+  // The raw index.json (catalog/FORMAT.md); the Console parses it.
+  bytes index_json = 1;
+  // Where it came from and when, for the Console to show.
+  string source = 2;
+  int64 fetched_unix_ms = 3;
+}
+
+// ServiceSpec is the kind "service" Record body: what the user chose.
+message ServiceSpec {
+  // Unique within the Fleet; also the mDNS name <name>.maitre.local.
+  string name = 1;
+  string catalog_id = 2;
+  // Image actually deployed, pinned by digest. Auto-update advances it.
+  string image = 3;
+  string node_id = 4;
+  // Setting key -> value, as entered at install.
+  map<string, string> settings = 5;
+  // Exposure level: "private" | "remote" | "public".
+  string exposure = 6;
+  // Tier for each volume (volume name -> tier id). Milestone 2 has only "default".
+  map<string, string> volume_tiers = 7;
+  // Reserved for Members (gated access): "" | "admins" | "members".
+  string access_policy = 8;
+  int64 created_unix_ms = 9;
+  // Loopback port on the Node where the web port is published; chosen by
+  // the agent, used by Caddy and health checks. 0 for headless Services.
+  uint32 web_host_port = 10;
+}
+
+message ServiceStatus {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_STOPPED = 1;
+    STATE_STARTING = 2;
+    STATE_RUNNING = 3;
+    STATE_FAILED = 4;
+    STATE_REMOVING = 5;
+  }
+  ServiceSpec spec = 1;
+  State state = 2;
+  // Health according to the Catalog entry's check, when running.
+  bool healthy = 3;
+  uint32 restarts = 4;
+  // Human-readable reason when failed.
+  string message = 5;
+  // Where the Console opens it, e.g. "http://jellyfin.maitre.local". Empty if headless.
+  string url = 6;
+  int64 started_unix_ms = 7;
+}
+
+message InstallServiceRequest {
+  string catalog_id = 1;
+  // Defaults to catalog_id; must be unique.
+  string name = 2;
+  map<string, string> settings = 3;
+  // Empty means the Catalog entry's default.
+  string exposure = 4;
+}
+
+message InstallServiceResponse {
+  ServiceStatus service = 1;
+}
+
+message ControlServiceRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_START = 1;
+    ACTION_STOP = 2;
+    ACTION_RESTART = 3;
+    // Remove the Service and its units. Data stays on the Pool unless
+    // delete_data is set.
+    ACTION_REMOVE = 4;
+  }
+  string name = 1;
+  ControlServiceRequest.Action action = 2;
+  bool delete_data = 3;
+}
+
+message ControlServiceResponse {
+  ServiceStatus service = 1;
+}
+
+message ListServicesRequest {}
+
+message ListServicesResponse {
+  repeated ServiceStatus services = 1;
+}
+
+message GetServiceLogsRequest {
+  string name = 1;
+  // Default 200.
+  uint32 lines = 2;
+}
+
+message GetServiceLogsResponse {
+  repeated string lines = 1;
+}

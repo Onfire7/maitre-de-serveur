@@ -1,0 +1,17 @@
+[Unit]
+Description=Maître default Pool (MergerFS over this Node's Drives)
+Documentation=https://github.com/Onfire7/maitre-de-serveur
+DefaultDependencies=no
+After=local-fs.target
+Before=maitre-agent.service
+ConditionKernelCommandLine=!maitre.installer
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/maitre pool-up
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

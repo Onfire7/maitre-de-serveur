@@ -23,12 +23,17 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
@@ -43,6 +48,10 @@ func runAgent(args []string) error {
 	state := fs.String("state", "/var/lib/maitre", "config partition mount point")
 	listen := fs.String("listen", fmt.Sprintf("0.0.0.0:%d", port), "address to listen on")
 	noMDNS := fs.Bool("no-mdns", false, "do not advertise on mDNS")
+	catalogPath := fs.String("catalog", "/usr/share/maitre/catalog.json", "Catalog index baked into the image")
+	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
+	poolDir := fs.String("pool", pool.DefaultPool, "default Pool directory for Service volumes")
+	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -98,8 +107,71 @@ func runAgent(args []string) error {
 			refreshTrust()
 		}
 	}
+	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
+	cat := serviceservice.NewCatalog(nil, "")
+	if raw, err := os.ReadFile(*catalogPath); err == nil {
+		if idx, err := catalog.ParseIndex(raw); err == nil {
+			cat.Set(idx, "image:"+*catalogPath)
+			log.Info("catalog loaded", "entries", len(idx.Entries), "path", *catalogPath)
+		} else {
+			log.Error("catalog index invalid", "err", err)
+		}
+	} else {
+		log.Warn("no catalog index", "path", *catalogPath)
+	}
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir}, st, cat.Index, nil)
+	ssvc := serviceservice.New(mgr, cat)
+	var hostAd *mdns.Advertisement
+	publish := func() {
+		specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+		if err != nil {
+			log.Error("list services", "err", err)
+			return
+		}
+		var routes []caddy.Route
+		var names []string
+		for _, sp := range specs {
+			if sp.GetWebHostPort() == 0 {
+				continue
+			}
+			host := sp.GetName() + ".maitre.local"
+			routes = append(routes, caddy.Route{Host: host, Upstream: fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())})
+			names = append(names, host)
+		}
+		if *caddyAdmin != "" {
+			if err := caddy.Load(ctx, *caddyAdmin, caddy.Config(routes)); err != nil {
+				log.Warn("caddy config not applied", "err", err)
+			}
+		}
+		if !*noMDNS {
+			if hostAd != nil {
+				hostAd.Close()
+			}
+			var v4 []string
+			for _, a := range installer.Addresses() {
+				if !strings.Contains(a, ":") {
+					v4 = append(v4, a)
+				}
+			}
+			ad, err := mdns.PublishHosts(names, v4)
+			if err != nil {
+				log.Warn("mDNS names not published", "err", err)
+			} else {
+				hostAd = ad
+			}
+		}
+	}
+	ssvc.OnChange = publish
+	publish()
+	defer func() {
+		if hostAd != nil {
+			hostAd.Close()
+		}
+	}()
+
 	rpc := connect.NewServer()
 	maitrev1connect.RegisterNodeServiceHandler(rpc, svc)
+	maitrev1connect.RegisterServiceServiceHandler(rpc, ssvc)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 

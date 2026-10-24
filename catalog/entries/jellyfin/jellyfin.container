@@ -1,0 +1,8 @@
+[Container]
+Image={{ .Image }}
+ContainerName={{ .Name }}
+Environment=TZ={{ .Settings.TZ }}
+Volume={{ .Volumes.config }}:/config:Z
+Volume={{ .Volumes.cache }}:/cache:Z
+Volume={{ .Volumes.media }}:/media:Z
+Network={{ .Network }}

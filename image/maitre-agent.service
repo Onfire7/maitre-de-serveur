@@ -1,8 +1,8 @@
 [Unit]
 Description=Maître agent
 Documentation=https://github.com/Onfire7/maitre-de-serveur
-After=network-online.target podman.socket avahi-daemon.service
-Wants=network-online.target podman.socket avahi-daemon.service
+After=network-online.target podman.socket avahi-daemon.service caddy.service maitre-pool.service
+Wants=network-online.target podman.socket avahi-daemon.service caddy.service maitre-pool.service
 # Installer media boots with maitre.installer on the kernel command line;
 # then the installer runs instead of the agent.
 ConditionKernelCommandLine=!maitre.installer

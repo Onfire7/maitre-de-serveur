@@ -74,3 +74,38 @@ func InstanceName(label, fingerprint string) string {
 	}
 	return strings.TrimSpace(label) + " (" + short + ")"
 }
+
+// PublishHosts publishes address records so <name> resolves to this
+// machine's IPv4 addresses on the local network, e.g. "jellyfin.maitre.local".
+// Returns a closer that withdraws them.
+func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return nil, fmt.Errorf("mdns: system bus: %w", err)
+	}
+	server, err := avahi.ServerNew(conn)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("mdns: avahi: %w", err)
+	}
+	group, err := server.EntryGroupNew()
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("mdns: entry group: %w", err)
+	}
+	for _, n := range names {
+		for _, a := range addrs {
+			if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, 0, n, a); err != nil {
+				conn.Close()
+				return nil, fmt.Errorf("mdns: add address %s: %w", n, err)
+			}
+		}
+	}
+	if len(names) > 0 {
+		if err := group.Commit(); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("mdns: commit: %w", err)
+		}
+	}
+	return &Advertisement{conn: conn, group: group}, nil
+}

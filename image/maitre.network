@@ -1,0 +1,6 @@
+# Podman network every Maître Service joins (Quadlet). Containers on it can
+# resolve each other by Service name; the host reaches web ports through the
+# loopback PublishPort the agent assigns.
+[Network]
+NetworkName=maitre
+Options=isolate=true
