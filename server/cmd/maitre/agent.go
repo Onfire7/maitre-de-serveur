@@ -7,11 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -102,7 +104,7 @@ func runAgent(args []string) error {
 	connecthttp.Mount(mux, rpc)
 
 	if !*noMDNS {
-		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, port, map[string]string{
+		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, listenPort(*listen), map[string]string{
 			"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version,
 		})
 		if err != nil {
@@ -155,7 +157,7 @@ func runInstaller(args []string) error {
 	defer stop()
 
 	if !*noMDNS {
-		ad, err := mdns.Publish(mdns.InstanceName("Maître Installer", id.Fingerprint()), mdns.TypeInstaller, port, map[string]string{
+		ad, err := mdns.Publish(mdns.InstanceName("Maître Installer", id.Fingerprint()), mdns.TypeInstaller, listenPort(*listen), map[string]string{
 			"id": id.Fingerprint(), "v": version, "machine": installer.MachineName(),
 		})
 		if err != nil {
@@ -203,6 +205,19 @@ func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, t
 		return err
 	}
 	return nil
+}
+
+// listenPort extracts the port from a host:port listen address.
+func listenPort(addr string) uint16 {
+	_, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return port
+	}
+	n, err := strconv.Atoi(p)
+	if err != nil || n <= 0 || n > 65535 {
+		return port
+	}
+	return uint16(n)
 }
 
 // imageFromKernelCmdline reads maitre.image=<ref> from /proc/cmdline.

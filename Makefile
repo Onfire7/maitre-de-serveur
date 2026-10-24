@@ -7,7 +7,7 @@ BUF     ?= buf
 STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: help gen gen-check build test lint dev dev-trust info m0-check image image-boot clean
+.PHONY: help gen gen-check build test lint dev dev-trust info m0-check m1-check image image-boot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -44,6 +44,9 @@ info: build ## Call GetNodeInfo as the CLI device in $(STATE)/device
 
 m0-check: build ## End-to-end: Go dev Node <-> Rust client over mTLS, both directions of refusal
 	./scripts/m0-check.sh ./server/bin/maitre
+
+m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, then start the agent from its config
+	./scripts/m1-check.sh ./server/bin/maitre
 
 image: build ## Build the Maître Server bootc image (needs podman)
 	podman build -t localhost/maitre-server:$(VERSION) -f image/Containerfile .

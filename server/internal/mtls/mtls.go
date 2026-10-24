@@ -4,6 +4,8 @@
 package mtls
 
 import (
+	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -65,4 +67,39 @@ func ClientConfig(id *identity.Identity, list *trust.List) *tls.Config {
 		VerifyPeerCertificate: list.VerifyPeer,
 		NextProtos:            []string{"h2"},
 	}
+}
+
+// PeekServerPublicKey opens a TLS connection to addr with a throwaway client
+// identity, records the server's Ed25519 key, and closes. The Console uses
+// it to learn an Installer's key before the pairing code confirms it.
+func PeekServerPublicKey(ctx context.Context, addr string) (ed25519.PublicKey, error) {
+	probe, err := identity.Generate()
+	if err != nil {
+		return nil, err
+	}
+	var seen ed25519.PublicKey
+	cfg := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
+		Certificates:       []tls.Certificate{probe.TLSCertificate()},
+		InsecureSkipVerify: true, // we only want to read the key; nothing is sent
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return err
+			}
+			pub, ok := cert.PublicKey.(ed25519.PublicKey)
+			if !ok {
+				return errors.New("mtls: server key is not Ed25519")
+			}
+			seen = pub
+			return nil
+		},
+		NextProtos: []string{"h2"},
+	}
+	conn, err := (&tls.Dialer{Config: cfg}).DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	conn.Close()
+	return seen, nil
 }

@@ -44,6 +44,12 @@ func Generate() (*Identity, error) {
 	return fromKey(pub, priv)
 }
 
+// FromPrivateKey wraps an existing Ed25519 key (such as the Recovery key)
+// as an Identity with a fresh self-signed certificate.
+func FromPrivateKey(priv ed25519.PrivateKey) (*Identity, error) {
+	return fromKey(priv.Public().(ed25519.PublicKey), priv)
+}
+
 // LoadOrGenerate reads the identity in dir, creating one if none exists.
 func LoadOrGenerate(dir string) (*Identity, error) {
 	id, err := Load(dir)

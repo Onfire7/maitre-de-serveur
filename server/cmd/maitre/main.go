@@ -5,6 +5,7 @@
 //	maitre dev        run on any Linux host for development
 //	maitre keygen     create a Trusted Device identity for testing
 //	maitre info       call GetNodeInfo on a Node as a Trusted Device
+//	maitre provision  pair with an Installer and provision it (CLI stand-in for the Console)
 package main
 
 import (
@@ -54,6 +55,8 @@ func main() {
 		err = runAgent(os.Args[2:])
 	case "installer":
 		err = runInstaller(os.Args[2:])
+	case "provision":
+		err = runProvision(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -65,7 +68,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <dev|keygen|info|agent|installer> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|dev|keygen|info|provision> [flags]")
 }
 
 func runDev(args []string) error {
