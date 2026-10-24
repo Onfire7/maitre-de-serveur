@@ -251,3 +251,15 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 		}
 	}
 }
+
+// AllowInsecureRegistry tells podman and bootc to pull from host:port over
+// plain HTTP or with an untrusted certificate. Only the CI boot test uses it,
+// to install from a throwaway registry on the QEMU host.
+func AllowInsecureRegistry(hostPort string) error {
+	dir := "/etc/containers/registries.conf.d"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	conf := fmt.Sprintf("[[registry]]\nlocation = %q\ninsecure = true\n", hostPort)
+	return os.WriteFile(filepath.Join(dir, "99-maitre-insecure.conf"), []byte(conf), 0o644)
+}

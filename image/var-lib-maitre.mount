@@ -1,0 +1,14 @@
+[Unit]
+Description=Maître config partition
+Documentation=https://github.com/Onfire7/maitre-de-serveur
+# Created by the Installer next to the OS partitions (see internal/installer).
+
+[Mount]
+What=/dev/disk/by-label/maitre-config
+Where=/var/lib/maitre
+Type=ext4
+Options=defaults,noatime
+DirectoryMode=0700
+
+[Install]
+WantedBy=local-fs.target

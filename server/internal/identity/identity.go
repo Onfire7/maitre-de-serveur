@@ -32,7 +32,9 @@ const (
 // Identity is an Ed25519 key pair plus the self-signed certificate TLS needs.
 type Identity struct {
 	priv ed25519.PrivateKey
-	cert tls.Certificate
+	// pubOnly is set for identities built with FromPublicKey.
+	pubOnly ed25519.PublicKey
+	cert    tls.Certificate
 }
 
 // Generate creates a fresh identity.
@@ -48,6 +50,14 @@ func Generate() (*Identity, error) {
 // as an Identity with a fresh self-signed certificate.
 func FromPrivateKey(priv ed25519.PrivateKey) (*Identity, error) {
 	return fromKey(priv.Public().(ed25519.PublicKey), priv)
+}
+
+// FromPublicKey wraps a public key for PEM encoding only; it cannot sign.
+func FromPublicKey(pub ed25519.PublicKey) (*Identity, error) {
+	if len(pub) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("identity: bad public key length %d", len(pub))
+	}
+	return &Identity{pubOnly: pub}, nil
 }
 
 // LoadOrGenerate reads the identity in dir, creating one if none exists.
@@ -108,12 +118,12 @@ func (id *Identity) Save(dir string) error {
 
 // Fingerprint is the stable ID of this identity.
 func (id *Identity) Fingerprint() string {
-	return Fingerprint(id.priv.Public().(ed25519.PublicKey))
+	return Fingerprint(id.PublicKey())
 }
 
 // PublicKeyPEM encodes the public key as a PEM block suitable for a trust list.
 func (id *Identity) PublicKeyPEM() []byte {
-	der, err := x509.MarshalPKIXPublicKey(id.priv.Public())
+	der, err := x509.MarshalPKIXPublicKey(id.PublicKey())
 	if err != nil {
 		panic(err) // ed25519 keys always marshal
 	}
@@ -121,7 +131,12 @@ func (id *Identity) PublicKeyPEM() []byte {
 }
 
 // PublicKey returns the raw Ed25519 public key.
-func (id *Identity) PublicKey() ed25519.PublicKey { return id.priv.Public().(ed25519.PublicKey) }
+func (id *Identity) PublicKey() ed25519.PublicKey {
+	if id.pubOnly != nil {
+		return id.pubOnly
+	}
+	return id.priv.Public().(ed25519.PublicKey)
+}
 
 // TLSCertificate is the self-signed certificate for use in a tls.Config.
 func (id *Identity) TLSCertificate() tls.Certificate { return id.cert }

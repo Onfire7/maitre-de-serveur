@@ -1,15 +1,25 @@
 [Unit]
 Description=Maître installer (runs only from installer media)
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=/run/maitre-installer
+Documentation=https://github.com/Onfire7/maitre-de-serveur
+After=network-online.target avahi-daemon.service
+Wants=network-online.target avahi-daemon.service
+ConditionKernelCommandLine=maitre.installer
+# The status screen owns tty1; no login prompt there.
+Conflicts=getty@tty1.service
 
 [Service]
 Type=simple
+# Image to install and other settings come from the kernel command line
+# (maitre.image=, maitre.insecure_registry=), baked into the media by the
+# image build.
 ExecStart=/usr/bin/maitre installer
 Restart=on-failure
+RestartSec=5
 StandardOutput=tty
+StandardError=journal+console
 TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
 
 [Install]
 WantedBy=multi-user.target

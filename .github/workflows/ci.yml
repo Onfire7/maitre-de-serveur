@@ -70,8 +70,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
       - run: make image VERSION=${{ github.sha }}
-      # Boot test needs rootful podman + KVM. Enabled once the runner is confirmed to have /dev/kvm.
+      # Full Milestone 1 demo: boot the image as installer media, provision it
+      # from the host, reboot into the Node. Needs rootful podman + KVM.
       - run: |
-          if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 && make image-boot VERSION=${{ github.sha }}; \
+          if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 qemu-utils && make image-boot VERSION=${{ github.sha }}; \
           else echo "no /dev/kvm on this runner; boot test skipped"; fi

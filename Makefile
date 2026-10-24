@@ -51,8 +51,8 @@ m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, th
 image: build ## Build the Maître Server bootc image (needs podman)
 	podman build -t localhost/maitre-server:$(VERSION) -f image/Containerfile .
 
-image-boot: ## Boot the image in QEMU and wait for the agent (needs podman, bootc-image-builder, qemu)
-	./image/boot-test.sh localhost/maitre-server:$(VERSION)
+image-boot: build ## Install from the image in QEMU and reboot into a Node (needs rootful podman, qemu, KVM)
+	MAITRE=./server/bin/maitre ./image/boot-test.sh localhost/maitre-server:$(VERSION)
 
 clean:
 	rm -rf server/bin desktop/dist

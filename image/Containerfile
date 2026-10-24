@@ -16,7 +16,7 @@ FROM quay.io/fedora/fedora-bootc:42
 # Runtime for Services, storage, and discovery. Kept deliberately short;
 # anything else is a container. podman, nfs-utils and avahi already ship in
 # fedora-bootc; nss-mdns is what lets the host resolve *.local names.
-RUN dnf -y install nss-mdns && dnf clean all
+RUN dnf -y install nss-mdns e2fsprogs && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).
@@ -30,11 +30,8 @@ RUN set -eu; arch="$(uname -m)"; \
     dnf -y install "/tmp/${rpm}" && dnf clean all && rm -f "/tmp/${rpm}"
 
 COPY --from=agent /maitre /usr/bin/maitre
-COPY image/maitre-agent.service /usr/lib/systemd/system/maitre-agent.service
-COPY image/maitre-installer.service /usr/lib/systemd/system/maitre-installer.service
-COPY image/maitre-firstboot.sh /usr/libexec/maitre-firstboot
-RUN chmod +x /usr/libexec/maitre-firstboot \
-    && systemctl enable maitre-agent.service avahi-daemon.service podman.socket
+COPY image/maitre-agent.service image/maitre-installer.service image/var-lib-maitre.mount /usr/lib/systemd/system/
+RUN systemctl enable maitre-agent.service maitre-installer.service var-lib-maitre.mount avahi-daemon.service podman.socket
 
 # bootc lint catches image-layout mistakes at build time.
 RUN bootc container lint

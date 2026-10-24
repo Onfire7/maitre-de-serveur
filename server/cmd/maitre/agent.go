@@ -121,7 +121,8 @@ func runInstaller(args []string) error {
 	fs := flag.NewFlagSet("installer", flag.ExitOnError)
 	state := fs.String("state", "/run/maitre-installer", "scratch directory for the Installer's identity")
 	listen := fs.String("listen", fmt.Sprintf("0.0.0.0:%d", port), "address to listen on")
-	image := fs.String("image", imageFromKernelCmdline(), "container image to install (default from maitre.image= kernel argument)")
+	image := fs.String("image", kernelArg("maitre.image"), "container image to install (default from maitre.image= kernel argument)")
+	insecure := fs.String("insecure-registry", kernelArg("maitre.insecure_registry"), "testing: registry host:port to pull from without TLS (default from maitre.insecure_registry=)")
 	noMDNS := fs.Bool("no-mdns", false, "do not advertise on mDNS")
 	noScreen := fs.Bool("no-screen", false, "do not redraw the status screen on stdout")
 	noReboot := fs.Bool("no-reboot", false, "do not reboot after a successful install")
@@ -132,6 +133,12 @@ func runInstaller(args []string) error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if *image == "" {
 		return errors.New("no image to install: pass --image or boot with maitre.image=<ref>")
+	}
+	if *insecure != "" && *fake == "" {
+		if err := installer.AllowInsecureRegistry(*insecure); err != nil {
+			return err
+		}
+		log.Warn("pulling from an insecure registry (testing only)", "registry", *insecure)
 	}
 
 	id, err := identity.LoadOrGenerate(filepath.Join(*state, "identity"))
@@ -220,14 +227,14 @@ func listenPort(addr string) uint16 {
 	return uint16(n)
 }
 
-// imageFromKernelCmdline reads maitre.image=<ref> from /proc/cmdline.
-func imageFromKernelCmdline() string {
+// kernelArg reads key=<value> from /proc/cmdline.
+func kernelArg(key string) string {
 	b, err := os.ReadFile("/proc/cmdline")
 	if err != nil {
 		return ""
 	}
 	for _, f := range strings.Fields(string(b)) {
-		if v, ok := strings.CutPrefix(f, "maitre.image="); ok {
+		if v, ok := strings.CutPrefix(f, key+"="); ok {
 			return v
 		}
 	}

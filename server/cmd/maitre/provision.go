@@ -37,6 +37,7 @@ func runProvision(args []string) error {
 	data := fs.Bool("data", false, "create a data partition from the remaining space")
 	yes := fs.Bool("yes", false, "do not ask to confirm the pairing code")
 	wait := fs.Bool("wait", true, "poll until the install finishes")
+	savePub := fs.String("save-node-pub", "", "write the new Node's public key PEM here (it keeps the Installer's key)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -83,6 +84,16 @@ func runProvision(args []string) error {
 		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "y") {
 			return fmt.Errorf("pairing not confirmed")
+		}
+	}
+
+	if *savePub != "" {
+		instID, err := identity.FromPublicKey(instKey)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(*savePub, instID.PublicKeyPEM(), 0o644); err != nil {
+			return err
 		}
 	}
 
