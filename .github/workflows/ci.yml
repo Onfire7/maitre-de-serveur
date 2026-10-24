@@ -77,5 +77,5 @@ jobs:
       # Full Milestone 1 demo: boot the image as installer media, provision it
       # from the host, reboot into the Node. Needs rootful podman + KVM.
       - run: |
-          if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 qemu-utils && make image-boot VERSION=${{ github.sha }}; \
+          if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 qemu-utils ovmf && make image-boot VERSION=${{ github.sha }}; \
           else echo "no /dev/kvm on this runner; boot test skipped"; fi

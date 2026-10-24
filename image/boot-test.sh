@@ -57,12 +57,18 @@ qemu-img create -f qcow2 "$TARGET" 40G >/dev/null
 
 if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
 
-# 3. Boot. The empty target has bootindex 0 so that after the install the
-#    machine boots the new Node; the firmware falls through to the installer
-#    while the target is blank.
-echo "booting installer $INSTALLER with blank target $TARGET"
+# 3. Boot under UEFI, like real hardware. The empty target has bootindex 0 so
+#    that after the install the machine boots the new Node; the firmware
+#    skips it while it is blank and boots the installer.
+OVMF_CODE=$(ls /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/ovmf/OVMF_CODE.fd 2>/dev/null | head -1)
+OVMF_VARS=$(ls /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /usr/share/edk2/x64/OVMF_VARS.4m.fd /usr/share/edk2/ovmf/OVMF_VARS.fd 2>/dev/null | head -1)
+[ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || { echo "boot-test: OVMF firmware not found (install ovmf/edk2-ovmf)"; exit 1; }
+cp "$OVMF_VARS" "$OUT/vars.fd"
+echo "booting installer $INSTALLER with blank target $TARGET (UEFI $OVMF_CODE)"
 qemu-system-x86_64 \
-  -m 3072 -smp 2 -nographic -enable-kvm -cpu host \
+  -m 3072 -smp 2 -nographic -enable-kvm -cpu host -machine q35 \
+  -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" \
+  -drive "if=pflash,format=raw,file=$OUT/vars.fd" \
   -drive "file=$TARGET,format=qcow2,if=none,id=target" -device virtio-blk-pci,drive=target,bootindex=0 \
   -drive "file=$INSTALLER,format=qcow2,if=none,id=installer" -device virtio-blk-pci,drive=installer,bootindex=1 \
   -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443" -device virtio-net-pci,netdev=n0 \
