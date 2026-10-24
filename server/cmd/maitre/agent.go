@@ -35,6 +35,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
@@ -185,7 +186,7 @@ func runAgent(args []string) error {
 			defer ad.Close()
 		}
 	}
-	return serve(ctx, log, *listen, peer.Middleware(mux), mtls.ServerConfig(id, list))
+	return serve(ctx, log, *listen, peer.Middleware(svcproxy.Handler(st, mux)), mtls.ServerConfig(id, list))
 }
 
 // runInstaller is `maitre installer`: the mode booted from installer media.

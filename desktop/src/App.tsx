@@ -4,6 +4,7 @@ import { NodeService, type NodeInfo } from "./gen/maitre/v1/node_pb";
 import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./gen/maitre/v1/installer_pb";
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
+import { ServicesPanel } from "./services";
 
 type Screen =
   | { name: "home" }
@@ -486,6 +487,8 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
           </tbody>
         </table>
       )}
+      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
+      {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>
   );
 }

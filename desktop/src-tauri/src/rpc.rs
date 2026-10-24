@@ -135,6 +135,24 @@ fn own_credentials(id: &Identity) -> Result<(Vec<CertificateDer<'static>>, Priva
     Ok((certs, key))
 }
 
+/// rustls config presenting `id`, trusting only `fingerprint`, with the given ALPN list.
+pub fn pinned_tls_config(id: &Identity, fingerprint: &str, alpn: &[Vec<u8>]) -> Result<rustls::ClientConfig, String> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let (certs, key) = own_credentials(id)?;
+    let mut config = rustls::ClientConfig::builder_with_provider(provider.clone())
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        .map_err(|e| e.to_string())?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(PinnedKeyVerifier {
+            trusted: HashSet::from([fingerprint.trim().to_lowercase()]),
+            provider,
+        }))
+        .with_client_auth_cert(certs, key)
+        .map_err(|e| format!("client auth: {e}"))?;
+    config.alpn_protocols = alpn.to_vec();
+    Ok(config)
+}
+
 /// Build a client that presents `id` and trusts only the given Node fingerprints.
 pub fn build_client(id: &Identity, trusted: HashSet<String>) -> Result<reqwest::Client, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());

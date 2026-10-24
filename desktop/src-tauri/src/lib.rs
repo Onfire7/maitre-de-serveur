@@ -1,6 +1,7 @@
 mod discovery;
 mod identity;
 mod pairing;
+mod proxy;
 mod recovery;
 mod rpc;
 
@@ -10,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 
 /// The Fleet this Console administers. Created on first run (Milestone 1);
@@ -64,7 +65,8 @@ pub struct Peek {
 
 struct AppState {
     data_dir: PathBuf,
-    identity: Identity,
+    identity: Arc<Identity>,
+    proxies: proxy::Proxies,
     state: Mutex<ConsoleState>,
     clients: Mutex<HashMap<String, reqwest::Client>>,
     discovery: Discovery,
@@ -165,6 +167,13 @@ async fn peek_installer(state: State<'_, AppState>, addr: String) -> Result<Peek
     })
 }
 
+/// Start (or reuse) a loopback proxy for a Service's web page and return
+/// the local URL the built-in browser should open (decision 71).
+#[tauri::command]
+async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
+    state.proxies.open(state.identity.clone(), addr, fingerprint, service).await
+}
+
 /// Send one Connect-protocol unary request to `addr`, trusting only `fingerprint`.
 /// `procedure` is like "/maitre.v1.NodeService/GetNodeInfo".
 #[tauri::command]
@@ -214,7 +223,8 @@ pub fn run() {
                 .unwrap_or_default();
             app.manage(AppState {
                 data_dir,
-                identity,
+                identity: Arc::new(identity),
+                proxies: proxy::Proxies::default(),
                 state: Mutex::new(state),
                 clients: Mutex::new(HashMap::new()),
                 discovery: Discovery::start(),
@@ -228,6 +238,7 @@ pub fn run() {
             create_fleet,
             discover,
             peek_installer,
+            service_url,
             rpc
         ])
         .run(tauri::generate_context!())

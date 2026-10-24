@@ -24,7 +24,9 @@ func ServerConfig(id *identity.Identity, list *trust.List) *tls.Config {
 		// skips chain verification; VerifyPeerCertificate does the real check.
 		ClientAuth:            tls.RequireAnyClientCert,
 		VerifyPeerCertificate: list.VerifyPeer,
-		NextProtos:            []string{"h2"},
+		// h2 for RPC; http/1.1 for the Service tunnel, where WebSocket
+		// upgrades need it.
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 }
 
@@ -65,7 +67,9 @@ func ClientConfig(id *identity.Identity, list *trust.List) *tls.Config {
 		// server's key to the trust list.
 		InsecureSkipVerify:    true, //nolint:gosec // see comment above
 		VerifyPeerCertificate: list.VerifyPeer,
-		NextProtos:            []string{"h2"},
+		// h2 for RPC; http/1.1 for the Service tunnel, where WebSocket
+		// upgrades need it.
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 }
 
