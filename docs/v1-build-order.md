@@ -21,7 +21,7 @@ The order follows dependencies, not importance. Each milestone ends in something
 /docs/          ADRs, this plan
 ```
 
-The Catalog is a separate repository (`maitre-catalog`), MIT licensed.
+The Catalog is a separate repository, github.com/Onfire7/maitre-catalog, MIT licensed, included here as a submodule.
 
 ## Milestone 0: Skeleton and dev loop
 
@@ -139,7 +139,7 @@ Demo: a fresh laptop, download Maître Desktop, prepare a USB, install a Node, r
 - 71. Console reaches Private Services through a loopback proxy that tunnels over the agent's mTLS listener (X-Maitre-Service header); Caddy serves plain HTTP on the LAN.
 - 72. Node status screens are plain text.
 - 73. Catalog is delivered as a generated JSON index, baked into the image and refreshed over HTTPS later.
-- 74. Catalog lives in `catalog/` in the monorepo until a separate repository is named.
+- 74. Catalog is its own MIT repository, github.com/Onfire7/maitre-catalog, included in the monorepo as a git submodule at `catalog/` so the image bakes a pinned Catalog revision (decided 2026-10-24).
 
 ## Open questions to settle before Milestone 2
 
