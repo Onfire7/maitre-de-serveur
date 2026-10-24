@@ -128,6 +128,14 @@ Demo: a fresh laptop, download Maître Desktop, prepare a USB, install a Node, r
 - **Security review points.** End of Milestone 1 (pairing and trust list), end of Milestone 5 (exposure). Both use only standard-library TLS and Tailscale's own library; the review is of how they are wired, not of any custom cryptography.
 - **Deferred to after v1**, in roughly this order: mirrored copies and Synced placement, SnapRAID parity on Parity Drives, backups, drive migration, Members and gated access, UPnP, dynamic DNS.
 
+## Decisions made while building (continuing the numbering)
+
+- 66. Pairing code: numeric comparison from both keys, one tap. ADR 0005.
+- 67. Recovery Phrase: BIP39 twelve words deriving an Ed25519 key; public half stored recovery-only. ADR 0005.
+- 68. Installer media: a raw disk image of the same bootc image with `maitre.installer` and `maitre.image=` kernel arguments. No separate ISO.
+- 69. Install networking: Ethernet with DHCP only; the Installer screen says so until it has an address.
+- 70. Image source during install: pulled from the registry over the internet (bootc cannot copy the running system). Offline media is deferred.
+
 ## Open questions to settle before Milestone 2
 
 1. Console webview trust for Private Services (see Milestone 2). Recommended: loopback proxy over mTLS.

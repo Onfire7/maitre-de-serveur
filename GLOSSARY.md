@@ -25,8 +25,8 @@ An installation of Maître Desktop whose key has been approved to administer a F
 _Avoid_: User, account, login, client
 
 **Pairing**:
-The act of approving a new Trusted Device or a new Node by confirming a short code shown on the machine's own screen.
-_Avoid_: Enrollment, registration, login
+The act of approving a new Trusted Device or a new Node by confirming that the short code on the machine's own screen matches the one in the Console (ADR 0005).
+_Avoid_: Enrollment, registration, login, pairing PIN
 
 **Recovery Phrase**:
 A one-time secret shown when a Fleet is created that can approve a new Trusted Device when all others are lost.
@@ -55,6 +55,10 @@ _Avoid_: App store, marketplace, registry
 **Installer**:
 The bootable media that turns a bare machine into a Node, driven from the management app with the machine's own screen used only to confirm pairing.
 _Avoid_: ISO, live USB, setup disk
+
+**Config Partition**:
+The small partition the Installer creates next to the OS, holding the Node's key and its copy of the Fleet database; it is what survives a reinstall and what gets backed up to Drives.
+_Avoid_: State partition, /var
 
 ## Storage
 
