@@ -14,14 +14,20 @@ RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /maitre ./cm
 FROM quay.io/fedora/fedora-bootc:42
 
 # Runtime for Services, storage, and discovery. Kept deliberately short;
-# anything else is a container.
-RUN dnf -y install \
-      podman \
-      mergerfs \
-      nfs-utils \
-      avahi \
-      nss-mdns \
-    && dnf clean all
+# anything else is a container. podman, nfs-utils and avahi already ship in
+# fedora-bootc; nss-mdns is what lets the host resolve *.local names.
+RUN dnf -y install nss-mdns && dnf clean all
+
+# mergerfs is not packaged in Fedora. Install the upstream release RPM,
+# pinned by version and checked against its published sha256 (ADR 0004).
+ARG MERGERFS_VERSION=2.42.0
+ARG MERGERFS_SHA256=b2950da251247c1f6573c071befde649b674bc6c8b5f5a23ca82a01347a0b1d3
+RUN set -eu; arch="$(uname -m)"; \
+    rpm="mergerfs-${MERGERFS_VERSION}-1.fc42.${arch}.rpm"; \
+    curl -fsSL -o "/tmp/${rpm}" \
+      "https://github.com/trapexit/mergerfs/releases/download/${MERGERFS_VERSION}/${rpm}"; \
+    if [ "${arch}" = x86_64 ]; then echo "${MERGERFS_SHA256}  /tmp/${rpm}" | sha256sum -c -; fi; \
+    dnf -y install "/tmp/${rpm}" && dnf clean all && rm -f "/tmp/${rpm}"
 
 COPY --from=agent /maitre /usr/bin/maitre
 COPY image/maitre-agent.service /usr/lib/systemd/system/maitre-agent.service
