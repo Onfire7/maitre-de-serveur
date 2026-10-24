@@ -13,6 +13,10 @@ Type=simple
 ExecStart=/usr/bin/maitre dev --state /var/lib/maitre --listen 0.0.0.0:7443
 Restart=always
 RestartSec=2
+# Mirror logs to the console so the QEMU boot test (and a human at the screen)
+# can see the agent start.
+StandardOutput=journal+console
+StandardError=journal+console
 StateDirectory=maitre
 StateDirectoryMode=0700
 
