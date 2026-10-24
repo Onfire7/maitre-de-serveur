@@ -7,6 +7,13 @@ IMAGE=${1:?image ref}
 OUT=${OUT:-$(mktemp -d)}
 TIMEOUT=${TIMEOUT:-300}
 
+# bootc-image-builder reads from root's image store. If the image was built
+# rootless (as in CI), copy it over first.
+if ! sudo podman image exists "$IMAGE"; then
+  echo "copying $IMAGE into rootful podman storage"
+  podman save "$IMAGE" | sudo podman load
+fi
+
 sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
   -v "$OUT:/output" -v /var/lib/containers/storage:/var/lib/containers/storage \
   quay.io/centos-bootc/bootc-image-builder:latest \
