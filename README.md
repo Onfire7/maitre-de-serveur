@@ -48,6 +48,8 @@ make dev-qemu FRESH=1    # wipe the VM and start over
 
 The VM's window is the machine's monitor and shows the pairing code. The VM is behind QEMU's NAT, so the Console will not discover it; use "Set up by address" with `127.0.0.1:17443`. Services installed on the VM open in the Console as usual, or from the host with `curl -H 'Host: <name>.maitre.local' http://127.0.0.1:18080/`. The installer pulls the OS from `ghcr.io/onfire7/maitre-server`, which CI publishes on every push to main.
 
+On Linux the Desktop disables WebKitGTK's DMA-BUF renderer by default, because it crashes with a Wayland protocol error on NVIDIA. Set `WEBKIT_DISABLE_DMABUF_RENDERER=0` to opt back in.
+
 To walk only the pairing flow, run an Installer with the fake runner and let the Console find it over mDNS:
 
 ```
