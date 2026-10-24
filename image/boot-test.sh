@@ -19,7 +19,12 @@ sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
   quay.io/centos-bootc/bootc-image-builder:latest \
   --type qcow2 --rootfs xfs --local "$IMAGE"
 
+# bib ran as root; hand the output back so QEMU can run unprivileged.
+sudo chown -R "$(id -u):$(id -g)" "$OUT"
 DISK=$(find "$OUT" -name '*.qcow2' | head -1)
+[ -n "$DISK" ] || { echo "boot-test: no qcow2 produced"; ls -R "$OUT"; exit 1; }
+# GitHub runners expose /dev/kvm but not always to the runner user.
+if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
 echo "booting $DISK"
 timeout "$TIMEOUT" qemu-system-x86_64 \
   -m 2048 -smp 2 -nographic -enable-kvm -cpu host \
@@ -27,4 +32,4 @@ timeout "$TIMEOUT" qemu-system-x86_64 \
   -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
   2>&1 | tee "$OUT/serial.log" | grep -m1 -E 'maitre.*listening' \
   && { echo "boot-test: agent came up"; exit 0; }
-echo "boot-test: agent did not come up within ${TIMEOUT}s"; tail -50 "$OUT/serial.log"; exit 1
+echo "boot-test: agent did not come up within ${TIMEOUT}s"; tail -80 "$OUT/serial.log"; exit 1
