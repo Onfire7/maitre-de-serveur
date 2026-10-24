@@ -146,3 +146,7 @@ Demo: a fresh laptop, download Maître Desktop, prepare a USB, install a Node, r
 1. Console webview trust for Private Services (see Milestone 2). Recommended: loopback proxy over mTLS.
 2. Console status screen on the Node: plain text from the agent, or a small TUI library. Recommended: plain text, it is read once.
 3. Catalog index delivery: git clone on the Node or a generated JSON index fetched over HTTPS. Recommended: JSON index, signed with the same key that signs the image once signing exists.
+
+## Open questions found while building
+
+- 75. `<service>.maitre.local` does not resolve from Linux desktops: nss-mdns's default `mdns_minimal` module rejects names with more than two labels (`foo.bar.local`), and that is what Fedora, Ubuntu and Arch ship. macOS, iOS, Windows and Android resolve them. Options: (a) keep the names and document that Linux users open Services through the Console (the proxy needs no name resolution); (b) flatten to `<service>.local`, which collides with other devices on the LAN and gives up the Maître namespace; (c) have the Node also answer plain DNS for `maitre.local` and let Linux users point at it. Recommended: (a) for v1, revisit with Milestone 5's remote access, where names stop being mDNS anyway.
