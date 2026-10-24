@@ -50,6 +50,10 @@ impl Identity {
         fingerprint_of_raw_key(self.key_pair.public_key_raw())
     }
 
+    pub fn public_key_raw(&self) -> &[u8] {
+        self.key_pair.public_key_raw()
+    }
+
     pub fn public_key_pem(&self) -> String {
         self.key_pair.public_key_pem()
     }

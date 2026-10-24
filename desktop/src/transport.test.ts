@@ -1,29 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
-import { GetNodeInfoResponseSchema, NodeService } from "./gen/maitre/v1/node_pb";
 
-// Stand in for the Tauri `rpc` command: record the call, answer with a
-// serialised GetNodeInfoResponse like a Node would.
-const calls: { procedure: string; body: number[] }[] = [];
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: async (_cmd: string, args: { procedure: string; body: number[] }) => {
-    calls.push(args);
-    const msg = create(GetNodeInfoResponseSchema, {
-      node: { nodeId: "abc", name: "basement", version: "dev", devMode: true, uptimeSeconds: 7n },
+const invoke = vi.fn();
+vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
+
+import { NodeService, GetNodeInfoResponseSchema } from "./gen/maitre/v1/node_pb";
+import { transportFor } from "./transport";
+
+describe("transportFor", () => {
+  it("routes a unary call through the rpc command with the pinned target", async () => {
+    const reply = create(GetNodeInfoResponseSchema, { node: { nodeId: "abc", name: "n1", version: "dev" } });
+    invoke.mockResolvedValueOnce({
+      status: 200,
+      content_type: "application/proto",
+      body: Array.from(toBinary(GetNodeInfoResponseSchema, reply)),
     });
-    return { status: 200, content_type: "application/proto", body: Array.from(toBinary(GetNodeInfoResponseSchema, msg)) };
-  },
-}));
-
-describe("tauri transport", () => {
-  it("routes a generated client call through the rpc command", async () => {
-    const { transport } = await import("./transport");
-    const node = createClient(NodeService, transport);
-    const res = await node.getNodeInfo({});
-    expect(calls).toHaveLength(1);
-    expect(calls[0].procedure).toBe("/maitre.v1.NodeService/GetNodeInfo");
-    expect(res.node?.name).toBe("basement");
-    expect(res.node?.uptimeSeconds).toBe(7n);
+    const client = createClient(NodeService, transportFor({ addr: "10.0.0.5:7443", fingerprint: "ff".repeat(32) }));
+    const res = await client.getNodeInfo({});
+    expect(res.node?.name).toBe("n1");
+    expect(invoke).toHaveBeenCalledWith(
+      "rpc",
+      expect.objectContaining({
+        addr: "10.0.0.5:7443",
+        fingerprint: "ff".repeat(32),
+        procedure: "/maitre.v1.NodeService/GetNodeInfo",
+      }),
+    );
   });
 });
