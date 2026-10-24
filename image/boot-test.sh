@@ -115,7 +115,7 @@ echo "boot-test: node OK (installed from USB-equivalent media, rebooted, answere
 # 5. Milestone 2: install a Service from the Catalog and reach it by name
 #    through the Node's Caddy (plain HTTP on the LAN, decision 71).
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" catalog
-"$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" install uptime-kuma --wait 10m
+"$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --wait 10m install uptime-kuma
 for i in $(seq 1 30); do
   code=$(curl -s -o "$OUT/web.html" -w '%{http_code}' -H 'Host: uptime-kuma.maitre.local' "http://127.0.0.1:${WEB_PORT}/" || true)
   [ "$code" = 200 ] && break

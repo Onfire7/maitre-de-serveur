@@ -48,7 +48,7 @@ func runService(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags] <catalog|install <entry> [name]|list|logs <name>|start|stop|restart|remove <name>>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|start|stop|restart|remove <name>>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
