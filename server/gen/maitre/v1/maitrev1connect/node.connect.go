@@ -30,6 +30,8 @@ const (
 	NodeServiceListRecordsProcedure = "/maitre.v1.NodeService/ListRecords"
 	// NodeServicePutRecordProcedure is the procedure name of the NodeService's PutRecord RPC.
 	NodeServicePutRecordProcedure = "/maitre.v1.NodeService/PutRecord"
+	// NodeServiceGetNodeMetricsProcedure is the procedure name of the NodeService's GetNodeMetrics RPC.
+	NodeServiceGetNodeMetricsProcedure = "/maitre.v1.NodeService/GetNodeMetrics"
 )
 
 var (
@@ -54,6 +56,13 @@ var (
 			Procedure:  NodeServicePutRecordProcedure,
 		}
 	})
+	nodeServiceGetNodeMetricsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("GetNodeMetrics"),
+			Procedure:  NodeServiceGetNodeMetricsProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -68,6 +77,8 @@ type NodeServiceClient interface {
 	// queued if the owner is offline. Version and owner in the request are
 	// ignored; the caller sends the body it wants.
 	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
+	// GetNodeMetrics returns the gauges the Console shows for this Node.
+	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -88,6 +99,8 @@ type NodeServiceHandler interface {
 	// queued if the owner is offline. Version and owner in the request are
 	// ignored; the caller sends the body it wants.
 	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
+	// GetNodeMetrics returns the gauges the Console shows for this Node.
+	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -97,6 +110,7 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceGetNodeInfoSpec(), Handler: adapter.getNodeInfo},
 		connect.Method{Spec: nodeServiceListRecordsSpec(), Handler: adapter.listRecords},
 		connect.Method{Spec: nodeServicePutRecordSpec(), Handler: adapter.putRecord},
+		connect.Method{Spec: nodeServiceGetNodeMetricsSpec(), Handler: adapter.getNodeMetrics},
 	)
 }
 
@@ -113,6 +127,10 @@ func (UnimplementedNodeServiceHandler) ListRecords(context.Context, *v1.ListReco
 
 func (UnimplementedNodeServiceHandler) PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.PutRecord is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetNodeMetrics is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -138,6 +156,14 @@ func (c *nodeServiceClient) ListRecords(ctx context.Context, req *v1.ListRecords
 func (c *nodeServiceClient) PutRecord(ctx context.Context, req *v1.PutRecordRequest) (*v1.PutRecordResponse, error) {
 	var res v1.PutRecordResponse
 	if err := c.client.CallUnary(ctx, nodeServicePutRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) GetNodeMetrics(ctx context.Context, req *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error) {
+	var res v1.GetNodeMetricsResponse
+	if err := c.client.CallUnary(ctx, nodeServiceGetNodeMetricsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -175,6 +201,18 @@ func (h nodeServiceHandler) putRecord(ctx context.Context, _ connect.Spec, strea
 		return err
 	}
 	res, err := h.svc.PutRecord(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) getNodeMetrics(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetNodeMetricsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetNodeMetrics(ctx, &req)
 	if err != nil {
 		return err
 	}

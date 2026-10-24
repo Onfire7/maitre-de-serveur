@@ -31,6 +31,8 @@ type Service struct {
 	// OnChange is called after every applied write so the agent can refresh
 	// derived state such as the trust list. Optional.
 	OnChange func(*maitrev1.Record)
+	// Metrics supplies GetNodeMetrics; nil means empty readings.
+	Metrics func() *maitrev1.NodeMetrics
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -106,4 +108,12 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		s.OnChange(rec)
 	}
 	return &maitrev1.PutRecordResponse{Record: rec}, nil
+}
+
+// GetNodeMetrics implements NodeService.
+func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsRequest) (*maitrev1.GetNodeMetricsResponse, error) {
+	if s.Metrics == nil {
+		return &maitrev1.GetNodeMetricsResponse{Metrics: &maitrev1.NodeMetrics{}}, nil
+	}
+	return &maitrev1.GetNodeMetricsResponse{Metrics: s.Metrics()}, nil
 }

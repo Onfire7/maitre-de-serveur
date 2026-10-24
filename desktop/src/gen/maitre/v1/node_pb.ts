@@ -12,7 +12,111 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/node.proto.
  */
 export const file_maitre_v1_node: GenFile = /*@__PURE__*/
-  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIiIKEkxpc3RSZWNvcmRzUmVxdWVzdBIMCgRraW5kGAEgASgJIjkKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLm1haXRyZS52MS5SZWNvcmQiNQoQUHV0UmVjb3JkUmVxdWVzdBIhCgZyZWNvcmQYASABKAsyES5tYWl0cmUudjEuUmVjb3JkIkYKEVB1dFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLm1haXRyZS52MS5SZWNvcmQSDgoGcXVldWVkGAIgASgIIhQKEkdldE5vZGVJbmZvUmVxdWVzdCI4ChNHZXROb2RlSW5mb1Jlc3BvbnNlEiEKBG5vZGUYASABKAsyEy5tYWl0cmUudjEuTm9kZUluZm8idgoITm9kZUluZm8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEg8KB3ZlcnNpb24YBCABKAkSFgoOdXB0aW1lX3NlY29uZHMYBSABKAQSEAoIZGV2X21vZGUYBiABKAgy9wEKC05vZGVTZXJ2aWNlEk4KC0dldE5vZGVJbmZvEh0ubWFpdHJlLnYxLkdldE5vZGVJbmZvUmVxdWVzdBoeLm1haXRyZS52MS5HZXROb2RlSW5mb1Jlc3BvbnNlIgASTgoLTGlzdFJlY29yZHMSHS5tYWl0cmUudjEuTGlzdFJlY29yZHNSZXF1ZXN0Gh4ubWFpdHJlLnYxLkxpc3RSZWNvcmRzUmVzcG9uc2UiABJICglQdXRSZWNvcmQSGy5tYWl0cmUudjEuUHV0UmVjb3JkUmVxdWVzdBocLm1haXRyZS52MS5QdXRSZWNvcmRSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z", [file_maitre_v1_fleet]);
+  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIhcKFUdldE5vZGVNZXRyaWNzUmVxdWVzdCJBChZHZXROb2RlTWV0cmljc1Jlc3BvbnNlEicKB21ldHJpY3MYASABKAsyFi5tYWl0cmUudjEuTm9kZU1ldHJpY3MihwIKC05vZGVNZXRyaWNzEhMKC2NwdV9wZXJjZW50GAEgASgBEhoKEm1lbW9yeV90b3RhbF9ieXRlcxgCIAEoBBIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIYChBwb29sX3RvdGFsX2J5dGVzGAQgASgEEhcKD3Bvb2xfdXNlZF9ieXRlcxgFIAEoBBIVCg1wb29sX2ZhbGxiYWNrGAYgASgIEhwKFG5ldF9yeF9ieXRlc19wZXJfc2VjGAcgASgBEhwKFG5ldF90eF9ieXRlc19wZXJfc2VjGAggASgBEhUKDXRlbXBlcmF0dXJlX2MYCSABKAESDwoHbG9hZF8xbRgKIAEoASIiChJMaXN0UmVjb3Jkc1JlcXVlc3QSDAoEa2luZBgBIAEoCSI5ChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiIKB3JlY29yZHMYASADKAsyES5tYWl0cmUudjEuUmVjb3JkIjUKEFB1dFJlY29yZFJlcXVlc3QSIQoGcmVjb3JkGAEgASgLMhEubWFpdHJlLnYxLlJlY29yZCJGChFQdXRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5tYWl0cmUudjEuUmVjb3JkEg4KBnF1ZXVlZBgCIAEoCCIUChJHZXROb2RlSW5mb1JlcXVlc3QiOAoTR2V0Tm9kZUluZm9SZXNwb25zZRIhCgRub2RlGAEgASgLMhMubWFpdHJlLnYxLk5vZGVJbmZvInYKCE5vZGVJbmZvEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIQCghmbGVldF9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDnVwdGltZV9zZWNvbmRzGAUgASgEEhAKCGRldl9tb2RlGAYgASgIMtACCgtOb2RlU2VydmljZRJOCgtHZXROb2RlSW5mbxIdLm1haXRyZS52MS5HZXROb2RlSW5mb1JlcXVlc3QaHi5tYWl0cmUudjEuR2V0Tm9kZUluZm9SZXNwb25zZSIAEk4KC0xpc3RSZWNvcmRzEh0ubWFpdHJlLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLm1haXRyZS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlIgASSAoJUHV0UmVjb3JkEhsubWFpdHJlLnYxLlB1dFJlY29yZFJlcXVlc3QaHC5tYWl0cmUudjEuUHV0UmVjb3JkUmVzcG9uc2UiABJXCg5HZXROb2RlTWV0cmljcxIgLm1haXRyZS52MS5HZXROb2RlTWV0cmljc1JlcXVlc3QaIS5tYWl0cmUudjEuR2V0Tm9kZU1ldHJpY3NSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z", [file_maitre_v1_fleet]);
+
+/**
+ * @generated from message maitre.v1.GetNodeMetricsRequest
+ */
+export type GetNodeMetricsRequest = Message<"maitre.v1.GetNodeMetricsRequest"> & {
+};
+
+/**
+ * Describes the message maitre.v1.GetNodeMetricsRequest.
+ * Use `create(GetNodeMetricsRequestSchema)` to create a new message.
+ */
+export const GetNodeMetricsRequestSchema: GenMessage<GetNodeMetricsRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 0);
+
+/**
+ * @generated from message maitre.v1.GetNodeMetricsResponse
+ */
+export type GetNodeMetricsResponse = Message<"maitre.v1.GetNodeMetricsResponse"> & {
+  /**
+   * @generated from field: maitre.v1.NodeMetrics metrics = 1;
+   */
+  metrics?: NodeMetrics | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.GetNodeMetricsResponse.
+ * Use `create(GetNodeMetricsResponseSchema)` to create a new message.
+ */
+export const GetNodeMetricsResponseSchema: GenMessage<GetNodeMetricsResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 1);
+
+/**
+ * NodeMetrics is a point-in-time reading; history stays on the Node.
+ *
+ * @generated from message maitre.v1.NodeMetrics
+ */
+export type NodeMetrics = Message<"maitre.v1.NodeMetrics"> & {
+  /**
+   * 0..100 across all cores since the previous call (0 on the first).
+   *
+   * @generated from field: double cpu_percent = 1;
+   */
+  cpuPercent: number;
+
+  /**
+   * @generated from field: uint64 memory_total_bytes = 2;
+   */
+  memoryTotalBytes: bigint;
+
+  /**
+   * @generated from field: uint64 memory_used_bytes = 3;
+   */
+  memoryUsedBytes: bigint;
+
+  /**
+   * Default Pool capacity.
+   *
+   * @generated from field: uint64 pool_total_bytes = 4;
+   */
+  poolTotalBytes: bigint;
+
+  /**
+   * @generated from field: uint64 pool_used_bytes = 5;
+   */
+  poolUsedBytes: bigint;
+
+  /**
+   * True when the Pool is a directory on the OS partition (no Drive).
+   *
+   * @generated from field: bool pool_fallback = 6;
+   */
+  poolFallback: boolean;
+
+  /**
+   * Bytes per second over all non-loopback interfaces since the previous call.
+   *
+   * @generated from field: double net_rx_bytes_per_sec = 7;
+   */
+  netRxBytesPerSec: number;
+
+  /**
+   * @generated from field: double net_tx_bytes_per_sec = 8;
+   */
+  netTxBytesPerSec: number;
+
+  /**
+   * Highest thermal zone reading in Celsius; 0 if none.
+   *
+   * @generated from field: double temperature_c = 9;
+   */
+  temperatureC: number;
+
+  /**
+   * @generated from field: double load_1m = 10;
+   */
+  load1m: number;
+};
+
+/**
+ * Describes the message maitre.v1.NodeMetrics.
+ * Use `create(NodeMetricsSchema)` to create a new message.
+ */
+export const NodeMetricsSchema: GenMessage<NodeMetrics> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 2);
 
 /**
  * @generated from message maitre.v1.ListRecordsRequest
@@ -31,7 +135,7 @@ export type ListRecordsRequest = Message<"maitre.v1.ListRecordsRequest"> & {
  * Use `create(ListRecordsRequestSchema)` to create a new message.
  */
 export const ListRecordsRequestSchema: GenMessage<ListRecordsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 0);
+  messageDesc(file_maitre_v1_node, 3);
 
 /**
  * @generated from message maitre.v1.ListRecordsResponse
@@ -48,7 +152,7 @@ export type ListRecordsResponse = Message<"maitre.v1.ListRecordsResponse"> & {
  * Use `create(ListRecordsResponseSchema)` to create a new message.
  */
 export const ListRecordsResponseSchema: GenMessage<ListRecordsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 1);
+  messageDesc(file_maitre_v1_node, 4);
 
 /**
  * @generated from message maitre.v1.PutRecordRequest
@@ -65,7 +169,7 @@ export type PutRecordRequest = Message<"maitre.v1.PutRecordRequest"> & {
  * Use `create(PutRecordRequestSchema)` to create a new message.
  */
 export const PutRecordRequestSchema: GenMessage<PutRecordRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 2);
+  messageDesc(file_maitre_v1_node, 5);
 
 /**
  * @generated from message maitre.v1.PutRecordResponse
@@ -89,7 +193,7 @@ export type PutRecordResponse = Message<"maitre.v1.PutRecordResponse"> & {
  * Use `create(PutRecordResponseSchema)` to create a new message.
  */
 export const PutRecordResponseSchema: GenMessage<PutRecordResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 3);
+  messageDesc(file_maitre_v1_node, 6);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoRequest
@@ -102,7 +206,7 @@ export type GetNodeInfoRequest = Message<"maitre.v1.GetNodeInfoRequest"> & {
  * Use `create(GetNodeInfoRequestSchema)` to create a new message.
  */
 export const GetNodeInfoRequestSchema: GenMessage<GetNodeInfoRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 4);
+  messageDesc(file_maitre_v1_node, 7);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoResponse
@@ -119,7 +223,7 @@ export type GetNodeInfoResponse = Message<"maitre.v1.GetNodeInfoResponse"> & {
  * Use `create(GetNodeInfoResponseSchema)` to create a new message.
  */
 export const GetNodeInfoResponseSchema: GenMessage<GetNodeInfoResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 5);
+  messageDesc(file_maitre_v1_node, 8);
 
 /**
  * @generated from message maitre.v1.NodeInfo
@@ -173,7 +277,7 @@ export type NodeInfo = Message<"maitre.v1.NodeInfo"> & {
  * Use `create(NodeInfoSchema)` to create a new message.
  */
 export const NodeInfoSchema: GenMessage<NodeInfo> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 6);
+  messageDesc(file_maitre_v1_node, 9);
 
 /**
  * NodeService is served by every Node (and by the agent in dev mode).
@@ -216,6 +320,16 @@ export const NodeService: GenService<{
     methodKind: "unary";
     input: typeof PutRecordRequestSchema;
     output: typeof PutRecordResponseSchema;
+  },
+  /**
+   * GetNodeMetrics returns the gauges the Console shows for this Node.
+   *
+   * @generated from rpc maitre.v1.NodeService.GetNodeMetrics
+   */
+  getNodeMetrics: {
+    methodKind: "unary";
+    input: typeof GetNodeMetricsRequestSchema;
+    output: typeof GetNodeMetricsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_node, 0);

@@ -20,6 +20,33 @@ service NodeService {
   // queued if the owner is offline. Version and owner in the request are
   // ignored; the caller sends the body it wants.
   rpc PutRecord(PutRecordRequest) returns (PutRecordResponse) {}
+  // GetNodeMetrics returns the gauges the Console shows for this Node.
+  rpc GetNodeMetrics(GetNodeMetricsRequest) returns (GetNodeMetricsResponse) {}
+}
+
+message GetNodeMetricsRequest {}
+
+message GetNodeMetricsResponse {
+  NodeMetrics metrics = 1;
+}
+
+// NodeMetrics is a point-in-time reading; history stays on the Node.
+message NodeMetrics {
+  // 0..100 across all cores since the previous call (0 on the first).
+  double cpu_percent = 1;
+  uint64 memory_total_bytes = 2;
+  uint64 memory_used_bytes = 3;
+  // Default Pool capacity.
+  uint64 pool_total_bytes = 4;
+  uint64 pool_used_bytes = 5;
+  // True when the Pool is a directory on the OS partition (no Drive).
+  bool pool_fallback = 6;
+  // Bytes per second over all non-loopback interfaces since the previous call.
+  double net_rx_bytes_per_sec = 7;
+  double net_tx_bytes_per_sec = 8;
+  // Highest thermal zone reading in Celsius; 0 if none.
+  double temperature_c = 9;
+  double load_1m = 10;
 }
 
 message ListRecordsRequest {

@@ -21,6 +21,208 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetNodeMetricsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNodeMetricsRequest) Reset() {
+	*x = GetNodeMetricsRequest{}
+	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNodeMetricsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeMetricsRequest) ProtoMessage() {}
+
+func (x *GetNodeMetricsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeMetricsRequest.ProtoReflect.Descriptor instead.
+func (*GetNodeMetricsRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{0}
+}
+
+type GetNodeMetricsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Metrics       *NodeMetrics           `protobuf:"bytes,1,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNodeMetricsResponse) Reset() {
+	*x = GetNodeMetricsResponse{}
+	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNodeMetricsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNodeMetricsResponse) ProtoMessage() {}
+
+func (x *GetNodeMetricsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNodeMetricsResponse.ProtoReflect.Descriptor instead.
+func (*GetNodeMetricsResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetNodeMetricsResponse) GetMetrics() *NodeMetrics {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+// NodeMetrics is a point-in-time reading; history stays on the Node.
+type NodeMetrics struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 0..100 across all cores since the previous call (0 on the first).
+	CpuPercent       float64 `protobuf:"fixed64,1,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	MemoryTotalBytes uint64  `protobuf:"varint,2,opt,name=memory_total_bytes,json=memoryTotalBytes,proto3" json:"memory_total_bytes,omitempty"`
+	MemoryUsedBytes  uint64  `protobuf:"varint,3,opt,name=memory_used_bytes,json=memoryUsedBytes,proto3" json:"memory_used_bytes,omitempty"`
+	// Default Pool capacity.
+	PoolTotalBytes uint64 `protobuf:"varint,4,opt,name=pool_total_bytes,json=poolTotalBytes,proto3" json:"pool_total_bytes,omitempty"`
+	PoolUsedBytes  uint64 `protobuf:"varint,5,opt,name=pool_used_bytes,json=poolUsedBytes,proto3" json:"pool_used_bytes,omitempty"`
+	// True when the Pool is a directory on the OS partition (no Drive).
+	PoolFallback bool `protobuf:"varint,6,opt,name=pool_fallback,json=poolFallback,proto3" json:"pool_fallback,omitempty"`
+	// Bytes per second over all non-loopback interfaces since the previous call.
+	NetRxBytesPerSec float64 `protobuf:"fixed64,7,opt,name=net_rx_bytes_per_sec,json=netRxBytesPerSec,proto3" json:"net_rx_bytes_per_sec,omitempty"`
+	NetTxBytesPerSec float64 `protobuf:"fixed64,8,opt,name=net_tx_bytes_per_sec,json=netTxBytesPerSec,proto3" json:"net_tx_bytes_per_sec,omitempty"`
+	// Highest thermal zone reading in Celsius; 0 if none.
+	TemperatureC  float64 `protobuf:"fixed64,9,opt,name=temperature_c,json=temperatureC,proto3" json:"temperature_c,omitempty"`
+	Load_1M       float64 `protobuf:"fixed64,10,opt,name=load_1m,json=load1m,proto3" json:"load_1m,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeMetrics) Reset() {
+	*x = NodeMetrics{}
+	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeMetrics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeMetrics) ProtoMessage() {}
+
+func (x *NodeMetrics) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeMetrics.ProtoReflect.Descriptor instead.
+func (*NodeMetrics) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *NodeMetrics) GetCpuPercent() float64 {
+	if x != nil {
+		return x.CpuPercent
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetMemoryTotalBytes() uint64 {
+	if x != nil {
+		return x.MemoryTotalBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetMemoryUsedBytes() uint64 {
+	if x != nil {
+		return x.MemoryUsedBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetPoolTotalBytes() uint64 {
+	if x != nil {
+		return x.PoolTotalBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetPoolUsedBytes() uint64 {
+	if x != nil {
+		return x.PoolUsedBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetPoolFallback() bool {
+	if x != nil {
+		return x.PoolFallback
+	}
+	return false
+}
+
+func (x *NodeMetrics) GetNetRxBytesPerSec() float64 {
+	if x != nil {
+		return x.NetRxBytesPerSec
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetNetTxBytesPerSec() float64 {
+	if x != nil {
+		return x.NetTxBytesPerSec
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetTemperatureC() float64 {
+	if x != nil {
+		return x.TemperatureC
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetLoad_1M() float64 {
+	if x != nil {
+		return x.Load_1M
+	}
+	return 0
+}
+
 type ListRecordsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Empty means all kinds.
@@ -31,7 +233,7 @@ type ListRecordsRequest struct {
 
 func (x *ListRecordsRequest) Reset() {
 	*x = ListRecordsRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	mi := &file_maitre_v1_node_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +245,7 @@ func (x *ListRecordsRequest) String() string {
 func (*ListRecordsRequest) ProtoMessage() {}
 
 func (x *ListRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	mi := &file_maitre_v1_node_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +258,7 @@ func (x *ListRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordsRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{0}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRecordsRequest) GetKind() string {
@@ -75,7 +277,7 @@ type ListRecordsResponse struct {
 
 func (x *ListRecordsResponse) Reset() {
 	*x = ListRecordsResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	mi := &file_maitre_v1_node_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -87,7 +289,7 @@ func (x *ListRecordsResponse) String() string {
 func (*ListRecordsResponse) ProtoMessage() {}
 
 func (x *ListRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	mi := &file_maitre_v1_node_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -100,7 +302,7 @@ func (x *ListRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordsResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{1}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListRecordsResponse) GetRecords() []*Record {
@@ -119,7 +321,7 @@ type PutRecordRequest struct {
 
 func (x *PutRecordRequest) Reset() {
 	*x = PutRecordRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	mi := &file_maitre_v1_node_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -131,7 +333,7 @@ func (x *PutRecordRequest) String() string {
 func (*PutRecordRequest) ProtoMessage() {}
 
 func (x *PutRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	mi := &file_maitre_v1_node_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -144,7 +346,7 @@ func (x *PutRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutRecordRequest.ProtoReflect.Descriptor instead.
 func (*PutRecordRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{2}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PutRecordRequest) GetRecord() *Record {
@@ -165,7 +367,7 @@ type PutRecordResponse struct {
 
 func (x *PutRecordResponse) Reset() {
 	*x = PutRecordResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[3]
+	mi := &file_maitre_v1_node_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -177,7 +379,7 @@ func (x *PutRecordResponse) String() string {
 func (*PutRecordResponse) ProtoMessage() {}
 
 func (x *PutRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[3]
+	mi := &file_maitre_v1_node_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -190,7 +392,7 @@ func (x *PutRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutRecordResponse.ProtoReflect.Descriptor instead.
 func (*PutRecordResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PutRecordResponse) GetRecord() *Record {
@@ -215,7 +417,7 @@ type GetNodeInfoRequest struct {
 
 func (x *GetNodeInfoRequest) Reset() {
 	*x = GetNodeInfoRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[4]
+	mi := &file_maitre_v1_node_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -227,7 +429,7 @@ func (x *GetNodeInfoRequest) String() string {
 func (*GetNodeInfoRequest) ProtoMessage() {}
 
 func (x *GetNodeInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[4]
+	mi := &file_maitre_v1_node_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +442,7 @@ func (x *GetNodeInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeInfoRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{7}
 }
 
 type GetNodeInfoResponse struct {
@@ -252,7 +454,7 @@ type GetNodeInfoResponse struct {
 
 func (x *GetNodeInfoResponse) Reset() {
 	*x = GetNodeInfoResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[5]
+	mi := &file_maitre_v1_node_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +466,7 @@ func (x *GetNodeInfoResponse) String() string {
 func (*GetNodeInfoResponse) ProtoMessage() {}
 
 func (x *GetNodeInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[5]
+	mi := &file_maitre_v1_node_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +479,7 @@ func (x *GetNodeInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeInfoResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetNodeInfoResponse) GetNode() *NodeInfo {
@@ -307,7 +509,7 @@ type NodeInfo struct {
 
 func (x *NodeInfo) Reset() {
 	*x = NodeInfo{}
-	mi := &file_maitre_v1_node_proto_msgTypes[6]
+	mi := &file_maitre_v1_node_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -319,7 +521,7 @@ func (x *NodeInfo) String() string {
 func (*NodeInfo) ProtoMessage() {}
 
 func (x *NodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[6]
+	mi := &file_maitre_v1_node_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -332,7 +534,7 @@ func (x *NodeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeInfo.ProtoReflect.Descriptor instead.
 func (*NodeInfo) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *NodeInfo) GetNodeId() string {
@@ -381,7 +583,23 @@ var File_maitre_v1_node_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"(\n" +
+	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"\x17\n" +
+	"\x15GetNodeMetricsRequest\"J\n" +
+	"\x16GetNodeMetricsResponse\x120\n" +
+	"\ametrics\x18\x01 \x01(\v2\x16.maitre.v1.NodeMetricsR\ametrics\"\x9d\x03\n" +
+	"\vNodeMetrics\x12\x1f\n" +
+	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
+	"cpuPercent\x12,\n" +
+	"\x12memory_total_bytes\x18\x02 \x01(\x04R\x10memoryTotalBytes\x12*\n" +
+	"\x11memory_used_bytes\x18\x03 \x01(\x04R\x0fmemoryUsedBytes\x12(\n" +
+	"\x10pool_total_bytes\x18\x04 \x01(\x04R\x0epoolTotalBytes\x12&\n" +
+	"\x0fpool_used_bytes\x18\x05 \x01(\x04R\rpoolUsedBytes\x12#\n" +
+	"\rpool_fallback\x18\x06 \x01(\bR\fpoolFallback\x12.\n" +
+	"\x14net_rx_bytes_per_sec\x18\a \x01(\x01R\x10netRxBytesPerSec\x12.\n" +
+	"\x14net_tx_bytes_per_sec\x18\b \x01(\x01R\x10netTxBytesPerSec\x12#\n" +
+	"\rtemperature_c\x18\t \x01(\x01R\ftemperatureC\x12\x17\n" +
+	"\aload_1m\x18\n" +
+	" \x01(\x01R\x06load1m\"(\n" +
 	"\x12ListRecordsRequest\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\"B\n" +
 	"\x13ListRecordsResponse\x12+\n" +
@@ -400,11 +618,12 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\bfleet_id\x18\x03 \x01(\tR\afleetId\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12%\n" +
 	"\x0euptime_seconds\x18\x05 \x01(\x04R\ruptimeSeconds\x12\x19\n" +
-	"\bdev_mode\x18\x06 \x01(\bR\adevMode2\xf7\x01\n" +
+	"\bdev_mode\x18\x06 \x01(\bR\adevMode2\xd0\x02\n" +
 	"\vNodeService\x12N\n" +
 	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00\x12N\n" +
 	"\vListRecords\x12\x1d.maitre.v1.ListRecordsRequest\x1a\x1e.maitre.v1.ListRecordsResponse\"\x00\x12H\n" +
-	"\tPutRecord\x12\x1b.maitre.v1.PutRecordRequest\x1a\x1c.maitre.v1.PutRecordResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\tPutRecord\x12\x1b.maitre.v1.PutRecordRequest\x1a\x1c.maitre.v1.PutRecordResponse\"\x00\x12W\n" +
+	"\x0eGetNodeMetrics\x12 .maitre.v1.GetNodeMetricsRequest\x1a!.maitre.v1.GetNodeMetricsResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_node_proto_rawDescOnce sync.Once
@@ -418,33 +637,39 @@ func file_maitre_v1_node_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_node_proto_rawDescData
 }
 
-var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_maitre_v1_node_proto_goTypes = []any{
-	(*ListRecordsRequest)(nil),  // 0: maitre.v1.ListRecordsRequest
-	(*ListRecordsResponse)(nil), // 1: maitre.v1.ListRecordsResponse
-	(*PutRecordRequest)(nil),    // 2: maitre.v1.PutRecordRequest
-	(*PutRecordResponse)(nil),   // 3: maitre.v1.PutRecordResponse
-	(*GetNodeInfoRequest)(nil),  // 4: maitre.v1.GetNodeInfoRequest
-	(*GetNodeInfoResponse)(nil), // 5: maitre.v1.GetNodeInfoResponse
-	(*NodeInfo)(nil),            // 6: maitre.v1.NodeInfo
-	(*Record)(nil),              // 7: maitre.v1.Record
+	(*GetNodeMetricsRequest)(nil),  // 0: maitre.v1.GetNodeMetricsRequest
+	(*GetNodeMetricsResponse)(nil), // 1: maitre.v1.GetNodeMetricsResponse
+	(*NodeMetrics)(nil),            // 2: maitre.v1.NodeMetrics
+	(*ListRecordsRequest)(nil),     // 3: maitre.v1.ListRecordsRequest
+	(*ListRecordsResponse)(nil),    // 4: maitre.v1.ListRecordsResponse
+	(*PutRecordRequest)(nil),       // 5: maitre.v1.PutRecordRequest
+	(*PutRecordResponse)(nil),      // 6: maitre.v1.PutRecordResponse
+	(*GetNodeInfoRequest)(nil),     // 7: maitre.v1.GetNodeInfoRequest
+	(*GetNodeInfoResponse)(nil),    // 8: maitre.v1.GetNodeInfoResponse
+	(*NodeInfo)(nil),               // 9: maitre.v1.NodeInfo
+	(*Record)(nil),                 // 10: maitre.v1.Record
 }
 var file_maitre_v1_node_proto_depIdxs = []int32{
-	7, // 0: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
-	7, // 1: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
-	7, // 2: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
-	6, // 3: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
-	4, // 4: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
-	0, // 5: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
-	2, // 6: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
-	5, // 7: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
-	1, // 8: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
-	3, // 9: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
-	7, // [7:10] is the sub-list for method output_type
-	4, // [4:7] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2,  // 0: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
+	10, // 1: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
+	10, // 2: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
+	10, // 3: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
+	9,  // 4: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
+	7,  // 5: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
+	3,  // 6: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
+	5,  // 7: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
+	0,  // 8: maitre.v1.NodeService.GetNodeMetrics:input_type -> maitre.v1.GetNodeMetricsRequest
+	8,  // 9: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
+	4,  // 10: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
+	6,  // 11: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
+	1,  // 12: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
+	9,  // [9:13] is the sub-list for method output_type
+	5,  // [5:9] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_node_proto_init() }
@@ -459,7 +684,7 @@ func file_maitre_v1_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_node_proto_rawDesc), len(file_maitre_v1_node_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

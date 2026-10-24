@@ -28,6 +28,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/metrics"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
@@ -108,6 +109,7 @@ func runAgent(args []string) error {
 			refreshTrust()
 		}
 	}
+	svc.Metrics = metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir)).Read
 	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
 	cat := serviceservice.NewCatalog(nil, "")
 	if raw, err := os.ReadFile(*catalogPath); err == nil {
@@ -285,6 +287,21 @@ func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, t
 		return err
 	}
 	return nil
+}
+
+// isMountpoint reports whether dir is a mount (the Pool) rather than a plain
+// directory on the OS partition.
+func isMountpoint(dir string) bool {
+	b, err := os.ReadFile("/proc/self/mounts")
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if f := strings.Fields(line); len(f) > 1 && f[1] == dir {
+			return true
+		}
+	}
+	return false
 }
 
 // listenPort extracts the port from a host:port listen address.

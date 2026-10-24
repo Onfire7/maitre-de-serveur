@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@connectrpc/connect";
-import { NodeService, type NodeInfo } from "./gen/maitre/v1/node_pb";
+import { NodeService, type NodeInfo, type NodeMetrics } from "./gen/maitre/v1/node_pb";
 import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./gen/maitre/v1/installer_pb";
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
@@ -454,15 +454,17 @@ function AddNode({
 
 function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
   const [info, setInfo] = useState<NodeInfo | null>(null);
+  const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     const client = createClient(NodeService, transportFor({ addr: node.addresses[0], fingerprint: node.node_id }));
     const tick = () =>
       client
         .getNodeInfo({})
-        .then((r) => {
+        .then(async (r) => {
           setInfo(r.node ?? null);
           setError("");
+          if (!r.node?.devMode) setMetrics((await client.getNodeMetrics({})).metrics ?? null);
         })
         .catch((e) => setError(String(e)));
     tick();
@@ -487,9 +489,46 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
           </tbody>
         </table>
       )}
+      {metrics && <Gauges m={metrics} />}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>
+  );
+}
+
+function Gauges({ m }: { m: NodeMetrics }) {
+  const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
+  const memPct = pct(m.memoryUsedBytes, m.memoryTotalBytes);
+  const poolPct = pct(m.poolUsedBytes, m.poolTotalBytes);
+  return (
+    <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, margin: "16px 0" }}>
+      <Gauge label="CPU" value={`${m.cpuPercent.toFixed(0)}%`} pct={m.cpuPercent} sub={`load ${m.load1m.toFixed(2)}`} />
+      <Gauge label="Memory" value={`${memPct.toFixed(0)}%`} pct={memPct} sub={`${formatBytes(Number(m.memoryUsedBytes))} of ${formatBytes(Number(m.memoryTotalBytes))}`} />
+      <Gauge
+        label="Storage"
+        value={`${poolPct.toFixed(0)}%`}
+        pct={poolPct}
+        sub={m.poolFallback ? "no Drive: data lives on the OS disk" : `${formatBytes(Number(m.poolUsedBytes))} of ${formatBytes(Number(m.poolTotalBytes))}`}
+        warn={m.poolFallback}
+      />
+      <Gauge label="Network" value={`↓ ${formatBytes(m.netRxBytesPerSec)}/s`} sub={`↑ ${formatBytes(m.netTxBytesPerSec)}/s`} />
+      {m.temperatureC > 0 && <Gauge label="Temperature" value={`${m.temperatureC.toFixed(0)} °C`} pct={m.temperatureC} />}
+    </section>
+  );
+}
+
+function Gauge({ label, value, pct, sub, warn }: { label: string; value: string; pct?: number; sub?: string; warn?: boolean }) {
+  return (
+    <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 10 }}>
+      <div style={{ color: "#555", fontSize: 12 }}>{label}</div>
+      <div style={{ fontSize: 22 }}>{value}</div>
+      {pct !== undefined && (
+        <div style={{ height: 4, background: "#eee", borderRadius: 2, margin: "6px 0" }}>
+          <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: 4, background: pct > 90 ? "#b00020" : "#2a7", borderRadius: 2 }} />
+        </div>
+      )}
+      {sub && <div style={{ color: warn ? "#a60" : "#555", fontSize: 12 }}>{sub}</div>}
+    </div>
   );
 }
 
