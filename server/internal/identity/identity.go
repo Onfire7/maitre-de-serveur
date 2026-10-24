@@ -114,6 +114,9 @@ func (id *Identity) PublicKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
 }
 
+// PublicKey returns the raw Ed25519 public key.
+func (id *Identity) PublicKey() ed25519.PublicKey { return id.priv.Public().(ed25519.PublicKey) }
+
 // TLSCertificate is the self-signed certificate for use in a tls.Config.
 func (id *Identity) TLSCertificate() tls.Certificate { return id.cert }
 

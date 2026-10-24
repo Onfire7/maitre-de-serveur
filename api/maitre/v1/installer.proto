@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+import "maitre/v1/fleet.proto";
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// InstallerService is served by `maitre installer` on installer media.
+// The Installer has no trust list yet, so TLS accepts any client key. Trust
+// is established by the pairing code: a six-digit number both the Installer
+// screen and the Console derive from the two public keys. The person at the
+// Console confirms they match before calling Provision.
+service InstallerService {
+  // GetInstallerStatus describes the machine and the pairing code for the
+  // calling device. The Installer shows the same code on its screen.
+  rpc GetInstallerStatus(GetInstallerStatusRequest) returns (GetInstallerStatusResponse) {}
+  // Provision installs Maître Server to a disk and makes this machine a Node.
+  // Returns at once; progress is read with GetInstallerStatus.
+  rpc Provision(ProvisionRequest) returns (ProvisionResponse) {}
+}
+
+message GetInstallerStatusRequest {}
+
+message GetInstallerStatusResponse {
+  InstallerStatus status = 1;
+}
+
+message InstallerStatus {
+  // Key fingerprint of the Installer; becomes the node_id after Provision.
+  string installer_id = 1;
+  string version = 2;
+  // Addresses the Installer is reachable on. Empty until the network is up.
+  repeated string addresses = 3;
+  // Pairing code for the calling device, as shown on the Installer screen.
+  string pairing_code = 4;
+  repeated Disk disks = 5;
+  Provisioning provisioning = 6;
+  // Model or hostname hint to help tell machines apart in the Console.
+  string machine_name = 7;
+}
+
+message Disk {
+  // Stable path such as /dev/disk/by-id/....
+  string path = 1;
+  string model = 2;
+  uint64 size_bytes = 3;
+  bool removable = 4;
+  // True for the disk the Installer itself booted from.
+  bool is_installer_media = 5;
+}
+
+// Provisioning is the state of an in-flight or finished install.
+message Provisioning {
+  enum Phase {
+    PHASE_UNSPECIFIED = 0;
+    PHASE_IDLE = 1;
+    PHASE_INSTALLING = 2;
+    PHASE_CONFIGURING = 3;
+    PHASE_REBOOTING = 4;
+    PHASE_FAILED = 5;
+  }
+  Phase phase = 1;
+  string message = 2;
+  // 0..100 within the current phase.
+  uint32 percent = 3;
+}
+
+message ProvisionRequest {
+  Fleet fleet = 1;
+  string node_name = 2;
+  // Disk.path to install to. Everything on it is destroyed.
+  string target_disk = 3;
+  // Initial trust list: at least the calling device and the recovery key.
+  repeated TrustedDevice trusted_devices = 4;
+  // Create a data partition from the remaining space. Default off on USB.
+  bool data_partition = 5;
+}
+
+message ProvisionResponse {}

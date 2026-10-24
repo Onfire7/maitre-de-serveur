@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package maitre.v1;
 
+import "maitre/v1/fleet.proto";
+
 option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
 
 // NodeService is served by every Node (and by the agent in dev mode).
@@ -10,6 +12,33 @@ option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;m
 service NodeService {
   // GetNodeInfo returns identity and liveness facts about this Node.
   rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse) {}
+  // ListRecords returns this Node's copy of the Fleet database, optionally
+  // filtered by kind. Reads are always local (ADR 0003).
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse) {}
+  // PutRecord writes a Record. If this Node owns it the write is applied and
+  // the stored Record returned; otherwise it is forwarded to the owner, or
+  // queued if the owner is offline. Version and owner in the request are
+  // ignored; the caller sends the body it wants.
+  rpc PutRecord(PutRecordRequest) returns (PutRecordResponse) {}
+}
+
+message ListRecordsRequest {
+  // Empty means all kinds.
+  string kind = 1;
+}
+
+message ListRecordsResponse {
+  repeated Record records = 1;
+}
+
+message PutRecordRequest {
+  Record record = 1;
+}
+
+message PutRecordResponse {
+  Record record = 1;
+  // True when the write was queued for an offline owner rather than applied.
+  bool queued = 2;
 }
 
 message GetNodeInfoRequest {}

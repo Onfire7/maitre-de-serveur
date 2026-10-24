@@ -1,7 +1,7 @@
 // Command maitre is the Maître Server agent binary.
 //
-//	maitre agent      run on Maître Server (not yet implemented)
-//	maitre installer  run from installer media (not yet implemented)
+//	maitre agent      run on Maître Server (state on the config partition)
+//	maitre installer  run from installer media
 //	maitre dev        run on any Linux host for development
 //	maitre keygen     create a Trusted Device identity for testing
 //	maitre info       call GetNodeInfo on a Node as a Trusted Device
@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -31,6 +30,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
@@ -50,8 +50,10 @@ func main() {
 		err = runKeygen(os.Args[2:])
 	case "info":
 		err = runInfo(os.Args[2:])
-	case "agent", "installer":
-		err = fmt.Errorf("%s: not implemented yet (Milestone 1)", os.Args[1])
+	case "agent":
+		err = runAgent(os.Args[2:])
+	case "installer":
+		err = runInstaller(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -96,32 +98,13 @@ func runDev(args []string) error {
 		Name:    *name,
 		Version: version,
 		DevMode: true,
-	}))
+	}, nil))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 
-	srv := &http.Server{
-		Addr:              *listen,
-		Handler:           mux,
-		TLSConfig:         mtls.ServerConfig(id, list),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-
-	log.Info("listening", "addr", *listen)
-	// Certificates come from TLSConfig, so the file arguments are empty.
-	if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	return serve(ctx, log, *listen, peer.Middleware(mux), mtls.ServerConfig(id, list))
 }
 
 func runKeygen(args []string) error {

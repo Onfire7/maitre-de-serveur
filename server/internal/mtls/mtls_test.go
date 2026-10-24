@@ -24,7 +24,7 @@ import (
 func startNode(t *testing.T, node *identity.Identity, list *trust.List) *httptest.Server {
 	t.Helper()
 	rpc := connect.NewServer()
-	maitrev1connect.RegisterNodeServiceHandler(rpc, nodeservice.New(node, nodeservice.Info{Name: "test", DevMode: true}))
+	maitrev1connect.RegisterNodeServiceHandler(rpc, nodeservice.New(node, nodeservice.Info{Name: "test", DevMode: true}, nil))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 	srv := httptest.NewUnstartedServer(mux)

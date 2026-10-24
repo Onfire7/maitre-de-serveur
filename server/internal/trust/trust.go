@@ -32,6 +32,30 @@ func (l *List) Add(fingerprint string) {
 	l.keys[fingerprint] = struct{}{}
 }
 
+// Replace swaps the whole list atomically. Used when the Fleet database
+// changes so connections already open are unaffected and new ones see the
+// current set.
+func (l *List) Replace(fingerprints []string) {
+	next := make(map[string]struct{}, len(fingerprints))
+	for _, fp := range fingerprints {
+		next[fp] = struct{}{}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.keys = next
+}
+
+// Fingerprints returns the trusted fingerprints in no particular order.
+func (l *List) Fingerprints() []string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	out := make([]string, 0, len(l.keys))
+	for fp := range l.keys {
+		out = append(out, fp)
+	}
+	return out
+}
+
 // Trusted reports whether fingerprint is in the list.
 func (l *List) Trusted(fingerprint string) bool {
 	l.mu.RLock()

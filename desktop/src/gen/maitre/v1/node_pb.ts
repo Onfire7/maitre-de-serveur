@@ -4,13 +4,92 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Record } from "./fleet_pb";
+import { file_maitre_v1_fleet } from "./fleet_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file maitre/v1/node.proto.
  */
 export const file_maitre_v1_node: GenFile = /*@__PURE__*/
-  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIhQKEkdldE5vZGVJbmZvUmVxdWVzdCI4ChNHZXROb2RlSW5mb1Jlc3BvbnNlEiEKBG5vZGUYASABKAsyEy5tYWl0cmUudjEuTm9kZUluZm8idgoITm9kZUluZm8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEg8KB3ZlcnNpb24YBCABKAkSFgoOdXB0aW1lX3NlY29uZHMYBSABKAQSEAoIZGV2X21vZGUYBiABKAgyXQoLTm9kZVNlcnZpY2USTgoLR2V0Tm9kZUluZm8SHS5tYWl0cmUudjEuR2V0Tm9kZUluZm9SZXF1ZXN0Gh4ubWFpdHJlLnYxLkdldE5vZGVJbmZvUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIiIKEkxpc3RSZWNvcmRzUmVxdWVzdBIMCgRraW5kGAEgASgJIjkKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLm1haXRyZS52MS5SZWNvcmQiNQoQUHV0UmVjb3JkUmVxdWVzdBIhCgZyZWNvcmQYASABKAsyES5tYWl0cmUudjEuUmVjb3JkIkYKEVB1dFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLm1haXRyZS52MS5SZWNvcmQSDgoGcXVldWVkGAIgASgIIhQKEkdldE5vZGVJbmZvUmVxdWVzdCI4ChNHZXROb2RlSW5mb1Jlc3BvbnNlEiEKBG5vZGUYASABKAsyEy5tYWl0cmUudjEuTm9kZUluZm8idgoITm9kZUluZm8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEg8KB3ZlcnNpb24YBCABKAkSFgoOdXB0aW1lX3NlY29uZHMYBSABKAQSEAoIZGV2X21vZGUYBiABKAgy9wEKC05vZGVTZXJ2aWNlEk4KC0dldE5vZGVJbmZvEh0ubWFpdHJlLnYxLkdldE5vZGVJbmZvUmVxdWVzdBoeLm1haXRyZS52MS5HZXROb2RlSW5mb1Jlc3BvbnNlIgASTgoLTGlzdFJlY29yZHMSHS5tYWl0cmUudjEuTGlzdFJlY29yZHNSZXF1ZXN0Gh4ubWFpdHJlLnYxLkxpc3RSZWNvcmRzUmVzcG9uc2UiABJICglQdXRSZWNvcmQSGy5tYWl0cmUudjEuUHV0UmVjb3JkUmVxdWVzdBocLm1haXRyZS52MS5QdXRSZWNvcmRSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z", [file_maitre_v1_fleet]);
+
+/**
+ * @generated from message maitre.v1.ListRecordsRequest
+ */
+export type ListRecordsRequest = Message<"maitre.v1.ListRecordsRequest"> & {
+  /**
+   * Empty means all kinds.
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+};
+
+/**
+ * Describes the message maitre.v1.ListRecordsRequest.
+ * Use `create(ListRecordsRequestSchema)` to create a new message.
+ */
+export const ListRecordsRequestSchema: GenMessage<ListRecordsRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 0);
+
+/**
+ * @generated from message maitre.v1.ListRecordsResponse
+ */
+export type ListRecordsResponse = Message<"maitre.v1.ListRecordsResponse"> & {
+  /**
+   * @generated from field: repeated maitre.v1.Record records = 1;
+   */
+  records: Record[];
+};
+
+/**
+ * Describes the message maitre.v1.ListRecordsResponse.
+ * Use `create(ListRecordsResponseSchema)` to create a new message.
+ */
+export const ListRecordsResponseSchema: GenMessage<ListRecordsResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 1);
+
+/**
+ * @generated from message maitre.v1.PutRecordRequest
+ */
+export type PutRecordRequest = Message<"maitre.v1.PutRecordRequest"> & {
+  /**
+   * @generated from field: maitre.v1.Record record = 1;
+   */
+  record?: Record | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.PutRecordRequest.
+ * Use `create(PutRecordRequestSchema)` to create a new message.
+ */
+export const PutRecordRequestSchema: GenMessage<PutRecordRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 2);
+
+/**
+ * @generated from message maitre.v1.PutRecordResponse
+ */
+export type PutRecordResponse = Message<"maitre.v1.PutRecordResponse"> & {
+  /**
+   * @generated from field: maitre.v1.Record record = 1;
+   */
+  record?: Record | undefined;
+
+  /**
+   * True when the write was queued for an offline owner rather than applied.
+   *
+   * @generated from field: bool queued = 2;
+   */
+  queued: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.PutRecordResponse.
+ * Use `create(PutRecordResponseSchema)` to create a new message.
+ */
+export const PutRecordResponseSchema: GenMessage<PutRecordResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 3);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoRequest
@@ -23,7 +102,7 @@ export type GetNodeInfoRequest = Message<"maitre.v1.GetNodeInfoRequest"> & {
  * Use `create(GetNodeInfoRequestSchema)` to create a new message.
  */
 export const GetNodeInfoRequestSchema: GenMessage<GetNodeInfoRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 0);
+  messageDesc(file_maitre_v1_node, 4);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoResponse
@@ -40,7 +119,7 @@ export type GetNodeInfoResponse = Message<"maitre.v1.GetNodeInfoResponse"> & {
  * Use `create(GetNodeInfoResponseSchema)` to create a new message.
  */
 export const GetNodeInfoResponseSchema: GenMessage<GetNodeInfoResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 1);
+  messageDesc(file_maitre_v1_node, 5);
 
 /**
  * @generated from message maitre.v1.NodeInfo
@@ -94,7 +173,7 @@ export type NodeInfo = Message<"maitre.v1.NodeInfo"> & {
  * Use `create(NodeInfoSchema)` to create a new message.
  */
 export const NodeInfoSchema: GenMessage<NodeInfo> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 2);
+  messageDesc(file_maitre_v1_node, 6);
 
 /**
  * NodeService is served by every Node (and by the agent in dev mode).
@@ -113,6 +192,30 @@ export const NodeService: GenService<{
     methodKind: "unary";
     input: typeof GetNodeInfoRequestSchema;
     output: typeof GetNodeInfoResponseSchema;
+  },
+  /**
+   * ListRecords returns this Node's copy of the Fleet database, optionally
+   * filtered by kind. Reads are always local (ADR 0003).
+   *
+   * @generated from rpc maitre.v1.NodeService.ListRecords
+   */
+  listRecords: {
+    methodKind: "unary";
+    input: typeof ListRecordsRequestSchema;
+    output: typeof ListRecordsResponseSchema;
+  },
+  /**
+   * PutRecord writes a Record. If this Node owns it the write is applied and
+   * the stored Record returned; otherwise it is forwarded to the owner, or
+   * queued if the owner is offline. Version and owner in the request are
+   * ignored; the caller sends the body it wants.
+   *
+   * @generated from rpc maitre.v1.NodeService.PutRecord
+   */
+  putRecord: {
+    methodKind: "unary";
+    input: typeof PutRecordRequestSchema;
+    output: typeof PutRecordResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_node, 0);

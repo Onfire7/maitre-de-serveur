@@ -5,6 +5,8 @@ package mtls
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
@@ -21,6 +23,32 @@ func ServerConfig(id *identity.Identity, list *trust.List) *tls.Config {
 		ClientAuth:            tls.RequireAnyClientCert,
 		VerifyPeerCertificate: list.VerifyPeer,
 		NextProtos:            []string{"h2"},
+	}
+}
+
+// InstallerServerConfig is ServerConfig for an Installer, which has no trust
+// list yet: any Ed25519 client key is admitted and trust is decided by the
+// pairing code (design question 66). It still demands a client certificate so
+// every caller has an identity to pair with.
+func InstallerServerConfig(id *identity.Identity) *tls.Config {
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{id.TLSCertificate()},
+		ClientAuth:   tls.RequireAnyClientCert,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return errors.New("mtls: installer: no client certificate")
+			}
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return err
+			}
+			if _, err := identity.FingerprintOfCertificate(cert); err != nil {
+				return err
+			}
+			return nil
+		},
+		NextProtos: []string{"h2"},
 	}
 }
 

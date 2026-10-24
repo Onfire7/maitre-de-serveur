@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// Record is the unit of the Fleet database and of the sync layer (ADR 0003).
+// Every Node holds every Record. Exactly one Node owns each Record and is the
+// only writer; other Nodes and Trusted Devices forward writes to the owner.
+// This shape is final from Milestone 1; multi-Node exchange arrives in
+// Milestone 3.
+message Record {
+  // What kind of thing `body` holds: "fleet", "node", "trusted_device", ...
+  string kind = 1;
+  // Identifier unique within `kind`.
+  string id = 2;
+  // Node ID (key fingerprint) of the owner. Fleet-wide records such as the
+  // Fleet itself and Trusted Devices are owned by the Node that last wrote
+  // them and resolve newest-wins.
+  string owner_node_id = 3;
+  // Monotonic per Record, incremented by the owner on every write.
+  uint64 version = 4;
+  // Wall clock of the write, milliseconds since the Unix epoch. Used only to
+  // break ties between owners for Fleet-wide records.
+  int64 updated_unix_ms = 5;
+  // Serialized message of the type named by `kind`.
+  bytes body = 6;
+  // Tombstone. Deleted Records keep their row so the deletion propagates.
+  bool deleted = 7;
+}
+
+// Fleet is the kind "fleet" record. There is exactly one.
+message Fleet {
+  string fleet_id = 1;
+  string name = 2;
+  int64 created_unix_ms = 3;
+}
+
+// Node is the kind "node" record, keyed by node_id.
+message Node {
+  string node_id = 1;
+  string name = 2;
+  string public_key_pem = 3;
+  // Last known addresses, most recent first. Advisory; mDNS is the source of truth.
+  repeated string addresses = 4;
+  int64 provisioned_unix_ms = 5;
+}
+
+// TrustedDevice is the kind "trusted_device" record, keyed by device_id
+// (its key fingerprint). The Recovery Phrase appears here as a device whose
+// `recovery_only` flag limits it to approving other devices.
+message TrustedDevice {
+  string device_id = 1;
+  string name = 2;
+  string public_key_pem = 3;
+  bool recovery_only = 4;
+  int64 added_unix_ms = 5;
+}

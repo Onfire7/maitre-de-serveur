@@ -26,6 +26,10 @@ const (
 const (
 	// NodeServiceGetNodeInfoProcedure is the procedure name of the NodeService's GetNodeInfo RPC.
 	NodeServiceGetNodeInfoProcedure = "/maitre.v1.NodeService/GetNodeInfo"
+	// NodeServiceListRecordsProcedure is the procedure name of the NodeService's ListRecords RPC.
+	NodeServiceListRecordsProcedure = "/maitre.v1.NodeService/ListRecords"
+	// NodeServicePutRecordProcedure is the procedure name of the NodeService's PutRecord RPC.
+	NodeServicePutRecordProcedure = "/maitre.v1.NodeService/PutRecord"
 )
 
 var (
@@ -36,12 +40,34 @@ var (
 			Procedure:  NodeServiceGetNodeInfoProcedure,
 		}
 	})
+	nodeServiceListRecordsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("ListRecords"),
+			Procedure:  NodeServiceListRecordsProcedure,
+		}
+	})
+	nodeServicePutRecordSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("PutRecord"),
+			Procedure:  NodeServicePutRecordProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
 type NodeServiceClient interface {
 	// GetNodeInfo returns identity and liveness facts about this Node.
 	GetNodeInfo(context.Context, *v1.GetNodeInfoRequest) (*v1.GetNodeInfoResponse, error)
+	// ListRecords returns this Node's copy of the Fleet database, optionally
+	// filtered by kind. Reads are always local (ADR 0003).
+	ListRecords(context.Context, *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error)
+	// PutRecord writes a Record. If this Node owns it the write is applied and
+	// the stored Record returned; otherwise it is forwarded to the owner, or
+	// queued if the owner is offline. Version and owner in the request are
+	// ignored; the caller sends the body it wants.
+	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -54,6 +80,14 @@ func NewNodeServiceClient(client *connect.Client) NodeServiceClient {
 type NodeServiceHandler interface {
 	// GetNodeInfo returns identity and liveness facts about this Node.
 	GetNodeInfo(context.Context, *v1.GetNodeInfoRequest) (*v1.GetNodeInfoResponse, error)
+	// ListRecords returns this Node's copy of the Fleet database, optionally
+	// filtered by kind. Reads are always local (ADR 0003).
+	ListRecords(context.Context, *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error)
+	// PutRecord writes a Record. If this Node owns it the write is applied and
+	// the stored Record returned; otherwise it is forwarded to the owner, or
+	// queued if the owner is offline. Version and owner in the request are
+	// ignored; the caller sends the body it wants.
+	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -61,6 +95,8 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 	adapter := nodeServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: nodeServiceGetNodeInfoSpec(), Handler: adapter.getNodeInfo},
+		connect.Method{Spec: nodeServiceListRecordsSpec(), Handler: adapter.listRecords},
+		connect.Method{Spec: nodeServicePutRecordSpec(), Handler: adapter.putRecord},
 	)
 }
 
@@ -69,6 +105,14 @@ type UnimplementedNodeServiceHandler struct{}
 
 func (UnimplementedNodeServiceHandler) GetNodeInfo(context.Context, *v1.GetNodeInfoRequest) (*v1.GetNodeInfoResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetNodeInfo is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) ListRecords(context.Context, *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.ListRecords is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.PutRecord is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -83,6 +127,22 @@ func (c *nodeServiceClient) GetNodeInfo(ctx context.Context, req *v1.GetNodeInfo
 	return &res, nil
 }
 
+func (c *nodeServiceClient) ListRecords(ctx context.Context, req *v1.ListRecordsRequest) (*v1.ListRecordsResponse, error) {
+	var res v1.ListRecordsResponse
+	if err := c.client.CallUnary(ctx, nodeServiceListRecordsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) PutRecord(ctx context.Context, req *v1.PutRecordRequest) (*v1.PutRecordResponse, error) {
+	var res v1.PutRecordResponse
+	if err := c.client.CallUnary(ctx, nodeServicePutRecordSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 type nodeServiceHandler struct{ svc NodeServiceHandler }
 
 func (h nodeServiceHandler) getNodeInfo(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
@@ -91,6 +151,30 @@ func (h nodeServiceHandler) getNodeInfo(ctx context.Context, _ connect.Spec, str
 		return err
 	}
 	res, err := h.svc.GetNodeInfo(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) listRecords(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListRecordsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListRecords(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) putRecord(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PutRecordRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PutRecord(ctx, &req)
 	if err != nil {
 		return err
 	}
