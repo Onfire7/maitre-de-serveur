@@ -17,7 +17,7 @@ fi
 sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
   -v "$OUT:/output" -v /var/lib/containers/storage:/var/lib/containers/storage \
   quay.io/centos-bootc/bootc-image-builder:latest \
-  --type qcow2 --local "$IMAGE"
+  --type qcow2 --rootfs xfs --local "$IMAGE"
 
 DISK=$(find "$OUT" -name '*.qcow2' | head -1)
 echo "booting $DISK"
