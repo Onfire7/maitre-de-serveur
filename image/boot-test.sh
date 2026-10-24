@@ -117,7 +117,8 @@ echo "boot-test: node OK (installed from USB-equivalent media, rebooted, answere
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" catalog
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --wait 10m install uptime-kuma
 for i in $(seq 1 30); do
-  code=$(curl -s -o "$OUT/web.html" -w '%{http_code}' -H 'Host: uptime-kuma.maitre.local' "http://127.0.0.1:${WEB_PORT}/" || true)
+  # Follow the app's own redirects (Uptime Kuma sends first visitors to /setup).
+  code=$(curl -s -L -o "$OUT/web.html" -w '%{http_code}' -H 'Host: uptime-kuma.maitre.local' "http://127.0.0.1:${WEB_PORT}/" || true)
   [ "$code" = 200 ] && break
   [ "$i" -lt 30 ] || { echo "boot-test: service not reachable through caddy (last status $code)"; "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" logs uptime-kuma | tail -30; exit 1; }
   sleep 2
