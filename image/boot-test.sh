@@ -26,10 +26,22 @@ DISK=$(find "$OUT" -name '*.qcow2' | head -1)
 # GitHub runners expose /dev/kvm but not always to the runner user.
 if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
 echo "booting $DISK"
-timeout "$TIMEOUT" qemu-system-x86_64 \
+qemu-system-x86_64 \
   -m 2048 -smp 2 -nographic -enable-kvm -cpu host \
   -drive "file=$DISK,format=qcow2,if=virtio" \
   -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
-  2>&1 | tee "$OUT/serial.log" | grep -m1 -E 'maitre.*listening' \
-  && { echo "boot-test: agent came up"; exit 0; }
+  >"$OUT/serial.log" 2>&1 &
+QEMU=$!
+trap 'kill "$QEMU" 2>/dev/null; wait "$QEMU" 2>/dev/null' EXIT
+
+for _ in $(seq "$TIMEOUT"); do
+  if grep -qE 'maitre.*listening' "$OUT/serial.log"; then
+    echo "boot-test: agent came up"
+    exit 0
+  fi
+  if ! kill -0 "$QEMU" 2>/dev/null; then
+    echo "boot-test: qemu exited early"; tail -80 "$OUT/serial.log"; exit 1
+  fi
+  sleep 1
+done
 echo "boot-test: agent did not come up within ${TIMEOUT}s"; tail -80 "$OUT/serial.log"; exit 1
