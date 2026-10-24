@@ -42,8 +42,9 @@ cd desktop && pnpm tauri dev
 To try the real thing without hardware, boot Maître Server in a VM and start the Desktop against it (needs QEMU with KVM, OVMF, and the `gh` CLI; CI builds the installer media because the image build needs podman):
 
 ```
-make dev-qemu            # first run boots the installer; later runs boot the Node you installed
-make dev-qemu FRESH=1    # wipe the VM and start over
+make vm                  # terminal 1: first run boots the installer; later runs boot the Node you installed
+make desktop             # terminal 2: the Console with live reload
+make vm FRESH=1          # wipe the VM and start over
 ```
 
 The VM's window is the machine's monitor and shows the pairing code. The VM is behind QEMU's NAT: its mDNS announcement may still reach the Console, but the address it advertises (10.0.2.x) is unreachable from the host. When the Console reports it cannot reach the machine, enter `127.0.0.1:17443` in the retry field; or skip discovery and use "Set up by address" with the same value. Services installed on the VM open in the Console as usual, or from the host with `curl -H 'Host: <name>.maitre.local' http://127.0.0.1:18080/`. The installer pulls the OS from `ghcr.io/onfire7/maitre-server`, which CI publishes on every push to main.

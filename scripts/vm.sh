@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Developer loop without hardware or podman: boot Maître Server in QEMU and
-# start Maître Desktop against it.
+# Developer VM without hardware or podman: boot Maître Server in QEMU.
+# Run Maître Desktop separately with `make desktop`.
 #
-#   make dev-qemu            # first run: boots the installer; later runs: boots the Node you installed
-#   make dev-qemu FRESH=1    # wipe the virtual disk and start over from the installer
+#   make vm                  # first run: boots the installer; later runs: boots the Node you installed
+#   make vm FRESH=1          # wipe the virtual disk and start over from the installer
 #   RUN=<ci run id> ...      # use a specific CI run's installer media instead of the latest on main
-#   NO_DESKTOP=1 DISPLAY_BACKEND=none ...   # headless: just the VM, drive it with the maitre CLI
+#   DISPLAY_BACKEND=none ... # headless: no VM window, drive it with the maitre CLI
 #
-# The installer media comes from CI (the `installer-media` artifact of the
-# image job), because building the image needs podman. The installer pulls the
-# OS from ghcr.io, so the VM needs internet access.
+# Ctrl-C stops the VM. The installer media comes from CI (the `installer-media`
+# artifact of the image job), because building the image needs podman. The
+# installer pulls the OS from ghcr.io, so the VM needs internet access.
 #
-# QEMU's user-mode network hides the VM from mDNS, so in the Console use
-# "Set up by address" with 127.0.0.1:${FWD_PORT}. The VM's display window is
-# the machine's monitor: the pairing code shows there.
+# QEMU's user-mode network relays the VM's mDNS announcement, but the address
+# it advertises (10.0.2.x) is unreachable from the host: when the Console says
+# it cannot reach the machine, enter 127.0.0.1:${FWD_PORT}. The VM's display
+# window is the machine's monitor: the pairing code shows there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK=${WORK:-$HOME/.maitre/qemu}
@@ -23,15 +24,15 @@ DISK_SIZE=${DISK_SIZE:-40G}
 REPO=${REPO:-Onfire7/maitre-de-serveur}
 mkdir -p "$WORK"
 
-need() { command -v "$1" >/dev/null || { echo "dev-qemu: missing $1"; exit 1; }; }
-need qemu-system-x86_64; need qemu-img; need gh; need pnpm
-[ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "dev-qemu: /dev/kvm not accessible (add yourself to the kvm group)"; exit 1; }
+need() { command -v "$1" >/dev/null || { echo "vm: missing $1"; exit 1; }; }
+need qemu-system-x86_64; need qemu-img; need gh
+[ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "vm: /dev/kvm not accessible (add yourself to the kvm group)"; exit 1; }
 
 # 1. Installer media from CI.
 if [ -n "${RUN:-}" ] || [ ! -f "$WORK/maitre-installer.qcow2" ] || [ -n "${FRESH:-}" ]; then
   if [ -z "${RUN:-}" ]; then
     RUN=$(gh run list -R "$REPO" --branch main --workflow ci --status success --limit 1 --json databaseId -q '.[0].databaseId')
-    [ -n "$RUN" ] || { echo "dev-qemu: no successful CI run on main yet"; exit 1; }
+    [ -n "$RUN" ] || { echo "vm: no successful CI run on main yet"; exit 1; }
   fi
   if [ "$(cat "$WORK/run-id" 2>/dev/null)" != "$RUN" ] || [ ! -f "$WORK/maitre-installer.qcow2" ]; then
     echo "downloading installer media from CI run $RUN"
@@ -53,7 +54,7 @@ TOKEN=$(curl -fs "https://ghcr.io/token?scope=repository:${PKG}:pull" | sed -n '
 if ! curl -fs -o /dev/null -H "Authorization: Bearer $TOKEN" \
      -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
      "https://ghcr.io/v2/${PKG}/manifests/${TAG}"; then
-  echo "dev-qemu: ghcr.io/${PKG} is not publicly pullable."
+  echo "vm: ghcr.io/${PKG} is not publicly pullable."
   echo "  Make the package public once: https://github.com/users/${PKG%%/*}/packages/container/${PKG#*/}/settings"
   exit 1
 fi
@@ -71,7 +72,7 @@ done
 for f in /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /usr/share/edk2/x64/OVMF_VARS.4m.fd /usr/share/edk2/ovmf/OVMF_VARS.fd; do
   [ -z "$OVMF_VARS" ] && [ -f "$f" ] && OVMF_VARS=$f
 done
-[ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || { echo "dev-qemu: OVMF firmware not found (install edk2-ovmf)"; exit 1; }
+[ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || { echo "vm: OVMF firmware not found (install edk2-ovmf)"; exit 1; }
 [ -f "$WORK/vars.fd" ] || cp "$OVMF_VARS" "$WORK/vars.fd"
 
 cleanup() { kill "${QEMU:-}" 2>/dev/null || true; }
@@ -98,12 +99,7 @@ cat <<MSG
   CLI instead of the Console:
     ./server/bin/maitre provision --identity $WORK/device --addr 127.0.0.1:${FWD_PORT} --fleet Dev --name vm --disk /dev/vda --save-node-pub $WORK/node.pub
 
-Starting Maître Desktop. Closing it shuts the VM down.
+Ctrl-C stops the VM. Start the Console with: make desktop
 MSG
 
-if [ -n "${NO_DESKTOP:-}" ]; then
-  echo "NO_DESKTOP set: leaving the VM running until this script is interrupted (pid $QEMU)"
-  wait "$QEMU"
-else
-  cd desktop && pnpm tauri dev
-fi
+wait "$QEMU"
