@@ -303,7 +303,11 @@ function AddNode({
   onCancel: () => void;
   onProvisioned: (node: KnownNode) => void;
 }) {
-  const addr = found.addresses[0];
+  // Try each advertised address in turn; the user can override when none of
+  // them is reachable from here (e.g. a VM behind NAT advertising its guest IP).
+  const [addr, setAddr] = useState(found.addresses[0]);
+  const [altAddr, setAltAddr] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [fp, setFp] = useState("");
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
@@ -316,15 +320,31 @@ function AddNode({
 
   // Step 1: learn the Installer's key and compute the code we expect.
   useEffect(() => {
-    api
-      .peekInstaller(addr)
-      .then((p) => {
-        if (found.id && p.fingerprint !== found.id) throw new Error("the machine's key does not match what it advertised; try again");
-        setFp(p.fingerprint);
-        setCode(p.pairing_code);
-      })
-      .catch((e) => setError(String(e)));
-  }, [addr, found.id]);
+    let stop = false;
+    const candidates = attempt === 0 ? found.addresses : [addr];
+    (async () => {
+      let lastErr = "";
+      for (const a of candidates) {
+        try {
+          const p = await api.peekInstaller(a);
+          if (stop) return;
+          if (found.id && p.fingerprint !== found.id) throw new Error("the machine's key does not match what it advertised; try again");
+          setAddr(a);
+          setFp(p.fingerprint);
+          setCode(p.pairing_code);
+          setError("");
+          return;
+        } catch (e) {
+          lastErr = String(e);
+        }
+      }
+      if (!stop) setError(lastErr);
+    })();
+    return () => {
+      stop = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt, found.id]);
 
   // Step 2: poll status over the pinned connection; the Installer must show the same code.
   useEffect(() => {
@@ -401,6 +421,23 @@ function AddNode({
                 Yes, it matches
               </button>{" "}
               <button onClick={onCancel}>No, cancel</button>
+            </>
+          ) : error ? (
+            <>
+              <p>Could not reach the machine at {found.addresses.join(", ")}.</p>
+              <p>
+                If it is reachable at a different address or port (for example a VM behind NAT), enter it:{" "}
+                <input value={altAddr} onChange={(e) => setAltAddr(e.target.value)} placeholder="192.168.1.20:7443" style={{ width: 200 }} />{" "}
+                <button
+                  disabled={!altAddr.includes(":")}
+                  onClick={() => {
+                    setAddr(altAddr.trim());
+                    setAttempt((n) => n + 1);
+                  }}
+                >
+                  Retry
+                </button>
+              </p>
             </>
           ) : (
             <p>Contacting the machine…</p>

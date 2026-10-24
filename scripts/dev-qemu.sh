@@ -92,7 +92,7 @@ QEMU=$!
 
 cat <<MSG
 
-  VM agent port:  127.0.0.1:${FWD_PORT}   (use this in the Console's "Set up by address")
+  VM agent port:  127.0.0.1:${FWD_PORT}   (enter this in the Console when it cannot reach the VM's 10.0.2.x address, or in "Set up by address")
   VM web port:    http://127.0.0.1:${WEB_PORT}/  with Host: <service>.maitre.local
   Serial log:     $WORK/serial.log
   CLI instead of the Console:
