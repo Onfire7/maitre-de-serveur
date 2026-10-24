@@ -3,7 +3,7 @@ package identity_test
 import (
 	"testing"
 
-	"github.com/maitre-de-serveur/maitre/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 )
 
 func TestSaveLoadRoundTrip(t *testing.T) {

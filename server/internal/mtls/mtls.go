@@ -6,8 +6,8 @@ package mtls
 import (
 	"crypto/tls"
 
-	"github.com/maitre-de-serveur/maitre/server/internal/identity"
-	"github.com/maitre-de-serveur/maitre/server/internal/trust"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
 // ServerConfig returns a tls.Config for a listener that requires a trusted

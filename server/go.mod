@@ -1,4 +1,4 @@
-module github.com/maitre-de-serveur/maitre/server
+module github.com/Onfire7/maitre-de-serveur/server
 
 go 1.27
 

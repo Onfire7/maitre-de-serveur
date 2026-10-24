@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/maitre-de-serveur/maitre/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 )
 
 // List is a concurrency-safe set of trusted fingerprints.

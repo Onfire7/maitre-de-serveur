@@ -1,6 +1,6 @@
 [Unit]
 Description=Maître agent
-Documentation=https://github.com/maitre-de-serveur/maitre
+Documentation=https://github.com/Onfire7/maitre-de-serveur
 After=network-online.target podman.socket
 Wants=network-online.target podman.socket
 # Installer media sets this condition false so the installer runs instead.

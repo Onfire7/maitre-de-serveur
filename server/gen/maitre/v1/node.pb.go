@@ -207,7 +207,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x0euptime_seconds\x18\x05 \x01(\x04R\ruptimeSeconds\x12\x19\n" +
 	"\bdev_mode\x18\x06 \x01(\bR\adevMode2]\n" +
 	"\vNodeService\x12N\n" +
-	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00BCZAgithub.com/maitre-de-serveur/maitre/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_node_proto_rawDescOnce sync.Once

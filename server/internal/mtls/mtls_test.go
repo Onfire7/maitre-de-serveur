@@ -13,12 +13,12 @@ import (
 	"connectrpc.com/connect/v2/connecthttp"
 	"golang.org/x/net/http2"
 
-	maitrev1 "github.com/maitre-de-serveur/maitre/server/gen/maitre/v1"
-	"github.com/maitre-de-serveur/maitre/server/gen/maitre/v1/maitrev1connect"
-	"github.com/maitre-de-serveur/maitre/server/internal/identity"
-	"github.com/maitre-de-serveur/maitre/server/internal/mtls"
-	"github.com/maitre-de-serveur/maitre/server/internal/nodeservice"
-	"github.com/maitre-de-serveur/maitre/server/internal/trust"
+	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
 func startNode(t *testing.T, node *identity.Identity, list *trust.List) *httptest.Server {

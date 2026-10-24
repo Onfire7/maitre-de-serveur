@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	maitrev1 "github.com/maitre-de-serveur/maitre/server/gen/maitre/v1"
-	"github.com/maitre-de-serveur/maitre/server/gen/maitre/v1/maitrev1connect"
-	"github.com/maitre-de-serveur/maitre/server/internal/identity"
+	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 )
 
 // Info is the static part of what GetNodeInfo reports.

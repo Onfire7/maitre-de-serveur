@@ -7,7 +7,7 @@ package maitrev1connect
 import (
 	connect "connectrpc.com/connect/v2"
 	context "context"
-	v1 "github.com/maitre-de-serveur/maitre/server/gen/maitre/v1"
+	v1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	sync "sync"
 )
 

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package maitre.v1;
 
-option go_package = "github.com/maitre-de-serveur/maitre/server/gen/maitre/v1;maitrev1";
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
 
 // NodeService is served by every Node (and by the agent in dev mode).
 // Callers are Trusted Devices and peer Nodes; the transport is mutual TLS
