@@ -34,6 +34,8 @@ RUN set -eu; arch="$(uname -m)"; \
     if [ "${arch}" = x86_64 ]; then echo "${MERGERFS_SHA256}  /tmp/${rpm}" | sha256sum -c -; fi; \
     dnf -y install "/tmp/${rpm}" && dnf clean all && rm -f "/tmp/${rpm}"
 
+LABEL org.opencontainers.image.source="https://github.com/Onfire7/maitre-de-serveur" \
+      org.opencontainers.image.licenses="GPL-3.0-only"
 COPY --from=agent /maitre /usr/bin/maitre
 COPY --from=agent /catalog.json /usr/share/maitre/catalog.json
 COPY image/maitre.network /etc/containers/systemd/maitre.network

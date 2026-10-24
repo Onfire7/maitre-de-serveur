@@ -39,7 +39,16 @@ make dev         # run a dev Node on 127.0.0.1:7443
 cd desktop && pnpm tauri dev
 ```
 
-To walk the install flow on one machine without hardware, run an Installer with the fake runner and let the Console find it over mDNS:
+To try the real thing without hardware, boot Maître Server in a VM and start the Desktop against it (needs QEMU with KVM, OVMF, and the `gh` CLI; CI builds the installer media because the image build needs podman):
+
+```
+make dev-qemu            # first run boots the installer; later runs boot the Node you installed
+make dev-qemu FRESH=1    # wipe the VM and start over
+```
+
+The VM's window is the machine's monitor and shows the pairing code. The VM is behind QEMU's NAT, so the Console will not discover it; use "Set up by address" with `127.0.0.1:17443`. Services installed on the VM open in the Console as usual, or from the host with `curl -H 'Host: <name>.maitre.local' http://127.0.0.1:18080/`. The installer pulls the OS from `ghcr.io/onfire7/maitre-server`, which CI publishes on every push to main.
+
+To walk only the pairing flow, run an Installer with the fake runner and let the Console find it over mDNS:
 
 ```
 ./server/bin/maitre installer --no-screen --no-reboot --image x --state /tmp/inst --fake-install /tmp/node-config

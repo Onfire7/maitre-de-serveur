@@ -165,6 +165,7 @@ function Home({
   const [showDev, setShowDev] = useState(false);
   const [devAddr, setDevAddr] = useState("127.0.0.1:7443");
   const [devFp, setDevFp] = useState("");
+  const [byAddr, setByAddr] = useState("");
 
   useEffect(() => {
     const tick = () => api.discover().then(setFound).catch(() => {});
@@ -211,6 +212,13 @@ function Home({
             ))}
           </ul>
         )}
+        <p style={{ color: "#555", fontSize: 13 }}>
+          Machine not listed (different network, or a VM)? Set it up by address:{" "}
+          <input value={byAddr} onChange={(e) => setByAddr(e.target.value)} placeholder="192.168.1.20:7443" style={{ width: 180 }} />{" "}
+          <button disabled={!byAddr.includes(":")} onClick={() => onAdd({ kind: "installer", id: "", name: "", machine: "", fleet_id: "", version: "", addresses: [byAddr.trim()] })}>
+            Set up by address
+          </button>
+        </p>
         {found
           .filter((f) => f.kind === "node" && !knownIds.has(f.id))
           .map((f) => (
@@ -311,7 +319,7 @@ function AddNode({
     api
       .peekInstaller(addr)
       .then((p) => {
-        if (p.fingerprint !== found.id) throw new Error("the machine's key does not match what it advertised; try again");
+        if (found.id && p.fingerprint !== found.id) throw new Error("the machine's key does not match what it advertised; try again");
         setFp(p.fingerprint);
         setCode(p.pairing_code);
       })
@@ -332,7 +340,8 @@ function AddNode({
         setError("");
         if (started && r.status.provisioning?.phase === Provisioning_Phase.REBOOTING) {
           stop = true;
-          onProvisioned({ node_id: fp, name, addresses: r.status.addresses.map((a) => `${a.includes(":") ? `[${a}]` : a}:7443`) });
+          const reported = r.status.addresses.map((a) => `${a.includes(":") ? `[${a}]` : a}:7443`);
+          onProvisioned({ node_id: fp, name, addresses: [addr, ...reported.filter((a) => a !== addr)] });
         }
         if (r.status.provisioning?.phase === Provisioning_Phase.FAILED) setStarted(false);
       } catch (e) {

@@ -7,7 +7,7 @@ BUF     ?= buf
 STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: help gen gen-check build test lint dev dev-trust info m0-check m1-check image image-boot clean
+.PHONY: help gen gen-check build test lint dev dev-trust dev-qemu info m0-check m1-check image image-boot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -38,6 +38,9 @@ dev-trust: ## Trust Maître Desktop's device key (DEVICE_PUB=path/to/identity.pu
 	@test -n "$(DEVICE_PUB)" || (echo "usage: make dev-trust DEVICE_PUB=~/.local/share/dev.maitre.desktop/device/identity.pub"; exit 1)
 	mkdir -p $(STATE)/trusted && cp "$(DEVICE_PUB)" $(STATE)/trusted/desktop.pub
 	@echo "trusted. Restart 'make dev'. Node fingerprint:"; ./server/bin/maitre keygen --out $(STATE)/node | awk '/^identity/{print $$2}'
+
+dev-qemu: build ## Boot Maître Server in QEMU from CI's installer media and start the Desktop (FRESH=1 wipes the VM disk)
+	FRESH=$(FRESH) RUN=$(RUN) ./scripts/dev-qemu.sh
 
 info: build ## Call GetNodeInfo as the CLI device in $(STATE)/device
 	MAITRE_STATE=$(STATE) ./server/bin/maitre info
