@@ -11,7 +11,8 @@ COPY server/ ./
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /maitre ./cmd/maitre
 
-FROM quay.io/fedora/fedora-bootc:42
+# Fedora's own registry; quay.io mirrors the same image but has had outages.
+FROM registry.fedoraproject.org/fedora-bootc:42
 
 # Runtime for Services, storage, and discovery. Kept deliberately short;
 # anything else is a container. podman, nfs-utils and avahi already ship in

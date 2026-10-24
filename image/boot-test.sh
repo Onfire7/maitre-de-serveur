@@ -35,6 +35,7 @@ sudo podman push --tls-verify=false "localhost:${REG_PORT}/maitre-server:test"
 
 # 2. Installer media: the same image, with kernel arguments selecting
 #    installer mode and naming the image to install.
+sudo podman pull --retry 10 --retry-delay 30s quay.io/centos-bootc/bootc-image-builder:latest >/dev/null
 cat > "$OUT/config.toml" <<TOML
 [customizations.kernel]
 append = "maitre.installer maitre.image=${GUEST_IMAGE} maitre.insecure_registry=10.0.2.2:${REG_PORT} console=ttyS0,115200n8"
