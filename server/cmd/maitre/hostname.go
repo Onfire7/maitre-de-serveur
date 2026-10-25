@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
@@ -39,7 +38,7 @@ func ensureHostname(log *slog.Logger, label string) {
 		// hostnamed persists it; the syscall is the fallback (the live
 		// Installer may not have hostnamed up).
 		if err := exec.CommandContext(ctx, "hostnamectl", "set-hostname", label).Run(); err != nil {
-			if err := syscall.Sethostname([]byte(label)); err != nil {
+			if err := sethostname(label); err != nil {
 				log.Warn("hostname not set", "want", label, "err", err)
 				return
 			}
