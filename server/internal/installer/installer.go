@@ -25,6 +25,9 @@ type Options struct {
 	Version string
 	// ImageRef is the container image to install, e.g. ghcr.io/onfire7/maitre-server:1.
 	ImageRef string
+	// Source overrides where bootc reads it from (decision 76); empty means
+	// the registry.
+	Source string
 	// Runner performs the install; swapped for a fake in tests.
 	Runner Runner
 	// Reboot is called after a successful install.
@@ -157,6 +160,7 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 	}
 	err := in.opts.Runner.Install(ctx, Plan{
 		ImageRef:      in.opts.ImageRef,
+		Source:        in.opts.Source,
 		TargetDisk:    req.GetTargetDisk(),
 		DataPartition: req.GetDataPartition(),
 		Fleet:         req.GetFleet(),

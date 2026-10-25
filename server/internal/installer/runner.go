@@ -17,7 +17,10 @@ import (
 
 // Plan is everything an install needs.
 type Plan struct {
-	ImageRef      string
+	ImageRef string
+	// Source is the bootc --source-imgref (docker://..., oci:...); empty
+	// means docker://ImageRef.
+	Source        string
 	TargetDisk    string
 	DataPartition bool
 	Fleet         *maitrev1.Fleet
@@ -122,15 +125,15 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 // image from the registry while writing it to the disk. bootc prints its own
 // progress lines; they are relayed as the message.
 func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Progress) error {
-	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "downloading and writing Maître Server to "+plan.TargetDisk)
+	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "writing Maître Server to "+plan.TargetDisk)
 	install := &progressWriter{onLine: func(l string) {
 		if l = strings.TrimSpace(l); l != "" {
 			progress(maitrev1.Provisioning_PHASE_INSTALLING, 30, l)
 		}
 	}}
-	src := plan.ImageRef
-	if !strings.Contains(src, "://") && !strings.HasPrefix(src, "containers-storage:") {
-		src = "docker://" + src
+	src := plan.Source
+	if src == "" {
+		src = "docker://" + plan.ImageRef
 	}
 	args := []string{"install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
 		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check"}

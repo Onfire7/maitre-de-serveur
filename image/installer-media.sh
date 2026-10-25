@@ -33,4 +33,19 @@ sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
 sudo chown -R "$(id -u):$(id -g)" "$OUT"
 Q=$(find "$OUT" -name '*.qcow2' | head -1)
 [ -n "$Q" ] || { echo "installer-media: no qcow2 produced" >&2; exit 1; }
+# Decision 76: append a partition carrying the image itself, so the install
+# needs no download when the registry has nothing newer (or is unreachable).
+PART=$OUT/maitre-image.img
+"$(dirname "$0")/image-partition.sh" "$IMAGE" "$INSTALL" "$PART" >/dev/null
+RAW=$OUT/media.raw
+qemu-img convert -O raw "$Q" "$RAW"
+PSIZE=$(stat -c %s "$PART")
+START=$(( ( $(stat -c %s "$RAW") + 1048575 ) / 1048576 * 1048576 ))
+truncate -s $(( START + PSIZE + 1048576 * 2 )) "$RAW"
+# GPT: move the backup header to the new end (util-linux 2.36+), then append the partition.
+sfdisk --relocate gpt-bak-std "$RAW" >/dev/null
+echo "start=$(( START / 512 )), size=$(( PSIZE / 512 )), type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=maitre-image" | sfdisk --append --no-reread --no-tell-kernel "$RAW" >/dev/null
+dd if="$PART" of="$RAW" bs=1M seek=$(( START / 1048576 )) conv=notrunc status=none
+qemu-img convert -O qcow2 "$RAW" "$Q"
+rm -f "$RAW" "$PART"
 echo "$Q"

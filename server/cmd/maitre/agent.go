@@ -228,9 +228,23 @@ func runInstaller(args []string) error {
 		return err
 	}
 	opts := installer.Options{Version: version, ImageRef: *image}
+	if *fake == "" {
+		// Decision 76: media may carry the image; then bootc installs from it
+		// directly, as the netboot path already does.
+		local, err := installer.FindLocalImage(context.Background())
+		if err != nil {
+			log.Warn("media image unusable", "err", err)
+		}
+		if local != nil {
+			src, why := installer.ChooseSource(context.Background(), *image, local)
+			log.Info("install source", "source", src, "why", why)
+			opts.Source = src
+			*direct = true
+		}
+	}
 	if *direct && *fake == "" {
 		opts.Runner = &installer.BootcRunner{Direct: true}
-		log.Info("netbooted: installing with bootc --source-imgref", "image", *image)
+		log.Info("installing with bootc --source-imgref", "image", *image, "source", opts.Source)
 	}
 	if *fake != "" {
 		opts.Runner = &installer.FakeRunner{Dir: *fake, Delay: 2 * time.Second}
