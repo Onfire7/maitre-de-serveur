@@ -103,7 +103,7 @@ func TestStartStagesAndReboots(t *testing.T) {
 	if !strings.Contains(strings.Join(f.calls, "\n"), "systemctl reboot") {
 		t.Errorf("no reboot: %v", f.calls)
 	}
-	b, err := os.ReadFile(filepath.Join(m.RegistriesDir, "maitre-192.168.1.5-8080.conf"))
+	b, err := os.ReadFile(filepath.Join(m.RegistriesDir, InsecureDropIn))
 	if err != nil || !strings.Contains(string(b), `location = "192.168.1.5:8080"`) || !strings.Contains(string(b), "insecure = true") {
 		t.Errorf("registries drop-in: %v %s", err, b)
 	}
@@ -165,5 +165,38 @@ not json
 `), func(p Progress) { got = append(got, p) })
 	if len(got) != 2 || got[0].BytesTotal != 40 || got[1].StepsTotal != 3 {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestInsecureOnlyForLANHosts(t *testing.T) {
+	f := &fakeRunner{}
+	m := New(f, nil)
+	m.RegistriesDir = t.TempDir()
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, true); err != nil {
+		t.Fatal(err)
+	}
+	st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED)
+	if !strings.Contains(st.GetMessage(), "refusing") || f.switched != "" {
+		t.Errorf("status %v switched %q", st, f.switched)
+	}
+	for in, want := range map[string]bool{"192.168.4.54:8080": true, "maitre-depot.local:8080": true, "localhost": true, "ghcr.io": false, "evil.example.com:8080": false, "[::1]:8080": true} {
+		if got := LANHost(in); got != want {
+			t.Errorf("LANHost(%q) = %v", in, got)
+		}
+	}
+	// A secure update removes a previous insecure drop-in.
+	os.WriteFile(filepath.Join(m.RegistriesDir, InsecureDropIn), []byte("x"), 0o644)
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, m, maitrev1.UpdateStatus_STATE_IDLE)
+	if _, err := os.Stat(filepath.Join(m.RegistriesDir, InsecureDropIn)); err == nil {
+		t.Error("insecure drop-in survived a secure update")
+	}
+	if err := m.Start("--retain", false, false); err != nil {
+		t.Fatal(err)
+	}
+	if st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED); !strings.Contains(st.GetMessage(), "not an image reference") {
+		t.Errorf("option-looking ref accepted: %v", st)
 	}
 }

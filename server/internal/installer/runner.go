@@ -13,6 +13,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // Plan is everything an install needs.
@@ -330,6 +331,9 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 // plain HTTP or with an untrusted certificate. Only the CI boot test uses it,
 // to install from a throwaway registry on the QEMU host.
 func AllowInsecureRegistry(hostPort string) error {
+	if !update.LANHost(hostPort) {
+		return fmt.Errorf("refusing to pull from %s without TLS: only IP addresses, localhost and .local names may", hostPort)
+	}
 	dir := "/etc/containers/registries.conf.d"
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err

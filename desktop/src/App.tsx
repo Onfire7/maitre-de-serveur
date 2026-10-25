@@ -477,6 +477,13 @@ function AddNode({
           </label>
           <h4 style={{ marginBottom: 4 }}>Install Maître Server on</h4>
           <p style={{ color: "#b00020", fontSize: 13, marginTop: 0 }}>Everything on the chosen disk will be erased.</p>
+          {status?.image && (
+            <p style={{ color: "#555", fontSize: 13, marginTop: 0 }}>
+              It will install <code>{status.image}</code>
+              {status.source && status.source.startsWith("oci:") ? " from the copy on its media" : status.source ? ` from ${status.source}` : " from the registry"}
+              {status.insecureRegistry && <span style={{ color: "#a60" }}> (pulling from {status.insecureRegistry} without TLS: a developer Depot)</span>}. If that is not what you expect, stop here.
+            </p>
+          )}
           {disks.length === 0 && <p>No other disks found on this machine.</p>}
           {disks.map((d) => (
             <label key={d.path} style={{ display: "block", padding: 4 }}>

@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -126,6 +128,12 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 			m.set(maitrev1.UpdateStatus_STATE_FAILED, err.Error(), 0)
 			return
 		}
+	} else {
+		_ = os.Remove(filepath.Join(m.RegistriesDir, InsecureDropIn))
+	}
+	if !refRE.MatchString(image) {
+		m.set(maitrev1.UpdateStatus_STATE_FAILED, fmt.Sprintf("%q is not an image reference", image), 0)
+		return
 	}
 	m.log.Info("update: staging", "image", image, "reboot", reboot)
 	err := m.run.Switch(ctx, image, func(p Progress) {
@@ -194,13 +202,41 @@ func (m *Manager) allowInsecure(image string) error {
 	if host == "" {
 		return fmt.Errorf("cannot find a registry host in %q", image)
 	}
+	if !LANHost(host) {
+		return fmt.Errorf("refusing to mark %s insecure: only IP addresses, localhost and .local names may skip TLS", host)
+	}
 	if err := os.MkdirAll(m.RegistriesDir, 0o755); err != nil {
 		return err
 	}
-	body := fmt.Sprintf("# Written by maitre: Depot %s speaks plain HTTP on the LAN.\n[[registry]]\nlocation = %q\ninsecure = true\n", host, host)
-	name := "maitre-" + strings.NewReplacer(":", "-", "/", "-").Replace(host) + ".conf"
-	return os.WriteFile(filepath.Join(m.RegistriesDir, name), []byte(body), 0o644)
+	body := fmt.Sprintf("# Written by maitre: Depot %s speaks plain HTTP on the LAN. Replaced on every update.\n[[registry]]\nlocation = %q\ninsecure = true\n", host, host)
+	return os.WriteFile(filepath.Join(m.RegistriesDir, InsecureDropIn), []byte(body), 0o644)
 }
+
+// InsecureDropIn is the single registries.conf.d file an insecure Depot
+// occupies, so there is never more than one such host and a secure update
+// removes it.
+const InsecureDropIn = "maitre-depot.conf"
+
+// LANHost reports whether host (host or host:port) is an IP literal,
+// localhost, or a .local name: the only registries allowed without TLS.
+func LANHost(host string) bool {
+	h := host
+	if hh, _, err := net.SplitHostPort(host); err == nil {
+		h = hh
+	}
+	h = strings.Trim(h, "[]")
+	if h == "localhost" || strings.HasSuffix(h, ".local") {
+		return true
+	}
+	return net.ParseIP(h) != nil
+}
+
+// refRE is a conservative image reference: registry, path, tag and/or digest.
+var refRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?(@sha256:[a-f0-9]{64})?$`)
+
+// ValidRef reports whether s looks like an image reference and cannot be
+// mistaken for a command-line option or a template fragment.
+func ValidRef(s string) bool { return refRE.MatchString(s) }
 
 // RegistryHost returns the registry part of an image reference, or "" when
 // the first path component is not a host (plain docker.io short names).
@@ -281,7 +317,7 @@ func (ExecRunner) Switch(ctx context.Context, image string, progress func(Progre
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "bootc", "switch", "--quiet", "--progress-fd", "3", image)
+	cmd := exec.CommandContext(ctx, "bootc", "switch", "--quiet", "--progress-fd", "3", "--", image)
 	cmd.ExtraFiles = []*os.File{pw}
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

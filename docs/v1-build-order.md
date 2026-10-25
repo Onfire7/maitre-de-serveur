@@ -180,3 +180,17 @@ A Depot is `maitre depot`, one Go binary on the developer's workstation and noth
 - 93. Boot files come from CI: the image job publishes a `netboot` bundle (shim, GRUB, kernel, live initramfs, squashed root, `netboot.json` with digests and the image reference), attached to GitHub releases on `v*` tags. The Console downloads it once into its data directory and verifies every digest. Developers use a Depot's `/boot/` as the source instead.
 - 94. Netboot is an explicit "Boot a new machine from the network" switch in the Console, elevating when turned on. The helper stops itself after an idle period with no client activity, selectable, default one hour.
 - 95. Designed for Linux, macOS and Windows; only Linux is verified in this pass.
+
+### Milestone 1 security review (2026-10-25)
+
+Scope: pairing, trust list, mTLS wiring, identity storage, and the code added since (Depot, netboot helper run elevated, update RPCs, media image source, Service tunnel). One independent read-through plus the author's. Findings and outcomes:
+
+- Fixed: the Console's netboot bundle download took file names from the downloaded manifest and joined them to its data directory; now only the six known boot files are accepted and digests must be well formed.
+- Fixed: the Console preferred any host answering as `maitre-depot.local` over the release, and passed its registry to the root helper as an insecure registry. The Depot is now an explicit checkbox naming the host; the release is the default.
+- Fixed: `UpdateImage` could mark any registry (including ghcr.io) insecure in a drop-in that outlived the update. Only IP literals, localhost and `.local` names may skip TLS, one fixed file is used, and a secure update removes it. The Installer's `--insecure-registry` has the same rule.
+- Fixed: image references are validated and passed after `--` to bootc, so a reference starting with a dash cannot become an option; the netboot helper validates `--image` before it reaches the GRUB template.
+- Fixed: the netboot helper served its whole directory (events and stop files included) on every interface; it now serves only the boot files, bound to the LAN address, TFTP too, and stops after 24 hours regardless of activity.
+- Added: `InstallerStatus` reports the image, its source and any insecure registry, and the Console shows them before the disk is chosen, so a substituted image on an unsigned netboot can be noticed.
+- Open, design question 96: `Provision` accepts the first caller presenting any key; the pairing code is only compared by the person at the Console, never enforced by the Installer. A LAN host that races the owner can wipe the disk and enrol the machine in its own Fleet.
+- Accepted for now: plain-HTTP Depot for developers; no image or boot-file signing until Milestone 6; `Infrastructure` and other LAN exposure is unchanged.
+- Checked and fine: registry and TFTP path handling, no shell interpolation of caller input, every Node RPC and the Service tunnel sit behind the trust-list mTLS listener, key files are 0600, the recovery key derivation is plain SHA-256 over BIP39 entropy with a domain label.

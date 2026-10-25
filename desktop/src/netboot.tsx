@@ -52,6 +52,10 @@ export function NetbootPanel() {
   const [idle, setIdle] = useState(3600);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  // Where the boot files come from. The release is the default; a Depot on
+  // the LAN is offered only when one answers, and only takes effect when
+  // chosen here, since anything on the network could claim that name.
+  const [useDepot, setUseDepot] = useState(false);
 
   const refresh = async () => {
     setFiles(await invoke<FilesStatus>("netboot_files"));
@@ -78,10 +82,11 @@ export function NetbootPanel() {
     };
   }, []);
 
-  const source = depot ? { label: `your Depot at ${depot.registry}`, base: `http://${depot.registry}/boot/` } : { label: "the latest release", base: "" };
-  const depotRef = depot ? Object.entries(depot.images).flatMap(([n, tags]) => tags.map((t) => `${depot.registry}/${n}:${t}`))[0] ?? "" : "";
-  const image = depotRef || files?.image || "";
-  const insecure = depot ? depot.registry : "";
+  const viaDepot = useDepot && depot !== null;
+  const source = viaDepot ? { label: `the Depot at ${depot!.registry}`, base: `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
+  const depotRef = viaDepot ? Object.entries(depot!.images).flatMap(([n, tags]) => tags.map((t) => `${depot!.registry}/${n}:${t}`))[0] ?? "" : "";
+  const image = viaDepot ? depotRef : files?.image || "";
+  const insecure = viaDepot ? depot!.registry : "";
 
   async function download() {
     setDownloading(true);
@@ -127,6 +132,11 @@ export function NetbootPanel() {
       {error && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{error}</pre>}
       {status?.last_error && !running && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{status.last_error}</pre>}
 
+      {depot && (
+        <label style={{ display: "block", color: "#555", fontSize: 13 }}>
+          <input type="checkbox" checked={useDepot} onChange={(e) => setUseDepot(e.target.checked)} /> Use the developer Depot answering as maitre-depot.local ({depot.registry}) over plain HTTP instead of the release
+        </label>
+      )}
       {files && !files.ready && (
         <div>
           <p>

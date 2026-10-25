@@ -19,6 +19,9 @@ use tauri::{AppHandle, Emitter};
 /// Where releases put the bundle (`<base><file>`).
 pub const RELEASE_BASE: &str = "https://github.com/Onfire7/maitre-de-serveur/releases/latest/download/";
 const MANIFEST: &str = "netboot.json";
+/// The only files a bundle may contain; manifest names outside this set are
+/// rejected, so a hostile manifest cannot pick where we write.
+const BOOT_FILES: [&str; 6] = ["shimx64.efi", "grubx64.efi", "mmx64.efi", "vmlinuz", "initramfs.img", "rootfs.squashfs"];
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Manifest {
@@ -97,6 +100,9 @@ impl Netboot {
         };
         st.image = m.image.clone();
         for (name, f) in &m.files {
+            if !BOOT_FILES.contains(&name.as_str()) {
+                continue;
+            }
             st.total_bytes += f.size;
             match fs::metadata(dir.join(name)) {
                 Ok(md) if md.len() == f.size => st.have_bytes += f.size,
@@ -115,6 +121,15 @@ impl Netboot {
         let client = reqwest::Client::builder().build().map_err(|e| e.to_string())?;
         let raw = client.get(format!("{base}{MANIFEST}")).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
         let manifest: Manifest = serde_json::from_slice(&raw).map_err(|e| format!("netboot.json: {e}"))?;
+        if let Some(bad) = manifest.files.keys().find(|n| !BOOT_FILES.contains(&n.as_str())) {
+            return Err(format!("netboot.json names an unexpected file {bad:?}; refusing this bundle"));
+        }
+        if !manifest.files.is_empty() && manifest.files.len() != BOOT_FILES.len() {
+            return Err("netboot.json is missing boot files; refusing this bundle".into());
+        }
+        if manifest.files.values().any(|f| f.sha256.len() != 64 || !f.sha256.bytes().all(|b| b.is_ascii_hexdigit())) {
+            return Err("netboot.json has a malformed digest; refusing this bundle".into());
+        }
         let emit = |p: Progress| {
             let _ = app.emit("netboot-progress", p);
         };

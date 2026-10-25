@@ -171,9 +171,16 @@ type InstallerStatus struct {
 	Disks        []*Disk       `protobuf:"bytes,5,rep,name=disks,proto3" json:"disks,omitempty"`
 	Provisioning *Provisioning `protobuf:"bytes,6,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
 	// Model or hostname hint to help tell machines apart in the Console.
-	MachineName   string `protobuf:"bytes,7,opt,name=machine_name,json=machineName,proto3" json:"machine_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MachineName string `protobuf:"bytes,7,opt,name=machine_name,json=machineName,proto3" json:"machine_name,omitempty"`
+	// What this Installer will put on the disk and where it reads it from
+	// (registry reference, and "registry", "media" or the explicit source).
+	// Shown in the Console so a substituted image can be noticed.
+	Image  string `protobuf:"bytes,8,opt,name=image,proto3" json:"image,omitempty"`
+	Source string `protobuf:"bytes,9,opt,name=source,proto3" json:"source,omitempty"`
+	// Registry host:port it is allowed to pull from without TLS, if any.
+	InsecureRegistry string `protobuf:"bytes,10,opt,name=insecure_registry,json=insecureRegistry,proto3" json:"insecure_registry,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *InstallerStatus) Reset() {
@@ -251,6 +258,27 @@ func (x *InstallerStatus) GetProvisioning() *Provisioning {
 func (x *InstallerStatus) GetMachineName() string {
 	if x != nil {
 		return x.MachineName
+	}
+	return ""
+}
+
+func (x *InstallerStatus) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *InstallerStatus) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *InstallerStatus) GetInsecureRegistry() string {
+	if x != nil {
+		return x.InsecureRegistry
 	}
 	return ""
 }
@@ -517,7 +545,7 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x19maitre/v1/installer.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"\x1b\n" +
 	"\x19GetInstallerStatusRequest\"P\n" +
 	"\x1aGetInstallerStatusResponse\x122\n" +
-	"\x06status\x18\x01 \x01(\v2\x1a.maitre.v1.InstallerStatusR\x06status\"\x96\x02\n" +
+	"\x06status\x18\x01 \x01(\v2\x1a.maitre.v1.InstallerStatusR\x06status\"\xf1\x02\n" +
 	"\x0fInstallerStatus\x12!\n" +
 	"\finstaller_id\x18\x01 \x01(\tR\vinstallerId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +
@@ -525,7 +553,11 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\fpairing_code\x18\x04 \x01(\tR\vpairingCode\x12%\n" +
 	"\x05disks\x18\x05 \x03(\v2\x0f.maitre.v1.DiskR\x05disks\x12;\n" +
 	"\fprovisioning\x18\x06 \x01(\v2\x17.maitre.v1.ProvisioningR\fprovisioning\x12!\n" +
-	"\fmachine_name\x18\a \x01(\tR\vmachineName\"\x9b\x01\n" +
+	"\fmachine_name\x18\a \x01(\tR\vmachineName\x12\x14\n" +
+	"\x05image\x18\b \x01(\tR\x05image\x12\x16\n" +
+	"\x06source\x18\t \x01(\tR\x06source\x12+\n" +
+	"\x11insecure_registry\x18\n" +
+	" \x01(\tR\x10insecureRegistry\"\x9b\x01\n" +
 	"\x04Disk\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x1d\n" +

@@ -38,6 +38,13 @@ message InstallerStatus {
   Provisioning provisioning = 6;
   // Model or hostname hint to help tell machines apart in the Console.
   string machine_name = 7;
+  // What this Installer will put on the disk and where it reads it from
+  // (registry reference, and "registry", "media" or the explicit source).
+  // Shown in the Console so a substituted image can be noticed.
+  string image = 8;
+  string source = 9;
+  // Registry host:port it is allowed to pull from without TLS, if any.
+  string insecure_registry = 10;
 }
 
 message Disk {

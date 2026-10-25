@@ -227,7 +227,7 @@ func runInstaller(args []string) error {
 	if err != nil {
 		return err
 	}
-	opts := installer.Options{Version: version, ImageRef: *image}
+	opts := installer.Options{Version: version, ImageRef: *image, InsecureRegistry: *insecure}
 	if *fake == "" {
 		// Decision 76: media may carry the image; then bootc installs from it
 		// directly, as the netboot path already does.

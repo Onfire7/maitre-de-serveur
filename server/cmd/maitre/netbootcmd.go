@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // runNetboot is `maitre netboot`: the privileged helper Maître Desktop runs
@@ -54,20 +55,28 @@ func runNetboot(args []string) error {
 		}
 		*image = m.Image
 	}
+	if !update.ValidRef(*image) {
+		return fmt.Errorf("%q is not an image reference", *image)
+	}
+	if *insecure != "" && !update.LANHost(*insecure) {
+		return fmt.Errorf("--insecure %s: only IP addresses, localhost and .local names may skip TLS", *insecure)
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	ev := &eventLog{path: *eventsFile}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", *httpPort))
-	if err != nil {
-		return err
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
 	ip, err := depot.LANAddress()
 	if err != nil {
 		return fmt.Errorf("no LAN address: %w", err)
 	}
+	// Only the LAN address, and only the boot files: the directory also
+	// holds the events and stop files, which are nobody else's business.
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ip, *httpPort))
+	if err != nil {
+		return err
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
 	ifname := *iface
 	if ifname == "" {
 		ifname, _ = depot.InterfaceFor(ip)
@@ -75,15 +84,13 @@ func runNetboot(args []string) error {
 	if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: *image, Insecure: *insecure, Serial: *serial}); err != nil {
 		return err
 	}
-	mux := http.NewServeMux()
-	mux.Handle("/boot/", http.StripPrefix("/boot/", http.FileServer(http.Dir(l.Boot()))))
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: depot.BootFileHandler(l), ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 
 	// Idle: any client interaction restarts the clock.
 	var mu sync.Mutex
 	last := time.Now()
-	nb := &depot.Netboot{Layout: l, IP: net.ParseIP(ip).To4(), Interface: ifname, Log: log, OnEvent: func(kind string, f map[string]any) {
+	nb := &depot.Netboot{Layout: l, IP: net.ParseIP(ip).To4(), Interface: ifname, Log: log, BindIP: true, OnEvent: func(kind string, f map[string]any) {
 		mu.Lock()
 		last = time.Now()
 		mu.Unlock()
@@ -95,6 +102,10 @@ func runNetboot(args []string) error {
 	}
 	ev.emit("ready", map[string]any{"ip": ip, "interface": ifname, "http_port": port, "image": *image, "idle_seconds": int(idle.Seconds())})
 
+	// Whatever the idle setting, a helper that has run as root for a day is
+	// one somebody forgot about (or one the LAN keeps poking to stay alive).
+	const maxRun = 24 * time.Hour
+	started := time.Now()
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
@@ -115,6 +126,11 @@ func runNetboot(args []string) error {
 			mu.Lock()
 			quiet := time.Since(last)
 			mu.Unlock()
+			if time.Since(started) > maxRun {
+				ev.emit("stopped", map[string]any{"reason": "max runtime"})
+				shutdown(srv, nb)
+				return nil
+			}
 			if *idle > 0 && quiet > *idle {
 				ev.emit("stopped", map[string]any{"reason": "idle", "after_seconds": int(idle.Seconds())})
 				shutdown(srv, nb)

@@ -28,6 +28,8 @@ type Options struct {
 	// Source overrides where bootc reads it from (decision 76); empty means
 	// the registry.
 	Source string
+	// InsecureRegistry is the host:port allowed without TLS, for the status.
+	InsecureRegistry string
 	// Runner performs the install; swapped for a fake in tests.
 	Runner Runner
 	// Reboot is called after a successful install.
@@ -87,13 +89,16 @@ func (in *Installer) GetInstallerStatus(ctx context.Context, _ *maitrev1.GetInst
 		disks = nil
 	}
 	return &maitrev1.GetInstallerStatusResponse{Status: &maitrev1.InstallerStatus{
-		InstallerId:  in.id.Fingerprint(),
-		Version:      in.opts.Version,
-		Addresses:    Addresses(),
-		PairingCode:  code,
-		Disks:        disks,
-		Provisioning: prov,
-		MachineName:  MachineName(),
+		InstallerId:      in.id.Fingerprint(),
+		Version:          in.opts.Version,
+		Addresses:        Addresses(),
+		PairingCode:      code,
+		Disks:            disks,
+		Provisioning:     prov,
+		MachineName:      MachineName(),
+		Image:            in.opts.ImageRef,
+		Source:           in.opts.Source,
+		InsecureRegistry: in.opts.InsecureRegistry,
 	}}, nil
 }
 

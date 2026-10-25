@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -133,6 +134,24 @@ ls -la /out
 	return WriteManifest(l, imageRef)
 }
 
+// BootFileHandler serves exactly the netboot files (and the manifest) from
+// l.Boot() under /boot/: no listings, no other files, no symlinks followed
+// outside the directory's known names.
+func BootFileHandler(l Layout) http.Handler {
+	allowed := map[string]bool{BootManifest: true, BootConfig: true}
+	for _, f := range BootFiles {
+		allowed[f] = true
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/boot/")
+		if !strings.HasPrefix(r.URL.Path, "/boot/") || !allowed[name] || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(l.Boot(), name))
+	})
+}
+
 // HaveBootFiles reports whether l.Boot() holds a complete set.
 func HaveBootFiles(l Layout) bool {
 	for _, f := range []string{BootLoader, BootGrub, BootKernel, BootInitrd, BootRootFS} {
@@ -200,7 +219,9 @@ type Netboot struct {
 	IP net.IP
 	// Interface limits DHCP to one NIC; empty means all.
 	Interface string
-	Log       *slog.Logger
+	// BindIP binds TFTP to IP instead of every address.
+	BindIP bool
+	Log    *slog.Logger
 	// OnEvent, when set, receives every client interaction: kind is
 	// "client" (fields mac, type) or "tftp" (fields file). Used by the
 	// Desktop's helper to show activity and to decide when it is idle.
@@ -227,7 +248,11 @@ func (n *Netboot) Start(ctx context.Context) error {
 	n.tftp = tftp.NewServer(n.readTFTP, nil)
 	n.tftp.SetTimeout(5 * time.Second)
 	n.tftp.SetBlockSize(1428)
-	tconn, err := net.ListenPacket("udp4", ":69")
+	taddr := ":69"
+	if n.BindIP && n.IP != nil {
+		taddr = n.IP.String() + ":69"
+	}
+	tconn, err := net.ListenPacket("udp4", taddr)
 	if err != nil {
 		n.Close()
 		return fmt.Errorf("tftp on udp/69: %w (run with sudo?)", err)
