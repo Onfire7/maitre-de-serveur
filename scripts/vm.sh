@@ -99,9 +99,9 @@ fi
 NICBOOT=; INSTALLER_DRIVE=(-drive "file=$WORK/maitre-installer.qcow2,format=qcow2,if=none,id=installer,snapshot=on" -device virtio-blk-pci,drive=installer,bootindex=1)
 SLIRP_PXE=
 if [ -n "$PXE" ]; then
-  [ -f "$DEPOT/boot/grubx64.efi" ] || { echo "vm: no netboot files in $DEPOT/boot (run: make publish NETBOOT=1)"; exit 1; }
+  [ -f "$DEPOT/boot/shimx64.efi" ] || { echo "vm: no netboot files in $DEPOT/boot (run: make publish NETBOOT=1)"; exit 1; }
   NICBOOT=",bootindex=1"; INSTALLER_DRIVE=()
-  SLIRP_PXE=",tftp=$DEPOT/boot,bootfile=/grubx64.efi"
+  SLIRP_PXE=",tftp=$DEPOT/boot,bootfile=/shimx64.efi"
 fi
 if [ "$NET" = bridge ]; then
   # Fixed MAC so the VM keeps its DHCP lease across runs.

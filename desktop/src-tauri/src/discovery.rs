@@ -27,6 +27,7 @@ pub struct Found {
 #[derive(Clone)]
 pub struct Discovery {
     found: Arc<Mutex<BTreeMap<String, Found>>>,
+    #[allow(dead_code)] // kept alive so the browser keeps running; stop() is for tests and shutdown
     daemon: Option<ServiceDaemon>,
 }
 
@@ -108,6 +109,7 @@ impl Discovery {
         self.found.lock().unwrap().values().cloned().collect()
     }
 
+    #[allow(dead_code)]
     pub fn stop(&self) {
         if let Some(d) = &self.daemon {
             let _ = d.shutdown();

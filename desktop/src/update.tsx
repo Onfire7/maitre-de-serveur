@@ -13,6 +13,8 @@ export function UpdatePanel({ target }: { target: Target }) {
   const [reboot, setReboot] = useState(true);
   const [insecure, setInsecure] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [unsupported, setUnsupported] = useState(false);
+  const [depot, setDepot] = useState<string[]>([]);
 
   useEffect(() => {
     let stop = false;
@@ -24,7 +26,12 @@ export function UpdatePanel({ target }: { target: Target }) {
           setStatus(r.status ?? null);
           setError("");
         })
-        .catch((e) => !stop && setError(String(e)));
+        .catch((e) => {
+          if (stop) return;
+          // A Node running an image from before updates existed.
+          if (String(e).includes("unimplemented") || String(e).includes("not registered")) setUnsupported(true);
+          else setError(String(e));
+        });
     tick();
     const t = setInterval(tick, 2000);
     return () => {
@@ -32,6 +39,20 @@ export function UpdatePanel({ target }: { target: Target }) {
       clearInterval(t);
     };
   }, [client]);
+
+  // Decision 91: offer what the local Depot has, when there is one.
+  useEffect(() => {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 3000);
+    fetch("http://maitre-depot.local:8080/api/images", { signal: ctl.signal })
+      .then((r) => r.json())
+      .then((d: { registry: string; images: Record<string, string[]> }) =>
+        setDepot(Object.entries(d.images).flatMap(([name, tags]) => tags.map((t) => `${d.registry}/${name}:${t}`))),
+      )
+      .catch(() => {})
+      .finally(() => clearTimeout(t));
+    return () => ctl.abort();
+  }, []);
 
   // Suggest the image the Node runs now, so a retag/rebuild is one click.
   useEffect(() => {
@@ -56,6 +77,13 @@ export function UpdatePanel({ target }: { target: Target }) {
     }
   }
 
+  if (unsupported)
+    return (
+      <section>
+        <h3>Maître Server image</h3>
+        <p style={{ color: "#555" }}>This Node runs a Maître Server from before updates existed. Reinstall it from current media or over the network to manage its image here.</p>
+      </section>
+    );
   if (!status) return null;
   if (!status.supported) return <p style={{ color: "#555" }}>This Node does not run on bootc, so it cannot update itself.</p>;
 
@@ -92,8 +120,23 @@ export function UpdatePanel({ target }: { target: Target }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
         <label>
           Image{" "}
-          <input value={image} onChange={(e) => setImage(e.target.value)} style={{ width: "32em" }} disabled={updating} placeholder="registry/maitre-server:tag" />
+          <input value={image} onChange={(e) => setImage(e.target.value)} style={{ width: "32em" }} disabled={updating} placeholder="registry/maitre-server:tag" list="depot-images" />
+          <datalist id="depot-images">
+            {depot.map((ref) => (
+              <option key={ref} value={ref} />
+            ))}
+          </datalist>
         </label>
+        {depot.length > 0 && (
+          <div style={{ color: "#555", fontSize: 13 }}>
+            From your Depot:{" "}
+            {depot.map((ref) => (
+              <button key={ref} type="button" style={{ marginRight: 4 }} disabled={updating} onClick={() => setImage(ref)}>
+                {ref.split("/").slice(1).join("/")}
+              </button>
+            ))}
+          </div>
+        )}
         <label>
           <input type="checkbox" checked={reboot} onChange={(e) => setReboot(e.target.checked)} /> Reboot now
         </label>

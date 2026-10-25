@@ -59,7 +59,7 @@ make publish             # copy it into the Depot as maitre-server:dev
 make depot               # serve it; prints the reference to type into the Console
 ```
 
-To install new machines over the network instead of from media, build the netboot files once per image and let the Depot answer PXE (decisions 79 to 88; Secure Boot must be off on the target):
+To install new machines over the network instead of from media, build the netboot files once per image and let the Depot answer PXE (decisions 79 to 91; Secure Boot may stay on, shim and GRUB come from the image):
 
 ```
 make publish NETBOOT=1   # also builds kernel, live initramfs, squashed root and GRUB into ~/.maitre/depot/boot

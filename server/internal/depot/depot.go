@@ -2,6 +2,7 @@ package depot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -50,12 +51,25 @@ func Publish(ctx context.Context, l Layout, image, name, tag string, stdout, std
 	return nil
 }
 
-// Handler serves the registry under /v2/ and the boot directory under
-// /boot/, plus a plain-text index at / for humans.
-func Handler(l Layout) http.Handler {
+// Handler serves the registry under /v2/, the boot directory under /boot/,
+// a JSON list of images at /api/images for the Console (decision 91), and a
+// plain-text index at / for humans. registry is the host:port Nodes should
+// pull from.
+func Handler(l Layout, registry string) http.Handler {
 	reg := &Registry{Dir: l.Images()}
 	mux := http.NewServeMux()
 	mux.Handle("/v2/", reg)
+	mux.HandleFunc("/api/images", func(w http.ResponseWriter, r *http.Request) {
+		imgs, err := reg.Images()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Read-only, public on the LAN anyway; let the Console's webview read it.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"registry": registry, "images": imgs})
+	})
 	mux.Handle("/boot/", http.StripPrefix("/boot/", http.FileServer(http.Dir(l.Boot()))))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

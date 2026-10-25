@@ -93,6 +93,9 @@ func TestRegistry(t *testing.T) {
 	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != 405 {
 		t.Errorf("PUT: %v %v", res, err)
 	}
+	api := httptest.NewServer(Handler(Layout{Dir: filepath.Dir(root)}, "10.0.0.1:8080"))
+	defer api.Close()
+	_ = api
 	imgs, err := (&Registry{Dir: root}).Images()
 	if err != nil || len(imgs["maitre-server"]) != 1 || imgs["maitre-server"][0] != "dev" {
 		t.Errorf("Images = %v %v", imgs, err)

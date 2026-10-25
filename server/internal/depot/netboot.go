@@ -24,7 +24,12 @@ import (
 
 // Netboot files produced by BuildBootFiles and served by TFTP and HTTP.
 const (
-	BootLoader = "grubx64.efi" // the image's own GRUB; Secure Boot is off (decision 79)
+	// BootLoader is what the firmware downloads: the image's shim, signed by
+	// Microsoft, so Secure Boot may stay on (decision 79 revised). shim then
+	// loads grubx64.efi from the same TFTP directory.
+	BootLoader = "shimx64.efi"
+	BootGrub   = "grubx64.efi"
+	BootMok    = "mmx64.efi" // shim's MOK manager, in case the firmware asks for it
 	BootKernel = "vmlinuz"
 	BootInitrd = "initramfs.img" // dracut with dmsquash-live and livenet
 	BootRootFS = "rootfs.squashfs"
@@ -49,13 +54,14 @@ test -d /usr/lib/dracut/modules.d/90dmsquash-live || { echo "image lacks dracut-
 echo "kernel $kver"
 cp /usr/lib/modules/$kver/vmlinuz /out/vmlinuz.tmp
 cp /usr/lib/bootupd/updates/EFI/fedora/grubx64.efi /out/grubx64.efi.tmp
+cp /usr/lib/bootupd/updates/EFI/fedora/shimx64.efi /out/shimx64.efi.tmp
+cp /usr/lib/bootupd/updates/EFI/fedora/mmx64.efi /out/mmx64.efi.tmp
 echo "building live initramfs"
 dracut --force --quiet --no-hostonly --add "dmsquash-live livenet" --omit "ostree" --kver "$kver" /out/initramfs.img.tmp
 echo "squashing root (a few minutes)"
 mksquashfs / /out/rootfs.squashfs.tmp -quiet -no-progress -noappend -comp zstd -Xcompression-level 6 \
   -e proc sys dev run tmp out var/tmp var/cache boot/efi etc/hostname etc/hosts etc/resolv.conf
-for f in vmlinuz grubx64.efi initramfs.img rootfs.squashfs; do mv /out/$f.tmp /out/$f; done
-chmod 644 /out/vmlinuz /out/grubx64.efi /out/initramfs.img /out/rootfs.squashfs
+for f in vmlinuz grubx64.efi shimx64.efi mmx64.efi initramfs.img rootfs.squashfs; do mv /out/$f.tmp /out/$f; chmod 644 /out/$f; done
 ls -la /out
 `
 	cmd := exec.CommandContext(ctx, "podman", "run", "--rm", "-v", out+":/out:Z", image, "bash", "-c", script)
@@ -68,7 +74,7 @@ ls -la /out
 
 // HaveBootFiles reports whether l.Boot() holds a complete set.
 func HaveBootFiles(l Layout) bool {
-	for _, f := range []string{BootLoader, BootKernel, BootInitrd, BootRootFS} {
+	for _, f := range []string{BootLoader, BootGrub, BootKernel, BootInitrd, BootRootFS} {
 		if _, err := os.Stat(filepath.Join(l.Boot(), f)); err != nil {
 			return false
 		}
@@ -121,7 +127,8 @@ func WriteGrubConfig(l Layout, p BootParams) error {
 }
 
 // Netboot answers PXE clients: proxyDHCP on 67 and 4011 (the LAN's own DHCP
-// server keeps handing out addresses), TFTP on 69 for GRUB and its config.
+// server keeps handing out addresses), TFTP on 69 for shim, GRUB and its
+// config.
 // Needs root or CAP_NET_BIND_SERVICE (decision 83).
 type Netboot struct {
 	Layout Layout
@@ -196,7 +203,7 @@ func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		}
 	}
 	if !efi {
-		n.Log.Warn("netboot: ignoring non-UEFI-x64 PXE client", "mac", m.ClientHWAddr, "arch", archs)
+		n.Log.Warn("netboot: ignoring non-UEFI-x64 PXE client", "mac", m.ClientHWAddr.String(), "arch", archs)
 		return
 	}
 	var reply *dhcpv4.DHCPv4
@@ -228,7 +235,7 @@ func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		n.Log.Error("netboot: send reply", "err", err)
 		return
 	}
-	n.Log.Info("netboot: PXE client", "mac", m.ClientHWAddr, "type", m.MessageType(), "to", dst.String(), "bootfile", BootLoader)
+	n.Log.Info("netboot: PXE client", "mac", m.ClientHWAddr.String(), "type", m.MessageType().String(), "to", dst.String(), "bootfile", BootLoader)
 }
 
 // readTFTP serves files from the boot directory. Any request whose name ends
