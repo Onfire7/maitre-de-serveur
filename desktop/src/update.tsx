@@ -251,7 +251,10 @@ export function MaintenanceScreen({ target, name, m, onDone, onBack }: { target:
 
   useEffect(() => {
     let stop = false;
-    let wentDown = m.kind === "reboot";
+    // "Back" needs a real outage first: a Node reports "rebooting" and keeps
+    // answering for a few seconds before it goes down, and a poll that
+    // succeeds in that window must not count as a return.
+    let wentDown = false;
     const started = Date.now();
     const tick = async () => {
       if (stop) return;
@@ -274,7 +277,6 @@ export function MaintenanceScreen({ target, name, m, onDone, onBack }: { target:
           return;
         }
         if (st.state === UpdateStatus_State.REBOOTING) {
-          wentDown = true;
           setPhase("down");
         } else if (st.state === UpdateStatus_State.IDLE && !expectReboot) {
           // Staged without a reboot: nothing more to wait for.
