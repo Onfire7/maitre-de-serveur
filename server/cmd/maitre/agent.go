@@ -25,6 +25,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
@@ -139,9 +140,44 @@ func runAgent(args []string) error {
 			_ = pm.Refresh(ctx)
 		}
 	}
+	// Decision 102: after any change, copy the config partition to every
+	// Drive (debounced), so a reinstalled machine can restore itself.
+	backupNow := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-backupNow:
+			}
+			time.Sleep(5 * time.Second)
+			drives, _ := filepath.Glob(filepath.Join(pool.DrivesDir, "*"))
+			for _, d := range drives {
+				if !isMountpoint(d) {
+					continue
+				}
+				if err := backup.Write(ctx, st, *state, d, backup.Meta{NodeID: id.Fingerprint(), NodeName: self.GetName(), FleetID: fleet.GetFleetId(), FleetName: fleet.GetName()}); err != nil {
+					log.Warn("config backup", "drive", d, "err", err)
+				}
+			}
+		}
+	}()
+	requestBackup := func() {
+		select {
+		case backupNow <- struct{}{}:
+		default:
+		}
+	}
+	requestBackup()
+	prevOnChange := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		prevOnChange(r)
+		requestBackup()
+	}
 	pm.OnApplied = func() {
 		refreshTrust()
 		_ = pm.Refresh(ctx)
+		requestBackup()
 	}
 	go pm.Run(ctx)
 	if !*noMDNS {

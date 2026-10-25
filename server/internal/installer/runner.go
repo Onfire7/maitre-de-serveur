@@ -3,6 +3,7 @@ package installer
 import (
 	"context"
 	"fmt"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"io"
 	"os"
 	"os/exec"
@@ -29,6 +30,10 @@ type Plan struct {
 	Trusted       []*maitrev1.TrustedDevice
 	// Nodes are the Fleet's existing Nodes, introduced into the new database.
 	Nodes []*maitrev1.Node
+	// RestoreDevice and RestoreNodeID, when set, restore that Node's backup
+	// from that partition instead of seeding a new identity (decision 102).
+	RestoreDevice string
+	RestoreNodeID string
 	// NodeIdentity becomes the installed Node's identity: the Installer's
 	// key is carried over so the installer_id the Console paired with is the
 	// node_id it sees afterwards.
@@ -218,7 +223,12 @@ func (r *BootcRunner) configure(ctx context.Context, plan Plan, progress Progres
 		return fmt.Errorf("mount config partition: %w", err)
 	}
 	defer r.exec(context.Background(), io.Discard, "umount", mnt)
-	if err := SeedConfig(ctx, mnt, plan); err != nil {
+	if plan.RestoreDevice != "" {
+		progress(maitrev1.Provisioning_PHASE_CONFIGURING, 92, "restoring the Node from its backup on "+plan.RestoreDevice)
+		if err := backup.RestoreFromDevice(ctx, plan.RestoreDevice, plan.RestoreNodeID, mnt); err != nil {
+			return err
+		}
+	} else if err := SeedConfig(ctx, mnt, plan); err != nil {
 		return err
 	}
 	if err := r.exec(ctx, io.Discard, "sync"); err != nil {

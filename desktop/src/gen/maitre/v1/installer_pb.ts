@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/installer.proto.
  */
 export const file_maitre_v1_installer: GenFile = /*@__PURE__*/
-  fileDesc("ChltYWl0cmUvdjEvaW5zdGFsbGVyLnByb3RvEgltYWl0cmUudjEiGwoZR2V0SW5zdGFsbGVyU3RhdHVzUmVxdWVzdCJIChpHZXRJbnN0YWxsZXJTdGF0dXNSZXNwb25zZRIqCgZzdGF0dXMYASABKAsyGi5tYWl0cmUudjEuSW5zdGFsbGVyU3RhdHVzIoACCg9JbnN0YWxsZXJTdGF0dXMSFAoMaW5zdGFsbGVyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhQKDHBhaXJpbmdfY29kZRgEIAEoCRIeCgVkaXNrcxgFIAMoCzIPLm1haXRyZS52MS5EaXNrEi0KDHByb3Zpc2lvbmluZxgGIAEoCzIXLm1haXRyZS52MS5Qcm92aXNpb25pbmcSFAoMbWFjaGluZV9uYW1lGAcgASgJEg0KBWltYWdlGAggASgJEg4KBnNvdXJjZRgJIAEoCRIZChFpbnNlY3VyZV9yZWdpc3RyeRgKIAEoCSJmCgREaXNrEgwKBHBhdGgYASABKAkSDQoFbW9kZWwYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIRCglyZW1vdmFibGUYBCABKAgSGgoSaXNfaW5zdGFsbGVyX21lZGlhGAUgASgIIuMBCgxQcm92aXNpb25pbmcSLAoFcGhhc2UYASABKA4yHS5tYWl0cmUudjEuUHJvdmlzaW9uaW5nLlBoYXNlEg8KB21lc3NhZ2UYAiABKAkSDwoHcGVyY2VudBgDIAEoDSKCAQoFUGhhc2USFQoRUEhBU0VfVU5TUEVDSUZJRUQQABIOCgpQSEFTRV9JRExFEAESFAoQUEhBU0VfSU5TVEFMTElORxACEhUKEVBIQVNFX0NPTkZJR1VSSU5HEAMSEwoPUEhBU0VfUkVCT09USU5HEAQSEAoMUEhBU0VfRkFJTEVEEAUixgEKEFByb3Zpc2lvblJlcXVlc3QSHwoFZmxlZXQYASABKAsyEC5tYWl0cmUudjEuRmxlZXQSEQoJbm9kZV9uYW1lGAIgASgJEhMKC3RhcmdldF9kaXNrGAMgASgJEjEKD3RydXN0ZWRfZGV2aWNlcxgEIAMoCzIYLm1haXRyZS52MS5UcnVzdGVkRGV2aWNlEh4KBW5vZGVzGAYgAygLMg8ubWFpdHJlLnYxLk5vZGUSFgoOZGF0YV9wYXJ0aXRpb24YBSABKAgiEwoRUHJvdmlzaW9uUmVzcG9uc2UywQEKEEluc3RhbGxlclNlcnZpY2USYwoSR2V0SW5zdGFsbGVyU3RhdHVzEiQubWFpdHJlLnYxLkdldEluc3RhbGxlclN0YXR1c1JlcXVlc3QaJS5tYWl0cmUudjEuR2V0SW5zdGFsbGVyU3RhdHVzUmVzcG9uc2UiABJICglQcm92aXNpb24SGy5tYWl0cmUudjEuUHJvdmlzaW9uUmVxdWVzdBocLm1haXRyZS52MS5Qcm92aXNpb25SZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z", [file_maitre_v1_fleet]);
+  fileDesc("ChltYWl0cmUvdjEvaW5zdGFsbGVyLnByb3RvEgltYWl0cmUudjEiGwoZR2V0SW5zdGFsbGVyU3RhdHVzUmVxdWVzdCJIChpHZXRJbnN0YWxsZXJTdGF0dXNSZXNwb25zZRIqCgZzdGF0dXMYASABKAsyGi5tYWl0cmUudjEuSW5zdGFsbGVyU3RhdHVzIqQCCg9JbnN0YWxsZXJTdGF0dXMSFAoMaW5zdGFsbGVyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhQKDHBhaXJpbmdfY29kZRgEIAEoCRIeCgVkaXNrcxgFIAMoCzIPLm1haXRyZS52MS5EaXNrEi0KDHByb3Zpc2lvbmluZxgGIAEoCzIXLm1haXRyZS52MS5Qcm92aXNpb25pbmcSFAoMbWFjaGluZV9uYW1lGAcgASgJEg0KBWltYWdlGAggASgJEg4KBnNvdXJjZRgJIAEoCRIZChFpbnNlY3VyZV9yZWdpc3RyeRgKIAEoCRIiCgdiYWNrdXBzGAsgAygLMhEubWFpdHJlLnYxLkJhY2t1cCKHAQoGQmFja3VwEg8KB25vZGVfaWQYASABKAkSEQoJbm9kZV9uYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEhIKCmZsZWV0X25hbWUYBCABKAkSFQoNc2F2ZWRfdW5peF9tcxgFIAEoAxIOCgZkZXZpY2UYBiABKAkSDAoEZGlzaxgHIAEoCSJmCgREaXNrEgwKBHBhdGgYASABKAkSDQoFbW9kZWwYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIRCglyZW1vdmFibGUYBCABKAgSGgoSaXNfaW5zdGFsbGVyX21lZGlhGAUgASgIIuMBCgxQcm92aXNpb25pbmcSLAoFcGhhc2UYASABKA4yHS5tYWl0cmUudjEuUHJvdmlzaW9uaW5nLlBoYXNlEg8KB21lc3NhZ2UYAiABKAkSDwoHcGVyY2VudBgDIAEoDSKCAQoFUGhhc2USFQoRUEhBU0VfVU5TUEVDSUZJRUQQABIOCgpQSEFTRV9JRExFEAESFAoQUEhBU0VfSU5TVEFMTElORxACEhUKEVBIQVNFX0NPTkZJR1VSSU5HEAMSEwoPUEhBU0VfUkVCT09USU5HEAQSEAoMUEhBU0VfRkFJTEVEEAUi3wEKEFByb3Zpc2lvblJlcXVlc3QSHwoFZmxlZXQYASABKAsyEC5tYWl0cmUudjEuRmxlZXQSEQoJbm9kZV9uYW1lGAIgASgJEhMKC3RhcmdldF9kaXNrGAMgASgJEjEKD3RydXN0ZWRfZGV2aWNlcxgEIAMoCzIYLm1haXRyZS52MS5UcnVzdGVkRGV2aWNlEh4KBW5vZGVzGAYgAygLMg8ubWFpdHJlLnYxLk5vZGUSFwoPcmVzdG9yZV9ub2RlX2lkGAcgASgJEhYKDmRhdGFfcGFydGl0aW9uGAUgASgIIhMKEVByb3Zpc2lvblJlc3BvbnNlMsEBChBJbnN0YWxsZXJTZXJ2aWNlEmMKEkdldEluc3RhbGxlclN0YXR1cxIkLm1haXRyZS52MS5HZXRJbnN0YWxsZXJTdGF0dXNSZXF1ZXN0GiUubWFpdHJlLnYxLkdldEluc3RhbGxlclN0YXR1c1Jlc3BvbnNlIgASSAoJUHJvdmlzaW9uEhsubWFpdHJlLnYxLlByb3Zpc2lvblJlcXVlc3QaHC5tYWl0cmUudjEuUHJvdmlzaW9uUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw", [file_maitre_v1_fleet]);
 
 /**
  * @generated from message maitre.v1.GetInstallerStatusRequest
@@ -111,6 +111,14 @@ export type InstallerStatus = Message<"maitre.v1.InstallerStatus"> & {
    * @generated from field: string insecure_registry = 10;
    */
   insecureRegistry: string;
+
+  /**
+   * Node backups found on attached Drives (decision 102): the Console offers
+   * "Restore this Node" before anything else.
+   *
+   * @generated from field: repeated maitre.v1.Backup backups = 11;
+   */
+  backups: Backup[];
 };
 
 /**
@@ -119,6 +127,57 @@ export type InstallerStatus = Message<"maitre.v1.InstallerStatus"> & {
  */
 export const InstallerStatusSchema: GenMessage<InstallerStatus> = /*@__PURE__*/
   messageDesc(file_maitre_v1_installer, 2);
+
+/**
+ * Backup is a copy of a Node's config partition found on a Drive.
+ *
+ * @generated from message maitre.v1.Backup
+ */
+export type Backup = Message<"maitre.v1.Backup"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string node_name = 2;
+   */
+  nodeName: string;
+
+  /**
+   * @generated from field: string fleet_id = 3;
+   */
+  fleetId: string;
+
+  /**
+   * @generated from field: string fleet_name = 4;
+   */
+  fleetName: string;
+
+  /**
+   * @generated from field: int64 saved_unix_ms = 5;
+   */
+  savedUnixMs: bigint;
+
+  /**
+   * Partition holding it, e.g. /dev/sdb1, and the disk it belongs to.
+   *
+   * @generated from field: string device = 6;
+   */
+  device: string;
+
+  /**
+   * @generated from field: string disk = 7;
+   */
+  disk: string;
+};
+
+/**
+ * Describes the message maitre.v1.Backup.
+ * Use `create(BackupSchema)` to create a new message.
+ */
+export const BackupSchema: GenMessage<Backup> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_installer, 3);
 
 /**
  * @generated from message maitre.v1.Disk
@@ -159,7 +218,7 @@ export type Disk = Message<"maitre.v1.Disk"> & {
  * Use `create(DiskSchema)` to create a new message.
  */
 export const DiskSchema: GenMessage<Disk> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 3);
+  messageDesc(file_maitre_v1_installer, 4);
 
 /**
  * Provisioning is the state of an in-flight or finished install.
@@ -190,7 +249,7 @@ export type Provisioning = Message<"maitre.v1.Provisioning"> & {
  * Use `create(ProvisioningSchema)` to create a new message.
  */
 export const ProvisioningSchema: GenMessage<Provisioning> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 4);
+  messageDesc(file_maitre_v1_installer, 5);
 
 /**
  * @generated from enum maitre.v1.Provisioning.Phase
@@ -231,7 +290,7 @@ export enum Provisioning_Phase {
  * Describes the enum maitre.v1.Provisioning.Phase.
  */
 export const Provisioning_PhaseSchema: GenEnum<Provisioning_Phase> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_installer, 4, 0);
+  enumDesc(file_maitre_v1_installer, 5, 0);
 
 /**
  * @generated from message maitre.v1.ProvisionRequest
@@ -270,6 +329,16 @@ export type ProvisionRequest = Message<"maitre.v1.ProvisionRequest"> & {
   nodes: Node[];
 
   /**
+   * Restore the Node whose backup carries this node_id (from
+   * InstallerStatus.backups) instead of creating a new identity: the Node
+   * comes back with its key, name and Fleet database. fleet, node_name and
+   * trusted_devices are ignored then.
+   *
+   * @generated from field: string restore_node_id = 7;
+   */
+  restoreNodeId: string;
+
+  /**
    * Create a data partition from the remaining space. Default off on USB.
    *
    * @generated from field: bool data_partition = 5;
@@ -282,7 +351,7 @@ export type ProvisionRequest = Message<"maitre.v1.ProvisionRequest"> & {
  * Use `create(ProvisionRequestSchema)` to create a new message.
  */
 export const ProvisionRequestSchema: GenMessage<ProvisionRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 5);
+  messageDesc(file_maitre_v1_installer, 6);
 
 /**
  * @generated from message maitre.v1.ProvisionResponse
@@ -295,7 +364,7 @@ export type ProvisionResponse = Message<"maitre.v1.ProvisionResponse"> & {
  * Use `create(ProvisionResponseSchema)` to create a new message.
  */
 export const ProvisionResponseSchema: GenMessage<ProvisionResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 6);
+  messageDesc(file_maitre_v1_installer, 7);
 
 /**
  * InstallerService is served by `maitre installer` on installer media.

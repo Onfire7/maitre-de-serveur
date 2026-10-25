@@ -413,6 +413,7 @@ function AddNode({
   const [disk, setDisk] = useState("");
   const [dataPart, setDataPart] = useState(false);
   const [started, setStarted] = useState(false);
+  const [restore, setRestore] = useState(""); // node_id of a backup to restore, "" for a fresh Node
   const [error, setError] = useState("");
 
   // Step 1: learn the Installer's key and compute the code we expect.
@@ -459,7 +460,9 @@ function AddNode({
         if (started && r.status.provisioning?.phase === Provisioning_Phase.REBOOTING) {
           stop = true;
           const reported = r.status.addresses.map((a) => `${a.includes(":") ? `[${a}]` : a}:7443`);
-          onProvisioned({ node_id: fp, name, addresses: [addr, ...reported.filter((a) => a !== addr)] });
+          // A restored Node keeps its old key, so it is known by its old id.
+          const b = restore ? r.status.backups.find((x) => x.nodeId === restore) : undefined;
+          onProvisioned({ node_id: b ? b.nodeId : fp, name: b ? b.nodeName : name, addresses: [addr, ...reported.filter((a) => a !== addr)] });
         }
         if (r.status.provisioning?.phase === Provisioning_Phase.FAILED) setStarted(false);
       } catch (e) {
@@ -472,7 +475,7 @@ function AddNode({
       stop = true;
       clearInterval(t);
     };
-  }, [fp, code, started, name, addr, onProvisioned]);
+  }, [fp, code, started, name, addr, restore, onProvisioned]);
 
   const disks = status?.disks.filter((d) => !d.isInstallerMedia) ?? [];
   const chosen = disks.find((d) => d.path === disk);
@@ -508,7 +511,12 @@ function AddNode({
         if (sponsor) break;
       }
       if (state.nodes.length > 0 && !sponsor) throw new Error("none of the Fleet's Nodes can be reached to add this one; bring one online first");
-      if (nodes.some((n) => n.name === name.trim())) throw new Error(`the Fleet already has a Node named "${name.trim()}"`);
+      if (!restore && nodes.some((n) => n.name === name.trim())) throw new Error(`the Fleet already has a Node named "${name.trim()}"`);
+      if (restore) {
+        await client.provision({ targetDisk: chosen.path, dataPartition: dataPart, restoreNodeId: restore, fleet: { fleetId: state.fleet.fleet_id }, nodeName: "restore" });
+        setStarted(true);
+        return;
+      }
       await client.provision({
         fleet: {
           fleetId: state.fleet.fleet_id,
@@ -575,6 +583,20 @@ function AddNode({
       {confirmed && !started && (
         <>
           <h3>2. Name it and pick the disk</h3>
+          {status && status.backups.length > 0 && (
+            <div style={{ border: "1px solid #c90", borderRadius: 6, padding: 8, marginBottom: 8 }}>
+              <b>A Drive in this machine holds a backup of a Node.</b>
+              {status.backups.map((b) => (
+                <label key={b.nodeId} style={{ display: "block", marginTop: 4 }}>
+                  <input type="radio" name="restore" checked={restore === b.nodeId} onChange={() => setRestore(b.nodeId)} /> Restore <b>{b.nodeName}</b> of Fleet "{b.fleetName}" (saved{" "}
+                  {new Date(Number(b.savedUnixMs)).toLocaleString()}, on {b.device})
+                </label>
+              ))}
+              <label style={{ display: "block", marginTop: 4 }}>
+                <input type="radio" name="restore" checked={restore === ""} onChange={() => setRestore("")} /> Set up a new Node instead
+              </label>
+            </div>
+          )}
           <label>
             Node name{" "}
             <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: 240 }} />

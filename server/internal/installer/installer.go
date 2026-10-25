@@ -36,12 +36,19 @@ type Options struct {
 	Reboot func() error
 	// Disks lists candidate disks; defaults to the lsblk-based Disks.
 	Disks func(ctx context.Context) ([]*maitrev1.Disk, error)
+	// Backups finds Node backups on attached Drives; defaults to scanning
+	// every partition of every non-installer disk. Nil in the fake runner.
+	Backups func(ctx context.Context) []*maitrev1.Backup
 }
 
 // Installer is the InstallerService handler plus the screen state.
 type Installer struct {
-	id   *identity.Identity
-	opts Options
+	// restoreDevice is the partition holding the backup chosen for restore.
+	restoreDevice string
+	backupCache   []*maitrev1.Backup
+	backupScanned time.Time
+	id            *identity.Identity
+	opts          Options
 
 	mu       sync.Mutex
 	lastPeer string // fingerprint of the most recent caller, for the screen
@@ -59,6 +66,9 @@ func New(id *identity.Identity, opts Options) *Installer {
 	}
 	if opts.Disks == nil {
 		opts.Disks = Disks
+		if opts.Backups == nil {
+			opts.Backups = ScanBackups
+		}
 	}
 	return &Installer{
 		id:   id,
@@ -88,7 +98,9 @@ func (in *Installer) GetInstallerStatus(ctx context.Context, _ *maitrev1.GetInst
 	if err != nil {
 		disks = nil
 	}
+	backups := in.backups(ctx)
 	return &maitrev1.GetInstallerStatusResponse{Status: &maitrev1.InstallerStatus{
+		Backups:          backups,
 		InstallerId:      in.id.Fingerprint(),
 		Version:          in.opts.Version,
 		Addresses:        Addresses(),
@@ -107,6 +119,25 @@ func (in *Installer) Provision(ctx context.Context, req *maitrev1.ProvisionReque
 	p, ok := peer.From(ctx)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, "no client key")
+	}
+	if req.GetRestoreNodeId() != "" {
+		var b *maitrev1.Backup
+		for _, x := range in.backups(ctx) {
+			if x.GetNodeId() == req.GetRestoreNodeId() {
+				b = x
+			}
+		}
+		if b == nil {
+			return nil, connect.Errorf(connect.CodeInvalidArgument, "no backup of Node %s on any Drive", req.GetRestoreNodeId())
+		}
+		if b.GetDisk() == req.GetTargetDisk() {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, "the backup sits on the disk you chose to install to; pick another")
+		}
+		req.NodeName = b.GetNodeName()
+		req.Fleet = &maitrev1.Fleet{FleetId: b.GetFleetId(), Name: b.GetFleetName()}
+		in.mu.Lock()
+		in.restoreDevice = b.GetDevice()
+		in.mu.Unlock()
 	}
 	if req.GetFleet().GetFleetId() == "" || req.GetNodeName() == "" || req.GetTargetDisk() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "fleet, node_name and target_disk are required")
@@ -173,6 +204,8 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		Nodes:         req.GetNodes(),
 		Trusted:       req.GetTrustedDevices(),
 		NodeIdentity:  in.id,
+		RestoreDevice: in.restoreDevice,
+		RestoreNodeID: req.GetRestoreNodeId(),
 	}, progress)
 	if err != nil {
 		progress(maitrev1.Provisioning_PHASE_FAILED, 0, err.Error())
@@ -240,4 +273,24 @@ func spaced(code string) string {
 
 func cloneProv(p *maitrev1.Provisioning) *maitrev1.Provisioning {
 	return &maitrev1.Provisioning{Phase: p.GetPhase(), Message: p.GetMessage(), Percent: p.GetPercent()}
+}
+
+// backups scans attached Drives for Node backups (decision 102), at most
+// once a minute: it mounts partitions, which is slow.
+func (in *Installer) backups(ctx context.Context) []*maitrev1.Backup {
+	in.mu.Lock()
+	if time.Since(in.backupScanned) < time.Minute {
+		b := in.backupCache
+		in.mu.Unlock()
+		return b
+	}
+	in.mu.Unlock()
+	var found []*maitrev1.Backup
+	if in.opts.Backups != nil {
+		found = in.opts.Backups(ctx)
+	}
+	in.mu.Lock()
+	in.backupCache, in.backupScanned = found, time.Now()
+	in.mu.Unlock()
+	return found
 }

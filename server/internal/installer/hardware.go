@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"net"
 	"os/exec"
 	"sort"
@@ -52,6 +53,7 @@ type lsblkOut struct {
 type lsblkDev struct {
 	Name        string     `json:"name"`
 	Path        string     `json:"path"`
+	FSType      *string    `json:"fstype"`
 	Model       *string    `json:"model"`
 	Size        uint64     `json:"size"`
 	RM          bool       `json:"rm"`
@@ -66,7 +68,7 @@ type lsblkDev struct {
 // is flagged as installer media. Virtual devices (zram, loop, ram) are
 // skipped.
 func Disks(ctx context.Context) ([]*maitrev1.Disk, error) {
-	out, err := exec.CommandContext(ctx, "lsblk", "-J", "-b", "-o", "NAME,PATH,MODEL,SIZE,RM,TYPE,TRAN,MOUNTPOINTS").Output()
+	out, err := exec.CommandContext(ctx, "lsblk", "-J", "-b", "-o", "NAME,PATH,MODEL,SIZE,RM,TYPE,TRAN,MOUNTPOINTS,FSTYPE").Output()
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
 	}
@@ -124,4 +126,29 @@ func MachineName() string {
 		}
 	}
 	return "this machine"
+}
+
+// ScanBackups looks on every partition of every disk that is not the
+// installer media for Node backups (decision 102).
+func ScanBackups(ctx context.Context) []*maitrev1.Backup {
+	out, err := exec.CommandContext(ctx, "lsblk", "-J", "-b", "-o", "NAME,PATH,MODEL,SIZE,RM,TYPE,TRAN,MOUNTPOINTS,FSTYPE").Output()
+	if err != nil {
+		return nil
+	}
+	var parsed lsblkOut
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		return nil
+	}
+	var parts []backup.Partition
+	for _, d := range parsed.Blockdevices {
+		if d.Type != "disk" || holdsSystem(d) || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") {
+			continue
+		}
+		for _, c := range d.Children {
+			if c.FSType != nil && *c.FSType != "" {
+				parts = append(parts, backup.Partition{Device: c.Path, Disk: d.Path, FSType: *c.FSType})
+			}
+		}
+	}
+	return backup.Scan(ctx, parts)
 }

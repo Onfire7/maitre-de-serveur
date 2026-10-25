@@ -45,6 +45,21 @@ message InstallerStatus {
   string source = 9;
   // Registry host:port it is allowed to pull from without TLS, if any.
   string insecure_registry = 10;
+  // Node backups found on attached Drives (decision 102): the Console offers
+  // "Restore this Node" before anything else.
+  repeated Backup backups = 11;
+}
+
+// Backup is a copy of a Node's config partition found on a Drive.
+message Backup {
+  string node_id = 1;
+  string node_name = 2;
+  string fleet_id = 3;
+  string fleet_name = 4;
+  int64 saved_unix_ms = 5;
+  // Partition holding it, e.g. /dev/sdb1, and the disk it belongs to.
+  string device = 6;
+  string disk = 7;
 }
 
 message Disk {
@@ -83,6 +98,11 @@ message ProvisionRequest {
   // The Fleet's existing Nodes, so the new one trusts and finds them from
   // its first boot (Milestone 3). Empty for the first Node.
   repeated Node nodes = 6;
+  // Restore the Node whose backup carries this node_id (from
+  // InstallerStatus.backups) instead of creating a new identity: the Node
+  // comes back with its key, name and Fleet database. fleet, node_name and
+  // trusted_devices are ignored then.
+  string restore_node_id = 7;
   // Create a data partition from the remaining space. Default off on USB.
   bool data_partition = 5;
 }

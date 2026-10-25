@@ -76,7 +76,7 @@ func (x Provisioning_Phase) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provisioning_Phase.Descriptor instead.
 func (Provisioning_Phase) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{4, 0}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type GetInstallerStatusRequest struct {
@@ -179,8 +179,11 @@ type InstallerStatus struct {
 	Source string `protobuf:"bytes,9,opt,name=source,proto3" json:"source,omitempty"`
 	// Registry host:port it is allowed to pull from without TLS, if any.
 	InsecureRegistry string `protobuf:"bytes,10,opt,name=insecure_registry,json=insecureRegistry,proto3" json:"insecure_registry,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Node backups found on attached Drives (decision 102): the Console offers
+	// "Restore this Node" before anything else.
+	Backups       []*Backup `protobuf:"bytes,11,rep,name=backups,proto3" json:"backups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InstallerStatus) Reset() {
@@ -283,6 +286,107 @@ func (x *InstallerStatus) GetInsecureRegistry() string {
 	return ""
 }
 
+func (x *InstallerStatus) GetBackups() []*Backup {
+	if x != nil {
+		return x.Backups
+	}
+	return nil
+}
+
+// Backup is a copy of a Node's config partition found on a Drive.
+type Backup struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	NodeId      string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeName    string                 `protobuf:"bytes,2,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	FleetId     string                 `protobuf:"bytes,3,opt,name=fleet_id,json=fleetId,proto3" json:"fleet_id,omitempty"`
+	FleetName   string                 `protobuf:"bytes,4,opt,name=fleet_name,json=fleetName,proto3" json:"fleet_name,omitempty"`
+	SavedUnixMs int64                  `protobuf:"varint,5,opt,name=saved_unix_ms,json=savedUnixMs,proto3" json:"saved_unix_ms,omitempty"`
+	// Partition holding it, e.g. /dev/sdb1, and the disk it belongs to.
+	Device        string `protobuf:"bytes,6,opt,name=device,proto3" json:"device,omitempty"`
+	Disk          string `protobuf:"bytes,7,opt,name=disk,proto3" json:"disk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Backup) Reset() {
+	*x = Backup{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Backup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Backup) ProtoMessage() {}
+
+func (x *Backup) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Backup.ProtoReflect.Descriptor instead.
+func (*Backup) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Backup) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *Backup) GetNodeName() string {
+	if x != nil {
+		return x.NodeName
+	}
+	return ""
+}
+
+func (x *Backup) GetFleetId() string {
+	if x != nil {
+		return x.FleetId
+	}
+	return ""
+}
+
+func (x *Backup) GetFleetName() string {
+	if x != nil {
+		return x.FleetName
+	}
+	return ""
+}
+
+func (x *Backup) GetSavedUnixMs() int64 {
+	if x != nil {
+		return x.SavedUnixMs
+	}
+	return 0
+}
+
+func (x *Backup) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *Backup) GetDisk() string {
+	if x != nil {
+		return x.Disk
+	}
+	return ""
+}
+
 type Disk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable path such as /dev/disk/by-id/....
@@ -298,7 +402,7 @@ type Disk struct {
 
 func (x *Disk) Reset() {
 	*x = Disk{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[3]
+	mi := &file_maitre_v1_installer_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -310,7 +414,7 @@ func (x *Disk) String() string {
 func (*Disk) ProtoMessage() {}
 
 func (x *Disk) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[3]
+	mi := &file_maitre_v1_installer_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,7 +427,7 @@ func (x *Disk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disk.ProtoReflect.Descriptor instead.
 func (*Disk) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Disk) GetPath() string {
@@ -374,7 +478,7 @@ type Provisioning struct {
 
 func (x *Provisioning) Reset() {
 	*x = Provisioning{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[4]
+	mi := &file_maitre_v1_installer_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +490,7 @@ func (x *Provisioning) String() string {
 func (*Provisioning) ProtoMessage() {}
 
 func (x *Provisioning) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[4]
+	mi := &file_maitre_v1_installer_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +503,7 @@ func (x *Provisioning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provisioning.ProtoReflect.Descriptor instead.
 func (*Provisioning) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Provisioning) GetPhase() Provisioning_Phase {
@@ -434,6 +538,11 @@ type ProvisionRequest struct {
 	// The Fleet's existing Nodes, so the new one trusts and finds them from
 	// its first boot (Milestone 3). Empty for the first Node.
 	Nodes []*Node `protobuf:"bytes,6,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	// Restore the Node whose backup carries this node_id (from
+	// InstallerStatus.backups) instead of creating a new identity: the Node
+	// comes back with its key, name and Fleet database. fleet, node_name and
+	// trusted_devices are ignored then.
+	RestoreNodeId string `protobuf:"bytes,7,opt,name=restore_node_id,json=restoreNodeId,proto3" json:"restore_node_id,omitempty"`
 	// Create a data partition from the remaining space. Default off on USB.
 	DataPartition bool `protobuf:"varint,5,opt,name=data_partition,json=dataPartition,proto3" json:"data_partition,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -442,7 +551,7 @@ type ProvisionRequest struct {
 
 func (x *ProvisionRequest) Reset() {
 	*x = ProvisionRequest{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	mi := &file_maitre_v1_installer_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -454,7 +563,7 @@ func (x *ProvisionRequest) String() string {
 func (*ProvisionRequest) ProtoMessage() {}
 
 func (x *ProvisionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	mi := &file_maitre_v1_installer_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -467,7 +576,7 @@ func (x *ProvisionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionRequest.ProtoReflect.Descriptor instead.
 func (*ProvisionRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ProvisionRequest) GetFleet() *Fleet {
@@ -505,6 +614,13 @@ func (x *ProvisionRequest) GetNodes() []*Node {
 	return nil
 }
 
+func (x *ProvisionRequest) GetRestoreNodeId() string {
+	if x != nil {
+		return x.RestoreNodeId
+	}
+	return ""
+}
+
 func (x *ProvisionRequest) GetDataPartition() bool {
 	if x != nil {
 		return x.DataPartition
@@ -520,7 +636,7 @@ type ProvisionResponse struct {
 
 func (x *ProvisionResponse) Reset() {
 	*x = ProvisionResponse{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	mi := &file_maitre_v1_installer_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +648,7 @@ func (x *ProvisionResponse) String() string {
 func (*ProvisionResponse) ProtoMessage() {}
 
 func (x *ProvisionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	mi := &file_maitre_v1_installer_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +661,7 @@ func (x *ProvisionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionResponse.ProtoReflect.Descriptor instead.
 func (*ProvisionResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{7}
 }
 
 var File_maitre_v1_installer_proto protoreflect.FileDescriptor
@@ -555,7 +671,7 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x19maitre/v1/installer.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"\x1b\n" +
 	"\x19GetInstallerStatusRequest\"P\n" +
 	"\x1aGetInstallerStatusResponse\x122\n" +
-	"\x06status\x18\x01 \x01(\v2\x1a.maitre.v1.InstallerStatusR\x06status\"\xf1\x02\n" +
+	"\x06status\x18\x01 \x01(\v2\x1a.maitre.v1.InstallerStatusR\x06status\"\x9e\x03\n" +
 	"\x0fInstallerStatus\x12!\n" +
 	"\finstaller_id\x18\x01 \x01(\tR\vinstallerId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +
@@ -567,7 +683,17 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x05image\x18\b \x01(\tR\x05image\x12\x16\n" +
 	"\x06source\x18\t \x01(\tR\x06source\x12+\n" +
 	"\x11insecure_registry\x18\n" +
-	" \x01(\tR\x10insecureRegistry\"\x9b\x01\n" +
+	" \x01(\tR\x10insecureRegistry\x12+\n" +
+	"\abackups\x18\v \x03(\v2\x11.maitre.v1.BackupR\abackups\"\xc8\x01\n" +
+	"\x06Backup\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1b\n" +
+	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x19\n" +
+	"\bfleet_id\x18\x03 \x01(\tR\afleetId\x12\x1d\n" +
+	"\n" +
+	"fleet_name\x18\x04 \x01(\tR\tfleetName\x12\"\n" +
+	"\rsaved_unix_ms\x18\x05 \x01(\x03R\vsavedUnixMs\x12\x16\n" +
+	"\x06device\x18\x06 \x01(\tR\x06device\x12\x12\n" +
+	"\x04disk\x18\a \x01(\tR\x04disk\"\x9b\x01\n" +
 	"\x04Disk\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x1d\n" +
@@ -586,14 +712,15 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x10PHASE_INSTALLING\x10\x02\x12\x15\n" +
 	"\x11PHASE_CONFIGURING\x10\x03\x12\x13\n" +
 	"\x0fPHASE_REBOOTING\x10\x04\x12\x10\n" +
-	"\fPHASE_FAILED\x10\x05\"\x89\x02\n" +
+	"\fPHASE_FAILED\x10\x05\"\xb1\x02\n" +
 	"\x10ProvisionRequest\x12&\n" +
 	"\x05fleet\x18\x01 \x01(\v2\x10.maitre.v1.FleetR\x05fleet\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x1f\n" +
 	"\vtarget_disk\x18\x03 \x01(\tR\n" +
 	"targetDisk\x12A\n" +
 	"\x0ftrusted_devices\x18\x04 \x03(\v2\x18.maitre.v1.TrustedDeviceR\x0etrustedDevices\x12%\n" +
-	"\x05nodes\x18\x06 \x03(\v2\x0f.maitre.v1.NodeR\x05nodes\x12%\n" +
+	"\x05nodes\x18\x06 \x03(\v2\x0f.maitre.v1.NodeR\x05nodes\x12&\n" +
+	"\x0frestore_node_id\x18\a \x01(\tR\rrestoreNodeId\x12%\n" +
 	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\"\x13\n" +
 	"\x11ProvisionResponse2\xc1\x01\n" +
 	"\x10InstallerService\x12c\n" +
@@ -613,37 +740,39 @@ func file_maitre_v1_installer_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_installer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_maitre_v1_installer_proto_goTypes = []any{
 	(Provisioning_Phase)(0),            // 0: maitre.v1.Provisioning.Phase
 	(*GetInstallerStatusRequest)(nil),  // 1: maitre.v1.GetInstallerStatusRequest
 	(*GetInstallerStatusResponse)(nil), // 2: maitre.v1.GetInstallerStatusResponse
 	(*InstallerStatus)(nil),            // 3: maitre.v1.InstallerStatus
-	(*Disk)(nil),                       // 4: maitre.v1.Disk
-	(*Provisioning)(nil),               // 5: maitre.v1.Provisioning
-	(*ProvisionRequest)(nil),           // 6: maitre.v1.ProvisionRequest
-	(*ProvisionResponse)(nil),          // 7: maitre.v1.ProvisionResponse
-	(*Fleet)(nil),                      // 8: maitre.v1.Fleet
-	(*TrustedDevice)(nil),              // 9: maitre.v1.TrustedDevice
-	(*Node)(nil),                       // 10: maitre.v1.Node
+	(*Backup)(nil),                     // 4: maitre.v1.Backup
+	(*Disk)(nil),                       // 5: maitre.v1.Disk
+	(*Provisioning)(nil),               // 6: maitre.v1.Provisioning
+	(*ProvisionRequest)(nil),           // 7: maitre.v1.ProvisionRequest
+	(*ProvisionResponse)(nil),          // 8: maitre.v1.ProvisionResponse
+	(*Fleet)(nil),                      // 9: maitre.v1.Fleet
+	(*TrustedDevice)(nil),              // 10: maitre.v1.TrustedDevice
+	(*Node)(nil),                       // 11: maitre.v1.Node
 }
 var file_maitre_v1_installer_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetInstallerStatusResponse.status:type_name -> maitre.v1.InstallerStatus
-	4,  // 1: maitre.v1.InstallerStatus.disks:type_name -> maitre.v1.Disk
-	5,  // 2: maitre.v1.InstallerStatus.provisioning:type_name -> maitre.v1.Provisioning
-	0,  // 3: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
-	8,  // 4: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
-	9,  // 5: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
-	10, // 6: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
-	1,  // 7: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
-	6,  // 8: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
-	2,  // 9: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
-	7,  // 10: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
-	9,  // [9:11] is the sub-list for method output_type
-	7,  // [7:9] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	5,  // 1: maitre.v1.InstallerStatus.disks:type_name -> maitre.v1.Disk
+	6,  // 2: maitre.v1.InstallerStatus.provisioning:type_name -> maitre.v1.Provisioning
+	4,  // 3: maitre.v1.InstallerStatus.backups:type_name -> maitre.v1.Backup
+	0,  // 4: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
+	9,  // 5: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
+	10, // 6: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
+	11, // 7: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
+	1,  // 8: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
+	7,  // 9: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
+	2,  // 10: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
+	8,  // 11: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_installer_proto_init() }
@@ -658,7 +787,7 @@ func file_maitre_v1_installer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_installer_proto_rawDesc), len(file_maitre_v1_installer_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

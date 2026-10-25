@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -81,6 +82,14 @@ CREATE TABLE IF NOT EXISTS outbox (
   created_unix_ms INTEGER NOT NULL
 );
 `)
+	return err
+}
+
+// Snapshot writes a consistent copy of the database to path (SQLite's
+// VACUUM INTO), for the config backup.
+func (s *Store) Snapshot(ctx context.Context, path string) error {
+	_ = os.Remove(path)
+	_, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, path)
 	return err
 }
 
