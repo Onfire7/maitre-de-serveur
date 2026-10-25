@@ -47,7 +47,7 @@ vm: build ## Boot Maître Server in QEMU from CI's installer media; Ctrl-C stops
 TRIPLE  := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
 
 sidecar: build ## Place the maitre binary where the Desktop bundles it as its netboot helper (Tauri needs it to compile at all)
-	mkdir -p desktop/src-tauri/binaries && cp server/bin/maitre desktop/src-tauri/binaries/maitre-$(TRIPLE)
+	mkdir -p desktop/src-tauri/binaries && cp server/bin/maitre desktop/src-tauri/binaries/maitre-$(TRIPLE)$(if $(findstring windows,$(TRIPLE)),.exe)
 
 desktop: sidecar ## Run Maître Desktop with live reload
 	cd desktop && MAITRE_BIN=$(CURDIR)/server/bin/maitre $(PNPM) tauri dev

@@ -53,7 +53,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: cd desktop && pnpm install --frozen-lockfile
       - run: cd desktop && pnpm exec tsc --noEmit && pnpm test && pnpm build
-      - run: make sidecar
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      # The netboot helper the Desktop bundles (decision 92); Tauri refuses to
+      # compile without it. Plain shell: make is not a given on every runner.
+      - shell: bash
+        run: |
+          triple=$(rustc -vV | sed -n 's/^host: //p'); ext=; [ "$RUNNER_OS" = Windows ] && ext=.exe
+          mkdir -p desktop/src-tauri/binaries
+          (cd server && go build -o "../desktop/src-tauri/binaries/maitre-${triple}${ext}" ./cmd/maitre)
       - run: cd desktop/src-tauri && cargo test --lib
       - run: cd desktop && pnpm tauri build --no-bundle
 
