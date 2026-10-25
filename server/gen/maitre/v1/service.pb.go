@@ -89,6 +89,11 @@ const (
 	// Remove the Service and its units. Data stays on the Pool unless
 	// delete_data is set.
 	ControlServiceRequest_ACTION_REMOVE ControlServiceRequest_Action = 4
+	// Pull the newest image behind the Service's tag and restart on it,
+	// remembering the previous pinned image (Milestone 6).
+	ControlServiceRequest_ACTION_UPDATE ControlServiceRequest_Action = 5
+	// Go back to the previous pinned image.
+	ControlServiceRequest_ACTION_ROLLBACK ControlServiceRequest_Action = 6
 )
 
 // Enum value maps for ControlServiceRequest_Action.
@@ -99,6 +104,8 @@ var (
 		2: "ACTION_STOP",
 		3: "ACTION_RESTART",
 		4: "ACTION_REMOVE",
+		5: "ACTION_UPDATE",
+		6: "ACTION_ROLLBACK",
 	}
 	ControlServiceRequest_Action_value = map[string]int32{
 		"ACTION_UNSPECIFIED": 0,
@@ -106,6 +113,8 @@ var (
 		"ACTION_STOP":        2,
 		"ACTION_RESTART":     3,
 		"ACTION_REMOVE":      4,
+		"ACTION_UPDATE":      5,
+		"ACTION_ROLLBACK":    6,
 	}
 )
 
@@ -321,6 +330,10 @@ type ServiceSpec struct {
 	// Loopback port on the Node where the web port is published; chosen by
 	// the agent, used by Caddy and health checks. 0 for headless Services.
 	WebHostPort uint32 `protobuf:"varint,10,opt,name=web_host_port,json=webHostPort,proto3" json:"web_host_port,omitempty"`
+	// The image before the last update, pinned by digest, for Rollback.
+	PreviousImage string `protobuf:"bytes,17,opt,name=previous_image,json=previousImage,proto3" json:"previous_image,omitempty"`
+	// Check for and apply image updates by itself (daily).
+	AutoUpdate bool `protobuf:"varint,18,opt,name=auto_update,json=autoUpdate,proto3" json:"auto_update,omitempty"`
 	// The Quadlet [Container] body as a Go text/template (catalog/FORMAT.md).
 	Quadlet string `protobuf:"bytes,11,opt,name=quadlet,proto3" json:"quadlet,omitempty"`
 	// Started before the network is "online" (DNS, DHCP).
@@ -433,6 +446,20 @@ func (x *ServiceSpec) GetWebHostPort() uint32 {
 		return x.WebHostPort
 	}
 	return 0
+}
+
+func (x *ServiceSpec) GetPreviousImage() string {
+	if x != nil {
+		return x.PreviousImage
+	}
+	return ""
+}
+
+func (x *ServiceSpec) GetAutoUpdate() bool {
+	if x != nil {
+		return x.AutoUpdate
+	}
+	return false
 }
 
 func (x *ServiceSpec) GetQuadlet() string {
@@ -1073,7 +1100,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\rServiceVolume\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\tR\x04size\"\xd4\x05\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\"\x9c\x06\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -1086,7 +1113,10 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\raccess_policy\x18\b \x01(\tR\faccessPolicy\x12&\n" +
 	"\x0fcreated_unix_ms\x18\t \x01(\x03R\rcreatedUnixMs\x12\"\n" +
 	"\rweb_host_port\x18\n" +
-	" \x01(\rR\vwebHostPort\x12\x18\n" +
+	" \x01(\rR\vwebHostPort\x12%\n" +
+	"\x0eprevious_image\x18\x11 \x01(\tR\rpreviousImage\x12\x1f\n" +
+	"\vauto_update\x18\x12 \x01(\bR\n" +
+	"autoUpdate\x12\x18\n" +
 	"\aquadlet\x18\v \x01(\tR\aquadlet\x12&\n" +
 	"\x0einfrastructure\x18\f \x01(\bR\x0einfrastructure\x12\x19\n" +
 	"\bweb_port\x18\r \x01(\rR\awebPort\x12\x19\n" +
@@ -1121,18 +1151,20 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x15InstallServiceRequest\x12*\n" +
 	"\x04spec\x18\x05 \x01(\v2\x16.maitre.v1.ServiceSpecR\x04specJ\x04\b\x01\x10\x05\"L\n" +
 	"\x16InstallServiceResponse\x122\n" +
-	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"\xf9\x01\n" +
+	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"\xa2\x02\n" +
 	"\x15ControlServiceRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12?\n" +
 	"\x06action\x18\x02 \x01(\x0e2'.maitre.v1.ControlServiceRequest.ActionR\x06action\x12\x1f\n" +
 	"\vdelete_data\x18\x03 \x01(\bR\n" +
-	"deleteData\"j\n" +
+	"deleteData\"\x92\x01\n" +
 	"\x06Action\x12\x16\n" +
 	"\x12ACTION_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fACTION_START\x10\x01\x12\x0f\n" +
 	"\vACTION_STOP\x10\x02\x12\x12\n" +
 	"\x0eACTION_RESTART\x10\x03\x12\x11\n" +
-	"\rACTION_REMOVE\x10\x04\"L\n" +
+	"\rACTION_REMOVE\x10\x04\x12\x11\n" +
+	"\rACTION_UPDATE\x10\x05\x12\x13\n" +
+	"\x0fACTION_ROLLBACK\x10\x06\"L\n" +
 	"\x16ControlServiceResponse\x122\n" +
 	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"\x15\n" +
 	"\x13ListServicesRequest\"L\n" +

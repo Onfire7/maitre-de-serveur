@@ -244,7 +244,7 @@ func Render(spec *maitrev1.ServiceSpec, volumes map[string]string) ([]byte, erro
 	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
 		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
 	}
-	out.WriteString("AutoUpdate=registry\nLabel=dev.maitre.service=" + spec.GetName() + "\n")
+	out.WriteString("Label=dev.maitre.service=" + spec.GetName() + "\n")
 	out.WriteString("\n[Service]\nRestart=on-failure\nRestartSec=5\nTimeoutStartSec=900\n")
 	out.WriteString("\n[Install]\nWantedBy=multi-user.target default.target\n")
 	return out.Bytes(), nil
@@ -288,6 +288,32 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", unit); err != nil {
 			return nil, err
 		}
+	case maitrev1.ControlServiceRequest_ACTION_UPDATE:
+		changed, err := m.Update(ctx, &spec)
+		if err != nil {
+			return nil, err
+		}
+		if !changed {
+			st, err := m.Status(ctx, &spec)
+			if st != nil {
+				st.Message = "already on the newest image"
+			}
+			return st, err
+		}
+	case maitrev1.ControlServiceRequest_ACTION_ROLLBACK:
+		if spec.GetPreviousImage() == "" {
+			return nil, fmt.Errorf("%s has no previous image to go back to", spec.GetName())
+		}
+		spec.Image, spec.PreviousImage = spec.GetPreviousImage(), spec.GetImage()
+		if err := m.apply(ctx, &spec); err != nil {
+			return nil, err
+		}
+		if _, err := m.store.Put(ctx, KindService, spec.GetName(), &spec, false); err != nil {
+			return nil, err
+		}
+		if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", unit); err != nil {
+			return nil, err
+		}
 	case maitrev1.ControlServiceRequest_ACTION_REMOVE:
 		_, _ = m.run.Run(ctx, "systemctl", "stop", unit)
 		if err := os.Remove(filepath.Join(m.cfg.UnitsDir, spec.Name+".container")); err != nil && !os.IsNotExist(err) {
@@ -318,6 +344,56 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		return nil, fmt.Errorf("unknown action")
 	}
 	return m.Status(ctx, &spec)
+}
+
+// Update pulls the newest image behind the Service's tag; when its digest
+// differs from the pinned one, the Service is re-rendered on the new digest
+// and restarted, with the old digest kept for Rollback. Returns whether
+// anything changed.
+func (m *Manager) Update(ctx context.Context, spec *maitrev1.ServiceSpec) (bool, error) {
+	tagRef, _, _ := strings.Cut(spec.GetImage(), "@")
+	if _, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef); err != nil {
+		return false, fmt.Errorf("pull %s: %w", tagRef, err)
+	}
+	out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", tagRef)
+	if err != nil {
+		return false, err
+	}
+	digest := strings.TrimSpace(out)
+	newRef := tagRef + "@" + digest
+	if newRef == spec.GetImage() || digest == "" {
+		return false, nil
+	}
+	spec.PreviousImage = spec.GetImage()
+	spec.Image = newRef
+	if err := m.apply(ctx, spec); err != nil {
+		return false, err
+	}
+	if _, err := m.store.Put(ctx, KindService, spec.GetName(), spec, false); err != nil {
+		return false, err
+	}
+	if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", spec.GetName()+".service"); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// AutoUpdate runs Update on every Service that asked for it.
+func (m *Manager) AutoUpdate(ctx context.Context) {
+	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	if err != nil {
+		return
+	}
+	for _, sp := range specs {
+		if !sp.GetAutoUpdate() {
+			continue
+		}
+		if changed, err := m.Update(ctx, sp); err != nil && m.cfg.Log != nil {
+			m.cfg.Log.Warn("service auto-update", "service", sp.GetName(), "err", err)
+		} else if changed && m.cfg.Log != nil {
+			m.cfg.Log.Info("service updated", "service", sp.GetName(), "image", sp.GetImage())
+		}
+	}
 }
 
 // SetExposure changes where a Service is reachable. Infrastructure

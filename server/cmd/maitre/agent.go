@@ -342,6 +342,22 @@ func runAgent(args []string) error {
 	ssvc.OnChange = publish
 	mgr.OnExposure = publish
 	publish()
+	// Milestone 6: Services that opted in check for a newer image daily,
+	// an hour after boot and every 24 hours after that.
+	go func() {
+		t := time.NewTimer(time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			mgr.AutoUpdate(ctx)
+			publish()
+			t.Reset(24 * time.Hour)
+		}
+	}()
 	defer func() {
 		if hostAd != nil {
 			hostAd.Close()

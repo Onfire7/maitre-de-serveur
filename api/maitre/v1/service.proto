@@ -67,6 +67,10 @@ message ServiceSpec {
   // Loopback port on the Node where the web port is published; chosen by
   // the agent, used by Caddy and health checks. 0 for headless Services.
   uint32 web_host_port = 10;
+  // The image before the last update, pinned by digest, for Rollback.
+  string previous_image = 17;
+  // Check for and apply image updates by itself (daily).
+  bool auto_update = 18;
   // The Quadlet [Container] body as a Go text/template (catalog/FORMAT.md).
   string quadlet = 11;
   // Started before the network is "online" (DNS, DHCP).
@@ -126,6 +130,11 @@ message ControlServiceRequest {
     // Remove the Service and its units. Data stays on the Pool unless
     // delete_data is set.
     ACTION_REMOVE = 4;
+    // Pull the newest image behind the Service's tag and restart on it,
+    // remembering the previous pinned image (Milestone 6).
+    ACTION_UPDATE = 5;
+    // Go back to the previous pinned image.
+    ACTION_ROLLBACK = 6;
   }
   string name = 1;
   ControlServiceRequest.Action action = 2;

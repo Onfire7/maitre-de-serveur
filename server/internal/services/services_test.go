@@ -81,7 +81,6 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 		"Volume=" + filepath.Join(dir, "pool", "jellyfin", "media") + ":/media:Z",
 		"Network=maitre.network",
 		"PublishPort=127.0.0.1:" + itoa(int(s.GetSpec().GetWebHostPort())) + ":8096",
-		"AutoUpdate=registry",
 		"[Install]",
 	} {
 		if !strings.Contains(string(unit), want) {

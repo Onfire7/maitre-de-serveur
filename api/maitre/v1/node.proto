@@ -109,6 +109,9 @@ message UpdateStatus {
   // False when this Node does not run on bootc (dev mode), so none of the
   // update calls work.
   bool supported = 9;
+  // Set when greenboot rolled the last update back because the Node did
+  // not come up healthy; cleared by the next successful update.
+  string last_rollback = 10;
 }
 
 message UpdateImageRequest {

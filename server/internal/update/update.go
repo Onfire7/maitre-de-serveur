@@ -87,8 +87,15 @@ func (m *Manager) Status(ctx context.Context) (*maitrev1.UpdateStatus, error) {
 	m.mu.Lock()
 	st.State, st.Message, st.Progress, st.Target = m.state, m.message, m.progress, m.target
 	m.mu.Unlock()
+	if b, err := os.ReadFile(RollbackMarker); err == nil {
+		st.LastRollback = strings.TrimSpace(string(b))
+	}
 	return st, nil
 }
+
+// RollbackMarker is written by greenboot's red script (image/greenboot)
+// when a boot failed its health checks and the previous image came back.
+const RollbackMarker = "/var/lib/maitre/last-rollback"
 
 // Busy reports whether an update is running.
 func (m *Manager) Busy() bool {
@@ -390,4 +397,26 @@ func humanBytes(n uint64) string {
 	default:
 		return fmt.Sprintf("%.0f KiB", float64(n)/unit)
 	}
+}
+
+// RunningServicesFile lists the Maître Services active before an update;
+// greenboot's check expects each of them back.
+const RunningServicesFile = "/var/lib/maitre/running-services"
+
+func writeRunningServices() {
+	out, err := exec.Command("systemctl", "list-units", "--type=service", "--state=active", "--no-legend", "--plain").Output()
+	if err != nil {
+		return
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 0 {
+			continue
+		}
+		if b, err := os.ReadFile("/etc/containers/systemd/" + strings.TrimSuffix(f[0], ".service") + ".container"); err == nil && strings.Contains(string(b), "dev.maitre.service=") {
+			names = append(names, f[0])
+		}
+	}
+	_ = os.WriteFile(RunningServicesFile, []byte(strings.Join(names, "\n")+"\n"), 0o644)
 }

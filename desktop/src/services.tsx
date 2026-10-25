@@ -127,6 +127,7 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false }: { tar
                 <div style={{ color: "#555", fontSize: 13 }}>
                   {s.url ? `Open here, or from a browser on your network at ${s.url}` : "no web page"} {s.restarts > 0 && `· restarted ${s.restarts}×`}{" "}
                   {s.message}
+                  {s.spec?.autoUpdate && " · updates itself"}
                 </div>
                 {s.spec && s.spec.exposure !== "private" && (
                   <div style={{ fontSize: 13 }}>
@@ -156,6 +157,18 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false }: { tar
                 >
                   Logs
                 </button>
+                <button onClick={() => control(s.spec!.name, ControlServiceRequest_Action.UPDATE)} title="Pull the newest image and restart on it; the previous one is kept">
+                  Update
+                </button>
+                {s.spec?.previousImage && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Go back to the previous image of ${s.spec?.name}?`)) control(s.spec!.name, ControlServiceRequest_Action.ROLLBACK);
+                    }}
+                  >
+                    Roll back
+                  </button>
+                )}
                 {s.spec?.webPort !== 0 && <button onClick={() => setExposing(s)}>Exposure…</button>}
                 <button onClick={() => setRemoving(s)}>Remove</button>
               </div>
@@ -232,12 +245,13 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false }: { tar
           tiers={tiers}
           remoteReady={remoteReady}
           onCancel={() => setInstalling(null)}
-          onInstall={async (name, settings, volumeTiers, exposure) => {
+          onInstall={async (name, settings, volumeTiers, exposure, autoUpdate) => {
             try {
               lastWrite.current = Date.now();
               const spec = specFor(installing, name, settings);
               spec.volumeTiers = volumeTiers;
               spec.exposure = exposure;
+              spec.autoUpdate = autoUpdate;
               await client.installService({ spec });
               setInstalling(null);
               await refresh();
@@ -279,11 +293,12 @@ function InstallDialog({
   tiers: { tierId: string; name: string }[];
   remoteReady: boolean;
   onCancel: () => void;
-  onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>, exposure: string) => void;
+  onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>, exposure: string, autoUpdate: boolean) => void;
 }) {
   const [name, setName] = useState(entry.id);
   // Decision 110: Remote by default once the Fleet is on Tailscale.
   const [exposure, setExposure] = useState(remoteReady && entry.web && !entry.infrastructure ? "remote" : "private");
+  const [autoUpdate, setAutoUpdate] = useState(true);
   const [volumeTiers, setVolumeTiers] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, "default"])));
   const [settings, setSettings] = useState<Record<string, string>>(
     Object.fromEntries((entry.settings ?? []).map((s) => [s.key, s.default ?? ""])),
@@ -346,9 +361,12 @@ function InstallDialog({
             {!remoteReady && <span style={{ color: "#555", fontSize: 13 }}> · connect the Fleet to Tailscale to reach it away from home</span>}
           </label>
         )}
+        <label style={{ display: "block", marginTop: 8 }}>
+          <input type="checkbox" checked={autoUpdate} onChange={(e) => setAutoUpdate(e.target.checked)} /> Keep {entry.name} up to date by itself (daily; the previous version stays one click away)
+        </label>
         {entry.own_login && <p style={{ color: "#555", fontSize: 13 }}>{entry.name} has its own accounts; you will set one up the first time you open it.</p>}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers, exposure)}>
+          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers, exposure, autoUpdate)}>
             Install
           </button>
           <button onClick={onCancel}>Cancel</button>

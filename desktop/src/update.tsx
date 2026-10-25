@@ -137,6 +137,11 @@ export function UpdatePanel({ target, onStarted, runningVersion }: { target: Tar
         </tbody>
       </table>
 
+      {status.lastRollback && (
+        <p style={{ color: "#b00020", fontSize: 13 }}>
+          The last update was rolled back: {status.lastRollback}. The Node is running the image from before it.
+        </p>
+      )}
       {updating && (
         <div style={{ margin: "8px 0" }}>
           <progress value={status.progress} max={1} style={{ width: "100%" }} />
