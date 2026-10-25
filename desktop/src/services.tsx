@@ -34,7 +34,7 @@ interface CatalogIndex {
   entries: CatalogEntry[];
 }
 
-export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: { tierId: string; name: string }[] }) {
+export function ServicesPanel({ target, tiers = [], remoteReady = false }: { target: Target; tiers?: { tierId: string; name: string }[]; remoteReady?: boolean }) {
   const client = useMemo(() => createClient(ServiceService, transportFor(target)), [target.addr, target.fingerprint]);
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const catalog = bundledCatalog as CatalogIndex;
@@ -43,6 +43,7 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
   const [open, setOpen] = useState<{ name: string; url: string } | null>(null);
   const [logsFor, setLogsFor] = useState<{ name: string; lines: string[] } | null>(null);
   const [removing, setRemoving] = useState<ServiceStatus | null>(null);
+  const [exposing, setExposing] = useState<ServiceStatus | null>(null);
   // Milestone 3: a Service record whose version moved while this Console
   // did not write it was changed from another device (or Node); say so.
   const [notice, setNotice] = useState("");
@@ -127,6 +128,18 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
                   {s.url ? `Open here, or from a browser on your network at ${s.url}` : "no web page"} {s.restarts > 0 && `· restarted ${s.restarts}×`}{" "}
                   {s.message}
                 </div>
+                {s.spec && s.spec.exposure !== "private" && (
+                  <div style={{ fontSize: 13 }}>
+                    {s.spec.exposure === "public" ? <span style={{ color: "#b00020" }}>Public</span> : <span style={{ color: "#2a7" }}>Remote</span>}:{" "}
+                    {s.remoteUrl ? (
+                      <a href={s.remoteUrl} target="_blank" rel="noreferrer">
+                        {s.remoteUrl}
+                      </a>
+                    ) : (
+                      <span style={{ color: "#555" }}>{s.remoteState || "starting"}</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", gap: 4 }}>
                 {s.url && s.state === ServiceStatus_State.RUNNING && <button onClick={() => openService(s.spec!.name)}>Open</button>}
@@ -143,6 +156,7 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
                 >
                   Logs
                 </button>
+                {s.spec?.webPort !== 0 && <button onClick={() => setExposing(s)}>Exposure…</button>}
                 <button onClick={() => setRemoving(s)}>Remove</button>
               </div>
             </li>
@@ -179,6 +193,23 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
         </ul>
       </section>
 
+      {exposing && (
+        <ExposureDialog
+          s={exposing}
+          remoteReady={remoteReady}
+          onCancel={() => setExposing(null)}
+          onSet={async (exposure) => {
+            setExposing(null);
+            try {
+              lastWrite.current = Date.now();
+              await client.setExposure({ name: exposing.spec!.name, exposure });
+              await refresh();
+            } catch (e) {
+              setError(String(e));
+            }
+          }}
+        />
+      )}
       {removing && (
         <RemoveDialog
           s={removing}
@@ -199,12 +230,14 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
         <InstallDialog
           entry={installing}
           tiers={tiers}
+          remoteReady={remoteReady}
           onCancel={() => setInstalling(null)}
-          onInstall={async (name, settings, volumeTiers) => {
+          onInstall={async (name, settings, volumeTiers, exposure) => {
             try {
               lastWrite.current = Date.now();
               const spec = specFor(installing, name, settings);
               spec.volumeTiers = volumeTiers;
+              spec.exposure = exposure;
               await client.installService({ spec });
               setInstalling(null);
               await refresh();
@@ -238,15 +271,19 @@ function specFor(e: CatalogEntry, name: string, settings: Record<string, string>
 function InstallDialog({
   entry,
   tiers,
+  remoteReady,
   onCancel,
   onInstall,
 }: {
   entry: CatalogEntry;
   tiers: { tierId: string; name: string }[];
+  remoteReady: boolean;
   onCancel: () => void;
-  onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>) => void;
+  onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>, exposure: string) => void;
 }) {
   const [name, setName] = useState(entry.id);
+  // Decision 110: Remote by default once the Fleet is on Tailscale.
+  const [exposure, setExposure] = useState(remoteReady && entry.web && !entry.infrastructure ? "remote" : "private");
   const [volumeTiers, setVolumeTiers] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, "default"])));
   const [settings, setSettings] = useState<Record<string, string>>(
     Object.fromEntries((entry.settings ?? []).map((s) => [s.key, s.default ?? ""])),
@@ -297,10 +334,65 @@ function InstallDialog({
               </select>
             </label>
           ))}
+        {entry.web && !entry.infrastructure && (
+          <label style={{ display: "block", marginTop: 8 }}>
+            Reachable{" "}
+            <select value={exposure} onChange={(e) => setExposure(e.target.value)}>
+              <option value="private">at home only</option>
+              <option value="remote" disabled={!remoteReady}>
+                from anywhere, for you (Tailscale)
+              </option>
+            </select>
+            {!remoteReady && <span style={{ color: "#555", fontSize: 13 }}> · connect the Fleet to Tailscale to reach it away from home</span>}
+          </label>
+        )}
         {entry.own_login && <p style={{ color: "#555", fontSize: 13 }}>{entry.name} has its own accounts; you will set one up the first time you open it.</p>}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers)}>
+          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers, exposure)}>
             Install
+          </button>
+          <button onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Decision 111: Public needs the plain-language warning acknowledged. */
+function ExposureDialog({ s, remoteReady, onCancel, onSet }: { s: ServiceStatus; remoteReady: boolean; onCancel: () => void; onSet: (exposure: string) => void }) {
+  const [choice, setChoice] = useState(s.spec?.exposure || "private");
+  const [ack, setAck] = useState(false);
+  const name = s.spec?.name ?? "";
+  const canPublic = !s.spec?.infrastructure;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 520 }}>
+        <h3 style={{ marginTop: 0 }}>Where can {name} be reached?</h3>
+        <label style={{ display: "block" }}>
+          <input type="radio" checked={choice === "private"} onChange={() => setChoice("private")} /> <b>At home only.</b> Devices on your network, and this app.
+        </label>
+        <label style={{ display: "block", marginTop: 6 }}>
+          <input type="radio" checked={choice === "remote"} onChange={() => setChoice("remote")} disabled={!remoteReady} /> <b>From anywhere, for you.</b> Your devices on Tailscale, wherever they are. Nobody else.
+          {!remoteReady && <span style={{ color: "#555", fontSize: 13 }}> (connect the Fleet to Tailscale first)</span>}
+        </label>
+        <label style={{ display: "block", marginTop: 6 }}>
+          <input type="radio" checked={choice === "public"} onChange={() => setChoice("public")} disabled={!remoteReady || !canPublic} /> <b>Public.</b> Anyone on the internet with the link.
+          {!canPublic && <span style={{ color: "#555", fontSize: 13 }}> (network infrastructure stays at home)</span>}
+        </label>
+        {choice === "public" && (
+          <div style={{ border: "1px solid #b00020", borderRadius: 6, padding: 8, marginTop: 8, fontSize: 13 }}>
+            <p style={{ marginTop: 0 }}>
+              <b>Public means public.</b> Anyone who finds the address can open {name}'s page. If it has no login of its own, or a weak one, strangers can use it, read what is in it, or change it. Bugs in {name} become reachable by
+              everyone, not only by you.
+            </p>
+            <label>
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I understand; {name} has a login I trust.
+            </label>
+          </div>
+        )}
+        <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+          <button disabled={choice === "public" && !ack} onClick={() => onSet(choice)}>
+            Apply
           </button>
           <button onClick={onCancel}>Cancel</button>
         </div>

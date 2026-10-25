@@ -110,6 +110,16 @@ func (s *Service) ListServices(ctx context.Context, _ *maitrev1.ListServicesRequ
 	return &maitrev1.ListServicesResponse{Services: list}, nil
 }
 
+// SetExposure implements ServiceService.
+func (s *Service) SetExposure(ctx context.Context, req *maitrev1.SetExposureRequest) (*maitrev1.SetExposureResponse, error) {
+	st, err := s.mgr.SetExposure(ctx, req.GetName(), req.GetExposure())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	s.changed()
+	return &maitrev1.SetExposureResponse{Service: st}, nil
+}
+
 // GetServiceLogs implements ServiceService.
 func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLogsRequest) (*maitrev1.GetServiceLogsResponse, error) {
 	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetLines())

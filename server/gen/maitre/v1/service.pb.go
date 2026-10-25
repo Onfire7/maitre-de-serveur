@@ -489,6 +489,11 @@ type ServiceStatus struct {
 	// Where the Console opens it, e.g. "http://jellyfin.local". Empty if headless.
 	Url           string `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
 	StartedUnixMs int64  `protobuf:"varint,7,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
+	// Where the Service answers on the tailnet or the internet
+	// (https://<name>.<tailnet>.ts.net) once its node is up; empty otherwise.
+	RemoteUrl string `protobuf:"bytes,8,opt,name=remote_url,json=remoteUrl,proto3" json:"remote_url,omitempty"`
+	// The tailnet node's state or problem, for the Console.
+	RemoteState   string `protobuf:"bytes,9,opt,name=remote_state,json=remoteState,proto3" json:"remote_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -570,6 +575,20 @@ func (x *ServiceStatus) GetStartedUnixMs() int64 {
 		return x.StartedUnixMs
 	}
 	return 0
+}
+
+func (x *ServiceStatus) GetRemoteUrl() string {
+	if x != nil {
+		return x.RemoteUrl
+	}
+	return ""
+}
+
+func (x *ServiceStatus) GetRemoteState() string {
+	if x != nil {
+		return x.RemoteState
+	}
+	return ""
 }
 
 type InstallServiceRequest struct {
@@ -847,6 +866,102 @@ func (x *ListServicesResponse) GetServices() []*ServiceStatus {
 	return nil
 }
 
+type SetExposureRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Exposure      string                 `protobuf:"bytes,2,opt,name=exposure,proto3" json:"exposure,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetExposureRequest) Reset() {
+	*x = SetExposureRequest{}
+	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetExposureRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetExposureRequest) ProtoMessage() {}
+
+func (x *SetExposureRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetExposureRequest.ProtoReflect.Descriptor instead.
+func (*SetExposureRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SetExposureRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SetExposureRequest) GetExposure() string {
+	if x != nil {
+		return x.Exposure
+	}
+	return ""
+}
+
+type SetExposureResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       *ServiceStatus         `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetExposureResponse) Reset() {
+	*x = SetExposureResponse{}
+	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetExposureResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetExposureResponse) ProtoMessage() {}
+
+func (x *SetExposureResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetExposureResponse.ProtoReflect.Descriptor instead.
+func (*SetExposureResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SetExposureResponse) GetService() *ServiceStatus {
+	if x != nil {
+		return x.Service
+	}
+	return nil
+}
+
 type GetServiceLogsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -858,7 +973,7 @@ type GetServiceLogsRequest struct {
 
 func (x *GetServiceLogsRequest) Reset() {
 	*x = GetServiceLogsRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	mi := &file_maitre_v1_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -870,7 +985,7 @@ func (x *GetServiceLogsRequest) String() string {
 func (*GetServiceLogsRequest) ProtoMessage() {}
 
 func (x *GetServiceLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	mi := &file_maitre_v1_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -883,7 +998,7 @@ func (x *GetServiceLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServiceLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetServiceLogsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{11}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetServiceLogsRequest) GetName() string {
@@ -909,7 +1024,7 @@ type GetServiceLogsResponse struct {
 
 func (x *GetServiceLogsResponse) Reset() {
 	*x = GetServiceLogsResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	mi := &file_maitre_v1_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -921,7 +1036,7 @@ func (x *GetServiceLogsResponse) String() string {
 func (*GetServiceLogsResponse) ProtoMessage() {}
 
 func (x *GetServiceLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	mi := &file_maitre_v1_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -934,7 +1049,7 @@ func (x *GetServiceLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServiceLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetServiceLogsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{12}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetServiceLogsResponse) GetLines() []string {
@@ -984,7 +1099,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10VolumeTiersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfb\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x03\n" +
 	"\rServiceStatus\x12*\n" +
 	"\x04spec\x18\x01 \x01(\v2\x16.maitre.v1.ServiceSpecR\x04spec\x124\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1e.maitre.v1.ServiceStatus.StateR\x05state\x12\x18\n" +
@@ -992,7 +1107,10 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\brestarts\x18\x04 \x01(\rR\brestarts\x12\x18\n" +
 	"\amessage\x18\x05 \x01(\tR\amessage\x12\x10\n" +
 	"\x03url\x18\x06 \x01(\tR\x03url\x12&\n" +
-	"\x0fstarted_unix_ms\x18\a \x01(\x03R\rstartedUnixMs\"~\n" +
+	"\x0fstarted_unix_ms\x18\a \x01(\x03R\rstartedUnixMs\x12\x1d\n" +
+	"\n" +
+	"remote_url\x18\b \x01(\tR\tremoteUrl\x12!\n" +
+	"\fremote_state\x18\t \x01(\tR\vremoteState\"~\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rSTATE_STOPPED\x10\x01\x12\x12\n" +
@@ -1019,19 +1137,25 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"\x15\n" +
 	"\x13ListServicesRequest\"L\n" +
 	"\x14ListServicesResponse\x124\n" +
-	"\bservices\x18\x01 \x03(\v2\x18.maitre.v1.ServiceStatusR\bservices\"A\n" +
+	"\bservices\x18\x01 \x03(\v2\x18.maitre.v1.ServiceStatusR\bservices\"D\n" +
+	"\x12SetExposureRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\bexposure\x18\x02 \x01(\tR\bexposure\"I\n" +
+	"\x13SetExposureResponse\x122\n" +
+	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"A\n" +
 	"\x15GetServiceLogsRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05lines\x18\x02 \x01(\rR\x05lines\".\n" +
 	"\x16GetServiceLogsResponse\x12\x14\n" +
-	"\x05lines\x18\x01 \x03(\tR\x05lines2\xbb\x03\n" +
+	"\x05lines\x18\x01 \x03(\tR\x05lines2\x8b\x04\n" +
 	"\x0eServiceService\x12K\n" +
 	"\n" +
 	"GetCatalog\x12\x1c.maitre.v1.GetCatalogRequest\x1a\x1d.maitre.v1.GetCatalogResponse\"\x00\x12W\n" +
 	"\x0eInstallService\x12 .maitre.v1.InstallServiceRequest\x1a!.maitre.v1.InstallServiceResponse\"\x00\x12W\n" +
 	"\x0eControlService\x12 .maitre.v1.ControlServiceRequest\x1a!.maitre.v1.ControlServiceResponse\"\x00\x12Q\n" +
 	"\fListServices\x12\x1e.maitre.v1.ListServicesRequest\x1a\x1f.maitre.v1.ListServicesResponse\"\x00\x12W\n" +
-	"\x0eGetServiceLogs\x12 .maitre.v1.GetServiceLogsRequest\x1a!.maitre.v1.GetServiceLogsResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\x0eGetServiceLogs\x12 .maitre.v1.GetServiceLogsRequest\x1a!.maitre.v1.GetServiceLogsResponse\"\x00\x12N\n" +
+	"\vSetExposure\x12\x1d.maitre.v1.SetExposureRequest\x1a\x1e.maitre.v1.SetExposureResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_service_proto_rawDescOnce sync.Once
@@ -1046,7 +1170,7 @@ func file_maitre_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_maitre_v1_service_proto_goTypes = []any{
 	(ServiceStatus_State)(0),          // 0: maitre.v1.ServiceStatus.State
 	(ControlServiceRequest_Action)(0), // 1: maitre.v1.ControlServiceRequest.Action
@@ -1061,14 +1185,16 @@ var file_maitre_v1_service_proto_goTypes = []any{
 	(*ControlServiceResponse)(nil),    // 10: maitre.v1.ControlServiceResponse
 	(*ListServicesRequest)(nil),       // 11: maitre.v1.ListServicesRequest
 	(*ListServicesResponse)(nil),      // 12: maitre.v1.ListServicesResponse
-	(*GetServiceLogsRequest)(nil),     // 13: maitre.v1.GetServiceLogsRequest
-	(*GetServiceLogsResponse)(nil),    // 14: maitre.v1.GetServiceLogsResponse
-	nil,                               // 15: maitre.v1.ServiceSpec.SettingsEntry
-	nil,                               // 16: maitre.v1.ServiceSpec.VolumeTiersEntry
+	(*SetExposureRequest)(nil),        // 13: maitre.v1.SetExposureRequest
+	(*SetExposureResponse)(nil),       // 14: maitre.v1.SetExposureResponse
+	(*GetServiceLogsRequest)(nil),     // 15: maitre.v1.GetServiceLogsRequest
+	(*GetServiceLogsResponse)(nil),    // 16: maitre.v1.GetServiceLogsResponse
+	nil,                               // 17: maitre.v1.ServiceSpec.SettingsEntry
+	nil,                               // 18: maitre.v1.ServiceSpec.VolumeTiersEntry
 }
 var file_maitre_v1_service_proto_depIdxs = []int32{
-	15, // 0: maitre.v1.ServiceSpec.settings:type_name -> maitre.v1.ServiceSpec.SettingsEntry
-	16, // 1: maitre.v1.ServiceSpec.volume_tiers:type_name -> maitre.v1.ServiceSpec.VolumeTiersEntry
+	17, // 0: maitre.v1.ServiceSpec.settings:type_name -> maitre.v1.ServiceSpec.SettingsEntry
+	18, // 1: maitre.v1.ServiceSpec.volume_tiers:type_name -> maitre.v1.ServiceSpec.VolumeTiersEntry
 	4,  // 2: maitre.v1.ServiceSpec.volumes:type_name -> maitre.v1.ServiceVolume
 	5,  // 3: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
 	0,  // 4: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State
@@ -1077,21 +1203,24 @@ var file_maitre_v1_service_proto_depIdxs = []int32{
 	1,  // 7: maitre.v1.ControlServiceRequest.action:type_name -> maitre.v1.ControlServiceRequest.Action
 	6,  // 8: maitre.v1.ControlServiceResponse.service:type_name -> maitre.v1.ServiceStatus
 	6,  // 9: maitre.v1.ListServicesResponse.services:type_name -> maitre.v1.ServiceStatus
-	2,  // 10: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
-	7,  // 11: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
-	9,  // 12: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
-	11, // 13: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
-	13, // 14: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
-	3,  // 15: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
-	8,  // 16: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
-	10, // 17: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
-	12, // 18: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
-	14, // 19: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	6,  // 10: maitre.v1.SetExposureResponse.service:type_name -> maitre.v1.ServiceStatus
+	2,  // 11: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
+	7,  // 12: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
+	9,  // 13: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
+	11, // 14: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
+	15, // 15: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
+	13, // 16: maitre.v1.ServiceService.SetExposure:input_type -> maitre.v1.SetExposureRequest
+	3,  // 17: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
+	8,  // 18: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
+	10, // 19: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
+	12, // 20: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
+	16, // 21: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
+	14, // 22: maitre.v1.ServiceService.SetExposure:output_type -> maitre.v1.SetExposureResponse
+	17, // [17:23] is the sub-list for method output_type
+	11, // [11:17] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_service_proto_init() }
@@ -1105,7 +1234,7 @@ func file_maitre_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_service_proto_rawDesc), len(file_maitre_v1_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

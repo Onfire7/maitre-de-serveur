@@ -38,6 +38,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peers"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/remote"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
@@ -217,7 +218,10 @@ func runAgent(args []string) error {
 	} else {
 		log.Warn("no catalog index", "path", *catalogPath)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log}, st, nil)
+	// Milestone 5: Remote and Public Services get tsnet nodes of their own.
+	rem := remote.New(st, log, *state)
+	defer rem.Close()
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: rem.Status}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
@@ -314,6 +318,9 @@ func runAgent(args []string) error {
 				log.Warn("caddy config not applied", "err", err)
 			}
 		}
+		if !*noTailscale {
+			rem.Reconcile(ctx, specs)
+		}
 		if !*noMDNS {
 			if hostAd != nil {
 				hostAd.Close()
@@ -333,6 +340,7 @@ func runAgent(args []string) error {
 		}
 	}
 	ssvc.OnChange = publish
+	mgr.OnExposure = publish
 	publish()
 	defer func() {
 		if hostAd != nil {

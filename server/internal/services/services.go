@@ -50,6 +50,9 @@ func (ExecRunner) Run(ctx context.Context, name string, args ...string) (string,
 type Config struct {
 	// Log for notable events; nil is fine.
 	Log *slog.Logger
+	// Remote reports a Service's tailnet URL and state (Milestone 5); nil
+	// when the Node has no remote exposure.
+	Remote func(name string) (url, state string)
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
 	// PoolDir is the default Tier's Pool; volumes live at PoolDir/<service>/<volume>.
@@ -71,9 +74,11 @@ const DefaultSuffix = "local"
 
 // Manager implements Service operations for one Node.
 type Manager struct {
-	cfg   Config
-	store *store.Store
-	run   Runner
+	// OnExposure runs after a Service's exposure changed (remote reconcile).
+	OnExposure func()
+	cfg        Config
+	store      *store.Store
+	run        Runner
 }
 
 // New builds a Manager.
@@ -315,6 +320,34 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 	return m.Status(ctx, &spec)
 }
 
+// SetExposure changes where a Service is reachable. Infrastructure
+// Services never go public (the plan's rule: they bind the Node itself).
+func (m *Manager) SetExposure(ctx context.Context, name, exposure string) (*maitrev1.ServiceStatus, error) {
+	switch exposure {
+	case "private", "remote", "public":
+	default:
+		return nil, fmt.Errorf("exposure must be private, remote or public")
+	}
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
+		return nil, ErrNotFound
+	}
+	if exposure == "public" && spec.GetInfrastructure() {
+		return nil, fmt.Errorf("%s is network infrastructure and cannot be public", name)
+	}
+	if exposure != "private" && spec.GetWebPort() == 0 {
+		return nil, fmt.Errorf("%s has no web page to expose", name)
+	}
+	spec.Exposure = exposure
+	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
+		return nil, err
+	}
+	if m.OnExposure != nil {
+		m.OnExposure()
+	}
+	return m.Status(ctx, &spec)
+}
+
 // List returns every Service on this Node with status.
 func (m *Manager) List(ctx context.Context) ([]*maitrev1.ServiceStatus, error) {
 	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
@@ -359,6 +392,14 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 	}
 	if t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", props["ExecMainStartTimestamp"]); err == nil {
 		st.StartedUnixMs = t.UnixMilli()
+	}
+	if m.cfg.Remote != nil && spec.GetWebPort() != 0 {
+		if u, state := m.cfg.Remote(spec.GetName()); u != "" || state != "" {
+			if u != "" {
+				u += spec.GetWebPath()
+			}
+			st.RemoteUrl, st.RemoteState = u, state
+		}
 	}
 	if spec.GetWebPort() != 0 {
 		st.Url = fmt.Sprintf("http://%s.%s%s", spec.GetName(), m.cfg.Suffix, spec.GetWebPath())

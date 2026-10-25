@@ -19,6 +19,10 @@ service ServiceService {
   rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {}
   // GetServiceLogs returns the last lines of a Service's log.
   rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {}
+  // SetExposure changes where a Service is reachable: "private" (LAN and
+  // the Console's tunnel), "remote" (the Fleet's tailnet), "public"
+  // (the internet through Tailscale Funnel). Milestone 5.
+  rpc SetExposure(SetExposureRequest) returns (SetExposureResponse) {}
 }
 
 message GetCatalogRequest {}
@@ -94,6 +98,11 @@ message ServiceStatus {
   // Where the Console opens it, e.g. "http://jellyfin.local". Empty if headless.
   string url = 6;
   int64 started_unix_ms = 7;
+  // Where the Service answers on the tailnet or the internet
+  // (https://<name>.<tailnet>.ts.net) once its node is up; empty otherwise.
+  string remote_url = 8;
+  // The tailnet node's state or problem, for the Console.
+  string remote_state = 9;
 }
 
 message InstallServiceRequest {
@@ -131,6 +140,15 @@ message ListServicesRequest {}
 
 message ListServicesResponse {
   repeated ServiceStatus services = 1;
+}
+
+message SetExposureRequest {
+  string name = 1;
+  string exposure = 2;
+}
+
+message SetExposureResponse {
+  ServiceStatus service = 1;
 }
 
 message GetServiceLogsRequest {

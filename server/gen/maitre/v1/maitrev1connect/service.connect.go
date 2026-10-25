@@ -38,6 +38,8 @@ const (
 	// ServiceServiceGetServiceLogsProcedure is the procedure name of the ServiceService's
 	// GetServiceLogs RPC.
 	ServiceServiceGetServiceLogsProcedure = "/maitre.v1.ServiceService/GetServiceLogs"
+	// ServiceServiceSetExposureProcedure is the procedure name of the ServiceService's SetExposure RPC.
+	ServiceServiceSetExposureProcedure = "/maitre.v1.ServiceService/SetExposure"
 )
 
 var (
@@ -76,6 +78,13 @@ var (
 			Procedure:  ServiceServiceGetServiceLogsProcedure,
 		}
 	})
+	serviceServiceSetExposureSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("SetExposure"),
+			Procedure:  ServiceServiceSetExposureProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -90,6 +99,10 @@ type ServiceServiceClient interface {
 	ListServices(context.Context, *v1.ListServicesRequest) (*v1.ListServicesResponse, error)
 	// GetServiceLogs returns the last lines of a Service's log.
 	GetServiceLogs(context.Context, *v1.GetServiceLogsRequest) (*v1.GetServiceLogsResponse, error)
+	// SetExposure changes where a Service is reachable: "private" (LAN and
+	// the Console's tunnel), "remote" (the Fleet's tailnet), "public"
+	// (the internet through Tailscale Funnel). Milestone 5.
+	SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -110,6 +123,10 @@ type ServiceServiceHandler interface {
 	ListServices(context.Context, *v1.ListServicesRequest) (*v1.ListServicesResponse, error)
 	// GetServiceLogs returns the last lines of a Service's log.
 	GetServiceLogs(context.Context, *v1.GetServiceLogsRequest) (*v1.GetServiceLogsResponse, error)
+	// SetExposure changes where a Service is reachable: "private" (LAN and
+	// the Console's tunnel), "remote" (the Fleet's tailnet), "public"
+	// (the internet through Tailscale Funnel). Milestone 5.
+	SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -122,6 +139,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceControlServiceSpec(), Handler: adapter.controlService},
 		connect.Method{Spec: serviceServiceListServicesSpec(), Handler: adapter.listServices},
 		connect.Method{Spec: serviceServiceGetServiceLogsSpec(), Handler: adapter.getServiceLogs},
+		connect.Method{Spec: serviceServiceSetExposureSpec(), Handler: adapter.setExposure},
 	)
 }
 
@@ -146,6 +164,10 @@ func (UnimplementedServiceServiceHandler) ListServices(context.Context, *v1.List
 
 func (UnimplementedServiceServiceHandler) GetServiceLogs(context.Context, *v1.GetServiceLogsRequest) (*v1.GetServiceLogsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.GetServiceLogs is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetExposure is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -187,6 +209,14 @@ func (c *serviceServiceClient) ListServices(ctx context.Context, req *v1.ListSer
 func (c *serviceServiceClient) GetServiceLogs(ctx context.Context, req *v1.GetServiceLogsRequest) (*v1.GetServiceLogsResponse, error) {
 	var res v1.GetServiceLogsResponse
 	if err := c.client.CallUnary(ctx, serviceServiceGetServiceLogsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) SetExposure(ctx context.Context, req *v1.SetExposureRequest) (*v1.SetExposureResponse, error) {
+	var res v1.SetExposureResponse
+	if err := c.client.CallUnary(ctx, serviceServiceSetExposureSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -248,6 +278,18 @@ func (h serviceServiceHandler) getServiceLogs(ctx context.Context, _ connect.Spe
 		return err
 	}
 	res, err := h.svc.GetServiceLogs(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) setExposure(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetExposureRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetExposure(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/service.proto.
  */
 export const file_maitre_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIhMKEUdldENhdGFsb2dSZXF1ZXN0IlEKEkdldENhdGFsb2dSZXNwb25zZRISCgppbmRleF9qc29uGAEgASgMEg4KBnNvdXJjZRgCIAEoCRIXCg9mZXRjaGVkX3VuaXhfbXMYAyABKAMiOQoNU2VydmljZVZvbHVtZRIMCgRuYW1lGAEgASgJEgwKBHBhdGgYAiABKAkSDAoEc2l6ZRgDIAEoCSKRBAoLU2VydmljZVNwZWMSDAoEbmFtZRgBIAEoCRISCgpjYXRhbG9nX2lkGAIgASgJEg0KBWltYWdlGAMgASgJEg8KB25vZGVfaWQYBCABKAkSNgoIc2V0dGluZ3MYBSADKAsyJC5tYWl0cmUudjEuU2VydmljZVNwZWMuU2V0dGluZ3NFbnRyeRIQCghleHBvc3VyZRgGIAEoCRI9Cgx2b2x1bWVfdGllcnMYByADKAsyJy5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lVGllcnNFbnRyeRIVCg1hY2Nlc3NfcG9saWN5GAggASgJEhcKD2NyZWF0ZWRfdW5peF9tcxgJIAEoAxIVCg13ZWJfaG9zdF9wb3J0GAogASgNEg8KB3F1YWRsZXQYCyABKAkSFgoOaW5mcmFzdHJ1Y3R1cmUYDCABKAgSEAoId2ViX3BvcnQYDSABKA0SEAoId2ViX3BhdGgYDiABKAkSEwoLaGVhbHRoX2h0dHAYDyABKAkSKQoHdm9sdW1lcxgQIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlVm9sdW1lGi8KDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARoyChBWb2x1bWVUaWVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEivgIKDVNlcnZpY2VTdGF0dXMSJAoEc3BlYxgBIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlYxItCgVzdGF0ZRgCIAEoDjIeLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzLlN0YXRlEg8KB2hlYWx0aHkYAyABKAgSEAoIcmVzdGFydHMYBCABKA0SDwoHbWVzc2FnZRgFIAEoCRILCgN1cmwYBiABKAkSFwoPc3RhcnRlZF91bml4X21zGAcgASgDIn4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfU1RPUFBFRBABEhIKDlNUQVRFX1NUQVJUSU5HEAISEQoNU1RBVEVfUlVOTklORxADEhAKDFNUQVRFX0ZBSUxFRBAEEhIKDlNUQVRFX1JFTU9WSU5HEAUiQwoVSW5zdGFsbFNlcnZpY2VSZXF1ZXN0EiQKBHNwZWMYBSABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWNKBAgBEAUiQwoWSW5zdGFsbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMi3wEKFUNvbnRyb2xTZXJ2aWNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEjcKBmFjdGlvbhgCIAEoDjInLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlcXVlc3QuQWN0aW9uEhMKC2RlbGV0ZV9kYXRhGAMgASgIImoKBkFjdGlvbhIWChJBQ1RJT05fVU5TUEVDSUZJRUQQABIQCgxBQ1RJT05fU1RBUlQQARIPCgtBQ1RJT05fU1RPUBACEhIKDkFDVElPTl9SRVNUQVJUEAMSEQoNQUNUSU9OX1JFTU9WRRAEIkMKFkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIhUKE0xpc3RTZXJ2aWNlc1JlcXVlc3QiQgoUTGlzdFNlcnZpY2VzUmVzcG9uc2USKgoIc2VydmljZXMYASADKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyI0ChVHZXRTZXJ2aWNlTG9nc1JlcXVlc3QSDAoEbmFtZRgBIAEoCRINCgVsaW5lcxgCIAEoDSInChZHZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlEg0KBWxpbmVzGAEgAygJMrsDCg5TZXJ2aWNlU2VydmljZRJLCgpHZXRDYXRhbG9nEhwubWFpdHJlLnYxLkdldENhdGFsb2dSZXF1ZXN0Gh0ubWFpdHJlLnYxLkdldENhdGFsb2dSZXNwb25zZSIAElcKDkluc3RhbGxTZXJ2aWNlEiAubWFpdHJlLnYxLkluc3RhbGxTZXJ2aWNlUmVxdWVzdBohLm1haXRyZS52MS5JbnN0YWxsU2VydmljZVJlc3BvbnNlIgASVwoOQ29udHJvbFNlcnZpY2USIC5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXF1ZXN0GiEubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2UiABJRCgxMaXN0U2VydmljZXMSHi5tYWl0cmUudjEuTGlzdFNlcnZpY2VzUmVxdWVzdBofLm1haXRyZS52MS5MaXN0U2VydmljZXNSZXNwb25zZSIAElcKDkdldFNlcnZpY2VMb2dzEiAubWFpdHJlLnYxLkdldFNlcnZpY2VMb2dzUmVxdWVzdBohLm1haXRyZS52MS5HZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIhMKEUdldENhdGFsb2dSZXF1ZXN0IlEKEkdldENhdGFsb2dSZXNwb25zZRISCgppbmRleF9qc29uGAEgASgMEg4KBnNvdXJjZRgCIAEoCRIXCg9mZXRjaGVkX3VuaXhfbXMYAyABKAMiOQoNU2VydmljZVZvbHVtZRIMCgRuYW1lGAEgASgJEgwKBHBhdGgYAiABKAkSDAoEc2l6ZRgDIAEoCSKRBAoLU2VydmljZVNwZWMSDAoEbmFtZRgBIAEoCRISCgpjYXRhbG9nX2lkGAIgASgJEg0KBWltYWdlGAMgASgJEg8KB25vZGVfaWQYBCABKAkSNgoIc2V0dGluZ3MYBSADKAsyJC5tYWl0cmUudjEuU2VydmljZVNwZWMuU2V0dGluZ3NFbnRyeRIQCghleHBvc3VyZRgGIAEoCRI9Cgx2b2x1bWVfdGllcnMYByADKAsyJy5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lVGllcnNFbnRyeRIVCg1hY2Nlc3NfcG9saWN5GAggASgJEhcKD2NyZWF0ZWRfdW5peF9tcxgJIAEoAxIVCg13ZWJfaG9zdF9wb3J0GAogASgNEg8KB3F1YWRsZXQYCyABKAkSFgoOaW5mcmFzdHJ1Y3R1cmUYDCABKAgSEAoId2ViX3BvcnQYDSABKA0SEAoId2ViX3BhdGgYDiABKAkSEwoLaGVhbHRoX2h0dHAYDyABKAkSKQoHdm9sdW1lcxgQIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlVm9sdW1lGi8KDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARoyChBWb2x1bWVUaWVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi6AIKDVNlcnZpY2VTdGF0dXMSJAoEc3BlYxgBIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlYxItCgVzdGF0ZRgCIAEoDjIeLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzLlN0YXRlEg8KB2hlYWx0aHkYAyABKAgSEAoIcmVzdGFydHMYBCABKA0SDwoHbWVzc2FnZRgFIAEoCRILCgN1cmwYBiABKAkSFwoPc3RhcnRlZF91bml4X21zGAcgASgDEhIKCnJlbW90ZV91cmwYCCABKAkSFAoMcmVtb3RlX3N0YXRlGAkgASgJIn4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfU1RPUFBFRBABEhIKDlNUQVRFX1NUQVJUSU5HEAISEQoNU1RBVEVfUlVOTklORxADEhAKDFNUQVRFX0ZBSUxFRBAEEhIKDlNUQVRFX1JFTU9WSU5HEAUiQwoVSW5zdGFsbFNlcnZpY2VSZXF1ZXN0EiQKBHNwZWMYBSABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWNKBAgBEAUiQwoWSW5zdGFsbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMi3wEKFUNvbnRyb2xTZXJ2aWNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEjcKBmFjdGlvbhgCIAEoDjInLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlcXVlc3QuQWN0aW9uEhMKC2RlbGV0ZV9kYXRhGAMgASgIImoKBkFjdGlvbhIWChJBQ1RJT05fVU5TUEVDSUZJRUQQABIQCgxBQ1RJT05fU1RBUlQQARIPCgtBQ1RJT05fU1RPUBACEhIKDkFDVElPTl9SRVNUQVJUEAMSEQoNQUNUSU9OX1JFTU9WRRAEIkMKFkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIhUKE0xpc3RTZXJ2aWNlc1JlcXVlc3QiQgoUTGlzdFNlcnZpY2VzUmVzcG9uc2USKgoIc2VydmljZXMYASADKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyI0ChJTZXRFeHBvc3VyZVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghleHBvc3VyZRgCIAEoCSJAChNTZXRFeHBvc3VyZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyI0ChVHZXRTZXJ2aWNlTG9nc1JlcXVlc3QSDAoEbmFtZRgBIAEoCRINCgVsaW5lcxgCIAEoDSInChZHZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlEg0KBWxpbmVzGAEgAygJMosECg5TZXJ2aWNlU2VydmljZRJLCgpHZXRDYXRhbG9nEhwubWFpdHJlLnYxLkdldENhdGFsb2dSZXF1ZXN0Gh0ubWFpdHJlLnYxLkdldENhdGFsb2dSZXNwb25zZSIAElcKDkluc3RhbGxTZXJ2aWNlEiAubWFpdHJlLnYxLkluc3RhbGxTZXJ2aWNlUmVxdWVzdBohLm1haXRyZS52MS5JbnN0YWxsU2VydmljZVJlc3BvbnNlIgASVwoOQ29udHJvbFNlcnZpY2USIC5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXF1ZXN0GiEubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2UiABJRCgxMaXN0U2VydmljZXMSHi5tYWl0cmUudjEuTGlzdFNlcnZpY2VzUmVxdWVzdBofLm1haXRyZS52MS5MaXN0U2VydmljZXNSZXNwb25zZSIAElcKDkdldFNlcnZpY2VMb2dzEiAubWFpdHJlLnYxLkdldFNlcnZpY2VMb2dzUmVxdWVzdBohLm1haXRyZS52MS5HZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlIgASTgoLU2V0RXhwb3N1cmUSHS5tYWl0cmUudjEuU2V0RXhwb3N1cmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLlNldEV4cG9zdXJlUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * @generated from message maitre.v1.GetCatalogRequest
@@ -253,6 +253,21 @@ export type ServiceStatus = Message<"maitre.v1.ServiceStatus"> & {
    * @generated from field: int64 started_unix_ms = 7;
    */
   startedUnixMs: bigint;
+
+  /**
+   * Where the Service answers on the tailnet or the internet
+   * (https://<name>.<tailnet>.ts.net) once its node is up; empty otherwise.
+   *
+   * @generated from field: string remote_url = 8;
+   */
+  remoteUrl: string;
+
+  /**
+   * The tailnet node's state or problem, for the Console.
+   *
+   * @generated from field: string remote_state = 9;
+   */
+  remoteState: string;
 };
 
 /**
@@ -455,6 +470,45 @@ export const ListServicesResponseSchema: GenMessage<ListServicesResponse> = /*@_
   messageDesc(file_maitre_v1_service, 10);
 
 /**
+ * @generated from message maitre.v1.SetExposureRequest
+ */
+export type SetExposureRequest = Message<"maitre.v1.SetExposureRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string exposure = 2;
+   */
+  exposure: string;
+};
+
+/**
+ * Describes the message maitre.v1.SetExposureRequest.
+ * Use `create(SetExposureRequestSchema)` to create a new message.
+ */
+export const SetExposureRequestSchema: GenMessage<SetExposureRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 11);
+
+/**
+ * @generated from message maitre.v1.SetExposureResponse
+ */
+export type SetExposureResponse = Message<"maitre.v1.SetExposureResponse"> & {
+  /**
+   * @generated from field: maitre.v1.ServiceStatus service = 1;
+   */
+  service?: ServiceStatus | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.SetExposureResponse.
+ * Use `create(SetExposureResponseSchema)` to create a new message.
+ */
+export const SetExposureResponseSchema: GenMessage<SetExposureResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 12);
+
+/**
  * @generated from message maitre.v1.GetServiceLogsRequest
  */
 export type GetServiceLogsRequest = Message<"maitre.v1.GetServiceLogsRequest"> & {
@@ -476,7 +530,7 @@ export type GetServiceLogsRequest = Message<"maitre.v1.GetServiceLogsRequest"> &
  * Use `create(GetServiceLogsRequestSchema)` to create a new message.
  */
 export const GetServiceLogsRequestSchema: GenMessage<GetServiceLogsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 11);
+  messageDesc(file_maitre_v1_service, 13);
 
 /**
  * @generated from message maitre.v1.GetServiceLogsResponse
@@ -493,7 +547,7 @@ export type GetServiceLogsResponse = Message<"maitre.v1.GetServiceLogsResponse">
  * Use `create(GetServiceLogsResponseSchema)` to create a new message.
  */
 export const GetServiceLogsResponseSchema: GenMessage<GetServiceLogsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 12);
+  messageDesc(file_maitre_v1_service, 14);
 
 /**
  * ServiceService manages Services on the Node that serves it. Definitions
@@ -553,6 +607,18 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof GetServiceLogsRequestSchema;
     output: typeof GetServiceLogsResponseSchema;
+  },
+  /**
+   * SetExposure changes where a Service is reachable: "private" (LAN and
+   * the Console's tunnel), "remote" (the Fleet's tailnet), "public"
+   * (the internet through Tailscale Funnel). Milestone 5.
+   *
+   * @generated from rpc maitre.v1.ServiceService.SetExposure
+   */
+  setExposure: {
+    methodKind: "unary";
+    input: typeof SetExposureRequestSchema;
+    output: typeof SetExposureResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_service, 0);
