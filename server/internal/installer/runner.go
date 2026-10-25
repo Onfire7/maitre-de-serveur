@@ -53,6 +53,11 @@ const (
 type BootcRunner struct {
 	// Exec runs a command; swapped in tests.
 	Exec func(ctx context.Context, stdout io.Writer, name string, args ...string) error
+	// Direct runs bootc from the live system instead of from a podman
+	// container of the target image, with --source-imgref so the image
+	// streams from the registry straight onto the disk. Used when netbooted
+	// (decision 79): the live root is in RAM and cannot hold a podman pull.
+	Direct bool
 }
 
 func (r *BootcRunner) exec(ctx context.Context, stdout io.Writer, name string, args ...string) error {
@@ -75,6 +80,12 @@ func (r *BootcRunner) execPull(ctx context.Context, stdout io.Writer, name strin
 
 // Install implements Runner.
 func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress) error {
+	if r.Direct {
+		if err := r.installDirect(ctx, plan, progress); err != nil {
+			return err
+		}
+		return r.configure(ctx, plan, progress)
+	}
 	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "downloading Maître Server")
 	pp := newPullProgress(imageSize(ctx, plan.ImageRef))
 	var last uint32
@@ -104,7 +115,35 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 		plan.TargetDisk); err != nil {
 		return fmt.Errorf("bootc install: %w", err)
 	}
+	return r.configure(ctx, plan, progress)
+}
 
+// installDirect is the netboot path: bootc on the live system pulls the
+// image from the registry while writing it to the disk. bootc prints its own
+// progress lines; they are relayed as the message.
+func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Progress) error {
+	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "downloading and writing Maître Server to "+plan.TargetDisk)
+	install := &progressWriter{onLine: func(l string) {
+		if l = strings.TrimSpace(l); l != "" {
+			progress(maitrev1.Provisioning_PHASE_INSTALLING, 30, l)
+		}
+	}}
+	src := plan.ImageRef
+	if !strings.Contains(src, "://") && !strings.HasPrefix(src, "containers-storage:") {
+		src = "docker://" + src
+	}
+	if err := r.exec(ctx, install, "bootc", "install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
+		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check",
+		"--karg", "console=tty0", "--karg", "console=ttyS0,115200n8",
+		plan.TargetDisk); err != nil {
+		return fmt.Errorf("bootc install: %w", err)
+	}
+	return nil
+}
+
+// configure adds the config (and optional data) partition after bootc has
+// laid out the disk, and seeds the Node's configuration.
+func (r *BootcRunner) configure(ctx context.Context, plan Plan, progress Progress) error {
 	progress(maitrev1.Provisioning_PHASE_CONFIGURING, 80, "creating the config partition")
 	// Append a config partition and, if wanted, a data partition taking the
 	// rest. sfdisk's append mode leaves the bootc partitions untouched.
@@ -115,6 +154,11 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 	if err := r.sfdiskAppend(ctx, plan.TargetDisk, script); err != nil {
 		return err
 	}
+	// sfdisk asks the kernel to re-read the table, which it refuses while
+	// anything on the disk is still held open (bootc's mounts can linger
+	// briefly when it ran on this host). partx adds the new partitions one by
+	// one instead, which works regardless.
+	_ = r.exec(ctx, io.Discard, "partx", "-u", plan.TargetDisk)
 	if err := r.exec(ctx, io.Discard, "udevadm", "settle"); err != nil {
 		return fmt.Errorf("udevadm settle: %w", err)
 	}
@@ -124,7 +168,7 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 	}
 	cfgDev, ok := parts[ConfigLabel]
 	if !ok {
-		return fmt.Errorf("config partition not found after partitioning")
+		return fmt.Errorf("config partition not found after partitioning (have %v)", parts)
 	}
 	if err := r.exec(ctx, io.Discard, "mkfs.ext4", "-q", "-F", "-L", ConfigLabel, cfgDev); err != nil {
 		return fmt.Errorf("format config partition: %w", err)

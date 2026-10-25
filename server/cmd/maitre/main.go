@@ -70,6 +70,8 @@ func main() {
 		err = runService(os.Args[2:])
 	case "depot":
 		err = runDepot(os.Args[2:])
+	case "update":
+		err = runUpdate(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -81,7 +83,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update> [flags]")
 }
 
 func runDev(args []string) error {

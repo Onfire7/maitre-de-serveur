@@ -77,7 +77,9 @@ func InstanceName(label, fingerprint string) string {
 
 // PublishHosts publishes address records so <name> resolves to this
 // machine's IPv4 addresses on the local network, e.g. "jellyfin.local".
-// Returns a closer that withdraws them.
+// No reverse (PTR) records: the machine's own hostname owns those, and
+// Avahi reports a local name collision otherwise. Returns a closer that
+// withdraws them.
 func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 	conn, err := dbus.SystemBus()
 	if err != nil {
@@ -95,7 +97,7 @@ func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 	}
 	for _, n := range names {
 		for _, a := range addrs {
-			if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, 0, n, a); err != nil {
+			if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, avahi.PublishNoReverse, n, a); err != nil {
 				conn.Close()
 				return nil, fmt.Errorf("mdns: add address %s: %w", n, err)
 			}

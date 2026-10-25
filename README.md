@@ -59,6 +59,16 @@ make publish             # copy it into the Depot as maitre-server:dev
 make depot               # serve it; prints the reference to type into the Console
 ```
 
+To install new machines over the network instead of from media, build the netboot files once per image and let the Depot answer PXE (decisions 79 to 88; Secure Boot must be off on the target):
+
+```
+make publish NETBOOT=1   # also builds kernel, live initramfs, squashed root and GRUB into ~/.maitre/depot/boot
+make depot NETBOOT=1     # asks for sudo: proxyDHCP on 67/4011 and TFTP on 69, next to the registry on 8080
+make vm PXE=1 FRESH=1    # a VM that boots from the network; without the bridge QEMU's own TFTP hands out GRUB
+```
+
+Your router keeps handing out addresses; the Depot only tells UEFI machines where GRUB is. The machine boots the live Installer from RAM, shows the pairing code, and the Console installs it exactly like a media boot, except that bootc streams the image from the Depot straight to the disk. The same Node later takes updates from the Depot through the Console.
+
 In the Console, open the Node, and under "Maître Server image" enter `<workstation IP>:8080/maitre-server:dev` (the VM behind QEMU's NAT reaches the workstation as `10.0.2.2`). The Node stages the image with `bootc switch` and reboots into it when "Reboot now" is ticked; "Roll back" returns to the previous image. The Depot also publishes itself as `maitre-depot.local`.
 
 `make tunnel-check` exercises the Console's Service tunnel without a VM: a dev Node with a built-in echo Service, and the Desktop's relay carrying a plain request and a WebSocket through it.

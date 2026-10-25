@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -49,6 +50,7 @@ func runDepotPublish(args []string) error {
 	dir := depotFlags(fs)
 	name := fs.String("name", "maitre-server", "image name in the Depot")
 	tag := fs.String("tag", "dev", "tag in the Depot")
+	netboot := fs.Bool("netboot", false, "also build the netboot files (kernel, live initramfs, squashed root, GRUB) from this image")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,6 +77,13 @@ func runDepotPublish(args []string) error {
 		return err
 	}
 	fmt.Printf("published %s as %s:%s in %s (%s)\n", image, *name, *tag, l.Images(), time.Since(started).Round(time.Second))
+	if *netboot {
+		started = time.Now()
+		if err := depot.BuildBootFiles(context.Background(), l, image, os.Stdout, os.Stderr); err != nil {
+			return err
+		}
+		fmt.Printf("netboot files in %s (%s)\n", l.Boot(), time.Since(started).Round(time.Second))
+	}
 	return nil
 }
 
@@ -104,6 +113,9 @@ func runDepotServe(args []string) error {
 	dir := depotFlags(fs)
 	listen := fs.String("listen", ":8080", "HTTP listen address (registry and netboot files)")
 	noMDNS := fs.Bool("no-mdns", false, "do not publish "+depot.Hostname+" over mDNS")
+	netboot := fs.Bool("netboot", false, "answer PXE clients (proxyDHCP + TFTP; needs root) so machines can install over the network")
+	bootImage := fs.String("boot-image", "maitre-server:dev", "Depot image the netbooted Installer installs (name:tag)")
+	iface := fs.String("interface", "", "interface to answer PXE on (default: the one with the LAN address)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -117,6 +129,7 @@ func runDepotServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	imgs, _ := (&depot.Registry{Dir: l.Images()}).Images()
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err
@@ -142,11 +155,45 @@ func runDepotServe(args []string) error {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-
-	imgs, _ := (&depot.Registry{Dir: l.Images()}).Images()
+	// grub.cfg is written whenever boot files exist, so a VM behind QEMU's NAT
+	// (QEMU's own TFTP, no proxyDHCP) can netboot without --netboot.
+	var bootHint, ref string
+	if depot.HaveBootFiles(l) {
+		imgName, imgTag, _ := strings.Cut(*bootImage, ":")
+		if imgTag == "" {
+			imgTag = "dev"
+		}
+		if tags, ok := imgs[imgName]; !ok || !slices.Contains(tags, imgTag) {
+			return fmt.Errorf("boot image %s:%s is not in the Depot (have %v)", imgName, imgTag, imgs)
+		}
+		ref = fmt.Sprintf("%s:%d/%s:%s", ip, port, imgName, imgTag)
+		if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port)}); err != nil {
+			return err
+		}
+		bootHint = fmt.Sprintf("  Netboot:  files ready; a netbooted machine installs %s\n            (proxyDHCP off: add --netboot with sudo so machines on the LAN find them)\n", ref)
+	}
+	if *netboot {
+		if ref == "" {
+			return fmt.Errorf("no netboot files in %s: run `maitre depot publish <image> --netboot` first", l.Boot())
+		}
+		ifname := *iface
+		if ifname == "" {
+			ifname, _ = depot.InterfaceFor(ip)
+		}
+		nb := &depot.Netboot{Layout: l, IP: net.ParseIP(ip).To4(), Interface: ifname, Log: log}
+		if err := nb.Start(ctx); err != nil {
+			return err
+		}
+		bootHint = fmt.Sprintf("  Netboot:  answering PXE on %s; machines that boot from the network install %s\n", ifname, ref)
+	}
 	fmt.Printf("\n%s\n\n  Maître Depot  %s\n\n", ascii.Banner(), l.Dir)
 	fmt.Printf("  Registry: %s:%d  (also %s:%d)\n", ip, port, depot.Hostname, port)
-	fmt.Printf("  Netboot:  http://%s:%d/boot/\n\n", ip, port)
+	if bootHint != "" {
+		fmt.Print(bootHint)
+	} else {
+		fmt.Printf("  Netboot:  no boot files (maitre depot publish <image> --netboot)\n")
+	}
+	fmt.Println()
 	if len(imgs) == 0 {
 		fmt.Printf("  No images yet. Publish one with:\n    maitre depot publish localhost/maitre-server:<tag>\n\n")
 	}

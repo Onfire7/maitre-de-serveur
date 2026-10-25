@@ -6,6 +6,8 @@
 #   make vm FRESH=1          # wipe the virtual disk and start over from the installer
 #   RUN=<ci run id> ...      # use a specific CI run's installer media instead of the latest on main
 #   DISPLAY_BACKEND=none ... # headless: no VM window, drive it with the maitre CLI
+#   make vm PXE=1 FRESH=1    # no installer media: boot from the network like a real machine
+#                            # (run `make depot NETBOOT=1` first; see README)
 #
 # Ctrl-C stops the VM. The installer media comes from CI (the `installer-media`
 # artifact of the image job), because building the image needs podman. The
@@ -26,6 +28,8 @@ WEB_PORT=${WEB_PORT:-18080}
 DISK_SIZE=${DISK_SIZE:-40G}
 BRIDGE=${BRIDGE:-maitre0}
 NET=${NET:-auto}
+DEPOT=${DEPOT:-$HOME/.maitre/depot}
+PXE=${PXE:-}
 REPO=${REPO:-Onfire7/maitre-de-serveur}
 mkdir -p "$WORK"
 
@@ -33,8 +37,11 @@ need() { command -v "$1" >/dev/null || { echo "vm: missing $1"; exit 1; }; }
 need qemu-system-x86_64; need qemu-img; need gh
 [ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "vm: /dev/kvm not accessible (add yourself to the kvm group)"; exit 1; }
 
-# 1. Installer media from CI.
-if [ -n "${RUN:-}" ] || [ ! -f "$WORK/maitre-installer.qcow2" ] || [ -n "${FRESH:-}" ]; then
+# 1. Installer media from CI. PXE mode boots from the Depot instead and only
+#    needs the firmware, so it skips the download once that is present.
+if [ -n "$PXE" ] && [ -f "$WORK/OVMF_CODE.fd" ]; then
+  :
+elif [ -n "${RUN:-}" ] || [ ! -f "$WORK/maitre-installer.qcow2" ] || [ -n "${FRESH:-}" ]; then
   if [ -z "${RUN:-}" ]; then
     RUN=$(gh run list -R "$REPO" --branch main --workflow ci --status success --limit 1 --json databaseId -q '.[0].databaseId')
     [ -n "$RUN" ] || { echo "vm: no successful CI run on main yet"; exit 1; }
@@ -51,9 +58,10 @@ if [ -n "${RUN:-}" ] || [ ! -f "$WORK/maitre-installer.qcow2" ] || [ -n "${FRESH
     echo "$RUN" > "$WORK/run-id"
   fi
 fi
-echo "installer media: $WORK/maitre-installer.qcow2 (installs $(cat "$WORK/image-ref.txt"))"
+[ -n "$PXE" ] || echo "installer media: $WORK/maitre-installer.qcow2 (installs $(cat "$WORK/image-ref.txt"))"
 
 # The installer pulls from GHCR anonymously; the package must be public.
+[ -n "$PXE" ] || {
 IMG=$(cat "$WORK/image-ref.txt"); PKG=${IMG#ghcr.io/}; TAG=${PKG##*:}; PKG=${PKG%%:*}
 TOKEN=$(curl -fs "https://ghcr.io/token?scope=repository:${PKG}:pull" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 if ! curl -fs -o /dev/null -H "Authorization: Bearer $TOKEN" \
@@ -63,6 +71,7 @@ if ! curl -fs -o /dev/null -H "Authorization: Bearer $TOKEN" \
   echo "  Make the package public once: https://github.com/users/${PKG%%/*}/packages/container/${PKG#*/}/settings"
   exit 1
 fi
+}
 
 # 2. The machine's disk. Blank on the first run: the firmware skips it and
 #    boots the installer; after the install it boots the Node.
@@ -83,13 +92,26 @@ done
 if [ "$NET" = auto ]; then
   if ip link show "$BRIDGE" >/dev/null 2>&1 && grep -qx "allow $BRIDGE" /etc/qemu/bridge.conf 2>/dev/null; then NET=bridge; else NET=user; fi
 fi
+# PXE: the NIC is the second boot device instead of the installer media. On
+# the bridge the Depot's proxyDHCP answers the VM like any other machine; on
+# NAT, QEMU's own TFTP hands GRUB out of the Depot's boot directory and GRUB
+# fetches the rest over HTTP from the Depot on the host's LAN address.
+NICBOOT=; INSTALLER_DRIVE=(-drive "file=$WORK/maitre-installer.qcow2,format=qcow2,if=none,id=installer,snapshot=on" -device virtio-blk-pci,drive=installer,bootindex=1)
+SLIRP_PXE=
+if [ -n "$PXE" ]; then
+  [ -f "$DEPOT/boot/grubx64.efi" ] || { echo "vm: no netboot files in $DEPOT/boot (run: make publish NETBOOT=1)"; exit 1; }
+  NICBOOT=",bootindex=1"; INSTALLER_DRIVE=()
+  SLIRP_PXE=",tftp=$DEPOT/boot,bootfile=/grubx64.efi"
+fi
 if [ "$NET" = bridge ]; then
   # Fixed MAC so the VM keeps its DHCP lease across runs.
-  NETDEV=(-netdev "bridge,id=n0,br=$BRIDGE" -device "virtio-net-pci,netdev=n0,mac=52:54:00:4d:41:49")
+  NETDEV=(-netdev "bridge,id=n0,br=$BRIDGE" -device "virtio-net-pci,netdev=n0,mac=52:54:00:4d:41:49${NICBOOT}")
   echo "network: bridge $BRIDGE (the VM gets its own address; the Console discovers it)"
+  [ -n "$PXE" ] && echo "netboot: the VM asks the LAN; run 'make depot NETBOOT=1' so the Depot answers"
 else
-  NETDEV=(-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80" -device virtio-net-pci,netdev=n0)
+  NETDEV=(-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80${SLIRP_PXE}" -device "virtio-net-pci,netdev=n0${NICBOOT}")
   echo "network: QEMU NAT with ports forwarded (run scripts/vm-net-setup.sh once for a bridged VM)"
+  [ -n "$PXE" ] && echo "netboot: GRUB from $DEPOT/boot via QEMU's TFTP; run 'make depot' so GRUB can fetch the kernel and root"
 fi
 
 cleanup() { kill "${QEMU:-}" 2>/dev/null || true; }
@@ -103,7 +125,7 @@ qemu-system-x86_64 \
   -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" \
   -drive "if=pflash,format=raw,file=$WORK/vars.fd" \
   -drive "file=$WORK/target.qcow2,format=qcow2,if=none,id=target" -device virtio-blk-pci,drive=target,bootindex=0 \
-  -drive "file=$WORK/maitre-installer.qcow2,format=qcow2,if=none,id=installer,snapshot=on" -device virtio-blk-pci,drive=installer,bootindex=1 \
+  "${INSTALLER_DRIVE[@]}" \
   "${NETDEV[@]}" \
   &
 QEMU=$!

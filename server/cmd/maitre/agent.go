@@ -208,6 +208,7 @@ func runInstaller(args []string) error {
 	noScreen := fs.Bool("no-screen", false, "do not redraw the status screen on stdout")
 	noReboot := fs.Bool("no-reboot", false, "do not reboot after a successful install")
 	fake := fs.String("fake-install", "", "development: skip bootc and seed the config partition into this directory")
+	direct := fs.Bool("direct", hasKernelArg("maitre.netboot"), "run bootc on this system with --source-imgref instead of from a podman container (default when booted with maitre.netboot)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -227,6 +228,10 @@ func runInstaller(args []string) error {
 		return err
 	}
 	opts := installer.Options{Version: version, ImageRef: *image}
+	if *direct && *fake == "" {
+		opts.Runner = &installer.BootcRunner{Direct: true}
+		log.Info("netbooted: installing with bootc --source-imgref", "image", *image)
+	}
 	if *fake != "" {
 		opts.Runner = &installer.FakeRunner{Dir: *fake, Delay: 2 * time.Second}
 		opts.Disks = installer.FakeDisks
@@ -321,6 +326,20 @@ func listenPort(addr string) uint16 {
 		return port
 	}
 	return uint16(n)
+}
+
+// hasKernelArg reports whether a bare flag (or key=anything) is on /proc/cmdline.
+func hasKernelArg(key string) bool {
+	b, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return false
+	}
+	for _, f := range strings.Fields(string(b)) {
+		if f == key || strings.HasPrefix(f, key+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 // kernelArg reads key=<value> from /proc/cmdline.

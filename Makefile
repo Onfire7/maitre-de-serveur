@@ -61,11 +61,11 @@ m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, th
 image: build ## Build the Maître Server bootc image (needs podman)
 	podman build --retry 6 --retry-delay 30s --build-arg VERSION=$(VERSION) -t localhost/maitre-server:$(VERSION) -f image/Containerfile .
 
-publish: build ## Publish the local image build into the Depot as maitre-server:$(TAG) (TAG=dev)
-	./server/bin/maitre depot publish localhost/maitre-server:$(VERSION) --tag $(TAG)
+publish: build ## Publish the local image build into the Depot as maitre-server:$(TAG) (TAG=dev; NETBOOT=1 also builds netboot files)
+	./server/bin/maitre depot publish localhost/maitre-server:$(VERSION) --tag $(TAG) $(if $(NETBOOT),--netboot)
 
-depot: build ## Serve the Depot (image registry + netboot files) to Nodes on the LAN
-	./server/bin/maitre depot serve
+depot: build ## Serve the Depot (image registry + netboot files) to Nodes on the LAN (NETBOOT=1 answers PXE; asks for sudo)
+	$(if $(NETBOOT),sudo ./server/bin/maitre depot serve --netboot --dir $(HOME)/.maitre/depot,./server/bin/maitre depot serve)
 
 image-boot: build ## Install from the image in QEMU and reboot into a Node (needs rootful podman, qemu, KVM)
 	MAITRE=./server/bin/maitre ./image/boot-test.sh localhost/maitre-server:$(VERSION)
