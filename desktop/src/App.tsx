@@ -206,6 +206,7 @@ function Home({
                 onOpen(live ? { ...n, addresses: [...live.addresses, ...n.addresses.filter((a) => !live.addresses.includes(a))] } : n);
               }}
               onForget={() => onForget(n)}
+              onAddress={(addr) => onAddDev({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
             />
           ))}
         </ul>
@@ -265,9 +266,23 @@ function Home({
   );
 }
 
-function NodeRow({ node, live, onOpen, onForget }: { node: KnownNode; live?: Found; onOpen: () => void; onForget: () => void }) {
+function NodeRow({
+  node,
+  live,
+  onOpen,
+  onForget,
+  onAddress,
+}: {
+  node: KnownNode;
+  live?: Found;
+  onOpen: () => void;
+  onForget: () => void;
+  onAddress: (addr: string) => void;
+}) {
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [err, setErr] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [manual, setManual] = useState("");
   const addr = live?.addresses[0] ?? node.addresses[0];
   useEffect(() => {
     let stop = false;
@@ -303,7 +318,22 @@ function NodeRow({ node, live, onOpen, onForget }: { node: KnownNode; live?: Fou
         </div>
       </div>
       <div>
-        <button onClick={onOpen}>Open</button> <button onClick={onForget}>Forget</button>
+        <button onClick={onOpen}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button> <button onClick={onForget}>Forget</button>
+        {editing && (
+          <div style={{ marginTop: 4 }}>
+            <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="192.168.4.80:7443" style={{ width: 180 }} />{" "}
+            <button
+              disabled={!manual.includes(":")}
+              onClick={() => {
+                onAddress(manual.trim());
+                setEditing(false);
+              }}
+            >
+              Use
+            </button>
+            <div style={{ color: "#555", fontSize: 12 }}>For when discovery gets it wrong. The Node's own screen shows its address.</div>
+          </div>
+        )}
       </div>
     </li>
   );
