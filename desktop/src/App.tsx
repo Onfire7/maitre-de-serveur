@@ -282,7 +282,7 @@ function Home({
         <h2>Nodes</h2>
         {state.nodes.length === 0 && <p style={{ color: "#555" }}>No Nodes yet. Boot a machine from the network or from the Maître installer USB and it will appear below.</p>}
         <ul style={{ listStyle: "none", padding: 0 }}>
-          {state.nodes.map((n) => (
+          {[...state.nodes].sort((a, b) => a.name.localeCompare(b.name)).map((n) => (
             <NodeRow
               key={n.node_id}
               node={n}

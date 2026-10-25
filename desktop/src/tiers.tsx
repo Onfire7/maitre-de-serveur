@@ -166,7 +166,7 @@ export function FleetMap({
   const rows = ids.map((id) => {
     const rec = nodes.find((n) => n.nodeId === id);
     return { id, name: rec?.name || known.find((k) => k.node_id === id)?.name || id.slice(0, 8), letter: rec?.letter || "?" };
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
   const tierIndex = (d: DriveRecord) => tiers.findIndex((t) => t.tierId === tierOf(d, tiers));
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 12, margin: "8px 0 12px 0" }}>
