@@ -90,7 +90,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Keyless Sigstore signing of the published image (Milestone 6).
+      id-token: write
     steps:
+      - uses: sigstore/cosign-installer@v3
       - uses: actions/checkout@v4
         with:
           submodules: true
@@ -114,6 +117,9 @@ jobs:
           podman tag localhost/maitre-server:${{ github.sha }} "$REF:main"
           podman push "$REF:${{ github.sha }}"
           podman push "$REF:main"
+          # Sign by digest with the workflow's GitHub identity (keyless, Rekor-logged).
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://$REF:${{ github.sha }}")
+          cosign sign --yes "$REF@$DIGEST" || echo "::warning::image signing failed; continuing (Milestone 6: signing may slip)"
           # tty0 last so the installer's status screen lands on the VM's display.
           image/installer-media.sh localhost/maitre-server:${{ github.sha }} "$REF:${{ github.sha }}" "$PWD/media" \
             console=ttyS0,115200n8 console=tty0
