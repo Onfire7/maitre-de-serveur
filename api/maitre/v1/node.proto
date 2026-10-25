@@ -34,6 +34,31 @@ service NodeService {
   rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
   // Reboot restarts the Node.
   rpc Reboot(RebootRequest) returns (RebootResponse) {}
+  // PushRecords hands this Node Records another Node (or a device) holds,
+  // applied newest-wins (ADR 0003). Peers call it after every write and the
+  // periodic reconcile pulls ListRecords the other way.
+  rpc PushRecords(PushRecordsRequest) returns (PushRecordsResponse) {}
+}
+
+message PushRecordsRequest {
+  repeated Record records = 1;
+}
+
+message PushRecordsResponse {
+  // How many were newer than what this Node held.
+  uint32 applied = 1;
+}
+
+// PeerStatus is what this Node knows about another Node of the Fleet.
+message PeerStatus {
+  string node_id = 1;
+  string name = 2;
+  // Address last reached, host:port.
+  string address = 3;
+  bool online = 4;
+  int64 last_seen_unix_ms = 5;
+  // Writes waiting for this peer to come back.
+  uint32 queued = 6;
 }
 
 message GetUpdateStatusRequest {}
@@ -170,4 +195,6 @@ message NodeInfo {
   uint64 uptime_seconds = 5;
   // True when running via `maitre dev` rather than on Maître Server.
   bool dev_mode = 6;
+  // The other Nodes of the Fleet as this Node sees them (Milestone 3).
+  repeated PeerStatus peers = 7;
 }

@@ -8,7 +8,7 @@ STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 TAG     ?= dev
 
-.PHONY: help gen gen-check build sidecar test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot publish depot clean
+.PHONY: help gen gen-check build sidecar test lint dev dev-trust vm desktop info m0-check m1-check m3-check tunnel-check image image-boot publish depot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -61,6 +61,9 @@ tunnel-check: sidecar ## End-to-end: Console's Service tunnel (HTTP + WebSocket)
 
 m0-check: sidecar ## End-to-end: Go dev Node <-> Rust client over mTLS, both directions of refusal
 	./scripts/m0-check.sh ./server/bin/maitre
+
+m3-check: build ## End-to-end: two Nodes of one Fleet sync, forward writes, queue for an offline owner
+	./scripts/m3-check.sh ./server/bin/maitre
 
 m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, then start the agent from its config
 	./scripts/m1-check.sh ./server/bin/maitre

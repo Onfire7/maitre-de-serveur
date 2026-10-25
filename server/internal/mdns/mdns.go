@@ -5,6 +5,7 @@
 package mdns
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -131,5 +132,50 @@ func SetHostName(name string) error {
 	if err := obj.Call("org.freedesktop.Avahi.Server.SetHostName", 0, name).Err; err != nil {
 		return fmt.Errorf("mdns: set host name: %w", err)
 	}
+	return nil
+}
+
+// Browse watches for services of serviceType and calls found with each
+// resolved instance's TXT id and fleet, address and port, until ctx ends.
+// Used by Nodes to find their peers.
+func Browse(ctx context.Context, serviceType string, found func(id, fleet, addr string, port uint16)) error {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return fmt.Errorf("mdns: system bus: %w", err)
+	}
+	server, err := avahi.ServerNew(conn)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("mdns: avahi: %w", err)
+	}
+	sb, err := server.ServiceBrowserNew(avahi.InterfaceUnspec, avahi.ProtoInet, serviceType, "local", 0)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("mdns: browse: %w", err)
+	}
+	go func() {
+		defer conn.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case svc := <-sb.AddChannel:
+				r, err := server.ResolveService(svc.Interface, svc.Protocol, svc.Name, svc.Type, svc.Domain, avahi.ProtoInet, 0)
+				if err != nil {
+					continue
+				}
+				txt := map[string]string{}
+				for _, kv := range r.Txt {
+					if k, v, ok := strings.Cut(string(kv), "="); ok {
+						txt[k] = v
+					}
+				}
+				if txt["id"] != "" {
+					found(txt["id"], txt["fleet"], r.Address, r.Port)
+				}
+			case <-sb.RemoveChannel:
+			}
+		}
+	}()
 	return nil
 }

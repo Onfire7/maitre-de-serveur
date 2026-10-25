@@ -80,6 +80,9 @@ message ProvisionRequest {
   string target_disk = 3;
   // Initial trust list: at least the calling device and the recovery key.
   repeated TrustedDevice trusted_devices = 4;
+  // The Fleet's existing Nodes, so the new one trusts and finds them from
+  // its first boot (Milestone 3). Empty for the first Node.
+  repeated Node nodes = 6;
   // Create a data partition from the remaining space. Default off on USB.
   bool data_partition = 5;
 }

@@ -170,6 +170,7 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		DataPartition: req.GetDataPartition(),
 		Fleet:         req.GetFleet(),
 		NodeName:      req.GetNodeName(),
+		Nodes:         req.GetNodes(),
 		Trusted:       req.GetTrustedDevices(),
 		NodeIdentity:  in.id,
 	}, progress)

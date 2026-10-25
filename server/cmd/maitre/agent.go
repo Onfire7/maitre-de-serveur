@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -33,6 +34,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/peers"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
@@ -58,6 +60,7 @@ func runAgent(args []string) error {
 	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
 	poolDir := fs.String("pool", pool.DefaultPool, "default Pool directory for Service volumes")
 	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
+	advertise := fs.String("advertise", "", "host:port peers should reach this Node at (default: every address, port from --listen)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -89,18 +92,13 @@ func runAgent(args []string) error {
 	}
 
 	list := trust.New()
+	// Trust list: devices that may manage this Node, and the Fleet's other
+	// Nodes (Milestone 3). Refreshed whenever those records change.
 	refreshTrust := func() {
-		devices, err := store.ListLive(ctx, st, store.KindTrustedDevice, func() *maitrev1.TrustedDevice { return &maitrev1.TrustedDevice{} })
+		fps, err := peers.TrustedFingerprints(ctx, st, id.Fingerprint())
 		if err != nil {
 			log.Error("load trust list", "err", err)
 			return
-		}
-		fps := make([]string, 0, len(devices))
-		for _, d := range devices {
-			if d.GetRecoveryOnly() {
-				continue // the recovery key may only approve devices; that path lands in Milestone 3
-			}
-			fps = append(fps, d.GetDeviceId())
 		}
 		list.Replace(fps)
 	}
@@ -108,10 +106,52 @@ func runAgent(args []string) error {
 	log.Info("maitre agent", "node_id", id.Fingerprint(), "name", self.GetName(), "fleet", fleet.GetName(), "trusted_devices", list.Len())
 
 	ensureHostname(log, hostLabel(self.GetName()))
+
+	// Peers (ADR 0003): our own Node record carries the addresses peers
+	// should try; mDNS keeps them fresh on the LAN.
+	pm := peers.New(st, id, list, log)
+	addrs := []string{}
+	if *advertise != "" {
+		addrs = append(addrs, *advertise)
+	} else {
+		for _, a := range installer.Addresses() {
+			addrs = append(addrs, net.JoinHostPort(a, fmt.Sprint(listenPort(*listen))))
+		}
+	}
+	if len(addrs) > 0 && !slices.Equal(addrs, self.GetAddresses()) {
+		self.Addresses = addrs
+		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err != nil {
+			log.Warn("own node record", "err", err)
+		}
+	}
+	if err := pm.Refresh(ctx); err != nil {
+		log.Warn("peers", "err", err)
+	}
+
 	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
+	svc.Peers = pm
 	svc.OnChange = func(r *maitrev1.Record) {
-		if r.GetKind() == store.KindTrustedDevice {
+		switch r.GetKind() {
+		case store.KindTrustedDevice:
 			refreshTrust()
+		case store.KindNode:
+			refreshTrust()
+			_ = pm.Refresh(ctx)
+		}
+	}
+	pm.OnApplied = func() {
+		refreshTrust()
+		_ = pm.Refresh(ctx)
+	}
+	go pm.Run(ctx)
+	if !*noMDNS {
+		err := mdns.Browse(ctx, mdns.TypeNode, func(peerID, fleetID, addr string, port uint16) {
+			if fleetID == fleet.GetFleetId() && peerID != id.Fingerprint() {
+				pm.Discovered(peerID, net.JoinHostPort(addr, fmt.Sprint(port)))
+			}
+		})
+		if err != nil {
+			log.Warn("peer discovery unavailable", "err", err)
 		}
 	}
 	svc.Metrics = metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir)).Read

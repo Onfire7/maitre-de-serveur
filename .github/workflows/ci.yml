@@ -83,6 +83,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
       - run: make m0-check
       - run: make m1-check
+      - run: make m3-check
 
   image:
     runs-on: ubuntu-latest

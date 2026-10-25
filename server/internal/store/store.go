@@ -71,7 +71,98 @@ CREATE TABLE IF NOT EXISTS records (
   PRIMARY KEY (kind, id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS records_owner ON records(owner_node_id, version);
+CREATE TABLE IF NOT EXISTS outbox (
+  seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_node_id   TEXT    NOT NULL,
+  kind            TEXT    NOT NULL,
+  id              TEXT    NOT NULL,
+  body            BLOB    NOT NULL,
+  deleted         INTEGER NOT NULL DEFAULT 0,
+  created_unix_ms INTEGER NOT NULL
+);
 `)
+	return err
+}
+
+// Introduce stores a Node record on behalf of the Node it describes, owned
+// by that Node at version 0, so the Node's own first write (version 1)
+// supersedes it everywhere. This is how a Console or a peer tells a Node
+// about another Node before they have met. Returns false if a record for
+// that Node already exists.
+func (s *Store) Introduce(ctx context.Context, node *maitrev1.Node) (bool, error) {
+	raw, err := proto.Marshal(node)
+	if err != nil {
+		return false, err
+	}
+	res, err := s.db.ExecContext(ctx, `
+INSERT OR IGNORE INTO records (kind, id, owner_node_id, version, updated_unix_ms, body, deleted)
+VALUES (?, ?, ?, 0, ?, ?, 0)`, KindNode, node.GetNodeId(), node.GetNodeId(), s.now().UnixMilli(), raw)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// Owner returns who owns (kind, id), or "" if the Record does not exist.
+func (s *Store) Owner(ctx context.Context, kind, id string) (string, error) {
+	var owner string
+	err := s.db.QueryRowContext(ctx, `SELECT owner_node_id FROM records WHERE kind=? AND id=?`, kind, id).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return owner, err
+}
+
+// Queued is a write waiting for its owner to come back (ADR 0003).
+type Queued struct {
+	Seq     int64
+	Owner   string
+	Kind    string
+	ID      string
+	Body    []byte
+	Deleted bool
+}
+
+// Enqueue stores a write for an offline owner.
+func (s *Store) Enqueue(ctx context.Context, owner, kind, id string, body []byte, deleted bool) error {
+	if body == nil {
+		body = []byte{}
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO outbox (owner_node_id, kind, id, body, deleted, created_unix_ms) VALUES (?, ?, ?, ?, ?, ?)`,
+		owner, kind, id, body, boolInt(deleted), s.now().UnixMilli())
+	return err
+}
+
+// Pending lists queued writes, oldest first; owner "" means all.
+func (s *Store) Pending(ctx context.Context, owner string) ([]Queued, error) {
+	q := `SELECT seq, owner_node_id, kind, id, body, deleted FROM outbox`
+	var args []any
+	if owner != "" {
+		q += ` WHERE owner_node_id=?`
+		args = append(args, owner)
+	}
+	rows, err := s.db.QueryContext(ctx, q+` ORDER BY seq`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Queued
+	for rows.Next() {
+		var q Queued
+		var del int
+		if err := rows.Scan(&q.Seq, &q.Owner, &q.Kind, &q.ID, &q.Body, &del); err != nil {
+			return nil, err
+		}
+		q.Deleted = del != 0
+		out = append(out, q)
+	}
+	return out, rows.Err()
+}
+
+// Dequeue removes a delivered write.
+func (s *Store) Dequeue(ctx context.Context, seq int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM outbox WHERE seq=?`, seq)
 	return err
 }
 

@@ -27,6 +27,8 @@ type Plan struct {
 	Fleet         *maitrev1.Fleet
 	NodeName      string
 	Trusted       []*maitrev1.TrustedDevice
+	// Nodes are the Fleet's existing Nodes, introduced into the new database.
+	Nodes []*maitrev1.Node
 	// NodeIdentity becomes the installed Node's identity: the Installer's
 	// key is carried over so the installer_id the Console paired with is the
 	// node_id it sees afterwards.
@@ -300,6 +302,14 @@ func SeedConfig(ctx context.Context, dir string, plan Plan) error {
 			AddedUnixMs:  now,
 		}
 		if _, err := st.Put(ctx, store.KindTrustedDevice, rec.DeviceId, rec, true); err != nil {
+			return err
+		}
+	}
+	for _, n := range plan.Nodes {
+		if n.GetNodeId() == plan.NodeIdentity.Fingerprint() {
+			continue
+		}
+		if _, err := st.Introduce(ctx, n); err != nil {
 			return err
 		}
 	}

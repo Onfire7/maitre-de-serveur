@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
@@ -36,6 +37,17 @@ type Service struct {
 	Metrics func() *maitrev1.NodeMetrics
 	// Updates drives bootc; nil means this Node cannot update itself (dev mode).
 	Updates *update.Manager
+	// Peers forwards writes to their owner, pushes ours, and reports the
+	// Fleet's other Nodes. Nil on a single-Node or dev setup.
+	Peers Peers
+}
+
+// Peers is what the sync layer offers this service (implemented by
+// peers.Manager; an interface so the service tests need no network).
+type Peers interface {
+	Forward(ctx context.Context, owner string, rec *maitrev1.Record) (*maitrev1.Record, bool, error)
+	Push(ctx context.Context, recs ...*maitrev1.Record)
+	Status(ctx context.Context) []*maitrev1.PeerStatus
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -46,17 +58,19 @@ func New(id *identity.Identity, info Info, st *store.Store) *Service {
 }
 
 // GetNodeInfo implements NodeService.
-func (s *Service) GetNodeInfo(_ context.Context, _ *maitrev1.GetNodeInfoRequest) (*maitrev1.GetNodeInfoResponse, error) {
-	return &maitrev1.GetNodeInfoResponse{
-		Node: &maitrev1.NodeInfo{
-			NodeId:        s.id.Fingerprint(),
-			Name:          s.info.Name,
-			FleetId:       s.info.FleetID,
-			Version:       s.info.Version,
-			UptimeSeconds: uint64(time.Since(s.started).Seconds()),
-			DevMode:       s.info.DevMode,
-		},
-	}, nil
+func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoRequest) (*maitrev1.GetNodeInfoResponse, error) {
+	info := &maitrev1.NodeInfo{
+		NodeId:        s.id.Fingerprint(),
+		Name:          s.info.Name,
+		FleetId:       s.info.FleetID,
+		Version:       s.info.Version,
+		UptimeSeconds: uint64(time.Since(s.started).Seconds()),
+		DevMode:       s.info.DevMode,
+	}
+	if s.Peers != nil {
+		info.Peers = s.Peers.Status(ctx)
+	}
+	return &maitrev1.GetNodeInfoResponse{Node: info}, nil
 }
 
 // ListRecords implements NodeService.
@@ -80,9 +94,11 @@ func FleetWide(kind string) bool {
 	return false
 }
 
-// PutRecord implements NodeService. Milestone 1 is single-Node: a write to a
-// Record owned by another Node is refused; forwarding and queueing arrive
-// with the sync layer in Milestone 3.
+// PutRecord implements NodeService. A Record this Node owns (or a new one)
+// is written here; a Fleet-wide kind takes ownership newest-wins; anything
+// owned by another Node is forwarded to it, or queued while it is offline
+// (ADR 0003). A Node record for a Node other than the caller is an
+// introduction (store.Introduce).
 func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest) (*maitrev1.PutRecordResponse, error) {
 	if s.store == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "this Node has no Fleet database (dev mode)")
@@ -91,11 +107,53 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 	if in.GetKind() == "" || in.GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "record needs kind and id")
 	}
+	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && !in.GetDeleted() {
+		var n maitrev1.Node
+		if err := proto.Unmarshal(in.GetBody(), &n); err != nil || n.GetNodeId() != in.GetId() || n.GetPublicKeyPem() == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "node record must carry node_id and public_key_pem")
+		}
+		added, err := s.store.Introduce(ctx, &n)
+		if err != nil {
+			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+		}
+		rec, err := s.store.Get(ctx, store.KindNode, in.GetId(), &maitrev1.Node{})
+		if err != nil {
+			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+		}
+		if added {
+			if s.OnChange != nil {
+				s.OnChange(rec)
+			}
+			if s.Peers != nil {
+				s.Peers.Push(context.WithoutCancel(ctx), rec)
+			}
+		}
+		return &maitrev1.PutRecordResponse{Record: rec}, nil
+	}
+	fleetWide := FleetWide(in.GetKind())
+	if !fleetWide && s.Peers != nil {
+		owner, err := s.store.Owner(ctx, in.GetKind(), in.GetId())
+		if err != nil {
+			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+		}
+		if owner != "" && owner != s.id.Fingerprint() {
+			applied, queued, err := s.Peers.Forward(ctx, owner, in)
+			if err != nil {
+				return nil, err
+			}
+			if queued {
+				return &maitrev1.PutRecordResponse{Queued: true}, nil
+			}
+			if applied != nil {
+				_, _ = s.store.Apply(ctx, applied)
+			}
+			return &maitrev1.PutRecordResponse{Record: applied}, nil
+		}
+	}
 	var (
 		rec *maitrev1.Record
 		err error
 	)
-	fleetWide := FleetWide(in.GetKind())
 	if in.GetDeleted() {
 		rec, err = s.store.Delete(ctx, in.GetKind(), in.GetId(), fleetWide)
 	} else {
@@ -110,7 +168,31 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 	if s.OnChange != nil {
 		s.OnChange(rec)
 	}
+	if s.Peers != nil {
+		s.Peers.Push(context.WithoutCancel(ctx), rec)
+	}
 	return &maitrev1.PutRecordResponse{Record: rec}, nil
+}
+
+// PushRecords implements NodeService: a peer's records, applied newest-wins.
+func (s *Service) PushRecords(ctx context.Context, req *maitrev1.PushRecordsRequest) (*maitrev1.PushRecordsResponse, error) {
+	if s.store == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Node has no Fleet database (dev mode)")
+	}
+	var applied uint32
+	for _, r := range req.GetRecords() {
+		ok, err := s.store.Apply(ctx, r)
+		if err != nil {
+			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+		}
+		if ok {
+			applied++
+			if s.OnChange != nil {
+				s.OnChange(r)
+			}
+		}
+	}
+	return &maitrev1.PushRecordsResponse{Applied: applied}, nil
 }
 
 // GetNodeMetrics implements NodeService.

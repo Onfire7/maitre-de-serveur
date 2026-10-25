@@ -77,7 +77,183 @@ func (x UpdateStatus_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use UpdateStatus_State.Descriptor instead.
 func (UpdateStatus_State) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{3, 0}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{6, 0}
+}
+
+type PushRecordsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Records       []*Record              `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushRecordsRequest) Reset() {
+	*x = PushRecordsRequest{}
+	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushRecordsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushRecordsRequest) ProtoMessage() {}
+
+func (x *PushRecordsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushRecordsRequest.ProtoReflect.Descriptor instead.
+func (*PushRecordsRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *PushRecordsRequest) GetRecords() []*Record {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+type PushRecordsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How many were newer than what this Node held.
+	Applied       uint32 `protobuf:"varint,1,opt,name=applied,proto3" json:"applied,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushRecordsResponse) Reset() {
+	*x = PushRecordsResponse{}
+	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushRecordsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushRecordsResponse) ProtoMessage() {}
+
+func (x *PushRecordsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushRecordsResponse.ProtoReflect.Descriptor instead.
+func (*PushRecordsResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PushRecordsResponse) GetApplied() uint32 {
+	if x != nil {
+		return x.Applied
+	}
+	return 0
+}
+
+// PeerStatus is what this Node knows about another Node of the Fleet.
+type PeerStatus struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	NodeId string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Name   string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Address last reached, host:port.
+	Address        string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	Online         bool   `protobuf:"varint,4,opt,name=online,proto3" json:"online,omitempty"`
+	LastSeenUnixMs int64  `protobuf:"varint,5,opt,name=last_seen_unix_ms,json=lastSeenUnixMs,proto3" json:"last_seen_unix_ms,omitempty"`
+	// Writes waiting for this peer to come back.
+	Queued        uint32 `protobuf:"varint,6,opt,name=queued,proto3" json:"queued,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerStatus) Reset() {
+	*x = PeerStatus{}
+	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerStatus) ProtoMessage() {}
+
+func (x *PeerStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerStatus.ProtoReflect.Descriptor instead.
+func (*PeerStatus) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PeerStatus) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetOnline() bool {
+	if x != nil {
+		return x.Online
+	}
+	return false
+}
+
+func (x *PeerStatus) GetLastSeenUnixMs() int64 {
+	if x != nil {
+		return x.LastSeenUnixMs
+	}
+	return 0
+}
+
+func (x *PeerStatus) GetQueued() uint32 {
+	if x != nil {
+		return x.Queued
+	}
+	return 0
 }
 
 type GetUpdateStatusRequest struct {
@@ -88,7 +264,7 @@ type GetUpdateStatusRequest struct {
 
 func (x *GetUpdateStatusRequest) Reset() {
 	*x = GetUpdateStatusRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	mi := &file_maitre_v1_node_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -100,7 +276,7 @@ func (x *GetUpdateStatusRequest) String() string {
 func (*GetUpdateStatusRequest) ProtoMessage() {}
 
 func (x *GetUpdateStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[0]
+	mi := &file_maitre_v1_node_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -113,7 +289,7 @@ func (x *GetUpdateStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUpdateStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetUpdateStatusRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{0}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{3}
 }
 
 type GetUpdateStatusResponse struct {
@@ -125,7 +301,7 @@ type GetUpdateStatusResponse struct {
 
 func (x *GetUpdateStatusResponse) Reset() {
 	*x = GetUpdateStatusResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	mi := &file_maitre_v1_node_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -137,7 +313,7 @@ func (x *GetUpdateStatusResponse) String() string {
 func (*GetUpdateStatusResponse) ProtoMessage() {}
 
 func (x *GetUpdateStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[1]
+	mi := &file_maitre_v1_node_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -150,7 +326,7 @@ func (x *GetUpdateStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUpdateStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetUpdateStatusResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{1}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetUpdateStatusResponse) GetStatus() *UpdateStatus {
@@ -177,7 +353,7 @@ type ImageDeployment struct {
 
 func (x *ImageDeployment) Reset() {
 	*x = ImageDeployment{}
-	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	mi := &file_maitre_v1_node_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -189,7 +365,7 @@ func (x *ImageDeployment) String() string {
 func (*ImageDeployment) ProtoMessage() {}
 
 func (x *ImageDeployment) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[2]
+	mi := &file_maitre_v1_node_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -202,7 +378,7 @@ func (x *ImageDeployment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageDeployment.ProtoReflect.Descriptor instead.
 func (*ImageDeployment) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{2}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ImageDeployment) GetImage() string {
@@ -258,7 +434,7 @@ type UpdateStatus struct {
 
 func (x *UpdateStatus) Reset() {
 	*x = UpdateStatus{}
-	mi := &file_maitre_v1_node_proto_msgTypes[3]
+	mi := &file_maitre_v1_node_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +446,7 @@ func (x *UpdateStatus) String() string {
 func (*UpdateStatus) ProtoMessage() {}
 
 func (x *UpdateStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[3]
+	mi := &file_maitre_v1_node_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +459,7 @@ func (x *UpdateStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateStatus.ProtoReflect.Descriptor instead.
 func (*UpdateStatus) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UpdateStatus) GetBooted() *ImageDeployment {
@@ -364,7 +540,7 @@ type UpdateImageRequest struct {
 
 func (x *UpdateImageRequest) Reset() {
 	*x = UpdateImageRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[4]
+	mi := &file_maitre_v1_node_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +552,7 @@ func (x *UpdateImageRequest) String() string {
 func (*UpdateImageRequest) ProtoMessage() {}
 
 func (x *UpdateImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[4]
+	mi := &file_maitre_v1_node_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +565,7 @@ func (x *UpdateImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateImageRequest.ProtoReflect.Descriptor instead.
 func (*UpdateImageRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateImageRequest) GetImage() string {
@@ -421,7 +597,7 @@ type UpdateImageResponse struct {
 
 func (x *UpdateImageResponse) Reset() {
 	*x = UpdateImageResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[5]
+	mi := &file_maitre_v1_node_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -433,7 +609,7 @@ func (x *UpdateImageResponse) String() string {
 func (*UpdateImageResponse) ProtoMessage() {}
 
 func (x *UpdateImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[5]
+	mi := &file_maitre_v1_node_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -446,7 +622,7 @@ func (x *UpdateImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateImageResponse.ProtoReflect.Descriptor instead.
 func (*UpdateImageResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{8}
 }
 
 type RollbackRequest struct {
@@ -458,7 +634,7 @@ type RollbackRequest struct {
 
 func (x *RollbackRequest) Reset() {
 	*x = RollbackRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[6]
+	mi := &file_maitre_v1_node_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -470,7 +646,7 @@ func (x *RollbackRequest) String() string {
 func (*RollbackRequest) ProtoMessage() {}
 
 func (x *RollbackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[6]
+	mi := &file_maitre_v1_node_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +659,7 @@ func (x *RollbackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackRequest.ProtoReflect.Descriptor instead.
 func (*RollbackRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RollbackRequest) GetReboot() bool {
@@ -501,7 +677,7 @@ type RollbackResponse struct {
 
 func (x *RollbackResponse) Reset() {
 	*x = RollbackResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[7]
+	mi := &file_maitre_v1_node_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -513,7 +689,7 @@ func (x *RollbackResponse) String() string {
 func (*RollbackResponse) ProtoMessage() {}
 
 func (x *RollbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[7]
+	mi := &file_maitre_v1_node_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -526,7 +702,7 @@ func (x *RollbackResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollbackResponse.ProtoReflect.Descriptor instead.
 func (*RollbackResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{10}
 }
 
 type RebootRequest struct {
@@ -537,7 +713,7 @@ type RebootRequest struct {
 
 func (x *RebootRequest) Reset() {
 	*x = RebootRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[8]
+	mi := &file_maitre_v1_node_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -549,7 +725,7 @@ func (x *RebootRequest) String() string {
 func (*RebootRequest) ProtoMessage() {}
 
 func (x *RebootRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[8]
+	mi := &file_maitre_v1_node_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +738,7 @@ func (x *RebootRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RebootRequest.ProtoReflect.Descriptor instead.
 func (*RebootRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{8}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{11}
 }
 
 type RebootResponse struct {
@@ -573,7 +749,7 @@ type RebootResponse struct {
 
 func (x *RebootResponse) Reset() {
 	*x = RebootResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[9]
+	mi := &file_maitre_v1_node_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +761,7 @@ func (x *RebootResponse) String() string {
 func (*RebootResponse) ProtoMessage() {}
 
 func (x *RebootResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[9]
+	mi := &file_maitre_v1_node_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +774,7 @@ func (x *RebootResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RebootResponse.ProtoReflect.Descriptor instead.
 func (*RebootResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{9}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{12}
 }
 
 type GetNodeMetricsRequest struct {
@@ -609,7 +785,7 @@ type GetNodeMetricsRequest struct {
 
 func (x *GetNodeMetricsRequest) Reset() {
 	*x = GetNodeMetricsRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[10]
+	mi := &file_maitre_v1_node_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -621,7 +797,7 @@ func (x *GetNodeMetricsRequest) String() string {
 func (*GetNodeMetricsRequest) ProtoMessage() {}
 
 func (x *GetNodeMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[10]
+	mi := &file_maitre_v1_node_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -634,7 +810,7 @@ func (x *GetNodeMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{10}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{13}
 }
 
 type GetNodeMetricsResponse struct {
@@ -646,7 +822,7 @@ type GetNodeMetricsResponse struct {
 
 func (x *GetNodeMetricsResponse) Reset() {
 	*x = GetNodeMetricsResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[11]
+	mi := &file_maitre_v1_node_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -658,7 +834,7 @@ func (x *GetNodeMetricsResponse) String() string {
 func (*GetNodeMetricsResponse) ProtoMessage() {}
 
 func (x *GetNodeMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[11]
+	mi := &file_maitre_v1_node_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -671,7 +847,7 @@ func (x *GetNodeMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{11}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetNodeMetricsResponse) GetMetrics() *NodeMetrics {
@@ -705,7 +881,7 @@ type NodeMetrics struct {
 
 func (x *NodeMetrics) Reset() {
 	*x = NodeMetrics{}
-	mi := &file_maitre_v1_node_proto_msgTypes[12]
+	mi := &file_maitre_v1_node_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +893,7 @@ func (x *NodeMetrics) String() string {
 func (*NodeMetrics) ProtoMessage() {}
 
 func (x *NodeMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[12]
+	mi := &file_maitre_v1_node_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -730,7 +906,7 @@ func (x *NodeMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeMetrics.ProtoReflect.Descriptor instead.
 func (*NodeMetrics) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{12}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *NodeMetrics) GetCpuPercent() float64 {
@@ -813,7 +989,7 @@ type ListRecordsRequest struct {
 
 func (x *ListRecordsRequest) Reset() {
 	*x = ListRecordsRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[13]
+	mi := &file_maitre_v1_node_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -825,7 +1001,7 @@ func (x *ListRecordsRequest) String() string {
 func (*ListRecordsRequest) ProtoMessage() {}
 
 func (x *ListRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[13]
+	mi := &file_maitre_v1_node_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -838,7 +1014,7 @@ func (x *ListRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordsRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{13}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListRecordsRequest) GetKind() string {
@@ -857,7 +1033,7 @@ type ListRecordsResponse struct {
 
 func (x *ListRecordsResponse) Reset() {
 	*x = ListRecordsResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[14]
+	mi := &file_maitre_v1_node_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -869,7 +1045,7 @@ func (x *ListRecordsResponse) String() string {
 func (*ListRecordsResponse) ProtoMessage() {}
 
 func (x *ListRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[14]
+	mi := &file_maitre_v1_node_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -882,7 +1058,7 @@ func (x *ListRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordsResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{14}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListRecordsResponse) GetRecords() []*Record {
@@ -901,7 +1077,7 @@ type PutRecordRequest struct {
 
 func (x *PutRecordRequest) Reset() {
 	*x = PutRecordRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[15]
+	mi := &file_maitre_v1_node_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -913,7 +1089,7 @@ func (x *PutRecordRequest) String() string {
 func (*PutRecordRequest) ProtoMessage() {}
 
 func (x *PutRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[15]
+	mi := &file_maitre_v1_node_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -926,7 +1102,7 @@ func (x *PutRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutRecordRequest.ProtoReflect.Descriptor instead.
 func (*PutRecordRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{15}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *PutRecordRequest) GetRecord() *Record {
@@ -947,7 +1123,7 @@ type PutRecordResponse struct {
 
 func (x *PutRecordResponse) Reset() {
 	*x = PutRecordResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[16]
+	mi := &file_maitre_v1_node_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1135,7 @@ func (x *PutRecordResponse) String() string {
 func (*PutRecordResponse) ProtoMessage() {}
 
 func (x *PutRecordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[16]
+	mi := &file_maitre_v1_node_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1148,7 @@ func (x *PutRecordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutRecordResponse.ProtoReflect.Descriptor instead.
 func (*PutRecordResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{16}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PutRecordResponse) GetRecord() *Record {
@@ -997,7 +1173,7 @@ type GetNodeInfoRequest struct {
 
 func (x *GetNodeInfoRequest) Reset() {
 	*x = GetNodeInfoRequest{}
-	mi := &file_maitre_v1_node_proto_msgTypes[17]
+	mi := &file_maitre_v1_node_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1009,7 +1185,7 @@ func (x *GetNodeInfoRequest) String() string {
 func (*GetNodeInfoRequest) ProtoMessage() {}
 
 func (x *GetNodeInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[17]
+	mi := &file_maitre_v1_node_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1022,7 +1198,7 @@ func (x *GetNodeInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeInfoRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{17}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{20}
 }
 
 type GetNodeInfoResponse struct {
@@ -1034,7 +1210,7 @@ type GetNodeInfoResponse struct {
 
 func (x *GetNodeInfoResponse) Reset() {
 	*x = GetNodeInfoResponse{}
-	mi := &file_maitre_v1_node_proto_msgTypes[18]
+	mi := &file_maitre_v1_node_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1046,7 +1222,7 @@ func (x *GetNodeInfoResponse) String() string {
 func (*GetNodeInfoResponse) ProtoMessage() {}
 
 func (x *GetNodeInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[18]
+	mi := &file_maitre_v1_node_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1059,7 +1235,7 @@ func (x *GetNodeInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeInfoResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{18}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetNodeInfoResponse) GetNode() *NodeInfo {
@@ -1082,14 +1258,16 @@ type NodeInfo struct {
 	// Seconds since the agent started.
 	UptimeSeconds uint64 `protobuf:"varint,5,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
 	// True when running via `maitre dev` rather than on Maître Server.
-	DevMode       bool `protobuf:"varint,6,opt,name=dev_mode,json=devMode,proto3" json:"dev_mode,omitempty"`
+	DevMode bool `protobuf:"varint,6,opt,name=dev_mode,json=devMode,proto3" json:"dev_mode,omitempty"`
+	// The other Nodes of the Fleet as this Node sees them (Milestone 3).
+	Peers         []*PeerStatus `protobuf:"bytes,7,rep,name=peers,proto3" json:"peers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NodeInfo) Reset() {
 	*x = NodeInfo{}
-	mi := &file_maitre_v1_node_proto_msgTypes[19]
+	mi := &file_maitre_v1_node_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1101,7 +1279,7 @@ func (x *NodeInfo) String() string {
 func (*NodeInfo) ProtoMessage() {}
 
 func (x *NodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_node_proto_msgTypes[19]
+	mi := &file_maitre_v1_node_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1114,7 +1292,7 @@ func (x *NodeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeInfo.ProtoReflect.Descriptor instead.
 func (*NodeInfo) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_node_proto_rawDescGZIP(), []int{19}
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *NodeInfo) GetNodeId() string {
@@ -1159,11 +1337,30 @@ func (x *NodeInfo) GetDevMode() bool {
 	return false
 }
 
+func (x *NodeInfo) GetPeers() []*PeerStatus {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
 var File_maitre_v1_node_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"\x18\n" +
+	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\"A\n" +
+	"\x12PushRecordsRequest\x12+\n" +
+	"\arecords\x18\x01 \x03(\v2\x11.maitre.v1.RecordR\arecords\"/\n" +
+	"\x13PushRecordsResponse\x12\x18\n" +
+	"\aapplied\x18\x01 \x01(\rR\aapplied\"\xae\x01\n" +
+	"\n" +
+	"PeerStatus\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
+	"\x06online\x18\x04 \x01(\bR\x06online\x12)\n" +
+	"\x11last_seen_unix_ms\x18\x05 \x01(\x03R\x0elastSeenUnixMs\x12\x16\n" +
+	"\x06queued\x18\x06 \x01(\rR\x06queued\"\x18\n" +
 	"\x16GetUpdateStatusRequest\"J\n" +
 	"\x17GetUpdateStatusResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x17.maitre.v1.UpdateStatusR\x06status\"w\n" +
@@ -1226,14 +1423,15 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06queued\x18\x02 \x01(\bR\x06queued\"\x14\n" +
 	"\x12GetNodeInfoRequest\">\n" +
 	"\x13GetNodeInfoResponse\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xae\x01\n" +
+	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xdb\x01\n" +
 	"\bNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
 	"\bfleet_id\x18\x03 \x01(\tR\afleetId\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12%\n" +
 	"\x0euptime_seconds\x18\x05 \x01(\x04R\ruptimeSeconds\x12\x19\n" +
-	"\bdev_mode\x18\x06 \x01(\bR\adevMode2\x84\x05\n" +
+	"\bdev_mode\x18\x06 \x01(\bR\adevMode\x12+\n" +
+	"\x05peers\x18\a \x03(\v2\x15.maitre.v1.PeerStatusR\x05peers2\xd4\x05\n" +
 	"\vNodeService\x12N\n" +
 	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00\x12N\n" +
 	"\vListRecords\x12\x1d.maitre.v1.ListRecordsRequest\x1a\x1e.maitre.v1.ListRecordsResponse\"\x00\x12H\n" +
@@ -1242,7 +1440,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x0fGetUpdateStatus\x12!.maitre.v1.GetUpdateStatusRequest\x1a\".maitre.v1.GetUpdateStatusResponse\"\x00\x12N\n" +
 	"\vUpdateImage\x12\x1d.maitre.v1.UpdateImageRequest\x1a\x1e.maitre.v1.UpdateImageResponse\"\x00\x12E\n" +
 	"\bRollback\x12\x1a.maitre.v1.RollbackRequest\x1a\x1b.maitre.v1.RollbackResponse\"\x00\x12?\n" +
-	"\x06Reboot\x12\x18.maitre.v1.RebootRequest\x1a\x19.maitre.v1.RebootResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\x06Reboot\x12\x18.maitre.v1.RebootRequest\x1a\x19.maitre.v1.RebootResponse\"\x00\x12N\n" +
+	"\vPushRecords\x12\x1d.maitre.v1.PushRecordsRequest\x1a\x1e.maitre.v1.PushRecordsResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_node_proto_rawDescOnce sync.Once
@@ -1257,63 +1456,70 @@ func file_maitre_v1_node_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_maitre_v1_node_proto_goTypes = []any{
 	(UpdateStatus_State)(0),         // 0: maitre.v1.UpdateStatus.State
-	(*GetUpdateStatusRequest)(nil),  // 1: maitre.v1.GetUpdateStatusRequest
-	(*GetUpdateStatusResponse)(nil), // 2: maitre.v1.GetUpdateStatusResponse
-	(*ImageDeployment)(nil),         // 3: maitre.v1.ImageDeployment
-	(*UpdateStatus)(nil),            // 4: maitre.v1.UpdateStatus
-	(*UpdateImageRequest)(nil),      // 5: maitre.v1.UpdateImageRequest
-	(*UpdateImageResponse)(nil),     // 6: maitre.v1.UpdateImageResponse
-	(*RollbackRequest)(nil),         // 7: maitre.v1.RollbackRequest
-	(*RollbackResponse)(nil),        // 8: maitre.v1.RollbackResponse
-	(*RebootRequest)(nil),           // 9: maitre.v1.RebootRequest
-	(*RebootResponse)(nil),          // 10: maitre.v1.RebootResponse
-	(*GetNodeMetricsRequest)(nil),   // 11: maitre.v1.GetNodeMetricsRequest
-	(*GetNodeMetricsResponse)(nil),  // 12: maitre.v1.GetNodeMetricsResponse
-	(*NodeMetrics)(nil),             // 13: maitre.v1.NodeMetrics
-	(*ListRecordsRequest)(nil),      // 14: maitre.v1.ListRecordsRequest
-	(*ListRecordsResponse)(nil),     // 15: maitre.v1.ListRecordsResponse
-	(*PutRecordRequest)(nil),        // 16: maitre.v1.PutRecordRequest
-	(*PutRecordResponse)(nil),       // 17: maitre.v1.PutRecordResponse
-	(*GetNodeInfoRequest)(nil),      // 18: maitre.v1.GetNodeInfoRequest
-	(*GetNodeInfoResponse)(nil),     // 19: maitre.v1.GetNodeInfoResponse
-	(*NodeInfo)(nil),                // 20: maitre.v1.NodeInfo
-	(*Record)(nil),                  // 21: maitre.v1.Record
+	(*PushRecordsRequest)(nil),      // 1: maitre.v1.PushRecordsRequest
+	(*PushRecordsResponse)(nil),     // 2: maitre.v1.PushRecordsResponse
+	(*PeerStatus)(nil),              // 3: maitre.v1.PeerStatus
+	(*GetUpdateStatusRequest)(nil),  // 4: maitre.v1.GetUpdateStatusRequest
+	(*GetUpdateStatusResponse)(nil), // 5: maitre.v1.GetUpdateStatusResponse
+	(*ImageDeployment)(nil),         // 6: maitre.v1.ImageDeployment
+	(*UpdateStatus)(nil),            // 7: maitre.v1.UpdateStatus
+	(*UpdateImageRequest)(nil),      // 8: maitre.v1.UpdateImageRequest
+	(*UpdateImageResponse)(nil),     // 9: maitre.v1.UpdateImageResponse
+	(*RollbackRequest)(nil),         // 10: maitre.v1.RollbackRequest
+	(*RollbackResponse)(nil),        // 11: maitre.v1.RollbackResponse
+	(*RebootRequest)(nil),           // 12: maitre.v1.RebootRequest
+	(*RebootResponse)(nil),          // 13: maitre.v1.RebootResponse
+	(*GetNodeMetricsRequest)(nil),   // 14: maitre.v1.GetNodeMetricsRequest
+	(*GetNodeMetricsResponse)(nil),  // 15: maitre.v1.GetNodeMetricsResponse
+	(*NodeMetrics)(nil),             // 16: maitre.v1.NodeMetrics
+	(*ListRecordsRequest)(nil),      // 17: maitre.v1.ListRecordsRequest
+	(*ListRecordsResponse)(nil),     // 18: maitre.v1.ListRecordsResponse
+	(*PutRecordRequest)(nil),        // 19: maitre.v1.PutRecordRequest
+	(*PutRecordResponse)(nil),       // 20: maitre.v1.PutRecordResponse
+	(*GetNodeInfoRequest)(nil),      // 21: maitre.v1.GetNodeInfoRequest
+	(*GetNodeInfoResponse)(nil),     // 22: maitre.v1.GetNodeInfoResponse
+	(*NodeInfo)(nil),                // 23: maitre.v1.NodeInfo
+	(*Record)(nil),                  // 24: maitre.v1.Record
 }
 var file_maitre_v1_node_proto_depIdxs = []int32{
-	4,  // 0: maitre.v1.GetUpdateStatusResponse.status:type_name -> maitre.v1.UpdateStatus
-	3,  // 1: maitre.v1.UpdateStatus.booted:type_name -> maitre.v1.ImageDeployment
-	3,  // 2: maitre.v1.UpdateStatus.staged:type_name -> maitre.v1.ImageDeployment
-	3,  // 3: maitre.v1.UpdateStatus.rollback:type_name -> maitre.v1.ImageDeployment
-	0,  // 4: maitre.v1.UpdateStatus.state:type_name -> maitre.v1.UpdateStatus.State
-	13, // 5: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
-	21, // 6: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
-	21, // 7: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
-	21, // 8: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
-	20, // 9: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
-	18, // 10: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
-	14, // 11: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
-	16, // 12: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
-	11, // 13: maitre.v1.NodeService.GetNodeMetrics:input_type -> maitre.v1.GetNodeMetricsRequest
-	1,  // 14: maitre.v1.NodeService.GetUpdateStatus:input_type -> maitre.v1.GetUpdateStatusRequest
-	5,  // 15: maitre.v1.NodeService.UpdateImage:input_type -> maitre.v1.UpdateImageRequest
-	7,  // 16: maitre.v1.NodeService.Rollback:input_type -> maitre.v1.RollbackRequest
-	9,  // 17: maitre.v1.NodeService.Reboot:input_type -> maitre.v1.RebootRequest
-	19, // 18: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
-	15, // 19: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
-	17, // 20: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
-	12, // 21: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
-	2,  // 22: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
-	6,  // 23: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
-	8,  // 24: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
-	10, // 25: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
-	18, // [18:26] is the sub-list for method output_type
-	10, // [10:18] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	24, // 0: maitre.v1.PushRecordsRequest.records:type_name -> maitre.v1.Record
+	7,  // 1: maitre.v1.GetUpdateStatusResponse.status:type_name -> maitre.v1.UpdateStatus
+	6,  // 2: maitre.v1.UpdateStatus.booted:type_name -> maitre.v1.ImageDeployment
+	6,  // 3: maitre.v1.UpdateStatus.staged:type_name -> maitre.v1.ImageDeployment
+	6,  // 4: maitre.v1.UpdateStatus.rollback:type_name -> maitre.v1.ImageDeployment
+	0,  // 5: maitre.v1.UpdateStatus.state:type_name -> maitre.v1.UpdateStatus.State
+	16, // 6: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
+	24, // 7: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
+	24, // 8: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
+	24, // 9: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
+	23, // 10: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
+	3,  // 11: maitre.v1.NodeInfo.peers:type_name -> maitre.v1.PeerStatus
+	21, // 12: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
+	17, // 13: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
+	19, // 14: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
+	14, // 15: maitre.v1.NodeService.GetNodeMetrics:input_type -> maitre.v1.GetNodeMetricsRequest
+	4,  // 16: maitre.v1.NodeService.GetUpdateStatus:input_type -> maitre.v1.GetUpdateStatusRequest
+	8,  // 17: maitre.v1.NodeService.UpdateImage:input_type -> maitre.v1.UpdateImageRequest
+	10, // 18: maitre.v1.NodeService.Rollback:input_type -> maitre.v1.RollbackRequest
+	12, // 19: maitre.v1.NodeService.Reboot:input_type -> maitre.v1.RebootRequest
+	1,  // 20: maitre.v1.NodeService.PushRecords:input_type -> maitre.v1.PushRecordsRequest
+	22, // 21: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
+	18, // 22: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
+	20, // 23: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
+	15, // 24: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
+	5,  // 25: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
+	9,  // 26: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
+	11, // 27: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
+	13, // 28: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
+	2,  // 29: maitre.v1.NodeService.PushRecords:output_type -> maitre.v1.PushRecordsResponse
+	21, // [21:30] is the sub-list for method output_type
+	12, // [12:21] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_node_proto_init() }
@@ -1328,7 +1534,7 @@ func file_maitre_v1_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_node_proto_rawDesc), len(file_maitre_v1_node_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

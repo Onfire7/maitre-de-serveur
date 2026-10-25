@@ -41,6 +41,8 @@ const (
 	NodeServiceRollbackProcedure = "/maitre.v1.NodeService/Rollback"
 	// NodeServiceRebootProcedure is the procedure name of the NodeService's Reboot RPC.
 	NodeServiceRebootProcedure = "/maitre.v1.NodeService/Reboot"
+	// NodeServicePushRecordsProcedure is the procedure name of the NodeService's PushRecords RPC.
+	NodeServicePushRecordsProcedure = "/maitre.v1.NodeService/PushRecords"
 )
 
 var (
@@ -100,6 +102,13 @@ var (
 			Procedure:  NodeServiceRebootProcedure,
 		}
 	})
+	nodeServicePushRecordsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("PushRecords"),
+			Procedure:  NodeServicePushRecordsProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -128,6 +137,10 @@ type NodeServiceClient interface {
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Reboot restarts the Node.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
+	// PushRecords hands this Node Records another Node (or a device) holds,
+	// applied newest-wins (ADR 0003). Peers call it after every write and the
+	// periodic reconcile pulls ListRecords the other way.
+	PushRecords(context.Context, *v1.PushRecordsRequest) (*v1.PushRecordsResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -162,6 +175,10 @@ type NodeServiceHandler interface {
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Reboot restarts the Node.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
+	// PushRecords hands this Node Records another Node (or a device) holds,
+	// applied newest-wins (ADR 0003). Peers call it after every write and the
+	// periodic reconcile pulls ListRecords the other way.
+	PushRecords(context.Context, *v1.PushRecordsRequest) (*v1.PushRecordsResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -176,6 +193,7 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceUpdateImageSpec(), Handler: adapter.updateImage},
 		connect.Method{Spec: nodeServiceRollbackSpec(), Handler: adapter.rollback},
 		connect.Method{Spec: nodeServiceRebootSpec(), Handler: adapter.reboot},
+		connect.Method{Spec: nodeServicePushRecordsSpec(), Handler: adapter.pushRecords},
 	)
 }
 
@@ -212,6 +230,10 @@ func (UnimplementedNodeServiceHandler) Rollback(context.Context, *v1.RollbackReq
 
 func (UnimplementedNodeServiceHandler) Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.Reboot is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) PushRecords(context.Context, *v1.PushRecordsRequest) (*v1.PushRecordsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.PushRecords is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -277,6 +299,14 @@ func (c *nodeServiceClient) Rollback(ctx context.Context, req *v1.RollbackReques
 func (c *nodeServiceClient) Reboot(ctx context.Context, req *v1.RebootRequest) (*v1.RebootResponse, error) {
 	var res v1.RebootResponse
 	if err := c.client.CallUnary(ctx, nodeServiceRebootSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) PushRecords(ctx context.Context, req *v1.PushRecordsRequest) (*v1.PushRecordsResponse, error) {
+	var res v1.PushRecordsResponse
+	if err := c.client.CallUnary(ctx, nodeServicePushRecordsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -374,6 +404,18 @@ func (h nodeServiceHandler) reboot(ctx context.Context, _ connect.Spec, stream c
 		return err
 	}
 	res, err := h.svc.Reboot(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) pushRecords(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PushRecordsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PushRecords(ctx, &req)
 	if err != nil {
 		return err
 	}
