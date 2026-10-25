@@ -107,11 +107,11 @@ if [ "$NET" = bridge ]; then
   # Fixed MAC so the VM keeps its DHCP lease across runs.
   NETDEV=(-netdev "bridge,id=n0,br=$BRIDGE" -device "virtio-net-pci,netdev=n0,mac=52:54:00:4d:41:49${NICBOOT}")
   echo "network: bridge $BRIDGE (the VM gets its own address; the Console discovers it)"
-  [ -n "$PXE" ] && echo "netboot: the VM asks the LAN; run 'make depot NETBOOT=1' so the Depot answers"
+  [ -n "$PXE" ] && echo "netboot: the VM asks the LAN; run 'make depot NETBOOT=1 SERIAL=1' so the Depot answers (SERIAL=1 keeps $WORK/serial.log useful)"
 else
   NETDEV=(-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80${SLIRP_PXE}" -device "virtio-net-pci,netdev=n0${NICBOOT}")
   echo "network: QEMU NAT with ports forwarded (run scripts/vm-net-setup.sh once for a bridged VM)"
-  [ -n "$PXE" ] && echo "netboot: GRUB from $DEPOT/boot via QEMU's TFTP; run 'make depot' so GRUB can fetch the kernel and root"
+  [ -n "$PXE" ] && echo "netboot: GRUB from $DEPOT/boot via QEMU's TFTP; run 'make depot SERIAL=1' so GRUB can fetch the kernel and root"
 fi
 
 cleanup() { kill "${QEMU:-}" 2>/dev/null || true; }

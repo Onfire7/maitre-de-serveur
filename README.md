@@ -64,7 +64,8 @@ To install new machines over the network instead of from media, build the netboo
 ```
 make publish NETBOOT=1   # also builds kernel, live initramfs, squashed root and GRUB into ~/.maitre/depot/boot
 make depot NETBOOT=1     # asks for sudo: proxyDHCP on 67/4011 and TFTP on 69, next to the registry on 8080
-make vm PXE=1 FRESH=1    # a VM that boots from the network; without the bridge QEMU's own TFTP hands out GRUB
+make vm PXE=1 FRESH=1    # a VM that boots from the network; without the bridge QEMU's own TFTP hands out shim and GRUB
+                         # (add SERIAL=1 to make depot so the VM keeps its serial log; real machines get no serial console)
 ```
 
 Your router keeps handing out addresses; the Depot only tells UEFI machines where GRUB is. The machine boots the live Installer from RAM, shows the pairing code, and the Console installs it exactly like a media boot, except that bootc streams the image from the Depot straight to the disk. The same Node later takes updates from the Depot through the Console.

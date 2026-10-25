@@ -105,14 +105,14 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 	install := &progressWriter{onLine: func(l string) {
 		progress(maitrev1.Provisioning_PHASE_INSTALLING, 60, strings.TrimSpace(l))
 	}}
-	if err := r.exec(ctx, install, "podman", "run", "--rm", "--privileged", "--pid=host", "--ipc=host",
+	args := []string{"run", "--rm", "--privileged", "--pid=host", "--ipc=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/dev:/dev", "-v", "/var/lib/containers:/var/lib/containers",
 		plan.ImageRef,
 		"bootc", "install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
-		"--target-imgref", plan.ImageRef, "--skip-fetch-check",
-		"--karg", "console=tty0", "--karg", "console=ttyS0,115200n8",
-		plan.TargetDisk); err != nil {
+		"--target-imgref", plan.ImageRef, "--skip-fetch-check"}
+	args = append(args, consoleKargs()...)
+	if err := r.exec(ctx, install, "podman", append(args, plan.TargetDisk)...); err != nil {
 		return fmt.Errorf("bootc install: %w", err)
 	}
 	return r.configure(ctx, plan, progress)
@@ -132,13 +132,33 @@ func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Pro
 	if !strings.Contains(src, "://") && !strings.HasPrefix(src, "containers-storage:") {
 		src = "docker://" + src
 	}
-	if err := r.exec(ctx, install, "bootc", "install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
-		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check",
-		"--karg", "console=tty0", "--karg", "console=ttyS0,115200n8",
-		plan.TargetDisk); err != nil {
+	args := []string{"install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
+		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check"}
+	args = append(args, consoleKargs()...)
+	if err := r.exec(ctx, install, "bootc", append(args, plan.TargetDisk)...); err != nil {
 		return fmt.Errorf("bootc install: %w", err)
 	}
 	return nil
+}
+
+// consoleKargs passes the Installer's own console= arguments on to the
+// installed system: a VM keeps its serial log, a laptop with no serial port
+// gets none (agetty crashes on a ttyS0 that is not there).
+func consoleKargs() []string {
+	var out []string
+	b, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return []string{"--karg", "console=tty0"}
+	}
+	for _, f := range strings.Fields(string(b)) {
+		if strings.HasPrefix(f, "console=") {
+			out = append(out, "--karg", f)
+		}
+	}
+	if len(out) == 0 {
+		out = []string{"--karg", "console=tty0"}
+	}
+	return out
 }
 
 // configure adds the config (and optional data) partition after bootc has

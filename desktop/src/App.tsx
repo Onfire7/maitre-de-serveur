@@ -78,7 +78,12 @@ export default function App() {
             device={device}
             state={state}
             onAdd={(found) => setScreen({ name: "add", found })}
-            onOpen={(node) => setScreen({ name: "node", node })}
+            onOpen={(node) => {
+              // Persist the address the Node answered on last.
+              if (node.addresses[0] !== state.nodes.find((n) => n.node_id === node.node_id)?.addresses[0])
+                save({ ...state, nodes: state.nodes.map((n) => (n.node_id === node.node_id ? node : n)) });
+              setScreen({ name: "node", node });
+            }}
             onAddDev={(node) => save({ ...state, nodes: [...state.nodes.filter((n) => n.node_id !== node.node_id), node] })}
             onForget={(node) => save({ ...state, nodes: state.nodes.filter((n) => n.node_id !== node.node_id) })}
           />
@@ -189,7 +194,18 @@ function Home({
         {state.nodes.length === 0 && <p style={{ color: "#555" }}>No Nodes yet. Boot a machine from the Maître installer USB and it will appear below.</p>}
         <ul style={{ listStyle: "none", padding: 0 }}>
           {state.nodes.map((n) => (
-            <NodeRow key={n.node_id} node={n} live={found.find((f) => f.kind === "node" && f.id === n.node_id)} onOpen={() => onOpen(n)} onForget={() => onForget(n)} />
+            <NodeRow
+              key={n.node_id}
+              node={n}
+              live={found.find((f) => f.kind === "node" && f.id === n.node_id)}
+              onOpen={() => {
+                // A Node can come back from a reinstall or a new DHCP lease on
+                // another address; what mDNS says now beats what we stored.
+                const live = found.find((f) => f.kind === "node" && f.id === n.node_id);
+                onOpen(live ? { ...n, addresses: [...live.addresses, ...n.addresses.filter((a) => !live.addresses.includes(a))] } : n);
+              }}
+              onForget={() => onForget(n)}
+            />
           ))}
         </ul>
       </section>

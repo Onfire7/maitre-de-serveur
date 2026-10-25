@@ -92,6 +92,9 @@ type BootParams struct {
 	Image string
 	// Insecure is the registry host:port to allow over plain HTTP.
 	Insecure string
+	// Serial adds a serial console (QEMU's serial log); real machines
+	// without a UART must not get one, agetty crashes on it.
+	Serial bool
 }
 
 // GRUB loads the kernel and initramfs over TFTP from the server it was
@@ -102,7 +105,7 @@ set timeout=3
 set default=0
 menuentry "Install Maître Server ({{.Image}})" {
   echo "Loading the Maître Installer from {{.IP}}..."
-  linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 console=tty0 console=ttyS0,115200n8 maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
+  linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
   initrd /initramfs.img
 }
 `))

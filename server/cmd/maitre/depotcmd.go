@@ -116,6 +116,7 @@ func runDepotServe(args []string) error {
 	netboot := fs.Bool("netboot", false, "answer PXE clients (proxyDHCP + TFTP; needs root) so machines can install over the network")
 	bootImage := fs.String("boot-image", "maitre-server:dev", "Depot image the netbooted Installer installs (name:tag)")
 	iface := fs.String("interface", "", "interface to answer PXE on (default: the one with the LAN address)")
+	serial := fs.Bool("serial", false, "netbooted machines also get a serial console on ttyS0 (for QEMU; real machines without one must not)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -167,7 +168,7 @@ func runDepotServe(args []string) error {
 			return fmt.Errorf("boot image %s:%s is not in the Depot (have %v)", imgName, imgTag, imgs)
 		}
 		ref = fmt.Sprintf("%s:%d/%s:%s", ip, port, imgName, imgTag)
-		if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port)}); err != nil {
+		if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial}); err != nil {
 			return err
 		}
 		bootHint = fmt.Sprintf("  Netboot:  files ready; a netbooted machine installs %s\n            (proxyDHCP off: add --netboot with sudo so machines on the LAN find them)\n", ref)
