@@ -18,12 +18,32 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
 // runPoolUp is `maitre pool-up`, run by maitre-pool.service at boot.
 func runPoolUp(args []string) error {
-	st, err := pool.Up(context.Background())
+	fs := flag.NewFlagSet("pool-up", flag.ExitOnError)
+	state := fs.String("state", "/var/lib/maitre", "config partition mount point (Drive records)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	// Milestone 4: mount this Node's Drives first; they become branches.
+	var extra []string
+	if id, err := identity.Load(filepath.Join(*state, "node")); err == nil {
+		if db, err := store.Open(filepath.Join(*state, "fleet.db"), id.Fingerprint()); err == nil {
+			dirs, errs := storage.New(db, nil).MountAll(ctx)
+			for _, e := range errs {
+				fmt.Fprintln(os.Stderr, "pool-up:", e)
+			}
+			extra = dirs
+			db.Close()
+		}
+	}
+	st, err := pool.Up(ctx, extra...)
 	if err != nil {
 		return err
 	}

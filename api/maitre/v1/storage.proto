@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// StorageService manages one Node's Drives (Milestone 4). Tiers are
+// Fleet-wide "tier" Records written through NodeService.PutRecord.
+service StorageService {
+  // ListDrives reports every block device the Node can see, merged with
+  // its Drive records.
+  rpc ListDrives(ListDrivesRequest) returns (ListDrivesResponse) {}
+  // DriveContents summarises what a filesystem holds, for the Format and
+  // Adopt dialogs.
+  rpc DriveContents(DriveContentsRequest) returns (DriveContentsResponse) {}
+  // AdoptDrive mounts an existing filesystem read-write and makes it a Drive
+  // of this Node, data intact.
+  rpc AdoptDrive(AdoptDriveRequest) returns (AdoptDriveResponse) {}
+  // FormatDrive erases a device (btrfs) and makes it a Drive. The caller
+  // must repeat the device's model or path exactly (the guard).
+  rpc FormatDrive(FormatDriveRequest) returns (FormatDriveResponse) {}
+  // SetDriveTags replaces a Drive's user tags.
+  rpc SetDriveTags(SetDriveTagsRequest) returns (SetDriveTagsResponse) {}
+  // ForgetDrive removes a Drive from the Node: unmounted, record deleted,
+  // data left on the device untouched. The caller repeats the Drive's name.
+  rpc ForgetDrive(ForgetDriveRequest) returns (ForgetDriveResponse) {}
+}
+
+// DriveRecord is the kind "drive" Record body, owned by the Node holding
+// the Drive.
+message DriveRecord {
+  // Filesystem UUID: stable across ports, reboots and Nodes.
+  string drive_id = 1;
+  string node_id = 2;
+  // Human name; defaults to the model or label.
+  string name = 3;
+  string model = 4;
+  string serial = 5;
+  uint64 size_bytes = 6;
+  string fstype = 7;
+  // Automatic tags: ssd, hdd, usb, nvme, and a size class (small, medium, large).
+  repeated string auto_tags = 8;
+  repeated string tags = 9;
+  // "adopted" (existing data kept) or "formatted".
+  string origin = 10;
+  int64 added_unix_ms = 11;
+}
+
+// Drive is a block device as the Console sees it: live facts plus the
+// record, if any.
+message Drive {
+  string device = 1;
+  string drive_id = 2;
+  string model = 3;
+  string serial = 4;
+  uint64 size_bytes = 5;
+  bool removable = 6;
+  bool rotational = 7;
+  string transport = 8;
+  string fstype = 9;
+  string label = 10;
+  // Holds the running system (OS, config or data partition made by the Installer).
+  bool system = 11;
+  // A Drive of this Node (record exists), mounted at mount_path.
+  bool adopted = 12;
+  string mount_path = 13;
+  DriveRecord record = 14;
+  repeated string auto_tags = 15;
+  // Free space when mounted.
+  uint64 free_bytes = 16;
+}
+
+message ListDrivesRequest {}
+message ListDrivesResponse {
+  repeated Drive drives = 1;
+}
+
+message DriveContentsRequest {
+  string device = 1;
+}
+message DriveContentsResponse {
+  // Top-level entries, e.g. "Photos/ (120 GB)", at most 50.
+  repeated string entries = 1;
+  uint64 used_bytes = 2;
+  bool empty = 3;
+}
+
+message AdoptDriveRequest {
+  string device = 1;
+  string name = 2;
+  repeated string tags = 3;
+}
+message AdoptDriveResponse {
+  Drive drive = 1;
+}
+
+message FormatDriveRequest {
+  string device = 1;
+  string name = 2;
+  repeated string tags = 3;
+  // Must equal the device's model (or its path when it has none).
+  string confirm = 4;
+}
+message FormatDriveResponse {
+  Drive drive = 1;
+}
+
+message SetDriveTagsRequest {
+  string drive_id = 1;
+  repeated string tags = 2;
+  string name = 3;
+}
+message SetDriveTagsResponse {
+  Drive drive = 1;
+}
+
+message ForgetDriveRequest {
+  string drive_id = 1;
+  // Must equal the Drive's name.
+  string confirm = 2;
+}
+message ForgetDriveResponse {}
+
+// Tier is the kind "tier" Record body (Fleet-wide). A Drive belongs to the
+// highest-priority Tier whose rules it matches; the Tier "default" matches
+// everything and has the lowest priority.
+message Tier {
+  string tier_id = 1;
+  string name = 2;
+  // "local" or "spanning".
+  string placement = 3;
+  // Every listed tag must be on the Drive (auto or user).
+  repeated string require_tags = 4;
+  // Only Drives on these Nodes; empty means any Node.
+  repeated string node_ids = 5;
+  // Higher wins when several Tiers match a Drive.
+  int32 priority = 6;
+  int64 created_unix_ms = 7;
+}

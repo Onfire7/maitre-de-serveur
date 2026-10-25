@@ -10,6 +10,7 @@ import { ServicesPanel } from "./services";
 import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { NetbootPanel } from "./netboot";
 import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
+import { StoragePanel } from "./storage";
 
 type Screen =
   | { name: "home" }
@@ -745,6 +746,7 @@ function NodeDetails({ node, onBack, onMaintenance }: { node: KnownNode; onBack:
           </ul>
         </section>
       )}
+      {info && !info.devMode && <StoragePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}

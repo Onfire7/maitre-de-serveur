@@ -40,6 +40,8 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/storageservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
@@ -213,8 +215,24 @@ func runAgent(args []string) error {
 	} else {
 		log.Warn("no catalog index", "path", *catalogPath)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir}, st, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
+	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
+	stor := storage.New(st, nil)
+	stor.OnChange = func() {
+		dirs, errs := stor.MountAll(ctx)
+		for _, e := range errs {
+			log.Warn("drive", "err", e)
+		}
+		if _, err := pool.Up(ctx, dirs...); err != nil {
+			log.Warn("pool", "err", err)
+		}
+		if recs, err := st.List(ctx, storage.KindDrive); err == nil {
+			pm.Push(context.WithoutCancel(ctx), recs...)
+		}
+		requestBackup()
+	}
+	ssvc2 := storageservice.New(stor)
 	var hostAd *mdns.Advertisement
 	publish := func() {
 		specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
@@ -275,6 +293,7 @@ func runAgent(args []string) error {
 	})
 	maitrev1connect.RegisterNodeServiceHandler(rpc, svc)
 	maitrev1connect.RegisterServiceServiceHandler(rpc, ssvc)
+	maitrev1connect.RegisterStorageServiceHandler(rpc, ssvc2)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 

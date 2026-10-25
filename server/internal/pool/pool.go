@@ -32,8 +32,9 @@ type Status struct {
 }
 
 // Up mounts every known Drive and assembles the default Pool over them.
-// Idempotent: safe to run at every boot.
-func Up(ctx context.Context) (*Status, error) {
+// Idempotent: safe to run at every boot. extra are additional branch
+// directories (Drives mounted by the storage manager, Milestone 4).
+func Up(ctx context.Context, extra ...string) (*Status, error) {
 	var branches []string
 	if dev := "/dev/disk/by-label/" + DataLabel; exists(dev) {
 		dir := filepath.Join(DrivesDir, "data")
@@ -47,6 +48,11 @@ func Up(ctx context.Context) (*Status, error) {
 		}
 		branches = append(branches, dir)
 	}
+	for _, e := range extra {
+		if mounted(e) {
+			branches = append(branches, e)
+		}
+	}
 	st := &Status{Mount: DefaultPool, Branches: branches}
 	if len(branches) == 0 {
 		st.Fallback = true
@@ -59,6 +65,11 @@ func Up(ctx context.Context) (*Status, error) {
 		return nil, err
 	}
 	if mounted(DefaultPool) {
+		// Already assembled: make the branch set match without a remount
+		// (mergerfs takes the list through an xattr; open files survive).
+		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), filepath.Join(DefaultPool, ".mergerfs")).CombinedOutput(); err != nil {
+			return st, fmt.Errorf("update pool branches: %v: %s", err, out)
+		}
 		return st, nil
 	}
 	// mergerfs over the branches. Options follow the usual media-server
