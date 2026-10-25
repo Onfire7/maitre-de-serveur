@@ -3,6 +3,8 @@
 package catalog
 
 import (
+	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+
 	"encoding/json"
 	"fmt"
 	"os"
@@ -189,4 +191,42 @@ func (idx *Index) Find(id string) *Manifest {
 		}
 	}
 	return nil
+}
+
+// SpecFor turns an entry plus the user's choices into the ServiceSpec the
+// Node runs (decision 78). The Console does the same in TypeScript.
+func SpecFor(e *Manifest, name string, settings map[string]string, exposure string) *maitrev1.ServiceSpec {
+	if name == "" {
+		name = e.ID
+	}
+	if exposure == "" {
+		exposure = e.Exposure
+	}
+	merged := map[string]string{}
+	for _, s := range e.Settings {
+		merged[s.Key] = s.Default
+	}
+	for k, v := range settings {
+		merged[k] = v
+	}
+	spec := &maitrev1.ServiceSpec{
+		Name:           name,
+		CatalogId:      e.ID,
+		Image:          e.Image,
+		Settings:       merged,
+		Exposure:       exposure,
+		Quadlet:        e.Quadlet,
+		Infrastructure: e.Infrastructure,
+	}
+	if e.Web != nil {
+		spec.WebPort = uint32(e.Web.Port)
+		spec.WebPath = e.Web.Path
+	}
+	if e.Health != nil {
+		spec.HealthHttp = e.Health.HTTP
+	}
+	for _, v := range e.Volumes {
+		spec.Volumes = append(spec.Volumes, &maitrev1.ServiceVolume{Name: v.Name, Path: v.Path, Size: v.Size})
+	}
+	return spec
 }

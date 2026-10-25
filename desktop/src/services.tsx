@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
-import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action, type ServiceStatus } from "./gen/maitre/v1/service_pb";
+import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action, ServiceSpecSchema, type ServiceStatus } from "./gen/maitre/v1/service_pb";
+import { create } from "@bufbuild/protobuf";
 import { transportFor, type Target } from "./transport";
+// Decision 78: the Catalog lives with the Console. This index is generated
+// from the catalog/ submodule by `make gen`; the Node knows nothing of it.
+import bundledCatalog from "./catalog/index.json";
 
 // Mirrors catalog/FORMAT.md (the agent hands us index.json verbatim).
 interface CatalogEntry {
@@ -21,6 +25,8 @@ interface CatalogEntry {
   web?: { port: number; path: string };
   volumes: { name: string; path: string; size?: string }[];
   settings?: { key: string; label: string; type: string; default?: string }[];
+  health?: { http?: string };
+  quadlet: string;
 }
 interface CatalogIndex {
   format: number;
@@ -30,7 +36,7 @@ interface CatalogIndex {
 export function ServicesPanel({ target }: { target: Target }) {
   const client = useMemo(() => createClient(ServiceService, transportFor(target)), [target.addr, target.fingerprint]);
   const [services, setServices] = useState<ServiceStatus[]>([]);
-  const [catalog, setCatalog] = useState<CatalogIndex | null>(null);
+  const catalog = bundledCatalog as CatalogIndex;
   const [error, setError] = useState("");
   const [installing, setInstalling] = useState<CatalogEntry | null>(null);
   const [open, setOpen] = useState<{ name: string; url: string } | null>(null);
@@ -47,10 +53,6 @@ export function ServicesPanel({ target }: { target: Target }) {
   };
   useEffect(() => {
     refresh();
-    client
-      .getCatalog({})
-      .then((r) => setCatalog(JSON.parse(new TextDecoder().decode(r.indexJson)) as CatalogIndex))
-      .catch((e) => setError(String(e)));
     const t = setInterval(refresh, 3000);
     return () => clearInterval(t);
   }, [client]);
@@ -143,9 +145,8 @@ export function ServicesPanel({ target }: { target: Target }) {
 
       <section>
         <h3>Catalog</h3>
-        {!catalog && <p style={{ color: "#555" }}>Loading the Catalog…</p>}
         <ul style={{ listStyle: "none", padding: 0 }}>
-          {catalog?.entries.map((e) => (
+          {catalog.entries.map((e) => (
             <li key={e.id} style={row}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 {e.icon && <img src={e.icon} alt="" width={32} height={32} style={{ objectFit: "contain" }} />}
@@ -169,7 +170,7 @@ export function ServicesPanel({ target }: { target: Target }) {
           onCancel={() => setInstalling(null)}
           onInstall={async (name, settings) => {
             try {
-              await client.installService({ catalogId: installing.id, name, settings });
+              await client.installService({ spec: specFor(installing, name, settings) });
               setInstalling(null);
               await refresh();
             } catch (e) {
@@ -180,6 +181,23 @@ export function ServicesPanel({ target }: { target: Target }) {
       )}
     </>
   );
+}
+
+/** Mirrors catalog.SpecFor on the Go side: everything the Node needs to run the Service. */
+function specFor(e: CatalogEntry, name: string, settings: Record<string, string>) {
+  return create(ServiceSpecSchema, {
+    name: name || e.id,
+    catalogId: e.id,
+    image: e.image,
+    settings: { ...Object.fromEntries((e.settings ?? []).map((s) => [s.key, s.default ?? ""])), ...settings },
+    exposure: e.exposure,
+    quadlet: e.quadlet,
+    infrastructure: e.infrastructure,
+    webPort: e.web?.port ?? 0,
+    webPath: e.web?.path ?? "",
+    healthHttp: e.health?.http ?? "",
+    volumes: e.volumes.map((v) => ({ name: v.name, path: v.path, size: v.size ?? "" })),
+  });
 }
 
 function InstallDialog({

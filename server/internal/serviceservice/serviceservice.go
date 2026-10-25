@@ -81,7 +81,7 @@ func (s *Service) GetCatalog(context.Context, *maitrev1.GetCatalogRequest) (*mai
 
 // InstallService implements ServiceService.
 func (s *Service) InstallService(ctx context.Context, req *maitrev1.InstallServiceRequest) (*maitrev1.InstallServiceResponse, error) {
-	st, err := s.mgr.Install(ctx, req)
+	st, err := s.mgr.Install(ctx, req.GetSpec())
 	if err != nil {
 		return nil, mapErr(err)
 	}

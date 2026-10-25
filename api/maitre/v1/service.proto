@@ -31,7 +31,19 @@ message GetCatalogResponse {
   int64 fetched_unix_ms = 3;
 }
 
-// ServiceSpec is the kind "service" Record body: what the user chose.
+// ServiceVolume is a named data directory of a Service.
+message ServiceVolume {
+  string name = 1;
+  // Mount point inside the container.
+  string path = 2;
+  // Suggested size, informational.
+  string size = 3;
+}
+
+// ServiceSpec is the kind "service" Record body: everything the Node needs
+// to run the Service (decision 78). The Console builds it from a Catalog
+// entry plus the user's choices; the Node keeps no Catalog knowledge, so
+// custom and customised Services need nothing new on the Node.
 message ServiceSpec {
   // Unique within the Fleet; also the mDNS name <name>.local.
   string name = 1;
@@ -51,6 +63,16 @@ message ServiceSpec {
   // Loopback port on the Node where the web port is published; chosen by
   // the agent, used by Caddy and health checks. 0 for headless Services.
   uint32 web_host_port = 10;
+  // The Quadlet [Container] body as a Go text/template (catalog/FORMAT.md).
+  string quadlet = 11;
+  // Started before the network is "online" (DNS, DHCP).
+  bool infrastructure = 12;
+  // Container port and path of the web page; 0 means headless.
+  uint32 web_port = 13;
+  string web_path = 14;
+  // HTTP path probed for health; empty means the web path.
+  string health_http = 15;
+  repeated ServiceVolume volumes = 16;
 }
 
 message ServiceStatus {
@@ -75,12 +97,11 @@ message ServiceStatus {
 }
 
 message InstallServiceRequest {
-  string catalog_id = 1;
-  // Defaults to catalog_id; must be unique.
-  string name = 2;
-  map<string, string> settings = 3;
-  // Empty means the Catalog entry's default.
-  string exposure = 4;
+  reserved 1 to 4;
+  // The complete Service to run. The Node fills node_id, created_unix_ms,
+  // web_host_port and volume_tiers; a setting TZ=auto becomes the Node's
+  // time zone.
+  ServiceSpec spec = 5;
 }
 
 message InstallServiceResponse {

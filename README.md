@@ -27,7 +27,7 @@ docs/      ADRs and the build plan
 
 ## Developing
 
-Clone with `git clone --recurse-submodules` (or run `git submodule update --init` afterwards) so the Catalog is present; the image build needs it.
+Clone with `git clone --recurse-submodules` (or run `git submodule update --init` afterwards) so the Catalog is present; the image build needs it, and `make gen` regenerates the index the Desktop bundles from it.
 
 Prerequisites: Go, Rust, pnpm, buf. For the image: podman. Linux desktop builds also need WebKitGTK 4.1 dev packages.
 

@@ -125,7 +125,7 @@ func runAgent(args []string) error {
 	} else {
 		log.Warn("no catalog index", "path", *catalogPath)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir}, st, cat.Index, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	var hostAd *mdns.Advertisement
 	publish := func() {

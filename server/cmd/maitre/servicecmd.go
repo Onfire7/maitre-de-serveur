@@ -81,13 +81,27 @@ func runService(args []string) error {
 		if fs.NArg() < 2 {
 			return fmt.Errorf("install needs a catalog entry id")
 		}
-		req := &maitrev1.InstallServiceRequest{CatalogId: fs.Arg(1), Name: fs.Arg(2), Settings: map[string]string{}}
+		// Decision 78: the caller builds the spec; the CLI uses the index the
+		// Node still carries for its own convenience.
+		cres, err := c.GetCatalog(ctx, &maitrev1.GetCatalogRequest{})
+		if err != nil {
+			return err
+		}
+		idx, err := catalog.ParseIndex(cres.GetIndexJson())
+		if err != nil {
+			return err
+		}
+		entry := idx.Find(fs.Arg(1))
+		if entry == nil {
+			return fmt.Errorf("catalog entry %q not found", fs.Arg(1))
+		}
+		settings := map[string]string{}
 		for _, kv := range strings.Split(*setFlags, ",") {
 			if k, v, ok := strings.Cut(kv, "="); ok {
-				req.Settings[k] = v
+				settings[k] = v
 			}
 		}
-		res, err := c.InstallService(ctx, req)
+		res, err := c.InstallService(ctx, &maitrev1.InstallServiceRequest{Spec: catalog.SpecFor(entry, fs.Arg(2), settings, "")})
 		if err != nil {
 			return err
 		}

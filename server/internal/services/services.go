@@ -1,4 +1,5 @@
-// Package services turns a Catalog entry plus the user's choices into a
+// Package services turns a ServiceSpec (built by the Console from a Catalog
+// entry plus the user's choices, decision 78) into a
 // running Podman container managed by systemd (Quadlet), and reports on it.
 // It is the only code that touches Quadlet files or systemd.
 package services
@@ -18,8 +19,9 @@ import (
 	"text/template"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -66,15 +68,13 @@ const DefaultSuffix = "local"
 
 // Manager implements Service operations for one Node.
 type Manager struct {
-	cfg     Config
-	store   *store.Store
-	catalog func() *catalog.Index
-	run     Runner
+	cfg   Config
+	store *store.Store
+	run   Runner
 }
 
-// New builds a Manager. catalogFn returns the current index (may change as
-// the Catalog refreshes).
-func New(cfg Config, st *store.Store, catalogFn func() *catalog.Index, run Runner) *Manager {
+// New builds a Manager.
+func New(cfg Config, st *store.Store, run Runner) *Manager {
 	if cfg.UnitsDir == "" {
 		cfg.UnitsDir = "/etc/containers/systemd"
 	}
@@ -90,7 +90,7 @@ func New(cfg Config, st *store.Store, catalogFn func() *catalog.Index, run Runne
 	if run == nil {
 		run = ExecRunner{}
 	}
-	return &Manager{cfg: cfg, store: st, catalog: catalogFn, run: run}
+	return &Manager{cfg: cfg, store: st, run: run}
 }
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$`)
@@ -101,57 +101,48 @@ var ErrExists = errors.New("a Service with that name already exists")
 // ErrNotFound is returned for an unknown Service.
 var ErrNotFound = errors.New("no such Service")
 
-// Install creates, writes, and starts a Service.
-func (m *Manager) Install(ctx context.Context, req *maitrev1.InstallServiceRequest) (*maitrev1.ServiceStatus, error) {
-	idx := m.catalog()
-	if idx == nil {
-		return nil, errors.New("no Catalog available on this Node")
+// Install creates, writes, and starts a Service from a complete spec.
+func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitrev1.ServiceStatus, error) {
+	if in == nil {
+		return nil, errors.New("no service spec")
 	}
-	entry := idx.Find(req.GetCatalogId())
-	if entry == nil {
-		return nil, fmt.Errorf("catalog entry %q not found", req.GetCatalogId())
-	}
-	name := req.GetName()
-	if name == "" {
-		name = entry.ID
-	}
+	spec := proto.Clone(in).(*maitrev1.ServiceSpec)
+	name := spec.GetName()
 	if !nameRe.MatchString(name) {
 		return nil, fmt.Errorf("service name %q: use lowercase letters, digits and dashes", name)
+	}
+	if spec.GetImage() == "" {
+		return nil, errors.New("service spec has no image")
+	}
+	if strings.TrimSpace(spec.GetQuadlet()) == "" {
+		return nil, errors.New("service spec has no quadlet")
+	}
+	if _, err := template.New(name).Option("missingkey=error").Parse(spec.GetQuadlet()); err != nil {
+		return nil, fmt.Errorf("quadlet template: %w", err)
 	}
 	if _, err := m.store.Get(ctx, KindService, name, nil); err == nil {
 		return nil, ErrExists
 	}
-	exposure := req.GetExposure()
-	if exposure == "" {
-		exposure = entry.Exposure
+	if spec.Settings == nil {
+		spec.Settings = map[string]string{}
 	}
-	settings := map[string]string{}
-	for _, s := range entry.Settings {
-		settings[s.Key] = s.Default
+	if tz, ok := spec.Settings["TZ"]; ok && (tz == "auto" || tz == "") {
+		spec.Settings["TZ"] = localTimezone()
 	}
-	for k, v := range req.GetSettings() {
-		settings[k] = v
+	if spec.GetExposure() == "" {
+		spec.Exposure = "private"
 	}
-	if tz, ok := settings["TZ"]; ok && (tz == "auto" || tz == "") {
-		settings["TZ"] = localTimezone()
+	spec.NodeId = m.store.NodeID()
+	spec.CreatedUnixMs = time.Now().UnixMilli()
+	spec.VolumeTiers = map[string]string{}
+	for _, v := range spec.GetVolumes() {
+		spec.VolumeTiers[v.GetName()] = "default"
 	}
-	spec := &maitrev1.ServiceSpec{
-		Name:          name,
-		CatalogId:     entry.ID,
-		Image:         entry.Image,
-		NodeId:        m.store.NodeID(),
-		Settings:      settings,
-		Exposure:      exposure,
-		VolumeTiers:   map[string]string{},
-		CreatedUnixMs: time.Now().UnixMilli(),
-	}
-	for _, v := range entry.Volumes {
-		spec.VolumeTiers[v.Name] = "default"
-	}
-	if entry.Web != nil {
+	spec.WebHostPort = 0
+	if spec.GetWebPort() != 0 {
 		spec.WebHostPort = uint32(m.hostPort(ctx, name))
 	}
-	if err := m.apply(ctx, entry, spec); err != nil {
+	if err := m.apply(ctx, spec); err != nil {
 		return nil, err
 	}
 	if _, err := m.store.Put(ctx, KindService, name, spec, false); err != nil {
@@ -164,16 +155,16 @@ func (m *Manager) Install(ctx context.Context, req *maitrev1.InstallServiceReque
 }
 
 // apply renders the Quadlet unit, creates volume directories, reloads systemd.
-func (m *Manager) apply(ctx context.Context, entry *catalog.Manifest, spec *maitrev1.ServiceSpec) error {
+func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	vols := map[string]string{}
-	for _, v := range entry.Volumes {
-		dir := filepath.Join(m.cfg.PoolDir, spec.Name, v.Name)
+	for _, v := range spec.GetVolumes() {
+		dir := filepath.Join(m.cfg.PoolDir, spec.GetName(), v.GetName())
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		vols[v.Name] = dir
+		vols[v.GetName()] = dir
 	}
-	unit, err := Render(entry, spec, vols, m.cfg.HostPortBase)
+	unit, err := Render(spec, vols)
 	if err != nil {
 		return err
 	}
@@ -190,8 +181,8 @@ func (m *Manager) apply(ctx context.Context, entry *catalog.Manifest, spec *mait
 }
 
 // Render produces the full Quadlet unit for a Service.
-func Render(entry *catalog.Manifest, spec *maitrev1.ServiceSpec, volumes map[string]string, _ int) ([]byte, error) {
-	tmpl, err := template.New(entry.ID).Option("missingkey=error").Parse(entry.Quadlet)
+func Render(spec *maitrev1.ServiceSpec, volumes map[string]string) ([]byte, error) {
+	tmpl, err := template.New(spec.GetName()).Option("missingkey=error").Parse(spec.GetQuadlet())
 	if err != nil {
 		return nil, fmt.Errorf("quadlet template: %w", err)
 	}
@@ -208,9 +199,9 @@ func Render(entry *catalog.Manifest, spec *maitrev1.ServiceSpec, volumes map[str
 		return nil, fmt.Errorf("quadlet template: %w", err)
 	}
 	var out bytes.Buffer
-	fmt.Fprintf(&out, "# Generated by Maître for Service %q from Catalog entry %q. Do not edit.\n", spec.GetName(), entry.ID)
+	fmt.Fprintf(&out, "# Generated by Maître for Service %q (Catalog entry %q). Do not edit.\n", spec.GetName(), spec.GetCatalogId())
 	fmt.Fprintf(&out, "[Unit]\nDescription=Maître Service %s\n", spec.GetName())
-	if entry.Infrastructure {
+	if spec.GetInfrastructure() {
 		// Infrastructure Services (DNS, DHCP) must be up before anything that
 		// waits for the network.
 		out.WriteString("Before=network-online.target\nDefaultDependencies=no\nAfter=basic.target maitre-pool.service\n")
@@ -220,8 +211,8 @@ func Render(entry *catalog.Manifest, spec *maitrev1.ServiceSpec, volumes map[str
 	if !strings.HasSuffix(body.String(), "\n") {
 		out.WriteString("\n")
 	}
-	if entry.Web != nil && spec.GetWebHostPort() != 0 {
-		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), entry.Web.Port)
+	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
+		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
 	}
 	out.WriteString("AutoUpdate=registry\nLabel=dev.maitre.service=" + spec.GetName() + "\n")
 	out.WriteString("\n[Service]\nRestart=on-failure\nRestartSec=5\nTimeoutStartSec=900\n")
@@ -335,23 +326,21 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 	if t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", props["ExecMainStartTimestamp"]); err == nil {
 		st.StartedUnixMs = t.UnixMilli()
 	}
-	if idx := m.catalog(); idx != nil {
-		if entry := idx.Find(spec.GetCatalogId()); entry != nil && entry.Web != nil {
-			st.Url = fmt.Sprintf("http://%s.%s%s", spec.GetName(), m.cfg.Suffix, entry.Web.Path)
-			if st.State == maitrev1.ServiceStatus_STATE_RUNNING && spec.GetWebHostPort() != 0 {
-				st.Healthy = m.probe(ctx, spec.GetWebHostPort(), entry)
-			}
+	if spec.GetWebPort() != 0 {
+		st.Url = fmt.Sprintf("http://%s.%s%s", spec.GetName(), m.cfg.Suffix, spec.GetWebPath())
+		if st.State == maitrev1.ServiceStatus_STATE_RUNNING && spec.GetWebHostPort() != 0 {
+			st.Healthy = m.probe(ctx, spec.GetWebHostPort(), spec)
 		}
 	}
 	return st, nil
 }
 
-func (m *Manager) probe(ctx context.Context, hostPort uint32, entry *catalog.Manifest) bool {
+func (m *Manager) probe(ctx context.Context, hostPort uint32, spec *maitrev1.ServiceSpec) bool {
 	path := "/"
-	if entry.Health != nil && entry.Health.HTTP != "" {
-		path = entry.Health.HTTP
-	} else if entry.Web != nil && entry.Web.Path != "" {
-		path = entry.Web.Path
+	if spec.GetHealthHttp() != "" {
+		path = spec.GetHealthHttp()
+	} else if spec.GetWebPath() != "" {
+		path = spec.GetWebPath()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", hostPort, path), nil)
 	if err != nil {

@@ -13,11 +13,12 @@ TAG     ?= dev
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-gen: ## Regenerate Go and TypeScript from api/
+gen: build ## Regenerate Go and TypeScript from api/, and the Catalog index the Desktop bundles (decision 78)
 	cd api && $(BUF) lint && $(BUF) generate
+	./server/bin/maitre catalog-index --out desktop/src/catalog/index.json catalog/entries
 
 gen-check: gen ## Fail if generated code is stale
-	git diff --exit-code -- server/gen desktop/src/gen
+	git diff --exit-code -- server/gen desktop/src/gen desktop/src/catalog
 
 build: server/bin/maitre ## Build the agent binary
 server/bin/maitre: $(shell find server -name '*.go') server/go.mod

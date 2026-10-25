@@ -53,9 +53,9 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	}))
 	defer health.Close()
 	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolDir: filepath.Join(dir, "pool"), HostPortBase: 20000},
-		st, func() *catalog.Index { return idx }, run)
+		st, run)
 
-	s, err := m.Install(ctx, &maitrev1.InstallServiceRequest{CatalogId: "jellyfin", Settings: map[string]string{"TZ": "Europe/Paris"}})
+	s, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", map[string]string{"TZ": "Europe/Paris"}, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,10 +90,10 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	}
 
 	// Second install with the same name is refused; infra entry renders early-boot deps.
-	if _, err := m.Install(ctx, &maitrev1.InstallServiceRequest{CatalogId: "jellyfin"}); err == nil {
+	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err == nil {
 		t.Fatal("duplicate accepted")
 	}
-	ag, err := m.Install(ctx, &maitrev1.InstallServiceRequest{CatalogId: "adguard-home"})
+	ag, err := m.Install(ctx, catalog.SpecFor(idx.Find("adguard-home"), "", nil, ""))
 	if err != nil {
 		t.Fatal(err)
 	}

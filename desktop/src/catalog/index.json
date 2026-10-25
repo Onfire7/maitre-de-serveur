@@ -1,0 +1,111 @@
+{
+  "format": 1,
+  "entries": [
+    {
+      "id": "adguard-home",
+      "name": "AdGuard Home",
+      "summary": "Block ads and trackers for every device on your network.",
+      "description": "A network-wide ad and tracker blocker that works as your home DNS server.\nBecause other devices depend on it, this Node keeps a fixed address and\nstarts AdGuard Home before anything else.\n",
+      "icon": "https://raw.githubusercontent.com/AdguardTeam/AdGuardHome/master/build/static/icons/icon-192.png",
+      "category": "network",
+      "image": "docker.io/adguard/adguardhome:v0.107.59@sha256:5d5e3aef39a8c8906a324f0c2da0a6123929e459b57c1e3f05e401dca5c7bf02",
+      "version": "0.107.59",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": true,
+      "host_ports": [
+        "53/tcp",
+        "53/udp"
+      ],
+      "web": {
+        "port": 3000,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "work",
+          "path": "/opt/adguardhome/work"
+        },
+        {
+          "name": "conf",
+          "path": "/opt/adguardhome/conf"
+        }
+      ],
+      "health": {
+        "http": "/"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nVolume={{ .Volumes.work }}:/opt/adguardhome/work:Z\nVolume={{ .Volumes.conf }}:/opt/adguardhome/conf:Z\nNetwork={{ .Network }}\nPublishPort=53:53/tcp\nPublishPort=53:53/udp\n"
+    },
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "summary": "Stream your movies, shows and music to any device.",
+      "description": "Jellyfin is a free media system. Point it at your films, series, music and\nphotos and watch them from your TV, phone or browser.\n",
+      "icon": "https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/branding/SVG/icon-transparent.svg",
+      "category": "media",
+      "image": "docker.io/jellyfin/jellyfin:10.10.7@sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2",
+      "version": "10.10.7",
+      "exposure": "remote",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 8096,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        },
+        {
+          "name": "cache",
+          "path": "/cache"
+        },
+        {
+          "name": "media",
+          "path": "/media",
+          "size": "large"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/health"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nEnvironment=TZ={{ .Settings.TZ }}\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.cache }}:/cache:Z\nVolume={{ .Volumes.media }}:/media:Z\nNetwork={{ .Network }}\n"
+    },
+    {
+      "id": "uptime-kuma",
+      "name": "Uptime Kuma",
+      "summary": "Know when your websites and services go down.",
+      "description": "A self-hosted monitoring tool with a friendly dashboard. Add the things you\ncare about and get notified when they stop responding.\n",
+      "icon": "https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.svg",
+      "category": "tools",
+      "image": "docker.io/louislam/uptime-kuma:1.23.16@sha256:431fee3be822b04861cf0e35daf4beef6b7cb37391c5f26c3ad6e12ce280fe18",
+      "version": "1.23.16",
+      "exposure": "remote",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 3001,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "data",
+          "path": "/app/data"
+        }
+      ],
+      "health": {
+        "http": "/"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nVolume={{ .Volumes.data }}:/app/data:Z\nNetwork={{ .Network }}\n"
+    }
+  ]
+}
