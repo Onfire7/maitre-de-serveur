@@ -173,7 +173,10 @@ type Drive struct {
 	Record    *DriveRecord `protobuf:"bytes,14,opt,name=record,proto3" json:"record,omitempty"`
 	AutoTags  []string     `protobuf:"bytes,15,rep,name=auto_tags,json=autoTags,proto3" json:"auto_tags,omitempty"`
 	// Free space when mounted.
-	FreeBytes     uint64 `protobuf:"varint,16,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	FreeBytes uint64 `protobuf:"varint,16,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	// For a disk not yet adopted: the name it would get (decision 104), the
+	// first unused name from the list for this Node's letter.
+	SuggestedName string `protobuf:"bytes,17,opt,name=suggested_name,json=suggestedName,proto3" json:"suggested_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -318,6 +321,13 @@ func (x *Drive) GetFreeBytes() uint64 {
 		return x.FreeBytes
 	}
 	return 0
+}
+
+func (x *Drive) GetSuggestedName() string {
+	if x != nil {
+		return x.SuggestedName
+	}
+	return ""
 }
 
 type ListDrivesRequest struct {
@@ -1032,7 +1042,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x04tags\x18\t \x03(\tR\x04tags\x12\x16\n" +
 	"\x06origin\x18\n" +
 	" \x01(\tR\x06origin\x12\"\n" +
-	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xce\x03\n" +
+	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xf5\x03\n" +
 	"\x05Drive\x12\x16\n" +
 	"\x06device\x18\x01 \x01(\tR\x06device\x12\x19\n" +
 	"\bdrive_id\x18\x02 \x01(\tR\adriveId\x12\x14\n" +
@@ -1055,7 +1065,8 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x06record\x18\x0e \x01(\v2\x16.maitre.v1.DriveRecordR\x06record\x12\x1b\n" +
 	"\tauto_tags\x18\x0f \x03(\tR\bautoTags\x12\x1d\n" +
 	"\n" +
-	"free_bytes\x18\x10 \x01(\x04R\tfreeBytes\"\x13\n" +
+	"free_bytes\x18\x10 \x01(\x04R\tfreeBytes\x12%\n" +
+	"\x0esuggested_name\x18\x11 \x01(\tR\rsuggestedName\"\x13\n" +
 	"\x11ListDrivesRequest\">\n" +
 	"\x12ListDrivesResponse\x12(\n" +
 	"\x06drives\x18\x01 \x03(\v2\x10.maitre.v1.DriveR\x06drives\".\n" +

@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -398,23 +399,38 @@ func (m *Manager) AutoUpdate(ctx context.Context) {
 
 // SetExposure changes where a Service is reachable. Infrastructure
 // Services never go public (the plan's rule: they bind the Node itself).
-func (m *Manager) SetExposure(ctx context.Context, name, exposure string) (*maitrev1.ServiceStatus, error) {
+func (m *Manager) SetExposure(ctx context.Context, name, exposure, publicHost string) (*maitrev1.ServiceStatus, error) {
 	switch exposure {
 	case "private", "remote", "public":
+		publicHost = ""
+	case "direct":
+		publicHost = strings.ToLower(strings.TrimSpace(publicHost))
+		if !direct.ValidHost(publicHost) {
+			return nil, fmt.Errorf("a public address needs a full host name such as photos.example.com")
+		}
 	default:
-		return nil, fmt.Errorf("exposure must be private, remote or public")
+		return nil, fmt.Errorf("exposure must be private, remote, public or direct")
 	}
 	var spec maitrev1.ServiceSpec
 	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
 		return nil, ErrNotFound
 	}
-	if exposure == "public" && spec.GetInfrastructure() {
+	if (exposure == "public" || exposure == "direct") && spec.GetInfrastructure() {
 		return nil, fmt.Errorf("%s is network infrastructure and cannot be public", name)
 	}
 	if exposure != "private" && spec.GetWebPort() == 0 {
 		return nil, fmt.Errorf("%s has no web page to expose", name)
 	}
+	if publicHost != "" {
+		others, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+		for _, o := range others {
+			if o.GetName() != name && o.GetPublicHost() == publicHost {
+				return nil, fmt.Errorf("%s already answers at %s", o.GetName(), publicHost)
+			}
+		}
+	}
 	spec.Exposure = exposure
+	spec.PublicHost = publicHost
 	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
 		return nil, err
 	}

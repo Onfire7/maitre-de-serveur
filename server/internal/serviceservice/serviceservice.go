@@ -112,7 +112,7 @@ func (s *Service) ListServices(ctx context.Context, _ *maitrev1.ListServicesRequ
 
 // SetExposure implements ServiceService.
 func (s *Service) SetExposure(ctx context.Context, req *maitrev1.SetExposureRequest) (*maitrev1.SetExposureResponse, error) {
-	st, err := s.mgr.SetExposure(ctx, req.GetName(), req.GetExposure())
+	st, err := s.mgr.SetExposure(ctx, req.GetName(), req.GetExposure(), req.GetPublicHost())
 	if err != nil {
 		return nil, mapErr(err)
 	}

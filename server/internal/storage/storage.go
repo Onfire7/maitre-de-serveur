@@ -107,6 +107,7 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 			byID[r.GetDriveId()] = r
 		}
 	}
+	suggested := m.SuggestName(ctx)
 	var drives []*maitrev1.Drive
 	for _, d := range parsed.Blockdevices {
 		if d.Type != "disk" || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") || strings.HasPrefix(d.Name, "ram") {
@@ -149,6 +150,8 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 				dr.Adopted = true
 				dr.MountPath = filepath.Join(m.Mounts, dr.DriveId)
 				dr.FreeBytes = freeBytes(dr.MountPath)
+			} else if !dr.System {
+				dr.SuggestedName = suggested
 			}
 			drives = append(drives, dr)
 		}
@@ -297,6 +300,9 @@ func (m *Manager) Format(ctx context.Context, device, name string, tags []string
 		return nil, fmt.Errorf("to format, repeat exactly: %s", want)
 	}
 	if name == "" {
+		name = m.SuggestName(ctx)
+	}
+	if name == "" {
 		name = want
 	}
 	label := "maitre-" + strings.ToLower(strings.NewReplacer(" ", "-", "/", "-").Replace(name))
@@ -320,6 +326,9 @@ func (m *Manager) Format(ctx context.Context, device, name string, tags []string
 }
 
 func (m *Manager) record(ctx context.Context, d *maitrev1.Drive, name string, tags []string, origin string) (*maitrev1.Drive, error) {
+	if name == "" {
+		name = m.SuggestName(ctx)
+	}
 	if name == "" {
 		name = d.GetLabel()
 		if name == "" {

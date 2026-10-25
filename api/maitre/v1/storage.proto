@@ -68,6 +68,9 @@ message Drive {
   repeated string auto_tags = 15;
   // Free space when mounted.
   uint64 free_bytes = 16;
+  // For a disk not yet adopted: the name it would get (decision 104), the
+  // first unused name from the list for this Node's letter.
+  string suggested_name = 17;
 }
 
 message ListDrivesRequest {}

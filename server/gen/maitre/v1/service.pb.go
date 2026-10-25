@@ -320,8 +320,12 @@ type ServiceSpec struct {
 	NodeId string `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	// Setting key -> value, as entered at install.
 	Settings map[string]string `protobuf:"bytes,5,rep,name=settings,proto3" json:"settings,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Exposure level: "private" | "remote" | "public".
+	// Exposure level: "private" | "remote" | "public" | "direct".
+	// remote and public go through Tailscale (tailnet, Funnel); direct is the
+	// user's own domain name with a certificate Caddy obtains itself.
 	Exposure string `protobuf:"bytes,6,opt,name=exposure,proto3" json:"exposure,omitempty"`
+	// For "direct": the host name the Service answers at, e.g. photos.example.com.
+	PublicHost string `protobuf:"bytes,19,opt,name=public_host,json=publicHost,proto3" json:"public_host,omitempty"`
 	// Tier for each volume (volume name -> tier id). Milestone 2 has only "default".
 	VolumeTiers map[string]string `protobuf:"bytes,7,rep,name=volume_tiers,json=volumeTiers,proto3" json:"volume_tiers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Reserved for Members (gated access): "" | "admins" | "members".
@@ -416,6 +420,13 @@ func (x *ServiceSpec) GetSettings() map[string]string {
 func (x *ServiceSpec) GetExposure() string {
 	if x != nil {
 		return x.Exposure
+	}
+	return ""
+}
+
+func (x *ServiceSpec) GetPublicHost() string {
+	if x != nil {
+		return x.PublicHost
 	}
 	return ""
 }
@@ -894,9 +905,11 @@ func (x *ListServicesResponse) GetServices() []*ServiceStatus {
 }
 
 type SetExposureRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Exposure      string                 `protobuf:"bytes,2,opt,name=exposure,proto3" json:"exposure,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Name     string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Exposure string                 `protobuf:"bytes,2,opt,name=exposure,proto3" json:"exposure,omitempty"`
+	// Required when exposure is "direct".
+	PublicHost    string `protobuf:"bytes,3,opt,name=public_host,json=publicHost,proto3" json:"public_host,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -941,6 +954,13 @@ func (x *SetExposureRequest) GetName() string {
 func (x *SetExposureRequest) GetExposure() string {
 	if x != nil {
 		return x.Exposure
+	}
+	return ""
+}
+
+func (x *SetExposureRequest) GetPublicHost() string {
+	if x != nil {
+		return x.PublicHost
 	}
 	return ""
 }
@@ -1100,7 +1120,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\rServiceVolume\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\tR\x04size\"\x9c\x06\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\"\xbd\x06\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -1108,7 +1128,9 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x12\x17\n" +
 	"\anode_id\x18\x04 \x01(\tR\x06nodeId\x12@\n" +
 	"\bsettings\x18\x05 \x03(\v2$.maitre.v1.ServiceSpec.SettingsEntryR\bsettings\x12\x1a\n" +
-	"\bexposure\x18\x06 \x01(\tR\bexposure\x12J\n" +
+	"\bexposure\x18\x06 \x01(\tR\bexposure\x12\x1f\n" +
+	"\vpublic_host\x18\x13 \x01(\tR\n" +
+	"publicHost\x12J\n" +
 	"\fvolume_tiers\x18\a \x03(\v2'.maitre.v1.ServiceSpec.VolumeTiersEntryR\vvolumeTiers\x12#\n" +
 	"\raccess_policy\x18\b \x01(\tR\faccessPolicy\x12&\n" +
 	"\x0fcreated_unix_ms\x18\t \x01(\x03R\rcreatedUnixMs\x12\"\n" +
@@ -1169,10 +1191,12 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"\x15\n" +
 	"\x13ListServicesRequest\"L\n" +
 	"\x14ListServicesResponse\x124\n" +
-	"\bservices\x18\x01 \x03(\v2\x18.maitre.v1.ServiceStatusR\bservices\"D\n" +
+	"\bservices\x18\x01 \x03(\v2\x18.maitre.v1.ServiceStatusR\bservices\"e\n" +
 	"\x12SetExposureRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
-	"\bexposure\x18\x02 \x01(\tR\bexposure\"I\n" +
+	"\bexposure\x18\x02 \x01(\tR\bexposure\x12\x1f\n" +
+	"\vpublic_host\x18\x03 \x01(\tR\n" +
+	"publicHost\"I\n" +
 	"\x13SetExposureResponse\x122\n" +
 	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"A\n" +
 	"\x15GetServiceLogsRequest\x12\x12\n" +

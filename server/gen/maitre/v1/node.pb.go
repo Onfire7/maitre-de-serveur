@@ -1282,7 +1282,10 @@ type NodeInfo struct {
 	Peers []*PeerStatus `protobuf:"bytes,7,rep,name=peers,proto3" json:"peers,omitempty"`
 	// This Node on the Fleet's Tailscale network (Milestone 5); unset when
 	// Tailscale is not configured.
-	Tailscale     *TailscaleStatus `protobuf:"bytes,8,opt,name=tailscale,proto3" json:"tailscale,omitempty"`
+	Tailscale *TailscaleStatus `protobuf:"bytes,8,opt,name=tailscale,proto3" json:"tailscale,omitempty"`
+	// The address the internet sees this Node from (decision 112), looked up
+	// through a public IP service; empty when unknown or offline.
+	PublicIp      string `protobuf:"bytes,9,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1373,6 +1376,13 @@ func (x *NodeInfo) GetTailscale() *TailscaleStatus {
 	return nil
 }
 
+func (x *NodeInfo) GetPublicIp() string {
+	if x != nil {
+		return x.PublicIp
+	}
+	return ""
+}
+
 var File_maitre_v1_node_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_node_proto_rawDesc = "" +
@@ -1455,7 +1465,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06queued\x18\x02 \x01(\bR\x06queued\"\x14\n" +
 	"\x12GetNodeInfoRequest\">\n" +
 	"\x13GetNodeInfoResponse\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\x95\x02\n" +
+	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xb2\x02\n" +
 	"\bNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -1464,7 +1474,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x0euptime_seconds\x18\x05 \x01(\x04R\ruptimeSeconds\x12\x19\n" +
 	"\bdev_mode\x18\x06 \x01(\bR\adevMode\x12+\n" +
 	"\x05peers\x18\a \x03(\v2\x15.maitre.v1.PeerStatusR\x05peers\x128\n" +
-	"\ttailscale\x18\b \x01(\v2\x1a.maitre.v1.TailscaleStatusR\ttailscale2\xd4\x05\n" +
+	"\ttailscale\x18\b \x01(\v2\x1a.maitre.v1.TailscaleStatusR\ttailscale\x12\x1b\n" +
+	"\tpublic_ip\x18\t \x01(\tR\bpublicIp2\xd4\x05\n" +
 	"\vNodeService\x12N\n" +
 	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00\x12N\n" +
 	"\vListRecords\x12\x1d.maitre.v1.ListRecordsRequest\x1a\x1e.maitre.v1.ListRecordsResponse\"\x00\x12H\n" +

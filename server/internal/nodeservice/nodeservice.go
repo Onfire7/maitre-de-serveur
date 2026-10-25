@@ -48,6 +48,9 @@ type Service struct {
 	Tailscale func() *maitrev1.TailscaleStatus
 	// Rollout reports the staged rollout's last decision; nil if none.
 	Rollout func() string
+	// PublicIP reports the address the internet sees this Node from
+	// (decision 112); nil or "" when unknown.
+	PublicIP func() string
 }
 
 // Peers is what the sync layer offers this service (implemented by
@@ -80,6 +83,9 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 	}
 	if s.Tailscale != nil {
 		info.Tailscale = s.Tailscale()
+	}
+	if s.PublicIP != nil {
+		info.PublicIp = s.PublicIP()
 	}
 	return &maitrev1.GetNodeInfoResponse{Node: info}, nil
 }

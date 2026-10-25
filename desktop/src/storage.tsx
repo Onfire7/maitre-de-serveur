@@ -87,7 +87,8 @@ function DriveDialog({
   onDone: () => void;
   onError: (e: string) => void;
 }) {
-  const [name, setName] = useState(drive.record?.name || drive.label || drive.model);
+  // Decision 104: the Node proposes a name from its letter's list.
+  const [name, setName] = useState(drive.record?.name || drive.suggestedName || drive.label || drive.model);
   const [tags, setTags] = useState("");
   const [confirm, setConfirm] = useState("");
   const [contents, setContents] = useState<DriveContentsResponse | null>(null);

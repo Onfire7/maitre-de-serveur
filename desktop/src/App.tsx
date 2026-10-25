@@ -859,7 +859,7 @@ function NodeDetails({ node, onBack, onMaintenance, state }: { node: KnownNode; 
         </section>
       )}
       {info && !info.devMode && <StoragePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
-      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} tiers={tiers} remoteReady={info.tailscale?.state === "Running"} />}
+      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} tiers={tiers} remoteReady={info.tailscale?.state === "Running"} publicIp={info.publicIp} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>

@@ -49,6 +49,10 @@ message Node {
   string image_ref = 6;
   string image_digest = 7;
   int64 booted_unix_ms = 8;
+  // One capital letter per Node (decision 104); its Drives get names that
+  // start with it. Chosen by the Node itself: the first letter no other
+  // Node holds.
+  string letter = 9;
 }
 
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):

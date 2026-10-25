@@ -57,8 +57,12 @@ message ServiceSpec {
   string node_id = 4;
   // Setting key -> value, as entered at install.
   map<string, string> settings = 5;
-  // Exposure level: "private" | "remote" | "public".
+  // Exposure level: "private" | "remote" | "public" | "direct".
+  // remote and public go through Tailscale (tailnet, Funnel); direct is the
+  // user's own domain name with a certificate Caddy obtains itself.
   string exposure = 6;
+  // For "direct": the host name the Service answers at, e.g. photos.example.com.
+  string public_host = 19;
   // Tier for each volume (volume name -> tier id). Milestone 2 has only "default".
   map<string, string> volume_tiers = 7;
   // Reserved for Members (gated access): "" | "admins" | "members".
@@ -154,6 +158,8 @@ message ListServicesResponse {
 message SetExposureRequest {
   string name = 1;
   string exposure = 2;
+  // Required when exposure is "direct".
+  string public_host = 3;
 }
 
 message SetExposureResponse {

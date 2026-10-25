@@ -206,4 +206,7 @@ message NodeInfo {
   // This Node on the Fleet's Tailscale network (Milestone 5); unset when
   // Tailscale is not configured.
   TailscaleStatus tailscale = 8;
+  // The address the internet sees this Node from (decision 112), looked up
+  // through a public IP service; empty when unknown or offline.
+  string public_ip = 9;
 }

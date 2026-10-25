@@ -28,6 +28,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
@@ -142,6 +143,18 @@ func runAgent(args []string) error {
 	if err := pm.Refresh(ctx); err != nil {
 		log.Warn("peers", "err", err)
 	}
+	// Decision 104: one letter per Node; its Drives are named after it.
+	assignLetter := func() {
+		if l, wrote, err := storage.AssignLetter(ctx, st); err != nil {
+			log.Warn("node letter", "err", err)
+		} else if wrote {
+			log.Info("node letter", "letter", l)
+			if rec, err := st.Get(ctx, store.KindNode, id.Fingerprint(), &self); err == nil {
+				pm.Push(context.WithoutCancel(ctx), rec)
+			}
+		}
+	}
+	assignLetter()
 
 	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
 	svc.Peers = pm
@@ -192,6 +205,7 @@ func runAgent(args []string) error {
 	pm.OnApplied = func() {
 		refreshTrust()
 		_ = pm.Refresh(ctx)
+		assignLetter()
 		requestBackup()
 	}
 	go pm.Run(ctx)
@@ -238,10 +252,20 @@ func runAgent(args []string) error {
 	} else {
 		log.Warn("no catalog index", "path", *catalogPath)
 	}
-	// Milestone 5: Remote and Public Services get tsnet nodes of their own.
+	// Milestone 5: Remote and Public Services get tsnet nodes of their own;
+	// Public through the user's own domain goes through Caddy (decision 112).
 	rem := remote.New(st, log, *state)
 	defer rem.Close()
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: rem.Status}, st, nil)
+	dir := direct.New(log)
+	go dir.Run(ctx)
+	svc.PublicIP = dir.PublicIP
+	exposureStatus := func(name string) (string, string) {
+		if u, s := rem.Status(name); u != "" || s != "" {
+			return u, s
+		}
+		return dir.Status(name)
+	}
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: exposureStatus}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
@@ -323,21 +347,26 @@ func runAgent(args []string) error {
 			log.Error("list services", "err", err)
 			return
 		}
-		var routes []caddy.Route
+		var routes, public []caddy.Route
 		var names []string
 		for _, sp := range specs {
 			if sp.GetWebHostPort() == 0 {
 				continue
 			}
 			host := sp.GetName() + "." + services.DefaultSuffix
-			routes = append(routes, caddy.Route{Host: host, Upstream: fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())})
+			upstream := fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())
+			routes = append(routes, caddy.Route{Host: host, Upstream: upstream})
 			names = append(names, host)
+			if sp.GetExposure() == direct.Exposure && direct.ValidHost(sp.GetPublicHost()) {
+				public = append(public, caddy.Route{Host: sp.GetPublicHost(), Upstream: upstream})
+			}
 		}
 		if *caddyAdmin != "" {
-			if err := caddy.Load(ctx, *caddyAdmin, caddy.Config(routes)); err != nil {
+			if err := caddy.Load(ctx, *caddyAdmin, caddy.Config(routes, public...)); err != nil {
 				log.Warn("caddy config not applied", "err", err)
 			}
 		}
+		dir.Reconcile(specs)
 		if !*noTailscale {
 			rem.Reconcile(ctx, specs)
 		}

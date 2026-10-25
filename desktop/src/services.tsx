@@ -34,7 +34,7 @@ interface CatalogIndex {
   entries: CatalogEntry[];
 }
 
-export function ServicesPanel({ target, tiers = [], remoteReady = false }: { target: Target; tiers?: { tierId: string; name: string }[]; remoteReady?: boolean }) {
+export function ServicesPanel({ target, tiers = [], remoteReady = false, publicIp = "" }: { target: Target; tiers?: { tierId: string; name: string }[]; remoteReady?: boolean; publicIp?: string }) {
   const client = useMemo(() => createClient(ServiceService, transportFor(target)), [target.addr, target.fingerprint]);
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const catalog = bundledCatalog as CatalogIndex;
@@ -131,7 +131,8 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false }: { tar
                 </div>
                 {s.spec && s.spec.exposure !== "private" && (
                   <div style={{ fontSize: 13 }}>
-                    {s.spec.exposure === "public" ? <span style={{ color: "#b00020" }}>Public</span> : <span style={{ color: "#2a7" }}>Remote</span>}:{" "}
+                    {s.spec.exposure === "public" || s.spec.exposure === "direct" ? <span style={{ color: "#b00020" }}>Public</span> : <span style={{ color: "#2a7" }}>Remote</span>}
+                    {s.spec.exposure === "direct" && <span style={{ color: "#555" }}> at {s.spec.publicHost}</span>}:{" "}
                     {s.remoteUrl ? (
                       <a href={s.remoteUrl} target="_blank" rel="noreferrer">
                         {s.remoteUrl}
@@ -210,12 +211,14 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false }: { tar
         <ExposureDialog
           s={exposing}
           remoteReady={remoteReady}
+          publicIp={publicIp}
+          nodeAddr={target.addr.replace(/:\d+$/, "")}
           onCancel={() => setExposing(null)}
-          onSet={async (exposure) => {
+          onSet={async (exposure, publicHost) => {
             setExposing(null);
             try {
               lastWrite.current = Date.now();
-              await client.setExposure({ name: exposing.spec!.name, exposure });
+              await client.setExposure({ name: exposing.spec!.name, exposure, publicHost });
               await refresh();
             } catch (e) {
               setError(String(e));
@@ -296,8 +299,9 @@ function InstallDialog({
   onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>, exposure: string, autoUpdate: boolean) => void;
 }) {
   const [name, setName] = useState(entry.id);
-  // Decision 110: Remote by default once the Fleet is on Tailscale.
-  const [exposure, setExposure] = useState(remoteReady && entry.web && !entry.infrastructure ? "remote" : "private");
+  // Decision 110: at home only by default, so a Service takes no Tailscale
+  // hostname until the user asks for it.
+  const [exposure, setExposure] = useState("private");
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [volumeTiers, setVolumeTiers] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, "default"])));
   const [settings, setSettings] = useState<Record<string, string>>(
@@ -376,15 +380,33 @@ function InstallDialog({
   );
 }
 
-/** Decision 111: Public needs the plain-language warning acknowledged. */
-function ExposureDialog({ s, remoteReady, onCancel, onSet }: { s: ServiceStatus; remoteReady: boolean; onCancel: () => void; onSet: (exposure: string) => void }) {
+/** Decisions 111 and 112: Public needs the plain-language warning acknowledged; Public at your own address needs a host name and DNS. */
+function ExposureDialog({
+  s,
+  remoteReady,
+  publicIp,
+  nodeAddr,
+  onCancel,
+  onSet,
+}: {
+  s: ServiceStatus;
+  remoteReady: boolean;
+  publicIp: string;
+  nodeAddr: string;
+  onCancel: () => void;
+  onSet: (exposure: string, publicHost: string) => void;
+}) {
   const [choice, setChoice] = useState(s.spec?.exposure || "private");
+  const [host, setHost] = useState(s.spec?.publicHost || "");
   const [ack, setAck] = useState(false);
   const name = s.spec?.name ?? "";
   const canPublic = !s.spec?.infrastructure;
+  const isPublic = choice === "public" || choice === "direct";
+  const h = host.trim().toLowerCase();
+  const hostOk = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(h) && !/\.(local|localhost|lan|internal|home\.arpa)$/.test(h);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 520 }}>
+      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 560, maxHeight: "85vh", overflow: "auto" }}>
         <h3 style={{ marginTop: 0 }}>Where can {name} be reached?</h3>
         <label style={{ display: "block" }}>
           <input type="radio" checked={choice === "private"} onChange={() => setChoice("private")} /> <b>At home only.</b> Devices on your network, and this app.
@@ -394,10 +416,31 @@ function ExposureDialog({ s, remoteReady, onCancel, onSet }: { s: ServiceStatus;
           {!remoteReady && <span style={{ color: "#555", fontSize: 13 }}> (connect the Fleet to Tailscale first)</span>}
         </label>
         <label style={{ display: "block", marginTop: 6 }}>
-          <input type="radio" checked={choice === "public"} onChange={() => setChoice("public")} disabled={!remoteReady || !canPublic} /> <b>Public.</b> Anyone on the internet with the link.
+          <input type="radio" checked={choice === "public"} onChange={() => setChoice("public")} disabled={!remoteReady || !canPublic} /> <b>Public, at a Tailscale address.</b> Anyone on the internet with the link; nothing to set up.
           {!canPublic && <span style={{ color: "#555", fontSize: 13 }}> (network infrastructure stays at home)</span>}
+          {canPublic && !remoteReady && <span style={{ color: "#555", fontSize: 13 }}> (connect the Fleet to Tailscale first)</span>}
         </label>
-        {choice === "public" && (
+        <label style={{ display: "block", marginTop: 6 }}>
+          <input type="radio" checked={choice === "direct"} onChange={() => setChoice("direct")} disabled={!canPublic} /> <b>Public, at your own address.</b> A name you own, such as photos.example.com, with a certificate the Node gets by itself. No Tailscale needed.
+        </label>
+        {choice === "direct" && (
+          <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, marginTop: 8, fontSize: 13 }}>
+            <label>
+              Host name <input value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder="photos.example.com" style={{ width: 260 }} />
+            </label>
+            <ol style={{ margin: "8px 0 0 0", paddingLeft: 20 }}>
+              <li>
+                At your domain's DNS, make an <b>A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{publicIp || "this Node's public address (the Node is still looking it up)"}</code>.
+              </li>
+              <li>
+                On your router, forward ports <b>80</b> and <b>443</b> to this Node at <code>{nodeAddr}</code>.
+              </li>
+              <li>The Node then gets a certificate from Let's Encrypt on its own and keeps it renewed. The Service's line shows each step as it is reached.</li>
+            </ol>
+            <p style={{ color: "#555", margin: "8px 0 0 0" }}>If your home address changes, the record has to follow it; the Node says when the two no longer match.</p>
+          </div>
+        )}
+        {isPublic && (
           <div style={{ border: "1px solid #b00020", borderRadius: 6, padding: 8, marginTop: 8, fontSize: 13 }}>
             <p style={{ marginTop: 0 }}>
               <b>Public means public.</b> Anyone who finds the address can open {name}'s page. If it has no login of its own, or a weak one, strangers can use it, read what is in it, or change it. Bugs in {name} become reachable by
@@ -409,7 +452,7 @@ function ExposureDialog({ s, remoteReady, onCancel, onSet }: { s: ServiceStatus;
           </div>
         )}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button disabled={choice === "public" && !ack} onClick={() => onSet(choice)}>
+          <button disabled={(isPublic && !ack) || (choice === "direct" && !hostOk)} onClick={() => onSet(choice, choice === "direct" ? h : "")}>
             Apply
           </button>
           <button onClick={onCancel}>Cancel</button>
