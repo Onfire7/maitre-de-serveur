@@ -193,8 +193,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.table.SetHeight(max(3, m.height-10))
 		m.layoutTable()
-		m.vp.Width = max(20, m.width-4)
-		m.vp.Height = max(3, m.height-6)
+		m.vp.Width = max(20, m.width)
+		m.vp.Height = max(3, m.height-8) // header 3, footer 3, bar 1, gap 1
 		m.setLogs()
 	case tickMsg:
 		m.status = m.src.Status()
@@ -380,6 +380,18 @@ var (
 	panel   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
 	label   = lipgloss.NewStyle().Faint(true).Width(11)
 	keyHint = lipgloss.NewStyle().Faint(true)
+	// The pager look from the Bubble Tea examples: a title box that opens
+	// into a rule, and a percentage box the rule runs into.
+	pagerTitle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Right = "├"
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+	}()
+	pagerInfo = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Left = "┤"
+		return pagerTitle.BorderStyle(b)
+	}()
 )
 
 func (m *model) View() string {
@@ -577,27 +589,27 @@ func (m *model) viewContainers() string {
 }
 
 func (m *model) viewLogs() string {
-	var b strings.Builder
-	var units []string
-	for i, u := range m.units {
-		name := strings.TrimSuffix(u, ".service")
-		if i == m.unit%max(1, len(m.units)) {
-			units = append(units, tabOn.Render(name))
-		} else {
-			units = append(units, tabOff.Render(name))
-		}
+	unit := "(none)"
+	if len(m.units) > 0 {
+		unit = strings.TrimSuffix(m.units[m.unit%len(m.units)], ".service")
 	}
-	b.WriteString(strings.Join(units, "") + "\n\n")
+	if len(m.units) > 1 {
+		unit += dim.Render(fmt.Sprintf("  %d/%d", m.unit%len(m.units)+1, len(m.units)))
+	}
+	title := pagerTitle.Render(unit)
+	rule := strings.Repeat("─", max(0, m.vp.Width-lipgloss.Width(title)))
+	header := lipgloss.JoinHorizontal(lipgloss.Center, title, rule)
 	if m.lErr != nil {
-		b.WriteString(warn.Render(m.lErr.Error()) + "\n")
-		return b.String()
+		return header + "\n\n" + warn.Render(m.lErr.Error()) + "\n"
 	}
-	pos := ""
-	if !m.follow {
-		pos = dim.Render(fmt.Sprintf("  %3.0f%%  (scrolled; End follows again)", m.vp.ScrollPercent()*100))
+	pct := fmt.Sprintf("%3.0f%%", m.vp.ScrollPercent()*100)
+	if m.follow {
+		pct = "follow"
 	}
-	b.WriteString(panel.Render(m.vp.View()) + pos + "\n")
-	return b.String()
+	info := pagerInfo.Render(pct)
+	rule = strings.Repeat("─", max(0, m.vp.Width-lipgloss.Width(info)))
+	footer := lipgloss.JoinHorizontal(lipgloss.Center, rule, info)
+	return header + "\n" + m.vp.View() + "\n" + footer + "\n"
 }
 
 func gauge(pct float64) string {
