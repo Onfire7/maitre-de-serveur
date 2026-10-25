@@ -479,6 +479,7 @@ func (m *model) viewStatus() string {
 		res.WriteString(row("CPU", rows[0]))
 		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   load %.2f", rows[1], mt.GetCpuPercent(), mt.GetLoad_1M())))
 		res.WriteString(row("", rows[2]))
+		res.WriteString("\n")
 		memPct := 0.0
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
@@ -487,6 +488,7 @@ func (m *model) viewStatus() string {
 		res.WriteString(row("Memory", rows[0]))
 		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   %s of %s", rows[1], memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
 		res.WriteString(row("", rows[2]))
+		res.WriteString("\n")
 		if mt.GetPoolTotalBytes() > 0 {
 			poolPct := 100 * float64(mt.GetPoolUsedBytes()) / float64(mt.GetPoolTotalBytes())
 			where := ""
@@ -494,6 +496,7 @@ func (m *model) viewStatus() string {
 				where = dim.Render("  (no Drive: on the OS disk)")
 			}
 			res.WriteString(row("Pool", fmt.Sprintf("%s %5.1f%%   %s of %s%s", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)))
+			res.WriteString("\n")
 		}
 		res.WriteString(row("Network", fmt.Sprintf("↓ %s/s   ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))))
 		if mt.GetTemperatureC() > 0 {
@@ -546,9 +549,11 @@ func sparkline(hist []float64) [3]string {
 	if len(hist) > 0 && hist[len(hist)-1] > 85 {
 		st = warn
 	}
+	// Corners top and bottom close each chart into its own frame.
+	caps := [3][2]string{{"┌", "┐"}, {cap, cap}, {"└", "┘"}}
 	var out [3]string
 	for r := range grid {
-		out[r] = cap + st.Render(string(grid[r])) + cap
+		out[r] = caps[r][0] + st.Render(string(grid[r])) + caps[r][1]
 	}
 	return out
 }
