@@ -502,6 +502,9 @@ function AddNode({
 
   const disks = status?.disks.filter((d) => !d.isInstallerMedia) ?? [];
   const chosen = disks.find((d) => d.path === disk);
+  // Milestone 4: a Node whose OS lives on a USB stick must have somewhere
+  // else for data: the rest of the stick, or a Pool elsewhere in the Fleet.
+  const usbNeedsData = !!chosen?.removable && !dataPart && state.nodes.length === 0;
   const prov = status?.provisioning;
 
   async function provision() {
@@ -652,10 +655,11 @@ function AddNode({
           {chosen && (
             <label style={{ display: "block", marginTop: 8 }}>
               <input type="checkbox" checked={dataPart} onChange={(e) => setDataPart(e.target.checked)} /> Use the rest of this disk for data
+              {usbNeedsData && <span style={{ color: "#a60", fontSize: 13 }}> (required: a USB stick as the only disk needs this, or another Node with a Pool)</span>}
               {chosen.removable && <span style={{ color: "#555", fontSize: 13 }}> (off by default on USB drives)</span>}
             </label>
           )}
-          <button style={{ marginTop: 12 }} disabled={!chosen || !name.trim()} onClick={provision}>
+          <button style={{ marginTop: 12 }} disabled={!chosen || !name.trim() || usbNeedsData} onClick={provision}>
             Install
           </button>{" "}
           <button onClick={onCancel}>Cancel</button>
