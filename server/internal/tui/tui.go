@@ -6,6 +6,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -55,6 +56,9 @@ type Source interface {
 	Logs(ctx context.Context, unit string, lines int) ([]string, error)
 	Reboot() error
 }
+
+// ErrQuit, returned by Source.Reboot, ends the screen instead (the demo).
+var ErrQuit = errors.New("tui: quit")
 
 // Run drives the screen on stdin/stdout until ctx ends.
 func Run(ctx context.Context, src Source) error {
@@ -111,6 +115,28 @@ type model struct {
 	lErr       error
 	confirm    bool // reboot confirmation pending
 	message    string
+	cpuHist    []float64 // percent, oldest first
+	memHist    []float64
+}
+
+const histLen = 32
+
+func (m *model) record() {
+	if m.metrics == nil {
+		return
+	}
+	memPct := 0.0
+	if m.metrics.GetMemoryTotalBytes() > 0 {
+		memPct = 100 * float64(m.metrics.GetMemoryUsedBytes()) / float64(m.metrics.GetMemoryTotalBytes())
+	}
+	m.cpuHist = append(m.cpuHist, m.metrics.GetCpuPercent())
+	m.memHist = append(m.memHist, memPct)
+	if len(m.cpuHist) > histLen {
+		m.cpuHist = m.cpuHist[len(m.cpuHist)-histLen:]
+	}
+	if len(m.memHist) > histLen {
+		m.memHist = m.memHist[len(m.memHist)-histLen:]
+	}
 }
 
 var columns = []string{"Name", "State", "CPU", "Memory", "Restarts", "Image"}
@@ -121,7 +147,9 @@ func newModel(src Source) *model {
 	s.Header = s.Header.Bold(true).BorderBottom(true).BorderStyle(lipgloss.NormalBorder())
 	s.Selected = s.Selected.Reverse(true)
 	t.SetStyles(s)
-	return &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true}
+	m := &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true}
+	m.record()
+	return m
 }
 
 func (m *model) Init() tea.Cmd {
@@ -164,6 +192,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.status = m.src.Status()
 		m.metrics = m.src.Metrics()
+		m.record()
 		m.units = m.src.Units()
 		cmds := []tea.Cmd{tick()}
 		if m.page == pageContainers {
@@ -186,7 +215,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "y", "Y":
 				m.confirm = false
 				m.message = "rebooting..."
-				if err := m.src.Reboot(); err != nil {
+				if err := m.src.Reboot(); errors.Is(err, ErrQuit) {
+					return m, tea.Quit
+				} else if err != nil {
 					m.message = "reboot failed: " + err.Error()
 				}
 			default:
@@ -301,26 +332,20 @@ func sortTitle(m *model, col int) string {
 
 // Styles. Colours are the terminal's own 16, which the Linux console has.
 var (
-	dim      = lipgloss.NewStyle().Faint(true)
-	bold     = lipgloss.NewStyle().Bold(true)
-	warn     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	good     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	accent   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	titleBar = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("6")).Padding(0, 1)
-	tabOn    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("7")).Padding(0, 1)
-	tabOff   = lipgloss.NewStyle().Faint(true).Padding(0, 1)
-	panel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
-	label    = lipgloss.NewStyle().Faint(true).Width(11)
-	keyHint  = lipgloss.NewStyle().Faint(true)
+	dim     = lipgloss.NewStyle().Faint(true)
+	bold    = lipgloss.NewStyle().Bold(true)
+	warn    = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	good    = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	accent  = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	tabOn   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("7")).Padding(0, 1)
+	tabOff  = lipgloss.NewStyle().Faint(true).Padding(0, 1)
+	panel   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
+	label   = lipgloss.NewStyle().Faint(true).Width(11)
+	keyHint = lipgloss.NewStyle().Faint(true)
 )
 
 func (m *model) View() string {
 	var b strings.Builder
-	// Title bar.
-	title := titleBar.Render("Maître Server " + m.status.Version)
-	right := dim.Render(fmt.Sprintf("%s · up %s", m.status.Node, time.Since(m.status.Started).Round(time.Second)))
-	gap := max(1, m.width-lipgloss.Width(title)-lipgloss.Width(right))
-	b.WriteString(title + strings.Repeat(" ", gap) + right + "\n\n")
 	switch m.page {
 	case pageStatus:
 		b.WriteString(m.viewStatus())
@@ -361,15 +386,13 @@ func row(k, v string) string { return label.Render(k) + v + "\n" }
 
 func (m *model) viewStatus() string {
 	s := m.status
-	var b strings.Builder
-	b.WriteString(accent.Render(ascii.Banner()) + "\n\n")
-
 	var id strings.Builder
 	id.WriteString(bold.Render("Node") + "\n")
 	id.WriteString(row("Name", bold.Render(s.Node)))
 	id.WriteString(row("Fleet", s.Fleet))
+	id.WriteString(row("Version", s.Version))
 	if len(s.Addresses) == 0 {
-		id.WriteString(row("Network", warn.Render("waiting for a cable and an address...")))
+		id.WriteString(row("Network", warn.Render("waiting for a cable...")))
 	} else {
 		id.WriteString(row("Network", strings.Join(s.Addresses, ", ")))
 	}
@@ -386,26 +409,41 @@ func (m *model) viewStatus() string {
 	} else {
 		id.WriteString(row("Services", strings.Join(s.Services, ", ")))
 	}
+	id.WriteString(row("Up", time.Since(s.Started).Round(time.Second).String()))
+	nodeBox := panel.Render(strings.TrimRight(id.String(), "\n"))
+
+	// Banner on the left, the Node box flush with the top right corner.
+	banner := accent.Render(ascii.Banner())
+	bw, nw := lipgloss.Width(banner), lipgloss.Width(nodeBox)
+	var top string
+	if m.width >= bw+nw+2 {
+		top = lipgloss.JoinHorizontal(lipgloss.Top, banner, strings.Repeat(" ", m.width-bw-nw), nodeBox)
+	} else {
+		top = lipgloss.JoinVertical(lipgloss.Left, banner, nodeBox)
+	}
 
 	var res strings.Builder
 	res.WriteString(bold.Render("Resources") + "\n")
 	if mt := m.metrics; mt != nil {
+		top, bottom := sparkline(m.cpuHist)
+		res.WriteString(row("CPU", fmt.Sprintf("%s %5.1f%%   load %.2f", top, mt.GetCpuPercent(), mt.GetLoad_1M())))
+		res.WriteString(row("", bottom))
 		memPct := 0.0
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
-		res.WriteString(row("CPU", fmt.Sprintf("%s %5.1f%%  load %.2f", gauge(mt.GetCpuPercent()), mt.GetCpuPercent(), mt.GetLoad_1M())))
-		res.WriteString(row("Memory", fmt.Sprintf("%s %5.1f%%  %s of %s", gauge(memPct), memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
+		top, bottom = sparkline(m.memHist)
+		res.WriteString(row("Memory", fmt.Sprintf("%s %5.1f%%   %s of %s", top, memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
+		res.WriteString(row("", bottom))
 		if mt.GetPoolTotalBytes() > 0 {
 			poolPct := 100 * float64(mt.GetPoolUsedBytes()) / float64(mt.GetPoolTotalBytes())
 			where := ""
 			if mt.GetPoolFallback() {
 				where = dim.Render("  (no Drive: on the OS disk)")
 			}
-			res.WriteString(row("Pool", fmt.Sprintf("%s %5.1f%%  %s of %s%s", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)))
+			res.WriteString(row("Pool", fmt.Sprintf("%s %5.1f%%   %s of %s%s", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)))
 		}
-		net := fmt.Sprintf("↓ %s/s   ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))
-		res.WriteString(row("Network", net))
+		res.WriteString(row("Network", fmt.Sprintf("↓ %s/s   ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))))
 		if mt.GetTemperatureC() > 0 {
 			t := fmt.Sprintf("%.0f °C", mt.GetTemperatureC())
 			if mt.GetTemperatureC() > 80 {
@@ -416,16 +454,44 @@ func (m *model) viewStatus() string {
 	} else {
 		res.WriteString(dim.Render("no readings yet") + "\n")
 	}
+	resBox := panel.Render(strings.TrimRight(res.String(), "\n"))
 
-	left := panel.Render(strings.TrimRight(id.String(), "\n"))
-	right := panel.Render(strings.TrimRight(res.String(), "\n"))
-	if m.width >= lipgloss.Width(left)+lipgloss.Width(right)+2 {
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right))
-	} else {
-		b.WriteString(lipgloss.JoinVertical(lipgloss.Left, left, right))
-	}
-	b.WriteString("\n\n" + dim.Render("Open Maître Desktop on a computer on this network to manage it.") + "\n")
+	var b strings.Builder
+	b.WriteString(top + "\n\n" + resBox + "\n\n")
+	b.WriteString(dim.Render("Open Maître Desktop on a computer on this network to manage it.") + "\n")
 	return b.String()
+}
+
+// sparkline draws the history as a two-row strip, five levels per column,
+// using only ▄ and █ (the console font has no eighth blocks). Returns the
+// top and bottom rows.
+func sparkline(hist []float64) (string, string) {
+	const cols = histLen
+	top := make([]rune, cols)
+	bottom := make([]rune, cols)
+	for i := range cols {
+		top[i], bottom[i] = ' ', ' '
+	}
+	off := cols - len(hist)
+	for i, v := range hist {
+		lvl := int(v/100*4 + 0.5)
+		lvl = max(0, min(4, lvl))
+		switch lvl {
+		case 1:
+			bottom[off+i] = '▄'
+		case 2:
+			bottom[off+i] = '█'
+		case 3:
+			bottom[off+i], top[off+i] = '█', '▄'
+		case 4:
+			bottom[off+i], top[off+i] = '█', '█'
+		}
+	}
+	st := accent
+	if len(hist) > 0 && hist[len(hist)-1] > 85 {
+		st = warn
+	}
+	return st.Render(string(top)), st.Render(string(bottom))
 }
 
 func (m *model) viewContainers() string {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os/exec"
 	"strings"
 	"time"
@@ -93,7 +94,8 @@ func (d demoSource) Status() tui.Status {
 	return tui.Status{Version: version, Node: "demo", Fleet: "Home", Addresses: []string{"192.168.4.80"}, Discovery: "announced as demo", Trusted: 2, Services: []string{"jellyfin", "uptime-kuma"}, Started: d.started}
 }
 func (demoSource) Metrics() *maitrev1.NodeMetrics {
-	return &maitrev1.NodeMetrics{CpuPercent: 23.4, MemoryTotalBytes: 16 << 30, MemoryUsedBytes: 5 << 30, PoolTotalBytes: 2 << 40, PoolUsedBytes: 700 << 30, NetRxBytesPerSec: 1.2e6, NetTxBytesPerSec: 3.4e5, TemperatureC: 48, Load_1M: 0.71}
+	cpu := 20 + 60*math.Abs(math.Sin(float64(time.Now().Unix())/7))
+	return &maitrev1.NodeMetrics{CpuPercent: cpu, MemoryTotalBytes: 16 << 30, MemoryUsedBytes: 5 << 30, PoolTotalBytes: 2 << 40, PoolUsedBytes: 700 << 30, NetRxBytesPerSec: 1.2e6, NetTxBytesPerSec: 3.4e5, TemperatureC: 48, Load_1M: 0.71}
 }
 func (demoSource) Containers(context.Context) ([]tui.Container, error) {
 	return []tui.Container{
@@ -112,4 +114,4 @@ func (demoSource) Logs(_ context.Context, unit string, _ int) ([]string, error) 
 	}
 	return out, nil
 }
-func (demoSource) Reboot() error { return errors.New("demo: not really rebooting") }
+func (demoSource) Reboot() error { return tui.ErrQuit }
