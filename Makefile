@@ -30,9 +30,10 @@ test: sidecar ## Run Go, Rust, and TypeScript checks
 	cd desktop && $(PNPM) exec tsc --noEmit && $(PNPM) test
 	cd desktop/src-tauri && $(CARGO) test --lib
 
-lint: ## gofmt and buf lint
+lint: ## gofmt, buf lint, and the Go cross-compiles the Desktop helper needs (macOS, Windows)
 	@test -z "$$(cd server && gofmt -l .)" || (cd server && gofmt -l . && exit 1)
 	cd api && $(BUF) lint
+	cd server && GOOS=windows $(GO) build ./... && GOOS=darwin $(GO) build ./...
 
 dev: build ## Run a dev Node on 127.0.0.1:7443 using $(STATE)
 	MAITRE_STATE=$(STATE) ./server/bin/maitre dev

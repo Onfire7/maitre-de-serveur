@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -149,10 +148,7 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 				dr.Record = rec
 				dr.Adopted = true
 				dr.MountPath = filepath.Join(m.Mounts, dr.DriveId)
-				var fs syscall.Statfs_t
-				if syscall.Statfs(dr.MountPath, &fs) == nil {
-					dr.FreeBytes = fs.Bavail * uint64(fs.Bsize)
-				}
+				dr.FreeBytes = freeBytes(dr.MountPath)
 			}
 			drives = append(drives, dr)
 		}
@@ -244,10 +240,7 @@ func (m *Manager) Contents(ctx context.Context, device string) (*maitrev1.DriveC
 	defer m.run.Run(context.Background(), "umount", mnt)
 	entries, _ := os.ReadDir(mnt)
 	res := &maitrev1.DriveContentsResponse{Empty: len(entries) == 0}
-	var fs syscall.Statfs_t
-	if syscall.Statfs(mnt, &fs) == nil {
-		res.UsedBytes = (fs.Blocks - fs.Bfree) * uint64(fs.Bsize)
-	}
+	res.UsedBytes = usedBytes(mnt)
 	for i, e := range entries {
 		if i >= 50 {
 			res.Entries = append(res.Entries, fmt.Sprintf("… and %d more", len(entries)-50))
