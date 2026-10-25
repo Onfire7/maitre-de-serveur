@@ -514,9 +514,13 @@ func (m *model) viewStatus() string {
 	return b.String()
 }
 
+// cap is the edge on both sides of charts and gauges: a box-drawing bar
+// (in the console font) that stacks into one continuous edge.
+const cap = "│"
+
 // sparkline draws the history as a three-row strip, seven levels per
 // column, using only ▄ and █ (the console font has no eighth blocks), with
-// the same brackets as the gauges on either side.
+// the same edge as the gauges on either side.
 func sparkline(hist []float64) [3]string {
 	const cols = histLen
 	var grid [3][]rune
@@ -544,7 +548,7 @@ func sparkline(hist []float64) [3]string {
 	}
 	var out [3]string
 	for r := range grid {
-		out[r] = "[" + st.Render(string(grid[r])) + "]"
+		out[r] = cap + st.Render(string(grid[r])) + cap
 	}
 	return out
 }
@@ -593,7 +597,7 @@ func gauge(pct float64) string {
 	if pct > 85 {
 		st = warn
 	}
-	return "[" + st.Render(strings.Repeat("█", n)) + dim.Render(strings.Repeat("░", width-n)) + "]"
+	return cap + st.Render(strings.Repeat("█", n)) + dim.Render(strings.Repeat("░", width-n)) + cap
 }
 
 func humanBytes(n uint64) string {
