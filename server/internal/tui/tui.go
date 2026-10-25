@@ -345,41 +345,47 @@ var (
 )
 
 func (m *model) View() string {
-	var b strings.Builder
+	var body string
 	switch m.page {
 	case pageStatus:
-		b.WriteString(m.viewStatus())
+		body = m.viewStatus()
 	case pageContainers:
-		b.WriteString(m.viewContainers())
+		body = m.viewContainers()
 	case pageLogs:
-		b.WriteString(m.viewLogs())
+		body = m.viewLogs()
 	}
-	b.WriteString("\n")
+	// The tab bar sits centred on the last line of every page.
+	var bar string
 	if m.confirm {
-		b.WriteString(warn.Bold(true).Render("  Reboot this Node now? Services stop for about a minute.  [y] yes  [any other key] no"))
-		return b.String()
-	}
-	names := []string{"1 Status", "2 Containers", "3 Logs"}
-	var tabs []string
-	for i, n := range names {
-		if page(i) == m.page {
-			tabs = append(tabs, tabOn.Render(n))
-		} else {
-			tabs = append(tabs, tabOff.Render(n))
+		bar = warn.Bold(true).Render("Reboot this Node now? Services stop for about a minute.   [y] yes   [any other key] no")
+	} else {
+		names := []string{"1 Status", "2 Containers", "3 Logs"}
+		var tabs []string
+		for i, n := range names {
+			if page(i) == m.page {
+				tabs = append(tabs, tabOn.Render(n))
+			} else {
+				tabs = append(tabs, tabOff.Render(n))
+			}
+		}
+		hint := "r reboot"
+		switch m.page {
+		case pageContainers:
+			hint += "  ·  s sort  S reverse  ↑↓ select  enter logs"
+		case pageLogs:
+			hint += "  ·  ←/→ unit"
+		}
+		bar = strings.Join(tabs, "") + "   " + keyHint.Render(hint)
+		if m.message != "" {
+			bar += "   " + warn.Render(m.message)
 		}
 	}
-	hint := "r reboot"
-	switch m.page {
-	case pageContainers:
-		hint += "  ·  s sort column  S reverse  ↑↓ select  enter logs"
-	case pageLogs:
-		hint += "  ·  ←/→ unit"
-	}
-	b.WriteString(strings.Join(tabs, "") + "   " + keyHint.Render(hint))
-	if m.message != "" {
-		b.WriteString("   " + warn.Render(m.message))
-	}
-	return b.String()
+	width := max(m.width, lipgloss.Width(bar))
+	bar = lipgloss.PlaceHorizontal(width, lipgloss.Center, bar)
+	body = strings.TrimRight(body, "\n")
+	lines := strings.Count(body, "\n") + 1
+	gap := max(1, m.height-lines-1)
+	return body + strings.Repeat("\n", gap) + bar
 }
 
 func row(k, v string) string { return label.Render(k) + v + "\n" }
@@ -404,12 +410,12 @@ func (m *model) viewStatus() string {
 	}
 	id.WriteString(row("Discovery", disc))
 	id.WriteString(row("Trusted", fmt.Sprintf("%d device(s)", s.Trusted)))
+	id.WriteString(row("Up", time.Since(s.Started).Round(time.Second).String()))
 	if len(s.Services) == 0 {
 		id.WriteString(row("Services", dim.Render("none yet")))
 	} else {
 		id.WriteString(row("Services", strings.Join(s.Services, ", ")))
 	}
-	id.WriteString(row("Up", time.Since(s.Started).Round(time.Second).String()))
 	nodeBox := panel.Render(strings.TrimRight(id.String(), "\n"))
 
 	// Banner on the left, the Node box flush with the top right corner.

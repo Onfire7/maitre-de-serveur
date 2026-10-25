@@ -32,7 +32,7 @@ func TestPagesRender(t *testing.T) {
 	m := newModel(fakeSource{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	v := m.View()
-	for _, want := range []string{"Node", "test", "pxe", "192.168.4.80", "CPU", "12.5%", "3.0 GiB of 8.0 GiB", "1 Status", "▄█▀▀█▄"} {
+	for _, want := range []string{"Node", "test", "pxe", "192.168.4.80", "CPU", "12.5%", "3.0 GiB of 8.0 GiB", "1 Status", "▄█▀▀█▄║"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("status page lacks %q:\n%s", want, v)
 		}
