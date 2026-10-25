@@ -63,6 +63,7 @@ func runAgent(args []string) error {
 	poolDir := fs.String("pool", pool.DefaultPool, "default Pool directory for Service volumes")
 	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
 	advertise := fs.String("advertise", "", "host:port peers should reach this Node at (default: every address, port from --listen)")
+	recoveryPort := fs.Int("recovery-port", recoverymode.Port, "port of the recovery listener while a recovery code is pending")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -313,7 +314,7 @@ func runAgent(args []string) error {
 		go func() {
 			defer rcancel()
 			log.Info("recovery window open", "minutes", int(recoverymode.Window.Minutes()), "port", recoverymode.Port)
-			if err := serve(rctx, log, net.JoinHostPort(host, fmt.Sprint(recoverymode.Port)), peer.Middleware(rmux), mtls.InstallerServerConfig(id)); err != nil {
+			if err := serve(rctx, log, net.JoinHostPort(host, fmt.Sprint(*recoveryPort)), peer.Middleware(rmux), mtls.InstallerServerConfig(id)); err != nil {
 				log.Warn("recovery listener", "err", err)
 			}
 			recoverymode.Discard(*state)

@@ -57,4 +57,33 @@ for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind se
 "$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind service --id demo get | grep -q "edited while a was off"
 for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get 2>/dev/null | grep -q "edited while a was off" && break; sleep 0.3; done
 "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get | grep -q "edited while a was off"
+# Decision 100: a brand-new device gets in with the Recovery Phrase, and
+# the phrase's key can do nothing else.
+PHRASE=$(sed -n '/Recovery Phrase/{n;n;p}' "$STATE/prov-a.log" | sed 's/^ *//')
+[ "$(echo "$PHRASE" | wc -w)" = 12 ]
+mkdir -p "$STATE/newdev/trusted" && cp "$STATE/a/node/identity.pub" "$STATE/newdev/trusted/a.pub"
+"$MAITRE" recover --identity "$STATE/newdev" --trust "$STATE/newdev/trusted" --addr "127.0.0.1:$PA" --phrase "$PHRASE" --name "new laptop" | grep -q "now trusted"
+"$MAITRE" info --identity "$STATE/newdev" --trust "$STATE/newdev/trusted" --addr "127.0.0.1:$PA" | grep -q "^name      a"
+# The device reaches B too once the record has synced.
+cp "$STATE/b/node/identity.pub" "$STATE/newdev/trusted/b.pub"
+for _ in $(seq 1 100); do "$MAITRE" info --identity "$STATE/newdev" --trust "$STATE/newdev/trusted" --addr "127.0.0.1:$PB" >/dev/null 2>&1 && break; sleep 0.3; done
+"$MAITRE" info --identity "$STATE/newdev" --trust "$STATE/newdev/trusted" --addr "127.0.0.1:$PB" | grep -q "^name      b"
+
+# Decision 101: a one-time code from recovery mode admits a device for 15
+# minutes after the next boot, on the recovery listener, and nothing else.
+kill $B_PID; wait $B_PID 2>/dev/null || true
+CODE=$("$MAITRE" recovery-code --state "$STATE/b")
+[ "${#CODE}" = 8 ]
+PR=$(( PB + 1 ))
+"$MAITRE" agent --no-screen --no-mdns --state "$STATE/b" --listen "127.0.0.1:$PB" --advertise "127.0.0.1:$PB" --recovery-port "$PR" 2>>"$STATE/agent-b.log" & B_PID=$!
+for _ in $(seq 1 50); do "$MAITRE" info $DEV --addr "127.0.0.1:$PB" >/dev/null 2>&1 && break; sleep 0.2; done
+mkdir -p "$STATE/coder/trusted" && cp "$STATE/b/node/identity.pub" "$STATE/coder/trusted/b.pub"
+if "$MAITRE" authorize --identity "$STATE/coder" --trust "$STATE/coder/trusted" --addr "127.0.0.1:$PR" --code 00000000 --name wrong 2>/dev/null | grep -q trusted; then
+  echo "FAIL: wrong recovery code accepted"; exit 1
+fi
+"$MAITRE" authorize --identity "$STATE/coder" --trust "$STATE/coder/trusted" --addr "127.0.0.1:$PR" --code "$CODE" --name "coded laptop" | grep -q "now trusted"
+"$MAITRE" info --identity "$STATE/coder" --trust "$STATE/coder/trusted" --addr "127.0.0.1:$PB" | grep -q "^name      b"
+if "$MAITRE" authorize --identity "$STATE/newdev" --trust "$STATE/coder/trusted" --addr "127.0.0.1:$PR" --code "$CODE" --name again 2>/dev/null | grep -q trusted; then
+  echo "FAIL: recovery code reusable"; exit 1
+fi
 echo "m3-check: OK"

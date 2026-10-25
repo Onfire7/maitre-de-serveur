@@ -78,6 +78,12 @@ func main() {
 		err = runTUI(os.Args[2:])
 	case "record":
 		err = runRecord(os.Args[2:])
+	case "recover":
+		err = runRecover(os.Args[2:])
+	case "authorize":
+		err = runAuthorize(os.Args[2:])
+	case "recovery-code":
+		err = runRecoveryCode(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -89,7 +95,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update|netboot|tui|record> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update|netboot|tui|record|recover|authorize> [flags]")
 }
 
 func runDev(args []string) error {
