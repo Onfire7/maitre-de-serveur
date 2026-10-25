@@ -14,7 +14,7 @@ func TestDigits(t *testing.T) {
 	if lines[0] != "   █   ███" || lines[4] != "  ███  ███" {
 		t.Fatalf("rows:\n%s", got)
 	}
-	if strings.Count(Banner(), "\n") != 10 {
+	if strings.Count(Banner(), "\n") != 9 {
 		t.Fatal("banner height")
 	}
 }

@@ -6,15 +6,14 @@ package ascii
 
 import "strings"
 
-// Banner is the Maître word mark, 11 lines: a circumflex drawn in the same
-// block-and-shadow style as the letters, a blank row, then the word.
+// Banner is the Maître word mark, 10 lines: a circumflex drawn in the same
+// block-and-shadow style as the letters, then the word.
 func Banner() string {
 	return strings.Join([]string{
 		`                   ███╗`,
 		`                  ██╔██╗`,
 		`                 ██╔╝╚██╗`,
 		`                 ╚═╝  ╚═╝`,
-		``,
 		` ███╗   ███╗ █████╗ ██╗████████╗██████╗ ███████╗`,
 		` ████╗ ████║██╔══██╗██║╚══██╔══╝██╔══██╗██╔════╝`,
 		` ██╔████╔██║███████║██║   ██║   ██████╔╝█████╗  `,

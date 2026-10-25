@@ -454,7 +454,7 @@ func (m *model) viewStatus() string {
 	}
 	id.WriteString(row("Discovery", disc))
 	id.WriteString(row("Trusted", fmt.Sprintf("%d device(s)", s.Trusted)))
-	id.WriteString(row("Up", time.Since(s.Started).Round(time.Second).String()))
+	id.WriteString(row("Uptime", time.Since(s.Started).Round(time.Second).String()))
 	if len(s.Services) == 0 {
 		id.WriteString(row("Services", dim.Render("none yet")))
 	} else {
@@ -475,16 +475,18 @@ func (m *model) viewStatus() string {
 	var res strings.Builder
 	res.WriteString(bold.Render("Resources") + "\n")
 	if mt := m.metrics; mt != nil {
-		top, bottom := sparkline(m.cpuHist)
-		res.WriteString(row("CPU", fmt.Sprintf("%s %5.1f%%   load %.2f", top, mt.GetCpuPercent(), mt.GetLoad_1M())))
-		res.WriteString(row("", bottom))
+		rows := sparkline(m.cpuHist)
+		res.WriteString(row("CPU", rows[0]))
+		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   load %.2f", rows[1], mt.GetCpuPercent(), mt.GetLoad_1M())))
+		res.WriteString(row("", rows[2]))
 		memPct := 0.0
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
-		top, bottom = sparkline(m.memHist)
-		res.WriteString(row("Memory", fmt.Sprintf("%s %5.1f%%   %s of %s", top, memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
-		res.WriteString(row("", bottom))
+		rows = sparkline(m.memHist)
+		res.WriteString(row("Memory", rows[0]))
+		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   %s of %s", rows[1], memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
+		res.WriteString(row("", rows[2]))
 		if mt.GetPoolTotalBytes() > 0 {
 			poolPct := 100 * float64(mt.GetPoolUsedBytes()) / float64(mt.GetPoolTotalBytes())
 			where := ""
@@ -512,36 +514,39 @@ func (m *model) viewStatus() string {
 	return b.String()
 }
 
-// sparkline draws the history as a two-row strip, five levels per column,
-// using only ▄ and █ (the console font has no eighth blocks). Returns the
-// top and bottom rows.
-func sparkline(hist []float64) (string, string) {
+// sparkline draws the history as a three-row strip, seven levels per
+// column, using only ▄ and █ (the console font has no eighth blocks), with
+// the same brackets as the gauges on either side.
+func sparkline(hist []float64) [3]string {
 	const cols = histLen
-	top := make([]rune, cols)
-	bottom := make([]rune, cols)
-	for i := range cols {
-		top[i], bottom[i] = ' ', ' '
+	var grid [3][]rune
+	for r := range grid {
+		grid[r] = []rune(strings.Repeat(" ", cols))
 	}
 	off := cols - len(hist)
 	for i, v := range hist {
-		lvl := int(v/100*4 + 0.5)
-		lvl = max(0, min(4, lvl))
-		switch lvl {
-		case 1:
-			bottom[off+i] = '▄'
-		case 2:
-			bottom[off+i] = '█'
-		case 3:
-			bottom[off+i], top[off+i] = '█', '▄'
-		case 4:
-			bottom[off+i], top[off+i] = '█', '█'
+		lvl := int(v/100*6 + 0.5)
+		lvl = max(0, min(6, lvl))
+		// Fill from the bottom row (2) upwards, two levels per row.
+		for r := 2; r >= 0 && lvl > 0; r-- {
+			if lvl >= 2 {
+				grid[r][off+i] = '█'
+				lvl -= 2
+			} else {
+				grid[r][off+i] = '▄'
+				lvl = 0
+			}
 		}
 	}
 	st := accent
 	if len(hist) > 0 && hist[len(hist)-1] > 85 {
 		st = warn
 	}
-	return st.Render(string(top)), st.Render(string(bottom))
+	var out [3]string
+	for r := range grid {
+		out[r] = "[" + st.Render(string(grid[r])) + "]"
+	}
+	return out
 }
 
 func (m *model) viewContainers() string {
@@ -581,7 +586,7 @@ func (m *model) viewLogs() string {
 }
 
 func gauge(pct float64) string {
-	const width = 24
+	const width = histLen
 	n := int(pct/100*width + 0.5)
 	n = max(0, min(width, n))
 	st := accent
