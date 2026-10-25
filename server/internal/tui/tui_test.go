@@ -32,7 +32,7 @@ func TestPagesRender(t *testing.T) {
 	m := newModel(fakeSource{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	v := m.View()
-	for _, want := range []string{"Node", "test", "pxe", "192.168.4.80", "CPU", "12.5%", "3.0 GiB of 8.0 GiB", "1 Status", "▄█▀▀█▄║"} {
+	for _, want := range []string{"Node", "test", "pxe", "192.168.4.80", "CPU", "12.5%", "3.0 GiB of 8.0 GiB", "1 Status", "██╔╝╚██╗"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("status page lacks %q:\n%s", want, v)
 		}
@@ -53,6 +53,12 @@ func TestPagesRender(t *testing.T) {
 	if v := m.View(); !strings.Contains(v, "hello journal") || !strings.Contains(v, "maitre-agent") {
 		t.Errorf("logs page:\n%s", v)
 	}
+	// r only works on the Status page.
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	if v := m.View(); strings.Contains(v, "Reboot this Node now?") {
+		t.Errorf("reboot offered off the Status page")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 	if v := m.View(); !strings.Contains(v, "Reboot this Node now?") {
 		t.Errorf("no reboot confirmation:\n%s", v)

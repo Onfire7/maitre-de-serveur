@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -113,6 +114,8 @@ type model struct {
 	unit       int
 	logs       []string
 	lErr       error
+	vp         viewport.Model
+	follow     bool // keep the log scrolled to its end
 	confirm    bool // reboot confirmation pending
 	message    string
 	cpuHist    []float64 // percent, oldest first
@@ -147,7 +150,8 @@ func newModel(src Source) *model {
 	s.Header = s.Header.Bold(true).BorderBottom(true).BorderStyle(lipgloss.NormalBorder())
 	s.Selected = s.Selected.Reverse(true)
 	t.SetStyles(s)
-	m := &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true}
+	m := &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true, follow: true}
+	m.vp = viewport.New(80, 10)
 	m.record()
 	return m
 }
@@ -189,6 +193,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.table.SetHeight(max(3, m.height-10))
 		m.layoutTable()
+		m.vp.Width = max(20, m.width-4)
+		m.vp.Height = max(3, m.height-6)
+		m.setLogs()
 	case tickMsg:
 		m.status = m.src.Status()
 		m.metrics = m.src.Metrics()
@@ -208,6 +215,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logsMsg:
 		if len(m.units) > 0 && msg.unit == m.units[m.unit%len(m.units)] {
 			m.logs, m.lErr = msg.lines, msg.err
+			m.setLogs()
 		}
 	case tea.KeyMsg:
 		if m.confirm {
@@ -236,7 +244,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.page = pageLogs
 			return m, m.fetchLogs()
 		case "r":
-			m.confirm = true
+			if m.page == pageStatus {
+				m.confirm = true
+			}
 		case "s":
 			m.sortCol = (m.sortCol + 1) % len(columns)
 			m.layoutTable()
@@ -246,13 +256,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left", "h":
 			if m.page == pageLogs && len(m.units) > 0 {
 				m.unit = (m.unit + len(m.units) - 1) % len(m.units)
-				m.logs = nil
+				m.logs, m.follow = nil, true
+				m.setLogs()
 				return m, m.fetchLogs()
 			}
 		case "right", "l", "tab":
 			if m.page == pageLogs && len(m.units) > 0 {
 				m.unit = (m.unit + 1) % len(m.units)
-				m.logs = nil
+				m.logs, m.follow = nil, true
+				m.setLogs()
 				return m, m.fetchLogs()
 			}
 		case "enter":
@@ -264,7 +276,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 					m.page = pageLogs
-					m.logs = nil
+					m.logs, m.follow = nil, true
+					m.setLogs()
 					return m, m.fetchLogs()
 				}
 			}
@@ -274,8 +287,33 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table, cmd = m.table.Update(msg)
 			return m, cmd
 		}
+		if m.page == pageLogs {
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			m.follow = m.vp.AtBottom()
+			return m, cmd
+		}
 	}
 	return m, nil
+}
+
+// setLogs loads the current lines into the viewport, highlighting warnings,
+// and keeps following the end unless the user scrolled up.
+func (m *model) setLogs() {
+	var b strings.Builder
+	for i, l := range m.logs {
+		if strings.Contains(l, "level=ERROR") || strings.Contains(l, "level=WARN") {
+			l = warn.Render(l)
+		}
+		b.WriteString(l)
+		if i < len(m.logs)-1 {
+			b.WriteString("\n")
+		}
+	}
+	m.vp.SetContent(b.String())
+	if m.follow {
+		m.vp.GotoBottom()
+	}
 }
 
 func (m *model) layoutTable() {
@@ -354,34 +392,40 @@ func (m *model) View() string {
 	case pageLogs:
 		body = m.viewLogs()
 	}
-	// The tab bar sits centred on the last line of every page.
-	var bar string
-	if m.confirm {
-		bar = warn.Bold(true).Render("Reboot this Node now? Services stop for about a minute.   [y] yes   [any other key] no")
-	} else {
-		names := []string{"1 Status", "2 Containers", "3 Logs"}
-		var tabs []string
-		for i, n := range names {
-			if page(i) == m.page {
-				tabs = append(tabs, tabOn.Render(n))
-			} else {
-				tabs = append(tabs, tabOff.Render(n))
-			}
-		}
-		hint := "r reboot"
-		switch m.page {
-		case pageContainers:
-			hint += "  ·  s sort  S reverse  ↑↓ select  enter logs"
-		case pageLogs:
-			hint += "  ·  ←/→ unit"
-		}
-		bar = strings.Join(tabs, "") + "   " + keyHint.Render(hint)
-		if m.message != "" {
-			bar += "   " + warn.Render(m.message)
+	// Bottom line of every page: tabs on the left, the page's keys centred
+	// (or pushed right when the centre would overlap the tabs).
+	names := []string{"1 Status", "2 Containers", "3 Logs"}
+	var tabs []string
+	for i, n := range names {
+		if page(i) == m.page {
+			tabs = append(tabs, tabOn.Render(n))
+		} else {
+			tabs = append(tabs, tabOff.Render(n))
 		}
 	}
-	width := max(m.width, lipgloss.Width(bar))
-	bar = lipgloss.PlaceHorizontal(width, lipgloss.Center, bar)
+	left := strings.Join(tabs, "")
+	var hint string
+	switch {
+	case m.confirm:
+		hint = warn.Bold(true).Render("Reboot this Node now? Services stop for about a minute.   [y] yes   [any other key] no")
+	case m.page == pageStatus:
+		hint = keyHint.Render("r reboot")
+	case m.page == pageContainers:
+		hint = keyHint.Render("s sort   S reverse   ↑↓ select   enter logs")
+	case m.page == pageLogs:
+		hint = keyHint.Render("←/→ unit   ↑↓ PgUp PgDn scroll")
+	}
+	if m.message != "" && !m.confirm {
+		hint += "   " + warn.Render(m.message)
+	}
+	width := max(m.width, lipgloss.Width(left)+lipgloss.Width(hint)+2)
+	lw, hw := lipgloss.Width(left), lipgloss.Width(hint)
+	var bar string
+	if start := (width - hw) / 2; start >= lw+2 {
+		bar = left + strings.Repeat(" ", start-lw) + hint
+	} else {
+		bar = left + strings.Repeat(" ", max(2, width-lw-hw)) + hint
+	}
 	body = strings.TrimRight(body, "\n")
 	lines := strings.Count(body, "\n") + 1
 	gap := max(1, m.height-lines-1)
@@ -514,10 +558,6 @@ func (m *model) viewContainers() string {
 
 func (m *model) viewLogs() string {
 	var b strings.Builder
-	unit := "(none)"
-	if len(m.units) > 0 {
-		unit = m.units[m.unit%len(m.units)]
-	}
 	var units []string
 	for i, u := range m.units {
 		name := strings.TrimSuffix(u, ".service")
@@ -532,27 +572,11 @@ func (m *model) viewLogs() string {
 		b.WriteString(warn.Render(m.lErr.Error()) + "\n")
 		return b.String()
 	}
-	avail := max(3, m.height-9)
-	lines := m.logs
-	if len(lines) > avail {
-		lines = lines[len(lines)-avail:]
+	pos := ""
+	if !m.follow {
+		pos = dim.Render(fmt.Sprintf("  %3.0f%%  (scrolled; End follows again)", m.vp.ScrollPercent()*100))
 	}
-	w := max(20, m.width-4)
-	var body strings.Builder
-	for i, l := range lines {
-		if len(l) > w {
-			l = l[:w]
-		}
-		if strings.Contains(l, "level=ERROR") || strings.Contains(l, "level=WARN") {
-			l = warn.Render(l)
-		}
-		body.WriteString(l)
-		if i < len(lines)-1 {
-			body.WriteString("\n")
-		}
-	}
-	_ = unit
-	b.WriteString(panel.Width(max(24, m.width-2)).Render(body.String()) + "\n")
+	b.WriteString(panel.Render(m.vp.View()) + pos + "\n")
 	return b.String()
 }
 
