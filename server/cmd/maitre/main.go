@@ -74,6 +74,8 @@ func main() {
 		err = runUpdate(os.Args[2:])
 	case "netboot":
 		err = runNetboot(os.Args[2:])
+	case "tui":
+		err = runTUI(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -85,7 +87,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update|netboot> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update|netboot|tui> [flags]")
 }
 
 func runDev(args []string) error {

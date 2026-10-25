@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"slices"
 	"sort"
@@ -120,6 +122,7 @@ func runDepotServe(args []string) error {
 	bootImage := fs.String("boot-image", "maitre-server:dev", "Depot image the netbooted Installer installs (name:tag)")
 	iface := fs.String("interface", "", "interface to answer PXE on (default: the one with the LAN address)")
 	serial := fs.Bool("serial", false, "netbooted machines also get a serial console on ttyS0 (for QEMU; real machines without one must not)")
+	rebuild := fs.String("rebuild", "", "command run (with sh -c) when Enter is pressed, e.g. 'make image publish'; the registry keeps serving meanwhile")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -220,10 +223,53 @@ func runDepotServe(args []string) error {
 		}
 	}
 	fmt.Println()
+	if *rebuild != "" {
+		fmt.Printf("  Press Enter to rebuild and republish (%s).\n\n", *rebuild)
+		go rebuildOnEnter(ctx, log, *rebuild, func() {
+			if ref != "" {
+				_ = depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial})
+			}
+			imgs, _ := (&depot.Registry{Dir: l.Images()}).Images()
+			for n, tags := range imgs {
+				for _, t := range tags {
+					fmt.Printf("  Update a Node to: %s:%d/%s:%s\n", ip, port, n, t)
+				}
+			}
+			fmt.Printf("\n  Press Enter to rebuild again.\n\n")
+		})
+	}
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
+}
+
+// rebuildOnEnter runs cmd each time a line arrives on stdin, as the user
+// who invoked sudo when the Depot runs elevated for netboot (image builds
+// belong to the user's podman, not root's).
+func rebuildOnEnter(ctx context.Context, log *slog.Logger, cmd string, done func()) {
+	sc := bufio.NewScanner(os.Stdin)
+	for sc.Scan() {
+		if ctx.Err() != nil {
+			return
+		}
+		started := time.Now()
+		fmt.Printf("\n  Rebuilding: %s\n\n", cmd)
+		var c *exec.Cmd
+		if os.Getuid() == 0 && os.Getenv("SUDO_USER") != "" {
+			c = exec.CommandContext(ctx, "sudo", "-u", os.Getenv("SUDO_USER"), "-H", "--", "sh", "-c", cmd)
+		} else {
+			c = exec.CommandContext(ctx, "sh", "-c", cmd)
+		}
+		c.Stdout, c.Stderr = os.Stdout, os.Stderr
+		if err := c.Run(); err != nil {
+			log.Error("rebuild failed", "err", err)
+			fmt.Printf("\n  Rebuild failed after %s. Press Enter to try again.\n\n", time.Since(started).Round(time.Second))
+			continue
+		}
+		fmt.Printf("\n  Rebuilt and republished in %s.\n", time.Since(started).Round(time.Second))
+		done()
+	}
 }
 
 func logging(log *slog.Logger, next http.Handler) http.Handler {

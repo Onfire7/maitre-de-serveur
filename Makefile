@@ -72,7 +72,7 @@ publish: build ## Publish the local image build into the Depot as maitre-server:
 	./server/bin/maitre depot publish localhost/maitre-server:$(VERSION) --tag $(TAG) $(if $(NETBOOT),--netboot)
 
 depot: build ## Serve the Depot (image registry + netboot files) to Nodes on the LAN (NETBOOT=1 answers PXE, asks for sudo; SERIAL=1 gives netbooted VMs a serial console)
-	$(if $(NETBOOT),sudo ./server/bin/maitre depot serve --netboot --dir $(HOME)/.maitre/depot,./server/bin/maitre depot serve) $(if $(SERIAL),--serial)
+	$(if $(NETBOOT),sudo ./server/bin/maitre depot serve --netboot --dir $(HOME)/.maitre/depot,./server/bin/maitre depot serve) $(if $(SERIAL),--serial) --rebuild "$(MAKE) -C $(CURDIR) image publish NETBOOT=$(NETBOOT) TAG=$(TAG)"
 
 image-boot: build ## Install from the image in QEMU and reboot into a Node (needs rootful podman, qemu, KVM)
 	MAITRE=./server/bin/maitre ./image/boot-test.sh localhost/maitre-server:$(VERSION)

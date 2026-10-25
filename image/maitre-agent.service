@@ -16,13 +16,17 @@ Type=simple
 ExecStart=/usr/bin/maitre agent --state /var/lib/maitre
 Restart=always
 RestartSec=2
-# Status text (stdout) goes to the monitor; logs (stderr) go to the journal
-# and the console so the QEMU boot test can read them on the serial line.
+# The screen (decision 72): the agent owns tty1, keyboard included, and
+# draws its text interface there. Logs go to the journal only; the console
+# would scribble over the screen.
+StandardInput=tty
 StandardOutput=tty
-StandardError=journal+console
+StandardError=journal
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=TERM=linux
 
 [Install]
 WantedBy=multi-user.target

@@ -99,8 +99,12 @@ DEV="$OUT/device"
 # 4. The machine reboots into the installed Node.
 echo "waiting for the installed node"
 # The installer's own 'listening' line is already in the log; look for the agent's banner.
-wait_for 'msg="maitre agent"' "$TIMEOUT"
-wait_for 'maitre agent.*|listening addr=0.0.0.0:7443' 120
+# The agent owns tty1 and logs only to the journal; wait for it over RPC.
+for _ in $(seq 1 $(( TIMEOUT / 5 ))); do
+  "$MAITRE" info --identity "$OUT/device" --trust "$OUT/device/trusted" --addr 127.0.0.1:17443 >/dev/null 2>&1 && break
+  kill -0 "$QEMU" 2>/dev/null || { echo "boot-test: qemu exited"; tail -80 "$OUT/serial.log"; exit 1; }
+  sleep 5
+done
 sleep 2
 mkdir -p "$DEV/trusted" && cp "$OUT/node.pub" "$DEV/trusted/node.pub"
 for i in $(seq 1 30); do

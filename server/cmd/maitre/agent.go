@@ -6,7 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
+	"golang.org/x/term"
 	"log/slog"
 	"net"
 	"net/http"
@@ -39,6 +39,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
@@ -184,6 +185,7 @@ func runAgent(args []string) error {
 	connecthttp.Mount(mux, rpc)
 
 	mdnsState := "off"
+	started := time.Now()
 	if !*noMDNS {
 		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, listenPort(*listen), map[string]string{
 			"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version,
@@ -196,44 +198,27 @@ func runAgent(args []string) error {
 			mdnsState = "announced as " + self.GetName()
 		}
 	}
-	// The machine's console is a live status page (decision 72): addresses
-	// change after boot and a blank banner told nobody anything.
+	// The machine's console (decision 72 revised): a text interface on tty1
+	// when the keyboard is ours, a plain live status page otherwise.
 	if !*noScreen {
-		started := time.Now()
-		go func() {
-			t := time.NewTicker(2 * time.Second)
-			defer t.Stop()
-			for {
-				var b strings.Builder
-				fmt.Fprintf(&b, "\n%s\n\n  Maître Server %s\n  ─────────────────────────────────────────────\n", ascii.Banner(), version)
-				fmt.Fprintf(&b, "  Node:          %s   in Fleet %q\n", self.GetName(), fleet.GetName())
-				if addrs := installer.Addresses(); len(addrs) == 0 {
-					b.WriteString("  Network:       waiting for a cable and an address...\n")
-				} else {
-					fmt.Fprintf(&b, "  Network:       %s\n", strings.Join(addrs, ", "))
-				}
-				fmt.Fprintf(&b, "  Discovery:     %s\n", mdnsState)
-				fmt.Fprintf(&b, "  Trusted:       %d device(s)\n", list.Len())
-				if specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} }); err == nil {
-					names := make([]string, 0, len(specs))
-					for _, sp := range specs {
-						names = append(names, sp.GetName())
-					}
-					if len(names) == 0 {
-						b.WriteString("  Services:      none yet\n")
-					} else {
-						fmt.Fprintf(&b, "  Services:      %s\n", strings.Join(names, ", "))
-					}
-				}
-				fmt.Fprintf(&b, "  Up:            %s\n\n  Open Maître Desktop on a computer on this network to manage it.\n", time.Since(started).Round(time.Second))
-				fmt.Print("\033[H\033[2J" + b.String())
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.C:
+		src := &agentSource{status: func() tui.Status {
+			names := []string{}
+			if specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} }); err == nil {
+				for _, sp := range specs {
+					names = append(names, sp.GetName())
 				}
 			}
-		}()
+			return tui.Status{Version: version, Node: self.GetName(), Fleet: fleet.GetName(), Addresses: installer.Addresses(), Discovery: mdnsState, Trusted: list.Len(), Services: names, Started: started}
+		}, metrics: svc.Metrics}
+		if term.IsTerminal(int(os.Stdin.Fd())) {
+			go func() {
+				if err := tui.Run(ctx, src); err != nil {
+					log.Warn("screen stopped", "err", err)
+				}
+			}()
+		} else {
+			go plainStatusPage(ctx, src)
+		}
 	}
 	return serve(ctx, log, *listen, peer.Middleware(svcproxy.Handler(st, mux)), mtls.ServerConfig(id, list))
 }
