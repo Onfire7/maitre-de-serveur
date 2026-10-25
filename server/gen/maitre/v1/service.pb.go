@@ -237,7 +237,7 @@ func (x *GetCatalogResponse) GetFetchedUnixMs() int64 {
 // ServiceSpec is the kind "service" Record body: what the user chose.
 type ServiceSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique within the Fleet; also the mDNS name <name>.maitre.local.
+	// Unique within the Fleet; also the mDNS name <name>.local.
 	Name      string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	CatalogId string `protobuf:"bytes,2,opt,name=catalog_id,json=catalogId,proto3" json:"catalog_id,omitempty"`
 	// Image actually deployed, pinned by digest. Auto-update advances it.
@@ -368,7 +368,7 @@ type ServiceStatus struct {
 	Restarts uint32 `protobuf:"varint,4,opt,name=restarts,proto3" json:"restarts,omitempty"`
 	// Human-readable reason when failed.
 	Message string `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
-	// Where the Console opens it, e.g. "http://jellyfin.maitre.local". Empty if headless.
+	// Where the Console opens it, e.g. "http://jellyfin.local". Empty if headless.
 	Url           string `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
 	StartedUnixMs int64  `protobuf:"varint,7,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields

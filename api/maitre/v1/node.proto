@@ -22,7 +22,90 @@ service NodeService {
   rpc PutRecord(PutRecordRequest) returns (PutRecordResponse) {}
   // GetNodeMetrics returns the gauges the Console shows for this Node.
   rpc GetNodeMetrics(GetNodeMetricsRequest) returns (GetNodeMetricsResponse) {}
+  // GetUpdateStatus reports the booted, staged and rollback images (bootc
+  // status) and any update in progress.
+  rpc GetUpdateStatus(GetUpdateStatusRequest) returns (GetUpdateStatusResponse) {}
+  // UpdateImage stages a new Maître Server image (bootc switch) in the
+  // background and returns at once; poll GetUpdateStatus for progress. With
+  // reboot set, the Node reboots into the new image as soon as it is staged.
+  rpc UpdateImage(UpdateImageRequest) returns (UpdateImageResponse) {}
+  // Rollback makes the previous image the next boot target (bootc rollback)
+  // and reboots when asked.
+  rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
+  // Reboot restarts the Node.
+  rpc Reboot(RebootRequest) returns (RebootResponse) {}
 }
+
+message GetUpdateStatusRequest {}
+
+message GetUpdateStatusResponse {
+  UpdateStatus status = 1;
+}
+
+// ImageDeployment is one bootc deployment as the Console shows it.
+message ImageDeployment {
+  // Image reference, e.g. ghcr.io/onfire7/maitre-server:main.
+  string image = 1;
+  // Digest of the manifest that was pulled.
+  string digest = 2;
+  // Version label from the image, if any.
+  string version = 3;
+  // When the image was built (RFC 3339), if the image says.
+  string timestamp = 4;
+}
+
+message UpdateStatus {
+  ImageDeployment booted = 1;
+  // Pulled and queued for the next boot; empty when nothing is staged.
+  ImageDeployment staged = 2;
+  // The previous image, available through Rollback; empty if none.
+  ImageDeployment rollback = 3;
+  // True when Rollback was called and a reboot will boot the rollback image.
+  bool rollback_queued = 4;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // No update running.
+    STATE_IDLE = 1;
+    // bootc switch is downloading and staging the image.
+    STATE_UPDATING = 2;
+    // Last UpdateImage failed; see message.
+    STATE_FAILED = 3;
+    // Staging finished and a reboot was requested; the Node is going down.
+    STATE_REBOOTING = 4;
+  }
+  State state = 5;
+  // Human progress text or the failure reason.
+  string message = 6;
+  // 0..1 download progress while UPDATING, when bootc reports it.
+  double progress = 7;
+  // The image reference the running or last update was asked for.
+  string target = 8;
+  // False when this Node does not run on bootc (dev mode), so none of the
+  // update calls work.
+  bool supported = 9;
+}
+
+message UpdateImageRequest {
+  // Image reference to switch to, e.g. maitre-depot.local:8080/maitre-server:dev.
+  string image = 1;
+  // Reboot into the new image once it is staged.
+  bool reboot = 2;
+  // The registry speaks plain HTTP or has an untrusted certificate (a local
+  // Depot on the LAN). Written to containers-registries.conf for that host.
+  bool insecure_registry = 3;
+}
+
+message UpdateImageResponse {}
+
+message RollbackRequest {
+  bool reboot = 1;
+}
+
+message RollbackResponse {}
+
+message RebootRequest {}
+
+message RebootResponse {}
 
 message GetNodeMetricsRequest {}
 

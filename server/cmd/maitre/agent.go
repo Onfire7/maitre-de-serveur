@@ -39,6 +39,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // Port every Node and Installer listens on.
@@ -111,6 +112,7 @@ func runAgent(args []string) error {
 		}
 	}
 	svc.Metrics = metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir)).Read
+	svc.Updates = update.New(nil, log)
 	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
 	cat := serviceservice.NewCatalog(nil, "")
 	if raw, err := os.ReadFile(*catalogPath); err == nil {

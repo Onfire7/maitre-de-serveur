@@ -63,7 +63,7 @@ export const GetCatalogResponseSchema: GenMessage<GetCatalogResponse> = /*@__PUR
  */
 export type ServiceSpec = Message<"maitre.v1.ServiceSpec"> & {
   /**
-   * Unique within the Fleet; also the mDNS name <name>.maitre.local.
+   * Unique within the Fleet; also the mDNS name <name>.local.
    *
    * @generated from field: string name = 1;
    */
@@ -169,7 +169,7 @@ export type ServiceStatus = Message<"maitre.v1.ServiceStatus"> & {
   message: string;
 
   /**
-   * Where the Console opens it, e.g. "http://jellyfin.maitre.local". Empty if headless.
+   * Where the Console opens it, e.g. "http://jellyfin.local". Empty if headless.
    *
    * @generated from field: string url = 6;
    */

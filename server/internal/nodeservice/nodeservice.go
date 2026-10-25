@@ -12,6 +12,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // Info is the static part of what GetNodeInfo reports.
@@ -33,6 +34,8 @@ type Service struct {
 	OnChange func(*maitrev1.Record)
 	// Metrics supplies GetNodeMetrics; nil means empty readings.
 	Metrics func() *maitrev1.NodeMetrics
+	// Updates drives bootc; nil means this Node cannot update itself (dev mode).
+	Updates *update.Manager
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -116,4 +119,55 @@ func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsReques
 		return &maitrev1.GetNodeMetricsResponse{Metrics: &maitrev1.NodeMetrics{}}, nil
 	}
 	return &maitrev1.GetNodeMetricsResponse{Metrics: s.Metrics()}, nil
+}
+
+// GetUpdateStatus implements NodeService.
+func (s *Service) GetUpdateStatus(ctx context.Context, _ *maitrev1.GetUpdateStatusRequest) (*maitrev1.GetUpdateStatusResponse, error) {
+	if s.Updates == nil {
+		return &maitrev1.GetUpdateStatusResponse{Status: &maitrev1.UpdateStatus{State: maitrev1.UpdateStatus_STATE_IDLE}}, nil
+	}
+	st, err := s.Updates.Status(ctx)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	return &maitrev1.GetUpdateStatusResponse{Status: st}, nil
+}
+
+// UpdateImage implements NodeService.
+func (s *Service) UpdateImage(_ context.Context, req *maitrev1.UpdateImageRequest) (*maitrev1.UpdateImageResponse, error) {
+	if s.Updates == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Node does not run on bootc (dev mode)")
+	}
+	switch err := s.Updates.Start(req.GetImage(), req.GetReboot(), req.GetInsecureRegistry()); {
+	case errors.Is(err, update.ErrBusy):
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
+	case err != nil:
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+	}
+	return &maitrev1.UpdateImageResponse{}, nil
+}
+
+// Rollback implements NodeService.
+func (s *Service) Rollback(ctx context.Context, req *maitrev1.RollbackRequest) (*maitrev1.RollbackResponse, error) {
+	if s.Updates == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Node does not run on bootc (dev mode)")
+	}
+	switch err := s.Updates.Rollback(ctx, req.GetReboot()); {
+	case errors.Is(err, update.ErrBusy):
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
+	case err != nil:
+		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	return &maitrev1.RollbackResponse{}, nil
+}
+
+// Reboot implements NodeService.
+func (s *Service) Reboot(ctx context.Context, _ *maitrev1.RebootRequest) (*maitrev1.RebootResponse, error) {
+	if s.Updates == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Node does not run on bootc (dev mode)")
+	}
+	if err := s.Updates.Reboot(ctx); err != nil {
+		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	return &maitrev1.RebootResponse{}, nil
 }

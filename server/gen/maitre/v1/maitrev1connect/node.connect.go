@@ -32,6 +32,15 @@ const (
 	NodeServicePutRecordProcedure = "/maitre.v1.NodeService/PutRecord"
 	// NodeServiceGetNodeMetricsProcedure is the procedure name of the NodeService's GetNodeMetrics RPC.
 	NodeServiceGetNodeMetricsProcedure = "/maitre.v1.NodeService/GetNodeMetrics"
+	// NodeServiceGetUpdateStatusProcedure is the procedure name of the NodeService's GetUpdateStatus
+	// RPC.
+	NodeServiceGetUpdateStatusProcedure = "/maitre.v1.NodeService/GetUpdateStatus"
+	// NodeServiceUpdateImageProcedure is the procedure name of the NodeService's UpdateImage RPC.
+	NodeServiceUpdateImageProcedure = "/maitre.v1.NodeService/UpdateImage"
+	// NodeServiceRollbackProcedure is the procedure name of the NodeService's Rollback RPC.
+	NodeServiceRollbackProcedure = "/maitre.v1.NodeService/Rollback"
+	// NodeServiceRebootProcedure is the procedure name of the NodeService's Reboot RPC.
+	NodeServiceRebootProcedure = "/maitre.v1.NodeService/Reboot"
 )
 
 var (
@@ -63,6 +72,34 @@ var (
 			Procedure:  NodeServiceGetNodeMetricsProcedure,
 		}
 	})
+	nodeServiceGetUpdateStatusSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("GetUpdateStatus"),
+			Procedure:  NodeServiceGetUpdateStatusProcedure,
+		}
+	})
+	nodeServiceUpdateImageSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("UpdateImage"),
+			Procedure:  NodeServiceUpdateImageProcedure,
+		}
+	})
+	nodeServiceRollbackSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("Rollback"),
+			Procedure:  NodeServiceRollbackProcedure,
+		}
+	})
+	nodeServiceRebootSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("Reboot"),
+			Procedure:  NodeServiceRebootProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -79,6 +116,18 @@ type NodeServiceClient interface {
 	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
 	// GetNodeMetrics returns the gauges the Console shows for this Node.
 	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
+	// GetUpdateStatus reports the booted, staged and rollback images (bootc
+	// status) and any update in progress.
+	GetUpdateStatus(context.Context, *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error)
+	// UpdateImage stages a new Maître Server image (bootc switch) in the
+	// background and returns at once; poll GetUpdateStatus for progress. With
+	// reboot set, the Node reboots into the new image as soon as it is staged.
+	UpdateImage(context.Context, *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error)
+	// Rollback makes the previous image the next boot target (bootc rollback)
+	// and reboots when asked.
+	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
+	// Reboot restarts the Node.
+	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -101,6 +150,18 @@ type NodeServiceHandler interface {
 	PutRecord(context.Context, *v1.PutRecordRequest) (*v1.PutRecordResponse, error)
 	// GetNodeMetrics returns the gauges the Console shows for this Node.
 	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
+	// GetUpdateStatus reports the booted, staged and rollback images (bootc
+	// status) and any update in progress.
+	GetUpdateStatus(context.Context, *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error)
+	// UpdateImage stages a new Maître Server image (bootc switch) in the
+	// background and returns at once; poll GetUpdateStatus for progress. With
+	// reboot set, the Node reboots into the new image as soon as it is staged.
+	UpdateImage(context.Context, *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error)
+	// Rollback makes the previous image the next boot target (bootc rollback)
+	// and reboots when asked.
+	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
+	// Reboot restarts the Node.
+	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -111,6 +172,10 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceListRecordsSpec(), Handler: adapter.listRecords},
 		connect.Method{Spec: nodeServicePutRecordSpec(), Handler: adapter.putRecord},
 		connect.Method{Spec: nodeServiceGetNodeMetricsSpec(), Handler: adapter.getNodeMetrics},
+		connect.Method{Spec: nodeServiceGetUpdateStatusSpec(), Handler: adapter.getUpdateStatus},
+		connect.Method{Spec: nodeServiceUpdateImageSpec(), Handler: adapter.updateImage},
+		connect.Method{Spec: nodeServiceRollbackSpec(), Handler: adapter.rollback},
+		connect.Method{Spec: nodeServiceRebootSpec(), Handler: adapter.reboot},
 	)
 }
 
@@ -131,6 +196,22 @@ func (UnimplementedNodeServiceHandler) PutRecord(context.Context, *v1.PutRecordR
 
 func (UnimplementedNodeServiceHandler) GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetNodeMetrics is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) GetUpdateStatus(context.Context, *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetUpdateStatus is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) UpdateImage(context.Context, *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.UpdateImage is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.Rollback is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.Reboot is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -164,6 +245,38 @@ func (c *nodeServiceClient) PutRecord(ctx context.Context, req *v1.PutRecordRequ
 func (c *nodeServiceClient) GetNodeMetrics(ctx context.Context, req *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error) {
 	var res v1.GetNodeMetricsResponse
 	if err := c.client.CallUnary(ctx, nodeServiceGetNodeMetricsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) GetUpdateStatus(ctx context.Context, req *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error) {
+	var res v1.GetUpdateStatusResponse
+	if err := c.client.CallUnary(ctx, nodeServiceGetUpdateStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) UpdateImage(ctx context.Context, req *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error) {
+	var res v1.UpdateImageResponse
+	if err := c.client.CallUnary(ctx, nodeServiceUpdateImageSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) Rollback(ctx context.Context, req *v1.RollbackRequest) (*v1.RollbackResponse, error) {
+	var res v1.RollbackResponse
+	if err := c.client.CallUnary(ctx, nodeServiceRollbackSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) Reboot(ctx context.Context, req *v1.RebootRequest) (*v1.RebootResponse, error) {
+	var res v1.RebootResponse
+	if err := c.client.CallUnary(ctx, nodeServiceRebootSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -213,6 +326,54 @@ func (h nodeServiceHandler) getNodeMetrics(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.GetNodeMetrics(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) getUpdateStatus(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetUpdateStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetUpdateStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) updateImage(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UpdateImageRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UpdateImage(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) rollback(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RollbackRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Rollback(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) reboot(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RebootRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Reboot(ctx, &req)
 	if err != nil {
 		return err
 	}

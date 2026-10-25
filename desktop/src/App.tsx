@@ -5,6 +5,7 @@ import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./ge
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
 import { ServicesPanel } from "./services";
+import { UpdatePanel } from "./update";
 
 type Screen =
   | { name: "home" }
@@ -541,6 +542,7 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
       )}
       {metrics && <Gauges m={metrics} />}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
+      {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>
   );
