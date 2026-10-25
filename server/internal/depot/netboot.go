@@ -182,11 +182,12 @@ type BootParams struct {
 // GRUB loads the kernel and initramfs over TFTP from the server it was
 // booted from (its HTTP client only speaks to port 80); dracut then fetches
 // the squashed root over HTTP from the Depot's port.
-var grubTemplate = template.Must(template.New("grub.cfg").Parse(`# Written by maitre depot. Boots the Maître Installer from the network.
+// ASCII only in what GRUB prints: its console font has no "î".
+var grubTemplate = template.Must(template.New("grub.cfg").Parse(`# Written by maitre depot. Boots the Maitre Installer from the network.
 set timeout=3
 set default=0
-menuentry "Install Maître Server ({{.Image}})" {
-  echo "Loading the Maître Installer from {{.IP}}..."
+menuentry "Install Maitre Server ({{.Image}})" {
+  echo "Loading the Maitre Installer from {{.IP}}..."
   linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 loglevel=4 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
   initrd /initramfs.img
 }
