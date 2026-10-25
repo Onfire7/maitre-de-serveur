@@ -430,7 +430,9 @@ type UpdateStatus struct {
 	Supported bool `protobuf:"varint,9,opt,name=supported,proto3" json:"supported,omitempty"`
 	// Set when greenboot rolled the last update back because the Node did
 	// not come up healthy; cleared by the next successful update.
-	LastRollback  string `protobuf:"bytes,10,opt,name=last_rollback,json=lastRollback,proto3" json:"last_rollback,omitempty"`
+	LastRollback string `protobuf:"bytes,10,opt,name=last_rollback,json=lastRollback,proto3" json:"last_rollback,omitempty"`
+	// What the staged rollout decided last (Milestone 6), in words.
+	Rollout       string `protobuf:"bytes,11,opt,name=rollout,proto3" json:"rollout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -531,6 +533,13 @@ func (x *UpdateStatus) GetSupported() bool {
 func (x *UpdateStatus) GetLastRollback() string {
 	if x != nil {
 		return x.LastRollback
+	}
+	return ""
+}
+
+func (x *UpdateStatus) GetRollout() string {
+	if x != nil {
+		return x.Rollout
 	}
 	return ""
 }
@@ -1388,7 +1397,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\x88\x04\n" +
+	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\xa2\x04\n" +
 	"\fUpdateStatus\x122\n" +
 	"\x06booted\x18\x01 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06booted\x122\n" +
 	"\x06staged\x18\x02 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06staged\x126\n" +
@@ -1400,7 +1409,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06target\x18\b \x01(\tR\x06target\x12\x1c\n" +
 	"\tsupported\x18\t \x01(\bR\tsupported\x12#\n" +
 	"\rlast_rollback\x18\n" +
-	" \x01(\tR\flastRollback\"i\n" +
+	" \x01(\tR\flastRollback\x12\x18\n" +
+	"\arollout\x18\v \x01(\tR\arollout\"i\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

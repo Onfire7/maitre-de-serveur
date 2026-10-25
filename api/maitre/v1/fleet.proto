@@ -44,6 +44,26 @@ message Node {
   // Last known addresses, most recent first. Advisory; mDNS is the source of truth.
   repeated string addresses = 4;
   int64 provisioned_unix_ms = 5;
+  // What the Node runs (Milestone 6 staged rollout): the booted image's
+  // reference and digest, and when it booted it.
+  string image_ref = 6;
+  string image_digest = 7;
+  int64 booted_unix_ms = 8;
+}
+
+// UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
+// how Maître Server updates roll across the Fleet by themselves.
+message UpdatePolicy {
+  // Check for and apply updates automatically.
+  bool automatic = 1;
+  // Local hours between which updates may start, e.g. 3 to 5.
+  int32 window_start_hour = 2;
+  int32 window_end_hour = 3;
+  // The first Node updates alone; the rest follow after it has run the new
+  // image this long without a rollback.
+  int32 stage_hours = 4;
+  // Hold everything.
+  bool paused = 5;
 }
 
 // TrustedDevice is the kind "trusted_device" record, keyed by device_id

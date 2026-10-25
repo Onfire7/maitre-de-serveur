@@ -112,6 +112,8 @@ message UpdateStatus {
   // Set when greenboot rolled the last update back because the Node did
   // not come up healthy; cleared by the next successful update.
   string last_rollback = 10;
+  // What the staged rollout decided last (Milestone 6), in words.
+  string rollout = 11;
 }
 
 message UpdateImageRequest {

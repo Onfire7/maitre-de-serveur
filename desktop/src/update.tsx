@@ -137,6 +137,7 @@ export function UpdatePanel({ target, onStarted, runningVersion }: { target: Tar
         </tbody>
       </table>
 
+      {status.rollout && <p style={{ color: "#555", fontSize: 13 }}>Automatic updates: {status.rollout}.</p>}
       {status.lastRollback && (
         <p style={{ color: "#b00020", fontSize: 13 }}>
           The last update was rolled back: {status.lastRollback}. The Node is running the image from before it.

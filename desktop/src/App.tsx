@@ -13,6 +13,7 @@ import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
 import { StoragePanel } from "./storage";
 import { TiersPanel, useTiers } from "./tiers";
 import { TailscalePanel, TailscaleRow } from "./tailscale";
+import { UpdatePolicyPanel } from "./policy";
 
 type Screen =
   | { name: "home" }
@@ -299,6 +300,8 @@ function Home({
       <TiersPanel state={state} />
 
       <TailscalePanel state={state} />
+
+      <UpdatePolicyPanel state={state} />
 
       <section>
         <h2>Add a Node</h2>

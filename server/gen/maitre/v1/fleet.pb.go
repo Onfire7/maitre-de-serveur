@@ -198,8 +198,13 @@ type Node struct {
 	// Last known addresses, most recent first. Advisory; mDNS is the source of truth.
 	Addresses         []string `protobuf:"bytes,4,rep,name=addresses,proto3" json:"addresses,omitempty"`
 	ProvisionedUnixMs int64    `protobuf:"varint,5,opt,name=provisioned_unix_ms,json=provisionedUnixMs,proto3" json:"provisioned_unix_ms,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// What the Node runs (Milestone 6 staged rollout): the booted image's
+	// reference and digest, and when it booted it.
+	ImageRef      string `protobuf:"bytes,6,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	ImageDigest   string `protobuf:"bytes,7,opt,name=image_digest,json=imageDigest,proto3" json:"image_digest,omitempty"`
+	BootedUnixMs  int64  `protobuf:"varint,8,opt,name=booted_unix_ms,json=bootedUnixMs,proto3" json:"booted_unix_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
@@ -267,6 +272,110 @@ func (x *Node) GetProvisionedUnixMs() int64 {
 	return 0
 }
 
+func (x *Node) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+func (x *Node) GetImageDigest() string {
+	if x != nil {
+		return x.ImageDigest
+	}
+	return ""
+}
+
+func (x *Node) GetBootedUnixMs() int64 {
+	if x != nil {
+		return x.BootedUnixMs
+	}
+	return 0
+}
+
+// UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
+// how Maître Server updates roll across the Fleet by themselves.
+type UpdatePolicy struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Check for and apply updates automatically.
+	Automatic bool `protobuf:"varint,1,opt,name=automatic,proto3" json:"automatic,omitempty"`
+	// Local hours between which updates may start, e.g. 3 to 5.
+	WindowStartHour int32 `protobuf:"varint,2,opt,name=window_start_hour,json=windowStartHour,proto3" json:"window_start_hour,omitempty"`
+	WindowEndHour   int32 `protobuf:"varint,3,opt,name=window_end_hour,json=windowEndHour,proto3" json:"window_end_hour,omitempty"`
+	// The first Node updates alone; the rest follow after it has run the new
+	// image this long without a rollback.
+	StageHours int32 `protobuf:"varint,4,opt,name=stage_hours,json=stageHours,proto3" json:"stage_hours,omitempty"`
+	// Hold everything.
+	Paused        bool `protobuf:"varint,5,opt,name=paused,proto3" json:"paused,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdatePolicy) Reset() {
+	*x = UpdatePolicy{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdatePolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdatePolicy) ProtoMessage() {}
+
+func (x *UpdatePolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdatePolicy.ProtoReflect.Descriptor instead.
+func (*UpdatePolicy) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *UpdatePolicy) GetAutomatic() bool {
+	if x != nil {
+		return x.Automatic
+	}
+	return false
+}
+
+func (x *UpdatePolicy) GetWindowStartHour() int32 {
+	if x != nil {
+		return x.WindowStartHour
+	}
+	return 0
+}
+
+func (x *UpdatePolicy) GetWindowEndHour() int32 {
+	if x != nil {
+		return x.WindowEndHour
+	}
+	return 0
+}
+
+func (x *UpdatePolicy) GetStageHours() int32 {
+	if x != nil {
+		return x.StageHours
+	}
+	return 0
+}
+
+func (x *UpdatePolicy) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
 // TrustedDevice is the kind "trusted_device" record, keyed by device_id
 // (its key fingerprint). The Recovery Phrase appears here as a device whose
 // `recovery_only` flag limits it to approving other devices.
@@ -283,7 +392,7 @@ type TrustedDevice struct {
 
 func (x *TrustedDevice) Reset() {
 	*x = TrustedDevice{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -295,7 +404,7 @@ func (x *TrustedDevice) String() string {
 func (*TrustedDevice) ProtoMessage() {}
 
 func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -308,7 +417,7 @@ func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustedDevice.ProtoReflect.Descriptor instead.
 func (*TrustedDevice) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *TrustedDevice) GetDeviceId() string {
@@ -362,13 +471,23 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x05Fleet\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\xa7\x01\n" +
+	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\x8d\x02\n" +
 	"\x04Node\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
 	"\x0epublic_key_pem\x18\x03 \x01(\tR\fpublicKeyPem\x12\x1c\n" +
 	"\taddresses\x18\x04 \x03(\tR\taddresses\x12.\n" +
-	"\x13provisioned_unix_ms\x18\x05 \x01(\x03R\x11provisionedUnixMs\"\xaf\x01\n" +
+	"\x13provisioned_unix_ms\x18\x05 \x01(\x03R\x11provisionedUnixMs\x12\x1b\n" +
+	"\timage_ref\x18\x06 \x01(\tR\bimageRef\x12!\n" +
+	"\fimage_digest\x18\a \x01(\tR\vimageDigest\x12$\n" +
+	"\x0ebooted_unix_ms\x18\b \x01(\x03R\fbootedUnixMs\"\xb9\x01\n" +
+	"\fUpdatePolicy\x12\x1c\n" +
+	"\tautomatic\x18\x01 \x01(\bR\tautomatic\x12*\n" +
+	"\x11window_start_hour\x18\x02 \x01(\x05R\x0fwindowStartHour\x12&\n" +
+	"\x0fwindow_end_hour\x18\x03 \x01(\x05R\rwindowEndHour\x12\x1f\n" +
+	"\vstage_hours\x18\x04 \x01(\x05R\n" +
+	"stageHours\x12\x16\n" +
+	"\x06paused\x18\x05 \x01(\bR\x06paused\"\xaf\x01\n" +
 	"\rTrustedDevice\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
@@ -388,12 +507,13 @@ func file_maitre_v1_fleet_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_fleet_proto_rawDescData
 }
 
-var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_maitre_v1_fleet_proto_goTypes = []any{
 	(*Record)(nil),        // 0: maitre.v1.Record
 	(*Fleet)(nil),         // 1: maitre.v1.Fleet
 	(*Node)(nil),          // 2: maitre.v1.Node
-	(*TrustedDevice)(nil), // 3: maitre.v1.TrustedDevice
+	(*UpdatePolicy)(nil),  // 3: maitre.v1.UpdatePolicy
+	(*TrustedDevice)(nil), // 4: maitre.v1.TrustedDevice
 }
 var file_maitre_v1_fleet_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -414,7 +534,7 @@ func file_maitre_v1_fleet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_fleet_proto_rawDesc), len(file_maitre_v1_fleet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

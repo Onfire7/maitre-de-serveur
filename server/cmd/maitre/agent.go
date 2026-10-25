@@ -39,6 +39,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/remote"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
@@ -206,6 +207,25 @@ func runAgent(args []string) error {
 	}
 	svc.Metrics = metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir)).Read
 	svc.Updates = update.New(nil, log)
+	// Milestone 6: record what this Node runs, for the staged rollout, and
+	// let the rollout runner act on the Fleet's policy every hour.
+	current := func() (string, string) {
+		st, err := svc.Updates.Status(ctx)
+		if err != nil || st.GetBooted() == nil {
+			return "", ""
+		}
+		return st.GetBooted().GetImage(), st.GetBooted().GetDigest()
+	}
+	if ref, digest := current(); ref != "" && (self.GetImageDigest() != digest || self.GetImageRef() != ref) {
+		self.ImageRef, self.ImageDigest, self.BootedUnixMs = ref, digest, time.Now().UnixMilli()
+		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err != nil {
+			log.Warn("own node record", "err", err)
+		}
+	}
+	ro := rollout.New(st, svc.Updates, log, id.Fingerprint())
+	ro.Current = current
+	svc.Rollout = func() string { return ro.Last.Reason }
+	go ro.Run(ctx)
 	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
 	cat := serviceservice.NewCatalog(nil, "")
 	if raw, err := os.ReadFile(*catalogPath); err == nil {

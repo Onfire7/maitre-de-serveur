@@ -46,6 +46,8 @@ type Service struct {
 	Limited func(fingerprint string) bool
 	// Tailscale reports the Node's tsnet state; nil when not joined.
 	Tailscale func() *maitrev1.TailscaleStatus
+	// Rollout reports the staged rollout's last decision; nil if none.
+	Rollout func() string
 }
 
 // Peers is what the sync layer offers this service (implemented by
@@ -97,7 +99,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale":
+	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale", "update_policy":
 		return true
 	}
 	return false
@@ -246,6 +248,9 @@ func (s *Service) GetUpdateStatus(ctx context.Context, _ *maitrev1.GetUpdateStat
 	st, err := s.Updates.Status(ctx)
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	if s.Rollout != nil {
+		st.Rollout = s.Rollout()
 	}
 	return &maitrev1.GetUpdateStatusResponse{Status: st}, nil
 }

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMibQoETm9kZRIPCgdub2RlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSEQoJYWRkcmVzc2VzGAQgAygJEhsKE3Byb3Zpc2lvbmVkX3VuaXhfbXMYBSABKAMidgoNVHJ1c3RlZERldmljZRIRCglkZXZpY2VfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5wdWJsaWNfa2V5X3BlbRgDIAEoCRIVCg1yZWNvdmVyeV9vbmx5GAQgASgIEhUKDWFkZGVkX3VuaXhfbXMYBSABKANCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMirgEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMiegoMVXBkYXRlUG9saWN5EhEKCWF1dG9tYXRpYxgBIAEoCBIZChF3aW5kb3dfc3RhcnRfaG91chgCIAEoBRIXCg93aW5kb3dfZW5kX2hvdXIYAyABKAUSEwoLc3RhZ2VfaG91cnMYBCABKAUSDgoGcGF1c2VkGAUgASgIInYKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -143,6 +143,24 @@ export type Node = Message<"maitre.v1.Node"> & {
    * @generated from field: int64 provisioned_unix_ms = 5;
    */
   provisionedUnixMs: bigint;
+
+  /**
+   * What the Node runs (Milestone 6 staged rollout): the booted image's
+   * reference and digest, and when it booted it.
+   *
+   * @generated from field: string image_ref = 6;
+   */
+  imageRef: string;
+
+  /**
+   * @generated from field: string image_digest = 7;
+   */
+  imageDigest: string;
+
+  /**
+   * @generated from field: int64 booted_unix_ms = 8;
+   */
+  bootedUnixMs: bigint;
 };
 
 /**
@@ -151,6 +169,55 @@ export type Node = Message<"maitre.v1.Node"> & {
  */
 export const NodeSchema: GenMessage<Node> = /*@__PURE__*/
   messageDesc(file_maitre_v1_fleet, 2);
+
+/**
+ * UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
+ * how Maître Server updates roll across the Fleet by themselves.
+ *
+ * @generated from message maitre.v1.UpdatePolicy
+ */
+export type UpdatePolicy = Message<"maitre.v1.UpdatePolicy"> & {
+  /**
+   * Check for and apply updates automatically.
+   *
+   * @generated from field: bool automatic = 1;
+   */
+  automatic: boolean;
+
+  /**
+   * Local hours between which updates may start, e.g. 3 to 5.
+   *
+   * @generated from field: int32 window_start_hour = 2;
+   */
+  windowStartHour: number;
+
+  /**
+   * @generated from field: int32 window_end_hour = 3;
+   */
+  windowEndHour: number;
+
+  /**
+   * The first Node updates alone; the rest follow after it has run the new
+   * image this long without a rollback.
+   *
+   * @generated from field: int32 stage_hours = 4;
+   */
+  stageHours: number;
+
+  /**
+   * Hold everything.
+   *
+   * @generated from field: bool paused = 5;
+   */
+  paused: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.UpdatePolicy.
+ * Use `create(UpdatePolicySchema)` to create a new message.
+ */
+export const UpdatePolicySchema: GenMessage<UpdatePolicy> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 3);
 
 /**
  * TrustedDevice is the kind "trusted_device" record, keyed by device_id
@@ -191,5 +258,5 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
  * Use `create(TrustedDeviceSchema)` to create a new message.
  */
 export const TrustedDeviceSchema: GenMessage<TrustedDevice> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 3);
+  messageDesc(file_maitre_v1_fleet, 4);
 
