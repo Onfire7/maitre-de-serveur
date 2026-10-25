@@ -120,6 +120,23 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 			return nil, connect.NewError(connect.CodeInvalidArgument, "a full (not recovery-only) Trusted Device with a key is required")
 		}
 	}
+	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && in.GetDeleted() {
+		// Removing a Node from the Fleet (guard on the Console side): a
+		// tombstone in the Node's own name, so it wins everywhere.
+		rec, err := s.store.Tombstone(ctx, store.KindNode, in.GetId())
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, connect.NewError(connect.CodeNotFound, "no such Node")
+		} else if err != nil {
+			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+		}
+		if s.OnChange != nil {
+			s.OnChange(rec)
+		}
+		if s.Peers != nil {
+			s.Peers.Push(context.WithoutCancel(ctx), rec)
+		}
+		return &maitrev1.PutRecordResponse{Record: rec}, nil
+	}
 	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && !in.GetDeleted() {
 		var n maitrev1.Node
 		if err := proto.Unmarshal(in.GetBody(), &n); err != nil || n.GetNodeId() != in.GetId() || n.GetPublicKeyPem() == "" {

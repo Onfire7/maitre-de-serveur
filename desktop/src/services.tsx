@@ -42,6 +42,7 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
   const [installing, setInstalling] = useState<CatalogEntry | null>(null);
   const [open, setOpen] = useState<{ name: string; url: string } | null>(null);
   const [logsFor, setLogsFor] = useState<{ name: string; lines: string[] } | null>(null);
+  const [removing, setRemoving] = useState<ServiceStatus | null>(null);
   // Milestone 3: a Service record whose version moved while this Console
   // did not write it was changed from another device (or Node); say so.
   const [notice, setNotice] = useState("");
@@ -142,13 +143,7 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
                 >
                   Logs
                 </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Remove ${s.spec?.name}? Its data stays on the Node's Pool.`)) control(s.spec!.name, ControlServiceRequest_Action.REMOVE);
-                  }}
-                >
-                  Remove
-                </button>
+                <button onClick={() => setRemoving(s)}>Remove</button>
               </div>
             </li>
           ))}
@@ -184,6 +179,22 @@ export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: 
         </ul>
       </section>
 
+      {removing && (
+        <RemoveDialog
+          s={removing}
+          onCancel={() => setRemoving(null)}
+          onRemove={async (deleteData) => {
+            setRemoving(null);
+            try {
+              lastWrite.current = Date.now();
+              await client.controlService({ name: removing.spec!.name, action: ControlServiceRequest_Action.REMOVE, deleteData });
+              await refresh();
+            } catch (e) {
+              setError(String(e));
+            }
+          }}
+        />
+      )}
       {installing && (
         <InstallDialog
           entry={installing}
@@ -290,6 +301,44 @@ function InstallDialog({
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
           <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers)}>
             Install
+          </button>
+          <button onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The guard (Milestone 4): deleting data needs the Service's name typed back. */
+function RemoveDialog({ s, onCancel, onRemove }: { s: ServiceStatus; onCancel: () => void; onRemove: (deleteData: boolean) => void }) {
+  const [deleteData, setDeleteData] = useState(false);
+  const [typed, setTyped] = useState("");
+  const name = s.spec?.name ?? "";
+  const volumes = s.spec?.volumes ?? [];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 480 }}>
+        <h3 style={{ marginTop: 0 }}>Remove {name}</h3>
+        <p>The Service stops and its container goes away. Its data stays on the Pool unless you choose otherwise.</p>
+        <label>
+          <input type="checkbox" checked={deleteData} onChange={(e) => setDeleteData(e.target.checked)} /> Also delete its data
+        </label>
+        {deleteData && (
+          <div style={{ color: "#b00020", fontSize: 13, marginTop: 8 }}>
+            <b>This cannot be undone.</b> Gone for good:
+            <ul>
+              {volumes.map((v) => (
+                <li key={v.name}>
+                  {v.name} on Tier {s.spec?.volumeTiers[v.name] ?? "default"}
+                </li>
+              ))}
+            </ul>
+            Type <code>{name}</code> to confirm: <input value={typed} onChange={(e) => setTyped(e.target.value)} style={{ width: 200 }} />
+          </div>
+        )}
+        <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+          <button disabled={deleteData && typed.trim() !== name} onClick={() => onRemove(deleteData)}>
+            {deleteData ? "Remove and delete data" : "Remove, keep data"}
           </button>
           <button onClick={onCancel}>Cancel</button>
         </div>

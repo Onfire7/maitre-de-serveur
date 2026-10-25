@@ -292,6 +292,15 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 			return nil, err
 		}
 		if req.GetDeleteData() && m.cfg.PoolDir != "" {
+			// Every volume, on whichever Tier's Pool it lives.
+			for _, v := range spec.GetVolumes() {
+				base := m.cfg.PoolDir
+				if tier := spec.GetVolumeTiers()[v.GetName()]; tier != "" && tier != "default" {
+					base = filepath.Join(filepath.Dir(m.cfg.PoolDir), tier)
+				}
+				_ = os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName()))
+				_ = os.Remove(filepath.Join(base, spec.GetName()))
+			}
 			if err := os.RemoveAll(filepath.Join(m.cfg.PoolDir, spec.Name)); err != nil {
 				return nil, err
 			}

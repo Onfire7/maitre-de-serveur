@@ -113,6 +113,23 @@ VALUES (?, ?, ?, 0, ?, ?, 0)`, KindNode, node.GetNodeId(), node.GetNodeId(), s.n
 	return n > 0, nil
 }
 
+// Tombstone deletes (kind, id) on behalf of its owner: the owner stays, the
+// version advances, so every Node applies it even against the owner's own
+// later writes. For removing a Node that is gone for good (Milestone 4
+// guard): its Record is owned by itself and nobody else could delete it.
+func (s *Store) Tombstone(ctx context.Context, kind, id string) (*maitrev1.Record, error) {
+	cur, err := s.getRaw(ctx, kind, id)
+	if err != nil {
+		return nil, err
+	}
+	rec := &maitrev1.Record{Kind: kind, Id: id, OwnerNodeId: cur.OwnerNodeId, Version: cur.Version + 1, UpdatedUnixMs: s.now().UnixMilli(), Body: []byte{}, Deleted: true}
+	if _, err := s.db.ExecContext(ctx, `UPDATE records SET version=?, updated_unix_ms=?, body=?, deleted=1 WHERE kind=? AND id=?`,
+		rec.Version, rec.UpdatedUnixMs, rec.Body, kind, id); err != nil {
+		return nil, err
+	}
+	return rec, nil
+}
+
 // Owner returns who owns (kind, id), or "" if the Record does not exist.
 func (s *Store) Owner(ctx context.Context, kind, id string) (string, error) {
 	var owner string

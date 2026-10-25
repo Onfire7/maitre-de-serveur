@@ -265,6 +265,7 @@ function Home({
               live={found.find((f) => f.kind === "node" && f.id === n.node_id)}
               onOpen={(addr) => onOpen({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
               onForget={() => onForget(n)}
+              state={state}
               onAddress={(addr) => onAddDev({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
             />
           ))}
@@ -335,8 +336,10 @@ function NodeRow({
   onOpen,
   onForget,
   onAddress,
+  state,
 }: {
   node: KnownNode;
+  state: ConsoleState;
   live?: Found;
   /** Called with the address that answered (or the one being tried). */
   onOpen: (addr: string) => void;
@@ -346,6 +349,7 @@ function NodeRow({
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [manual, setManual] = useState("");
   // The stored address (which a manual entry overrides) is tried first;
   // discovery is the fallback, since it can be wrong too.
@@ -388,7 +392,9 @@ function NodeRow({
         </div>
       </div>
       <div>
-        <button onClick={() => onOpen(addr)}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button> <button onClick={onForget}>Forget</button>
+        <button onClick={() => onOpen(addr)}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button>{" "}
+        <button onClick={() => setRemoving(true)}>Remove…</button>
+        {removing && <RemoveNodeDialog node={node} state={state} onCancel={() => setRemoving(false)} onForget={onForget} />}
         {editing && (
           <div style={{ marginTop: 4 }}>
             <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="192.168.4.80:7443" style={{ width: 180 }} />{" "}
@@ -406,6 +412,74 @@ function NodeRow({
         )}
       </div>
     </li>
+  );
+}
+
+/** The guard (Milestone 4): removing a Node names what becomes unavailable and needs its name typed. */
+function RemoveNodeDialog({ node, state, onCancel, onForget }: { node: KnownNode; state: ConsoleState; onCancel: () => void; onForget: () => void }) {
+  const [services, setServices] = useState<string[] | null>(null);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    (async () => {
+      for (const n of state.nodes)
+        for (const a of n.addresses) {
+          try {
+            const recs = (await createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id })).listRecords({ kind: "service" })).records;
+            setServices(recs.filter((r) => !r.deleted && r.ownerNodeId === node.node_id).map((r) => r.id));
+            return;
+          } catch {
+            /* next */
+          }
+        }
+      setServices([]);
+    })();
+  }, [node.node_id]);
+  async function remove() {
+    // Forget here always; remove from the Fleet through any Node that answers.
+    for (const n of state.nodes.filter((x) => x.node_id !== node.node_id))
+      for (const a of n.addresses) {
+        try {
+          await createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id })).putRecord({ record: { kind: "node", id: node.node_id, deleted: true } });
+          onForget();
+          return;
+        } catch (e) {
+          setError(String(e));
+        }
+      }
+    onForget();
+  }
+  const other = state.nodes.length > 1;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 480 }}>
+        <h3 style={{ marginTop: 0 }}>Remove {node.name} from the Fleet</h3>
+        {other ? (
+          <p>The other Nodes stop trusting it and forget it. Reinstall it to bring it back.</p>
+        ) : (
+          <p>It is the only Node, so this only forgets it on this computer.</p>
+        )}
+        {services === null ? (
+          <p style={{ color: "#555" }}>Checking what runs on it…</p>
+        ) : services.length > 0 ? (
+          <div style={{ color: "#b00020", fontSize: 13 }}>
+            Services that become unavailable: <b>{services.join(", ")}</b>. Their data stays on that machine's Drives.
+          </div>
+        ) : (
+          <p style={{ color: "#555", fontSize: 13 }}>No Services run on it.</p>
+        )}
+        {error && <ErrorBox>{error}</ErrorBox>}
+        <p>
+          Type <code>{node.name}</code> to confirm: <input value={typed} onChange={(e) => setTyped(e.target.value)} style={{ width: 200 }} />
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button disabled={typed.trim() !== node.name || services === null} onClick={remove}>
+            Remove
+          </button>
+          <button onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
