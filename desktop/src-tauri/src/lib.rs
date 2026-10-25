@@ -1,5 +1,6 @@
 mod discovery;
 pub mod identity;
+mod media;
 mod netboot;
 mod pairing;
 pub mod proxy;
@@ -75,6 +76,7 @@ struct AppState {
     clients: Mutex<HashMap<String, reqwest::Client>>,
     discovery: Discovery,
     netboot: netboot::Netboot,
+    media: media::Media,
 }
 
 impl AppState {
@@ -303,6 +305,32 @@ async fn recover_with_phrase(_state: State<'_, AppState>, phrase: String, addr: 
     Ok(pem)
 }
 
+#[tauri::command]
+fn media_image(state: State<'_, AppState>) -> media::ImageStatus {
+    media::Media::image_status(&state.data_dir)
+}
+
+#[tauri::command]
+async fn media_download(app: tauri::AppHandle, state: State<'_, AppState>, url: String) -> Result<media::ImageStatus, String> {
+    media::Media::download(app, state.data_dir.clone(), url).await
+}
+
+#[tauri::command]
+fn media_disks() -> Result<Vec<media::Disk>, String> {
+    media::Media::list(&netboot::Netboot::helper_path()?)
+}
+
+#[tauri::command]
+fn media_write(app: tauri::AppHandle, state: State<'_, AppState>, device: String) -> Result<(), String> {
+    let helper = netboot::Netboot::helper_path()?;
+    state.media.write(app, &state.data_dir, &helper, device, netboot::elevated)
+}
+
+#[tauri::command]
+fn media_status(state: State<'_, AppState>) -> media::WriteStatus {
+    state.media.status()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -324,6 +352,7 @@ pub fn run() {
                 clients: Mutex::new(HashMap::new()),
                 discovery: Discovery::start(),
                 netboot: netboot::Netboot::default(),
+                media: media::Media::default(),
             });
             Ok(())
         })
@@ -340,6 +369,11 @@ pub fn run() {
             announce_join,
             withdraw_join,
             recover_with_phrase,
+            media_image,
+            media_download,
+            media_disks,
+            media_write,
+            media_status,
             netboot_files,
             netboot_download,
             netboot_start,

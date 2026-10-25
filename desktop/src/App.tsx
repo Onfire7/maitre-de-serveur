@@ -14,6 +14,7 @@ import { StoragePanel } from "./storage";
 import { TiersPanel, useTiers } from "./tiers";
 import { TailscalePanel, TailscaleRow } from "./tailscale";
 import { UpdatePolicyPanel } from "./policy";
+import { MediaPanel } from "./media";
 
 type Screen =
   | { name: "home" }
@@ -306,6 +307,7 @@ function Home({
       <section>
         <h2>Add a Node</h2>
         <NetbootPanel />
+        <MediaPanel />
         {installers.length === 0 ? (
           <p style={{ color: "#555" }}>Looking for machines booted from the installer… none found on this network yet.</p>
         ) : (

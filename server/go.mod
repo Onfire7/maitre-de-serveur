@@ -12,6 +12,7 @@ require (
 	github.com/holoplot/go-avahi v1.1.0
 	github.com/insomniacslk/dhcp v0.0.0-20261014062924-c6bb46ad3f3a
 	github.com/pin/tftp/v3 v3.2.0
+	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/term v0.47.0

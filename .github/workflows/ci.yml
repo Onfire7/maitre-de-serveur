@@ -66,6 +66,28 @@ jobs:
       - run: cd desktop/src-tauri && cargo test --lib
       - run: cd desktop && pnpm tauri build --no-bundle
 
+  # aarch64 image: built and pushed, not boot-tested, not released (Milestone 7).
+  image-arm64:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - run: make image VERSION=${{ github.sha }}-arm64
+      - if: github.event_name == 'push'
+        run: |
+          set -eu
+          OWNER=${{ github.repository_owner }}; REF=ghcr.io/${OWNER,,}/maitre-server
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman tag localhost/maitre-server:${{ github.sha }}-arm64 "$REF:main-arm64"
+          podman push "$REF:main-arm64"
+
   m0-check:
     runs-on: ubuntu-latest
     needs: [server]
@@ -124,6 +146,8 @@ jobs:
           image/installer-media.sh localhost/maitre-server:${{ github.sha }} "$REF:${{ github.sha }}" "$PWD/media" \
             console=ttyS0,115200n8 console=tty0
           mv "$(find media -name '*.qcow2' | head -1)" media/maitre-installer.qcow2
+          # Raw image for USB sticks (Milestone 7: the Console writes it).
+          qemu-img convert -O raw media/maitre-installer.qcow2 media/maitre-installer.img && xz -T0 -3 media/maitre-installer.img
           echo "$REF:${{ github.sha }}" > media/image-ref.txt
           # Ship the firmware that booted this media in the boot test (edk2 202505+ faults in GRUB).
           sudo apt-get install -y ovmf >/dev/null
@@ -138,6 +162,7 @@ jobs:
           name: installer-media
           path: |
             media/maitre-installer.qcow2
+            media/maitre-installer.img.xz
             media/image-ref.txt
             media/OVMF_CODE.fd
             media/OVMF_VARS.fd
@@ -157,4 +182,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${GITHUB_REF_NAME}" --title "Maître Server ${GITHUB_REF_NAME}" --notes "Image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/maitre-server:${{ github.sha }}" || true
-          gh release upload "${GITHUB_REF_NAME}" depot/boot/* media/maitre-installer.qcow2 --clobber
+          gh release upload "${GITHUB_REF_NAME}" depot/boot/* media/maitre-installer.qcow2 media/maitre-installer.img.xz --clobber

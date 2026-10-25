@@ -179,7 +179,7 @@ impl Netboot {
 
     /// The bundled helper: next to our executable in a bundle (Tauri copies
     /// externalBin there, also for `tauri dev`), or MAITRE_BIN in development.
-    fn helper_path() -> Result<PathBuf, String> {
+    pub fn helper_path() -> Result<PathBuf, String> {
         if let Ok(p) = std::env::var("MAITRE_BIN") {
             if Path::new(&p).exists() {
                 return Ok(PathBuf::from(p));
@@ -261,7 +261,7 @@ impl Netboot {
 }
 
 /// Run the helper with administrator rights, the way each OS does it.
-fn elevated(helper: &Path, args: &[String]) -> Result<Child, String> {
+pub fn elevated(helper: &Path, args: &[String]) -> Result<Child, String> {
     #[cfg(target_os = "linux")]
     {
         let mut cmd = Command::new("pkexec");
