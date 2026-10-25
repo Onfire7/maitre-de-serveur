@@ -53,6 +53,7 @@ func runAgent(args []string) error {
 	listen := fs.String("listen", fmt.Sprintf("0.0.0.0:%d", port), "address to listen on")
 	noMDNS := fs.Bool("no-mdns", false, "do not advertise on mDNS")
 	catalogPath := fs.String("catalog", "/usr/share/maitre/catalog.json", "Catalog index baked into the image")
+	noScreen := fs.Bool("no-screen", false, "do not draw the status page on stdout")
 	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
 	poolDir := fs.String("pool", pool.DefaultPool, "default Pool directory for Service volumes")
 	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
@@ -181,19 +182,58 @@ func runAgent(args []string) error {
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 
+	mdnsState := "off"
 	if !*noMDNS {
 		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, listenPort(*listen), map[string]string{
 			"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version,
 		})
 		if err != nil {
 			log.Warn("mDNS advertisement unavailable", "err", err)
+			mdnsState = "not announced: " + err.Error()
 		} else {
 			defer ad.Close()
+			mdnsState = "announced as " + self.GetName()
 		}
 	}
-	// The end of startup, on the machine's console (decision 72).
-	fmt.Printf("\n%s\n\n  Maître Server %s\n  Node %q in Fleet %q\n  Address: %s\n  Open Maître Desktop on a computer on this network to manage it.\n\n",
-		ascii.Banner(), version, self.GetName(), fleet.GetName(), strings.Join(installer.Addresses(), ", "))
+	// The machine's console is a live status page (decision 72): addresses
+	// change after boot and a blank banner told nobody anything.
+	if !*noScreen {
+		started := time.Now()
+		go func() {
+			t := time.NewTicker(2 * time.Second)
+			defer t.Stop()
+			for {
+				var b strings.Builder
+				fmt.Fprintf(&b, "\n%s\n\n  Maître Server %s\n  ─────────────────────────────────────────────\n", ascii.Banner(), version)
+				fmt.Fprintf(&b, "  Node:          %s   in Fleet %q\n", self.GetName(), fleet.GetName())
+				if addrs := installer.Addresses(); len(addrs) == 0 {
+					b.WriteString("  Network:       waiting for a cable and an address...\n")
+				} else {
+					fmt.Fprintf(&b, "  Network:       %s\n", strings.Join(addrs, ", "))
+				}
+				fmt.Fprintf(&b, "  Discovery:     %s\n", mdnsState)
+				fmt.Fprintf(&b, "  Trusted:       %d device(s)\n", list.Len())
+				if specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} }); err == nil {
+					names := make([]string, 0, len(specs))
+					for _, sp := range specs {
+						names = append(names, sp.GetName())
+					}
+					if len(names) == 0 {
+						b.WriteString("  Services:      none yet\n")
+					} else {
+						fmt.Fprintf(&b, "  Services:      %s\n", strings.Join(names, ", "))
+					}
+				}
+				fmt.Fprintf(&b, "  Up:            %s\n\n  Open Maître Desktop on a computer on this network to manage it.\n", time.Since(started).Round(time.Second))
+				fmt.Print("\033[H\033[2J" + b.String())
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+				}
+			}
+		}()
+	}
 	return serve(ctx, log, *listen, peer.Middleware(svcproxy.Handler(st, mux)), mtls.ServerConfig(id, list))
 }
 

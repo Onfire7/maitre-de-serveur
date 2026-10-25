@@ -22,7 +22,7 @@ kill $INST_PID; wait $INST_PID 2>/dev/null || true
 
 test -f "$STATE/config/node/identity.key" && test -f "$STATE/config/fleet.db"
 
-"$MAITRE" agent --state "$STATE/config" --no-mdns --listen "127.0.0.1:$PORT" 2>"$STATE/agent.log" & AGENT_PID=$!
+"$MAITRE" agent --no-screen --state "$STATE/config" --no-mdns --listen "127.0.0.1:$PORT" 2>"$STATE/agent.log" & AGENT_PID=$!
 for _ in $(seq 1 50); do grep -q listening "$STATE/agent.log" 2>/dev/null && break; sleep 0.1; done
 
 mkdir -p "$STATE/device/trusted" && cp "$STATE/config/node/identity.pub" "$STATE/device/trusted/node.pub"
