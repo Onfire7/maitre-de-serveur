@@ -16,6 +16,7 @@ import (
 const (
 	TypeInstaller = "_maitre-installer._tcp"
 	TypeNode      = "_maitre-node._tcp"
+	TypeDepot     = "_maitre-depot._tcp"
 )
 
 // Advertisement is one published DNS-SD service.

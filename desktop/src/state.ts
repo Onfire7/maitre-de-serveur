@@ -23,7 +23,7 @@ export interface DeviceInfo {
   name: string;
 }
 export interface Found {
-  kind: "installer" | "node";
+  kind: "installer" | "node" | "depot";
   id: string;
   name: string;
   machine: string;

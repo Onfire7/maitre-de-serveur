@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { Found } from "./state";
 
 // Decisions 92 to 95: boot a new machine from the network with nothing but
 // the Console. The Rust side downloads the boot bundle and runs the bundled
@@ -34,6 +35,9 @@ interface Status {
 interface Depot {
   registry: string;
   images: Record<string, string[]>;
+  /** Hostname and address it announced itself from. */
+  host: string;
+  addr: string;
 }
 
 const IDLE_CHOICES: [number, string][] = [
@@ -46,7 +50,8 @@ const IDLE_CHOICES: [number, string][] = [
 export function NetbootPanel() {
   const [files, setFiles] = useState<FilesStatus | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [depot, setDepot] = useState<Depot | null>(null);
+  const [depots, setDepots] = useState<Depot[]>([]);
+  const [depotAddr, setDepotAddr] = useState("");
   const [progress, setProgress] = useState<Progress | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [idle, setIdle] = useState(3600);
@@ -66,24 +71,41 @@ export function NetbootPanel() {
     const t = setInterval(() => invoke<Status>("netboot_status").then(setStatus), 2000);
     const unlistenP = listen<Progress>("netboot-progress", (e) => setProgress(e.payload));
     const unlistenE = listen("netboot-event", () => invoke<Status>("netboot_status").then(setStatus));
-    // A developer's Depot on the LAN takes precedence over the release bundle.
+    // Every Depot announcing itself on the network (decision 96: list them
+    // all and warn when there is more than one), each asked for its images.
     const ctl = new AbortController();
-    const tt = setTimeout(() => ctl.abort(), 3000);
-    fetch("http://maitre-depot.local:8080/api/images", { signal: ctl.signal })
-      .then((r) => r.json())
-      .then((d: Depot) => setDepot(d))
-      .catch(() => {})
-      .finally(() => clearTimeout(tt));
+    const scan = async () => {
+      const found = (await invoke<Found[]>("discover")).filter((f) => f.kind === "depot");
+      const out: Depot[] = [];
+      for (const f of found) {
+        const addr = f.addresses[0];
+        if (!addr) continue;
+        try {
+          const tt = setTimeout(() => ctl.abort(), 3000);
+          const d = (await (await fetch(`http://${addr}/api/images`, { signal: ctl.signal })).json()) as Depot;
+          clearTimeout(tt);
+          out.push({ ...d, host: f.name, addr });
+        } catch {
+          /* not answering; skip */
+        }
+      }
+      setDepots(out);
+      setDepotAddr((cur) => (out.some((d) => d.addr === cur) ? cur : ""));
+    };
+    scan();
+    const ts = setInterval(scan, 10000);
     return () => {
       clearInterval(t);
+      clearInterval(ts);
       unlistenP.then((f) => f());
       unlistenE.then((f) => f());
       ctl.abort();
     };
   }, []);
 
+  const depot = depots.find((d) => d.addr === depotAddr) ?? null;
   const viaDepot = useDepot && depot !== null;
-  const source = viaDepot ? { label: `the Depot at ${depot!.registry}`, base: `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
+  const source = viaDepot ? { label: `the Depot on ${depot!.host} (${depot!.registry})`, base: `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
   const depotRef = viaDepot ? Object.entries(depot!.images).flatMap(([n, tags]) => tags.map((t) => `${depot!.registry}/${n}:${t}`))[0] ?? "" : "";
   const image = viaDepot ? depotRef : files?.image || "";
   const insecure = viaDepot ? depot!.registry : "";
@@ -132,10 +154,25 @@ export function NetbootPanel() {
       {error && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{error}</pre>}
       {status?.last_error && !running && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{status.last_error}</pre>}
 
-      {depot && (
-        <label style={{ display: "block", color: "#555", fontSize: 13 }}>
-          <input type="checkbox" checked={useDepot} onChange={(e) => setUseDepot(e.target.checked)} /> Use the developer Depot answering as maitre-depot.local ({depot.registry}) over plain HTTP instead of the release
-        </label>
+      {depots.length > 1 && (
+        <p style={{ color: "#a60", fontSize: 13 }}>
+          More than one Depot is announcing itself on this network: {depots.map((d) => `${d.host} (${d.registry})`).join(", ")}. Only use one you know is yours; anything on the network can call itself a Depot.
+        </p>
+      )}
+      {depots.length > 0 && (
+        <div style={{ color: "#555", fontSize: 13 }}>
+          <label>
+            <input type="checkbox" checked={useDepot} onChange={(e) => setUseDepot(e.target.checked)} /> Use a developer Depot over plain HTTP instead of the release:{" "}
+          </label>
+          <select value={depotAddr} onChange={(e) => setDepotAddr(e.target.value)} disabled={!useDepot}>
+            <option value="">choose one…</option>
+            {depots.map((d) => (
+              <option key={d.addr} value={d.addr}>
+                {d.host} · {d.registry}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
       {files && !files.ready && (
         <div>

@@ -119,7 +119,11 @@ impl Netboot {
         let dir = Self::boot_dir(&data_dir);
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let client = reqwest::Client::builder().build().map_err(|e| e.to_string())?;
-        let raw = client.get(format!("{base}{MANIFEST}")).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+        let res = client.get(format!("{base}{MANIFEST}")).send().await.map_err(|e| e.to_string())?;
+        if res.status() == reqwest::StatusCode::NOT_FOUND && base == RELEASE_BASE {
+            return Err("No Maître release has been published yet, so there is nothing to download from GitHub. Developers: tick the Depot option and use your own build.".into());
+        }
+        let raw = res.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
         let manifest: Manifest = serde_json::from_slice(&raw).map_err(|e| format!("netboot.json: {e}"))?;
         if let Some(bad) = manifest.files.keys().find(|n| !BOOT_FILES.contains(&n.as_str())) {
             return Err(format!("netboot.json names an unexpected file {bad:?}; refusing this bundle"));

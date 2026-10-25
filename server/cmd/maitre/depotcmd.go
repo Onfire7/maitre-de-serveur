@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -148,6 +150,19 @@ func runDepotServe(args []string) error {
 			log.Warn("mDNS name not published (is avahi running?)", "name", depot.Hostname, "err", err)
 		} else {
 			defer ad.Close()
+		}
+		// Announce as a service too, so the Console can list every Depot on
+		// the network, not just whoever won the maitre-depot.local name.
+		host, _ := os.Hostname()
+		sum := sha256.Sum256([]byte(host + "\x00" + l.Dir))
+		id := hex.EncodeToString(sum[:])
+		sad, err := mdns.Publish(mdns.InstanceName("Maître Depot on "+host, id), mdns.TypeDepot, uint16(port), map[string]string{
+			"id": id, "name": host, "machine": l.Dir, "v": version,
+		})
+		if err != nil {
+			log.Warn("mDNS service not published", "err", err)
+		} else {
+			defer sad.Close()
 		}
 	}
 	srv := &http.Server{Handler: logging(log, depot.Handler(l, fmt.Sprintf("%s:%d", ip, port))), ReadHeaderTimeout: 10 * time.Second}

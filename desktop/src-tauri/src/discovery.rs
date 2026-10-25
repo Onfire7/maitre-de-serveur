@@ -9,10 +9,13 @@ use std::sync::{Arc, Mutex};
 
 pub const TYPE_INSTALLER: &str = "_maitre-installer._tcp.local.";
 pub const TYPE_NODE: &str = "_maitre-node._tcp.local.";
+/// Developer Depots announce themselves so the Console can list every one
+/// on the network and warn when more than one is talking (decision 96).
+pub const TYPE_DEPOT: &str = "_maitre-depot._tcp.local.";
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Found {
-    /// "installer" or "node".
+    /// "installer", "node" or "depot".
     pub kind: String,
     /// Key fingerprint from the TXT record; what the Console pins.
     pub id: String,
@@ -41,7 +44,7 @@ impl Discovery {
                 return Self { found, daemon: None };
             }
         };
-        for ty in [TYPE_INSTALLER, TYPE_NODE] {
+        for ty in [TYPE_INSTALLER, TYPE_NODE, TYPE_DEPOT] {
             let rx = match daemon.browse(ty) {
                 Ok(rx) => rx,
                 Err(e) => {
@@ -74,7 +77,7 @@ impl Discovery {
                             v4.sort();
                             v6.sort();
                             v4.extend(v6);
-                            let kind = if r.ty_domain.starts_with("_maitre-installer") { "installer" } else { "node" };
+                            let kind = kind_of(&r.ty_domain);
                             found.lock().unwrap().insert(
                                 format!("{kind}:{id}"),
                                 Found {
@@ -89,7 +92,7 @@ impl Discovery {
                             );
                         }
                         ServiceEvent::ServiceRemoved(ty, fullname) => {
-                            let kind = if ty.starts_with("_maitre-installer") { "installer" } else { "node" };
+                            let kind = kind_of(&ty);
                             // We keyed by id, not fullname; drop entries whose
                             // short id appears in the instance name "(xxxxxxxx)".
                             let mut f = found.lock().unwrap();
@@ -114,5 +117,15 @@ impl Discovery {
         if let Some(d) = &self.daemon {
             let _ = d.shutdown();
         }
+    }
+}
+
+fn kind_of(ty: &str) -> &'static str {
+    if ty.starts_with("_maitre-installer") {
+        "installer"
+    } else if ty.starts_with("_maitre-depot") {
+        "depot"
+    } else {
+        "node"
     }
 }
