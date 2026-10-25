@@ -28,8 +28,11 @@ func writeLayout(t *testing.T, dir, tag string) (manifestDigest, layerDigest str
 		return "sha256:" + d
 	}
 	layerDigest = put([]byte("layer bytes"))
+	config, _ := json.Marshal(map[string]any{"created": "2026-10-25T10:00:00Z", "config": map[string]any{"Labels": map[string]string{"org.opencontainers.image.version": "abc1234"}}})
+	configDigest := put(config)
 	manifest, _ := json.Marshal(map[string]any{
 		"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+		"config": map[string]any{"digest": configDigest, "size": len(config), "mediaType": "application/vnd.oci.image.config.v1+json"},
 		"layers": []map[string]any{{"digest": layerDigest, "size": 11, "mediaType": "application/vnd.oci.image.layer.v1.tar"}},
 	})
 	manifestDigest = put(manifest)
@@ -99,5 +102,9 @@ func TestRegistry(t *testing.T) {
 	imgs, err := (&Registry{Dir: root}).Images()
 	if err != nil || len(imgs["maitre-server"]) != 1 || imgs["maitre-server"][0] != "dev" {
 		t.Errorf("Images = %v %v", imgs, err)
+	}
+	desc, err := (&Registry{Dir: root}).Describe()
+	if err != nil || len(desc["maitre-server"]) != 1 || desc["maitre-server"][0].Version != "abc1234" || desc["maitre-server"][0].Digest != md || desc["maitre-server"][0].Created != "2026-10-25T10:00:00Z" {
+		t.Errorf("Describe = %+v %v", desc, err)
 	}
 }

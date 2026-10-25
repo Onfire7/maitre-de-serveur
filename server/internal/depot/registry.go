@@ -56,6 +56,73 @@ func (r *Registry) Images() (map[string][]string, error) {
 	return out, nil
 }
 
+// TagInfo describes one tagged image for the Console.
+type TagInfo struct {
+	Tag     string `json:"tag"`
+	Digest  string `json:"digest"`
+	Version string `json:"version,omitempty"`
+	Created string `json:"created,omitempty"`
+}
+
+// Describe lists every image's tags with version label and build time,
+// read from each manifest's config blob.
+func (r *Registry) Describe() (map[string][]TagInfo, error) {
+	imgs, err := r.Images()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]TagInfo{}
+	for name, tags := range imgs {
+		idx, err := r.index(name)
+		if err != nil {
+			continue
+		}
+		for _, tag := range tags {
+			ti := TagInfo{Tag: tag}
+			for _, m := range idx.Manifests {
+				if m.Annotations["org.opencontainers.image.ref.name"] == tag {
+					ti.Digest = m.Digest
+					ti.Version, ti.Created = r.configInfo(name, m.Digest)
+					break
+				}
+			}
+			out[name] = append(out[name], ti)
+		}
+	}
+	return out, nil
+}
+
+// configInfo follows a manifest to its config blob for the version label
+// and creation time. Empty strings when anything is missing.
+func (r *Registry) configInfo(name, manifestDigest string) (version, created string) {
+	mb, err := os.ReadFile(r.blobPath(name, manifestDigest))
+	if err != nil {
+		return "", ""
+	}
+	var m struct {
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+	}
+	if json.Unmarshal(mb, &m) != nil || m.Config.Digest == "" {
+		return "", ""
+	}
+	cb, err := os.ReadFile(r.blobPath(name, m.Config.Digest))
+	if err != nil {
+		return "", ""
+	}
+	var c struct {
+		Created string `json:"created"`
+		Config  struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"config"`
+	}
+	if json.Unmarshal(cb, &c) != nil {
+		return "", ""
+	}
+	return c.Config.Labels["org.opencontainers.image.version"], c.Created
+}
+
 type ociIndex struct {
 	Manifests []ociDescriptor `json:"manifests"`
 }

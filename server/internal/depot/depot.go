@@ -69,7 +69,7 @@ func Handler(l Layout, registry string) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/v2/", reg)
 	mux.HandleFunc("/api/images", func(w http.ResponseWriter, r *http.Request) {
-		imgs, err := reg.Images()
+		imgs, err := reg.Describe()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

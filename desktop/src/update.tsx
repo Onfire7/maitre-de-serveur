@@ -2,6 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { NodeService, UpdateStatus_State, type ImageDeployment, type UpdateStatus } from "./gen/maitre/v1/node_pb";
 import { transportFor, type Target } from "./transport";
+import { invoke } from "@tauri-apps/api/core";
+import type { Found } from "./state";
+
+interface DepotTag {
+  tag: string;
+  digest: string;
+  version?: string;
+  created?: string;
+}
+interface DepotImage {
+  ref: string;
+  host: string;
+  tag: string;
+  version: string;
+  created: string;
+}
 
 // Decision 82: updates are staged by the Node; the Console chooses whether to
 // reboot right away (the default) or later.
@@ -17,7 +33,7 @@ export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: 
   const [insecure, setInsecure] = useState(false);
   const [busy, setBusy] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
-  const [depot, setDepot] = useState<string[]>([]);
+  const [depot, setDepot] = useState<DepotImage[]>([]);
 
   useEffect(() => {
     let stop = false;
@@ -43,18 +59,35 @@ export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: 
     };
   }, [client]);
 
-  // Decision 91: offer what the local Depot has, when there is one.
+  // Decision 91: offer what the Depots announcing on the network have, with
+  // the version each image was built from (decision 96: every Depot found,
+  // named by host, never just whoever holds a name).
   useEffect(() => {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 3000);
-    fetch("http://maitre-depot.local:8080/api/images", { signal: ctl.signal })
-      .then((r) => r.json())
-      .then((d: { registry: string; images: Record<string, string[]> }) =>
-        setDepot(Object.entries(d.images).flatMap(([name, tags]) => tags.map((t) => `${d.registry}/${name}:${t}`))),
-      )
-      .catch(() => {})
-      .finally(() => clearTimeout(t));
-    return () => ctl.abort();
+    const scan = async () => {
+      const depots = (await invoke<Found[]>("discover")).filter((f) => f.kind === "depot");
+      const out: DepotImage[] = [];
+      for (const d of depots) {
+        const addr = d.addresses[0];
+        if (!addr) continue;
+        try {
+          const t = setTimeout(() => ctl.abort(), 3000);
+          const j = (await (await fetch(`http://${addr}/api/images`, { signal: ctl.signal })).json()) as { registry: string; images: Record<string, DepotTag[]> };
+          clearTimeout(t);
+          for (const [name, tags] of Object.entries(j.images))
+            for (const tg of tags) out.push({ ref: `${j.registry}/${name}:${tg.tag}`, host: d.name, tag: tg.tag, version: tg.version ?? "", created: tg.created ?? "" });
+        } catch {
+          /* not answering */
+        }
+      }
+      setDepot(out);
+    };
+    scan();
+    const t = setInterval(scan, 10000);
+    return () => {
+      clearInterval(t);
+      ctl.abort();
+    };
   }, []);
 
   // Suggest the image the Node runs now, so a retag/rebuild is one click.
@@ -126,17 +159,19 @@ export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: 
           Image{" "}
           <input value={image} onChange={(e) => setImage(e.target.value)} style={{ width: "32em" }} disabled={updating} placeholder="registry/maitre-server:tag" list="depot-images" />
           <datalist id="depot-images">
-            {depot.map((ref) => (
-              <option key={ref} value={ref} />
+            {depot.map((d) => (
+              <option key={d.ref} value={d.ref} />
             ))}
           </datalist>
         </label>
         {depot.length > 0 && (
           <div style={{ color: "#555", fontSize: 13 }}>
-            From your Depot:{" "}
-            {depot.map((ref) => (
-              <button key={ref} type="button" style={{ marginRight: 4 }} disabled={updating} onClick={() => setImage(ref)}>
-                {ref.split("/").slice(1).join("/")}
+            From {new Set(depot.map((d) => d.host)).size > 1 ? "Depots" : "your Depot"}:{" "}
+            {depot.map((d) => (
+              <button key={d.ref} type="button" style={{ marginRight: 4 }} disabled={updating} onClick={() => setImage(d.ref)} title={`${d.ref} on ${d.host}`}>
+                {d.tag} · {d.version || "unknown version"}
+                {d.created && ` · built ${ago(d.created)}`}
+                {new Set(depot.map((x) => x.host)).size > 1 && ` · ${d.host}`}
               </button>
             ))}
           </div>
@@ -172,6 +207,14 @@ export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: 
       </div>
     </section>
   );
+}
+
+function ago(iso: string) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "just now";
+  if (s < 5400) return `${Math.round(s / 60)} min ago`;
+  if (s < 172800) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} days ago`;
 }
 
 function Deployment({ label, d }: { label: string; d?: ImageDeployment }) {

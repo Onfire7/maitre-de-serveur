@@ -35,6 +35,9 @@ RUN set -eu; arch="$(uname -m)"; \
     if [ "${arch}" = x86_64 ]; then echo "${MERGERFS_SHA256}  /tmp/${rpm}" | sha256sum -c -; fi; \
     dnf -y install "/tmp/${rpm}" && dnf clean all && rm -f "/tmp/${rpm}"
 
+ARG VERSION=dev
+# The version the Depot and the Console show for this image.
+LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.source="https://github.com/Onfire7/maitre-de-serveur" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 COPY --from=agent /maitre /usr/bin/maitre

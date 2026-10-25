@@ -34,7 +34,7 @@ interface Status {
 }
 interface Depot {
   registry: string;
-  images: Record<string, string[]>;
+  images: Record<string, { tag: string; version?: string }[]>;
   /** Hostname and address it announced itself from. */
   host: string;
   addr: string;
@@ -106,7 +106,8 @@ export function NetbootPanel() {
   const depot = depots.find((d) => d.addr === depotAddr) ?? null;
   const viaDepot = useDepot && depot !== null;
   const source = viaDepot ? { label: `the Depot on ${depot!.host} (${depot!.registry})`, base: `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
-  const depotRef = viaDepot ? Object.entries(depot!.images).flatMap(([n, tags]) => tags.map((t) => `${depot!.registry}/${n}:${t}`))[0] ?? "" : "";
+  const depotRef = viaDepot ? Object.entries(depot!.images).flatMap(([n, tags]) => tags.map((t) => `${depot!.registry}/${n}:${t.tag}`))[0] ?? "" : "";
+  const depotVersion = viaDepot ? Object.values(depot!.images).flat()[0]?.version ?? "" : "";
   const image = viaDepot ? depotRef : files?.image || "";
   const insecure = viaDepot ? depot!.registry : "";
 
@@ -196,7 +197,8 @@ export function NetbootPanel() {
       {files?.ready && !running && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ color: "#555", fontSize: 13 }}>
-            Boot files from {source.label}. The machine will install <code>{image || "(no image known)"}</code>.
+            Boot files from {source.label}. The machine will install <code>{image || "(no image known)"}</code>
+            {depotVersion && ` (version ${depotVersion})`}.
           </div>
           <label>
             Turn off after{" "}

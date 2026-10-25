@@ -159,7 +159,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.table.SetHeight(max(3, m.height-8))
+		m.table.SetHeight(max(3, m.height-10))
 		m.layoutTable()
 	case tickMsg:
 		m.status = m.src.Status()
@@ -248,7 +248,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) layoutTable() {
-	w := max(60, m.width-2)
+	w := max(60, m.width-6)
 	name := max(12, (w-44)/2)
 	image := max(12, w-44-name)
 	m.table.SetColumns([]table.Column{
@@ -299,15 +299,28 @@ func sortTitle(m *model, col int) string {
 	return columns[col] + " ▲"
 }
 
+// Styles. Colours are the terminal's own 16, which the Linux console has.
 var (
-	dim    = lipgloss.NewStyle().Faint(true)
-	bold   = lipgloss.NewStyle().Bold(true)
-	warn   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	accent = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	dim      = lipgloss.NewStyle().Faint(true)
+	bold     = lipgloss.NewStyle().Bold(true)
+	warn     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	good     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	accent   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	titleBar = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("6")).Padding(0, 1)
+	tabOn    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("7")).Padding(0, 1)
+	tabOff   = lipgloss.NewStyle().Faint(true).Padding(0, 1)
+	panel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
+	label    = lipgloss.NewStyle().Faint(true).Width(11)
+	keyHint  = lipgloss.NewStyle().Faint(true)
 )
 
 func (m *model) View() string {
 	var b strings.Builder
+	// Title bar.
+	title := titleBar.Render("Maître Server " + m.status.Version)
+	right := dim.Render(fmt.Sprintf("%s · up %s", m.status.Node, time.Since(m.status.Started).Round(time.Second)))
+	gap := max(1, m.width-lipgloss.Width(title)-lipgloss.Width(right))
+	b.WriteString(title + strings.Repeat(" ", gap) + right + "\n\n")
 	switch m.page {
 	case pageStatus:
 		b.WriteString(m.viewStatus())
@@ -318,78 +331,111 @@ func (m *model) View() string {
 	}
 	b.WriteString("\n")
 	if m.confirm {
-		b.WriteString(warn.Render("  Reboot this Node now? Services stop for about a minute.  [y] yes  [any other key] no"))
-	} else {
-		tabs := []string{"1 Status", "2 Containers", "3 Logs"}
-		tabs[m.page] = bold.Render(tabs[m.page])
-		b.WriteString(dim.Render("  ") + strings.Join(tabs, dim.Render("  ·  ")) + dim.Render("   ·   r reboot"))
-		if m.page == pageContainers {
-			b.WriteString(dim.Render("   ·   s sort column  S reverse  enter logs"))
+		b.WriteString(warn.Bold(true).Render("  Reboot this Node now? Services stop for about a minute.  [y] yes  [any other key] no"))
+		return b.String()
+	}
+	names := []string{"1 Status", "2 Containers", "3 Logs"}
+	var tabs []string
+	for i, n := range names {
+		if page(i) == m.page {
+			tabs = append(tabs, tabOn.Render(n))
+		} else {
+			tabs = append(tabs, tabOff.Render(n))
 		}
-		if m.page == pageLogs {
-			b.WriteString(dim.Render("   ·   ←/→ unit"))
-		}
-		if m.message != "" {
-			b.WriteString("   " + warn.Render(m.message))
-		}
+	}
+	hint := "r reboot"
+	switch m.page {
+	case pageContainers:
+		hint += "  ·  s sort column  S reverse  ↑↓ select  enter logs"
+	case pageLogs:
+		hint += "  ·  ←/→ unit"
+	}
+	b.WriteString(strings.Join(tabs, "") + "   " + keyHint.Render(hint))
+	if m.message != "" {
+		b.WriteString("   " + warn.Render(m.message))
 	}
 	return b.String()
 }
+
+func row(k, v string) string { return label.Render(k) + v + "\n" }
 
 func (m *model) viewStatus() string {
 	s := m.status
 	var b strings.Builder
 	b.WriteString(accent.Render(ascii.Banner()) + "\n\n")
-	fmt.Fprintf(&b, "  %s %s\n", bold.Render("Maître Server"), s.Version)
-	b.WriteString("  ─────────────────────────────────────────────\n")
-	fmt.Fprintf(&b, "  Node:          %s   in Fleet %q\n", bold.Render(s.Node), s.Fleet)
+
+	var id strings.Builder
+	id.WriteString(bold.Render("Node") + "\n")
+	id.WriteString(row("Name", bold.Render(s.Node)))
+	id.WriteString(row("Fleet", s.Fleet))
 	if len(s.Addresses) == 0 {
-		fmt.Fprintf(&b, "  Network:       %s\n", warn.Render("waiting for a cable and an address..."))
+		id.WriteString(row("Network", warn.Render("waiting for a cable and an address...")))
 	} else {
-		fmt.Fprintf(&b, "  Network:       %s\n", strings.Join(s.Addresses, ", "))
+		id.WriteString(row("Network", strings.Join(s.Addresses, ", ")))
 	}
-	fmt.Fprintf(&b, "  Discovery:     %s\n", s.Discovery)
-	fmt.Fprintf(&b, "  Trusted:       %d device(s)\n", s.Trusted)
+	disc := s.Discovery
+	if strings.HasPrefix(disc, "announced") {
+		disc = good.Render("●") + " " + disc
+	} else {
+		disc = warn.Render("●") + " " + disc
+	}
+	id.WriteString(row("Discovery", disc))
+	id.WriteString(row("Trusted", fmt.Sprintf("%d device(s)", s.Trusted)))
 	if len(s.Services) == 0 {
-		b.WriteString("  Services:      none yet\n")
+		id.WriteString(row("Services", dim.Render("none yet")))
 	} else {
-		fmt.Fprintf(&b, "  Services:      %s\n", strings.Join(s.Services, ", "))
+		id.WriteString(row("Services", strings.Join(s.Services, ", ")))
 	}
-	fmt.Fprintf(&b, "  Up:            %s\n\n", time.Since(s.Started).Round(time.Second))
+
+	var res strings.Builder
+	res.WriteString(bold.Render("Resources") + "\n")
 	if mt := m.metrics; mt != nil {
 		memPct := 0.0
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
-		fmt.Fprintf(&b, "  CPU            %s %5.1f%%   load %.2f\n", gauge(mt.GetCpuPercent()), mt.GetCpuPercent(), mt.GetLoad_1M())
-		fmt.Fprintf(&b, "  Memory         %s %5.1f%%   %s of %s\n", gauge(memPct), memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))
+		res.WriteString(row("CPU", fmt.Sprintf("%s %5.1f%%  load %.2f", gauge(mt.GetCpuPercent()), mt.GetCpuPercent(), mt.GetLoad_1M())))
+		res.WriteString(row("Memory", fmt.Sprintf("%s %5.1f%%  %s of %s", gauge(memPct), memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
 		if mt.GetPoolTotalBytes() > 0 {
 			poolPct := 100 * float64(mt.GetPoolUsedBytes()) / float64(mt.GetPoolTotalBytes())
 			where := ""
 			if mt.GetPoolFallback() {
-				where = "   (no Drive: on the OS disk)"
+				where = dim.Render("  (no Drive: on the OS disk)")
 			}
-			fmt.Fprintf(&b, "  Pool           %s %5.1f%%   %s of %s%s\n", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)
+			res.WriteString(row("Pool", fmt.Sprintf("%s %5.1f%%  %s of %s%s", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)))
 		}
-		fmt.Fprintf(&b, "  Network        ↓ %s/s  ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))
+		net := fmt.Sprintf("↓ %s/s   ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))
+		res.WriteString(row("Network", net))
 		if mt.GetTemperatureC() > 0 {
-			fmt.Fprintf(&b, "   %.0f °C", mt.GetTemperatureC())
+			t := fmt.Sprintf("%.0f °C", mt.GetTemperatureC())
+			if mt.GetTemperatureC() > 80 {
+				t = warn.Render(t)
+			}
+			res.WriteString(row("Temp", t))
 		}
-		b.WriteString("\n")
+	} else {
+		res.WriteString(dim.Render("no readings yet") + "\n")
 	}
-	b.WriteString("\n  Open Maître Desktop on a computer on this network to manage it.\n")
+
+	left := panel.Render(strings.TrimRight(id.String(), "\n"))
+	right := panel.Render(strings.TrimRight(res.String(), "\n"))
+	if m.width >= lipgloss.Width(left)+lipgloss.Width(right)+2 {
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right))
+	} else {
+		b.WriteString(lipgloss.JoinVertical(lipgloss.Left, left, right))
+	}
+	b.WriteString("\n\n" + dim.Render("Open Maître Desktop on a computer on this network to manage it.") + "\n")
 	return b.String()
 }
 
 func (m *model) viewContainers() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "  %s   %s\n\n", bold.Render("Containers"), dim.Render(m.status.Node))
 	if m.cErr != nil {
-		b.WriteString("  " + warn.Render(m.cErr.Error()) + "\n")
+		b.WriteString(warn.Render(m.cErr.Error()) + "\n")
 	} else if len(m.containers) == 0 {
-		b.WriteString("  No containers. Install a Service from Maître Desktop.\n")
+		b.WriteString(dim.Render("No containers. Install a Service from Maître Desktop.") + "\n")
 	} else {
-		b.WriteString(m.table.View() + "\n")
+		b.WriteString(panel.Render(m.table.View()) + "\n")
 	}
 	return b.String()
 }
@@ -400,23 +446,41 @@ func (m *model) viewLogs() string {
 	if len(m.units) > 0 {
 		unit = m.units[m.unit%len(m.units)]
 	}
-	fmt.Fprintf(&b, "  %s   %s\n\n", bold.Render("Logs"), accent.Render(unit))
+	var units []string
+	for i, u := range m.units {
+		name := strings.TrimSuffix(u, ".service")
+		if i == m.unit%max(1, len(m.units)) {
+			units = append(units, tabOn.Render(name))
+		} else {
+			units = append(units, tabOff.Render(name))
+		}
+	}
+	b.WriteString(strings.Join(units, "") + "\n\n")
 	if m.lErr != nil {
-		b.WriteString("  " + warn.Render(m.lErr.Error()) + "\n")
+		b.WriteString(warn.Render(m.lErr.Error()) + "\n")
 		return b.String()
 	}
-	avail := max(3, m.height-5)
+	avail := max(3, m.height-9)
 	lines := m.logs
 	if len(lines) > avail {
 		lines = lines[len(lines)-avail:]
 	}
-	w := max(20, m.width-2)
-	for _, l := range lines {
+	w := max(20, m.width-4)
+	var body strings.Builder
+	for i, l := range lines {
 		if len(l) > w {
 			l = l[:w]
 		}
-		b.WriteString(" " + l + "\n")
+		if strings.Contains(l, "level=ERROR") || strings.Contains(l, "level=WARN") {
+			l = warn.Render(l)
+		}
+		body.WriteString(l)
+		if i < len(lines)-1 {
+			body.WriteString("\n")
+		}
 	}
+	_ = unit
+	b.WriteString(panel.Width(max(24, m.width-2)).Render(body.String()) + "\n")
 	return b.String()
 }
 

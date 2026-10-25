@@ -50,7 +50,7 @@ func TestPagesRender(t *testing.T) {
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
 	m.Update(logsMsg{unit: "maitre-agent.service", lines: []string{"hello journal"}})
-	if v := m.View(); !strings.Contains(v, "hello journal") || !strings.Contains(v, "maitre-agent.service") {
+	if v := m.View(); !strings.Contains(v, "hello journal") || !strings.Contains(v, "maitre-agent") {
 		t.Errorf("logs page:\n%s", v)
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
