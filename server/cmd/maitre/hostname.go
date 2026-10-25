@@ -28,7 +28,9 @@ func hostLabel(name string) string {
 // own. Every Node and Installer used to be "fedora", so two of them announced
 // the same fedora.local and resolved to whichever answered first.
 func ensureHostname(log *slog.Logger, label string) {
-	if label == "" {
+	if label == "" || os.Geteuid() != 0 {
+		// Only a Node (root) renames the machine; on a developer's box the
+		// polkit prompt behind hostnamectl would stall the start.
 		return
 	}
 	cur, _ := os.Hostname()

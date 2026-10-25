@@ -477,9 +477,14 @@ func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, t
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()
+	// Bind before announcing, so "listening" in the log means it.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 	log.Info("listening", "addr", addr)
 	// Certificates come from TLSConfig, so the file arguments are empty.
-	if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
