@@ -25,6 +25,18 @@ catalog/   Service Catalog (MIT); git submodule of github.com/Onfire7/maitre-cat
 docs/      ADRs and the build plan
 ```
 
+## Getting started
+
+1. Install Maître Desktop on your computer and open it. Create your Fleet and write down the twelve-word Recovery Phrase; it is shown once.
+2. Add a machine: either "Boot a new machine from the network" (turn the machine on and pick network boot) or "Prepare an installer USB" and boot from the stick. The machine appears in the app within a minute.
+3. Check that the code on the machine's screen matches the one in the app, name it, pick its disk, and wait for it to restart. It is now a Node.
+4. Install a Service from the Catalog. It opens inside the app and from any browser at home as `<name>.local`.
+5. To use Services away from home, connect the Fleet to Tailscale once (one OAuth client); new Services are then reachable at `https://<name>.<your-tailnet>.ts.net` for your devices, and can be made Public with a warning.
+
+Plug a disk into a Node and it shows up under Drives: Adopt keeps what is on it, Format erases it. Tiers group Drives by tag across Nodes; each Service volume picks a Tier. A second Node joins the same Fleet from the app; Nodes keep each other's copy of the Fleet and back up their configuration to every Drive. Updates roll out one Node at a time inside the window you set, and a Node that does not come up healthy goes back to its previous version by itself.
+
+If you lose the computer running the app: on a new one, "Join it from another computer" if you still have one, "Recover with your phrase", or at a Node's keyboard choose "reboot into recovery" for a one-time code.
+
 ## Developing
 
 Clone with `git clone --recurse-submodules` (or run `git submodule update --init` afterwards) so the Catalog is present; the image build needs it, and `make gen` regenerates the index the Desktop bundles from it.
