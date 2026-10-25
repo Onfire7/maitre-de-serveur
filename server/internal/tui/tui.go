@@ -484,9 +484,17 @@ func (m *model) viewStatus() string {
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
+		// Memory and Pool sizes: whole units, padded to the widest so the
+		// columns line up.
+		sizes := []string{wholeBytes(mt.GetMemoryUsedBytes()), wholeBytes(mt.GetMemoryTotalBytes()), wholeBytes(mt.GetPoolUsedBytes()), wholeBytes(mt.GetPoolTotalBytes())}
+		w := 0
+		for _, x := range sizes {
+			w = max(w, len([]rune(x)))
+		}
+		pad := func(x string) string { return strings.Repeat(" ", w-len([]rune(x))) + x }
 		rows = sparkline(m.memHist)
 		res.WriteString(row("Memory", rows[0]))
-		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   %s of %s", rows[1], memPct, humanBytes(mt.GetMemoryUsedBytes()), humanBytes(mt.GetMemoryTotalBytes()))))
+		res.WriteString(row("", fmt.Sprintf("%s %3.0f%%   %s of %s", rows[1], memPct, pad(sizes[0]), pad(sizes[1]))))
 		res.WriteString(row("", rows[2]))
 		res.WriteString("\n")
 		if mt.GetPoolTotalBytes() > 0 {
@@ -495,7 +503,7 @@ func (m *model) viewStatus() string {
 			if mt.GetPoolFallback() {
 				where = dim.Render("  (no Drive: on the OS disk)")
 			}
-			res.WriteString(row("Pool", fmt.Sprintf("%s %5.1f%%   %s of %s%s", gauge(poolPct), poolPct, humanBytes(mt.GetPoolUsedBytes()), humanBytes(mt.GetPoolTotalBytes()), where)))
+			res.WriteString(row("Pool", fmt.Sprintf("%s %3.0f%%   %s of %s%s", gauge(poolPct), poolPct, pad(sizes[2]), pad(sizes[3]), where)))
 			res.WriteString("\n")
 		}
 		res.WriteString(row("Network", fmt.Sprintf("↓ %s/s   ↑ %s/s", humanBytes(uint64(mt.GetNetRxBytesPerSec())), humanBytes(uint64(mt.GetNetTxBytesPerSec())))))
@@ -549,11 +557,9 @@ func sparkline(hist []float64) [3]string {
 	if len(hist) > 0 && hist[len(hist)-1] > 85 {
 		st = warn
 	}
-	// Corners top and bottom close each chart into its own frame.
-	caps := [3][2]string{{"┌", "┐"}, {cap, cap}, {"└", "┘"}}
 	var out [3]string
 	for r := range grid {
-		out[r] = caps[r][0] + st.Render(string(grid[r])) + caps[r][1]
+		out[r] = cap + st.Render(string(grid[r])) + cap
 	}
 	return out
 }
@@ -603,6 +609,21 @@ func gauge(pct float64) string {
 		st = warn
 	}
 	return cap + st.Render(strings.Repeat("█", n)) + dim.Render(strings.Repeat("░", width-n)) + cap
+}
+
+// wholeBytes is humanBytes without decimals: "3 GiB", "700 GiB".
+func wholeBytes(n uint64) string {
+	const unit = 1024
+	switch {
+	case n >= unit*unit*unit:
+		return fmt.Sprintf("%.0f GiB", float64(n)/(unit*unit*unit))
+	case n >= unit*unit:
+		return fmt.Sprintf("%.0f MiB", float64(n)/(unit*unit))
+	case n >= unit:
+		return fmt.Sprintf("%.0f KiB", float64(n)/unit)
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
 
 func humanBytes(n uint64) string {
