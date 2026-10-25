@@ -1,5 +1,6 @@
 mod discovery;
 pub mod identity;
+mod netboot;
 mod pairing;
 pub mod proxy;
 mod recovery;
@@ -70,6 +71,7 @@ struct AppState {
     state: Mutex<ConsoleState>,
     clients: Mutex<HashMap<String, reqwest::Client>>,
     discovery: Discovery,
+    netboot: netboot::Netboot,
 }
 
 impl AppState {
@@ -208,6 +210,34 @@ async fn rpc(
     Ok(RpcResponse { status, content_type, body })
 }
 
+#[tauri::command]
+fn netboot_files(state: State<'_, AppState>) -> netboot::FilesStatus {
+    netboot::Netboot::files_status(&state.data_dir)
+}
+
+/// base: URL ending in "/" where netboot.json and the files live
+/// (a Depot's /boot/ or the GitHub release); empty means the release.
+#[tauri::command]
+async fn netboot_download(app: tauri::AppHandle, state: State<'_, AppState>, base: String) -> Result<netboot::FilesStatus, String> {
+    let base = if base.is_empty() { netboot::RELEASE_BASE.to_string() } else { base };
+    netboot::Netboot::download(app, state.data_dir.clone(), base).await
+}
+
+#[tauri::command]
+fn netboot_start(app: tauri::AppHandle, state: State<'_, AppState>, opts: netboot::StartOptions) -> Result<(), String> {
+    state.netboot.start(app, &state.data_dir, opts)
+}
+
+#[tauri::command]
+fn netboot_stop(state: State<'_, AppState>) {
+    state.netboot.stop(&state.data_dir)
+}
+
+#[tauri::command]
+fn netboot_status(state: State<'_, AppState>) -> netboot::Status {
+    state.netboot.status()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -228,6 +258,7 @@ pub fn run() {
                 state: Mutex::new(state),
                 clients: Mutex::new(HashMap::new()),
                 discovery: Discovery::start(),
+                netboot: netboot::Netboot::default(),
             });
             Ok(())
         })
@@ -239,7 +270,12 @@ pub fn run() {
             discover,
             peek_installer,
             service_url,
-            rpc
+            rpc,
+            netboot_files,
+            netboot_download,
+            netboot_start,
+            netboot_stop,
+            netboot_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

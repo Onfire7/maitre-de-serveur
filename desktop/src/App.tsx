@@ -6,6 +6,7 @@ import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
 import { ServicesPanel } from "./services";
 import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
+import { NetbootPanel } from "./netboot";
 
 type Screen =
   | { name: "home" }
@@ -191,7 +192,7 @@ function Home({
 
       <section>
         <h2>Nodes</h2>
-        {state.nodes.length === 0 && <p style={{ color: "#555" }}>No Nodes yet. Boot a machine from the Maître installer USB and it will appear below.</p>}
+        {state.nodes.length === 0 && <p style={{ color: "#555" }}>No Nodes yet. Boot a machine from the network or from the Maître installer USB and it will appear below.</p>}
         <ul style={{ listStyle: "none", padding: 0 }}>
           {state.nodes.map((n) => (
             <NodeRow
@@ -212,6 +213,7 @@ function Home({
 
       <section>
         <h2>Add a Node</h2>
+        <NetbootPanel />
         {installers.length === 0 ? (
           <p style={{ color: "#555" }}>Looking for machines booted from the installer… none found on this network yet.</p>
         ) : (

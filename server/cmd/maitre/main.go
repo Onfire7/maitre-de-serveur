@@ -72,6 +72,8 @@ func main() {
 		err = runDepot(os.Args[2:])
 	case "update":
 		err = runUpdate(os.Args[2:])
+	case "netboot":
+		err = runNetboot(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -83,7 +85,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|depot|update|netboot> [flags]")
 }
 
 func runDev(args []string) error {

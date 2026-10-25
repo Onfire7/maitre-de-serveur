@@ -111,6 +111,10 @@ jobs:
           # Ship the firmware that booted this media in the boot test (edk2 202505+ faults in GRUB).
           sudo apt-get install -y ovmf >/dev/null
           cp /usr/share/OVMF/OVMF_CODE_4M.fd media/OVMF_CODE.fd; cp /usr/share/OVMF/OVMF_VARS_4M.fd media/OVMF_VARS.fd
+          # Netboot bundle for Maître Desktop (decision 93): shim, GRUB, kernel,
+          # live initramfs, squashed root, and netboot.json naming the image.
+          ./server/bin/maitre depot publish localhost/maitre-server:${{ github.sha }} --dir "$PWD/depot" --tag ci --netboot --image-ref "$REF:${{ github.sha }}"
+          rm -f depot/boot/grub.cfg; rm -rf depot/boot/EFI
       - if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
@@ -122,3 +126,18 @@ jobs:
             media/OVMF_VARS.fd
           compression-level: 0
           retention-days: 14
+      - if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: netboot
+          path: depot/boot/
+          compression-level: 0
+          retention-days: 14
+      # A tag publishes the bundle as release assets, where Maître Desktop
+      # downloads it from (releases/latest/download/<file>).
+      - if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --title "Maître Server ${GITHUB_REF_NAME}" --notes "Image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/maitre-server:${{ github.sha }}" || true
+          gh release upload "${GITHUB_REF_NAME}" depot/boot/* media/maitre-installer.qcow2 --clobber

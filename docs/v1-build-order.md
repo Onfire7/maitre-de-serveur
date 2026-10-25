@@ -173,3 +173,10 @@ A Depot is `maitre depot`, one Go binary on the developer's workstation and noth
 - 90. One PXE interface per Depot, the one holding the LAN address; `--interface` overrides it. Agreed 2026-10-25.
 - 91. The Console's Update panel lists what `maitre-depot.local` serves (`/api/images`, CORS-open, read-only) as one-click choices next to the free-form field. Agreed 2026-10-25.
 - 89. Netboot transport split, found while building: GRUB's HTTP client speaks only to port 80 and has no port syntax, so GRUB loads the kernel and initramfs over TFTP from the server it booted from (the Depot, or QEMU's own TFTP behind NAT), and dracut fetches the squashed root over HTTP from the Depot's port. The live Installer runs with SELinux permissive because a rootless squashfs build carries no labels; bootc labels the installed disk from the image's policy.
+
+### Netboot from the Console (decided 2026-10-25)
+
+- 92. The Desktop bundles the Go `maitre` binary as a sidecar and runs `maitre netboot` elevated (pkexec on Linux, the administrator prompt on macOS, UAC on Windows) rather than reimplementing DHCP and TFTP in Rust. One implementation, a small privileged helper, the app itself stays unprivileged. The helper writes JSON events to a file the app tails and quits when a stop file appears, since elevation on macOS and Windows gives no live stdout.
+- 93. Boot files come from CI: the image job publishes a `netboot` bundle (shim, GRUB, kernel, live initramfs, squashed root, `netboot.json` with digests and the image reference), attached to GitHub releases on `v*` tags. The Console downloads it once into its data directory and verifies every digest. Developers use a Depot's `/boot/` as the source instead.
+- 94. Netboot is an explicit "Boot a new machine from the network" switch in the Console, elevating when turned on. The helper stops itself after an idle period with no client activity, selectable, default one hour.
+- 95. Designed for Linux, macOS and Windows; only Linux is verified in this pass.

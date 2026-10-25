@@ -25,13 +25,22 @@ func DefaultDir() string {
 }
 
 // Layout of a Depot directory.
-type Layout struct{ Dir string }
+type Layout struct {
+	Dir string
+	// BootDir overrides Dir/boot (the Desktop keeps only boot files).
+	BootDir string
+}
 
 // Images is the directory of OCI layouts, one per image name.
 func (l Layout) Images() string { return filepath.Join(l.Dir, "images") }
 
 // Boot is the directory of netboot files served over HTTP and TFTP.
-func (l Layout) Boot() string { return filepath.Join(l.Dir, "boot") }
+func (l Layout) Boot() string {
+	if l.BootDir != "" {
+		return l.BootDir
+	}
+	return filepath.Join(l.Dir, "boot")
+}
 
 // Publish copies a local container image into the Depot as name:tag using
 // podman's oci: transport, so no registry protocol is involved.

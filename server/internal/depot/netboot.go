@@ -3,6 +3,9 @@ package depot
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +37,63 @@ const (
 	BootInitrd = "initramfs.img" // dracut with dmsquash-live and livenet
 	BootRootFS = "rootfs.squashfs"
 	BootConfig = "grub.cfg"
+	// BootManifest lists the files with digests, for downloads to verify.
+	BootManifest = "netboot.json"
 )
+
+// Manifest is BootManifest's content.
+type Manifest struct {
+	// Image the files were built from, as the Installer should pull it
+	// (empty for a local build; the Depot's registry supplies it then).
+	Image  string                  `json:"image"`
+	Kernel string                  `json:"kernel,omitempty"`
+	Files  map[string]ManifestFile `json:"files"`
+}
+
+// ManifestFile is one netboot file.
+type ManifestFile struct {
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// BootFiles are the files a netboot needs, in download order.
+var BootFiles = []string{BootLoader, BootGrub, BootMok, BootKernel, BootInitrd, BootRootFS}
+
+// WriteManifest hashes the boot files in l.Boot() and writes BootManifest.
+func WriteManifest(l Layout, image string) error {
+	m := Manifest{Image: image, Files: map[string]ManifestFile{}}
+	for _, name := range BootFiles {
+		f, err := os.Open(filepath.Join(l.Boot(), name))
+		if err != nil {
+			return err
+		}
+		h := sha256.New()
+		n, err := io.Copy(h, f)
+		f.Close()
+		if err != nil {
+			return err
+		}
+		m.Files[name] = ManifestFile{Size: n, SHA256: hex.EncodeToString(h.Sum(nil))}
+	}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(l.Boot(), BootManifest), append(b, '\n'), 0o644)
+}
+
+// ReadManifest reads BootManifest from l.Boot().
+func ReadManifest(l Layout) (*Manifest, error) {
+	b, err := os.ReadFile(filepath.Join(l.Boot(), BootManifest))
+	if err != nil {
+		return nil, err
+	}
+	var m Manifest
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
 
 // BuildBootFiles turns a local image into netboot files under l.Boot():
 // kernel, a live initramfs, the squashed root, and GRUB. Everything runs
@@ -43,7 +102,9 @@ const (
 // /etc/hostname, hosts and resolv.conf are left out. A rootless build cannot
 // record SELinux labels, so the live system boots permissive (enforcing=0);
 // bootc labels the installed disk from the image's own policy regardless.
-func BuildBootFiles(ctx context.Context, l Layout, image string, stdout, stderr io.Writer) error {
+// imageRef is recorded in the manifest as the reference the Installer
+// should pull; empty for a local build served by a Depot.
+func BuildBootFiles(ctx context.Context, l Layout, image, imageRef string, stdout, stderr io.Writer) error {
 	out := l.Boot()
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
@@ -69,7 +130,7 @@ ls -la /out
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build netboot files from %s: %w", image, err)
 	}
-	return nil
+	return WriteManifest(l, imageRef)
 }
 
 // HaveBootFiles reports whether l.Boot() holds a complete set.
@@ -140,6 +201,10 @@ type Netboot struct {
 	// Interface limits DHCP to one NIC; empty means all.
 	Interface string
 	Log       *slog.Logger
+	// OnEvent, when set, receives every client interaction: kind is
+	// "client" (fields mac, type) or "tftp" (fields file). Used by the
+	// Desktop's helper to show activity and to decide when it is idle.
+	OnEvent func(kind string, fields map[string]any)
 
 	servers []*server4.Server
 	tftp    *tftp.Server
@@ -239,6 +304,9 @@ func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		return
 	}
 	n.Log.Info("netboot: PXE client", "mac", m.ClientHWAddr.String(), "type", m.MessageType().String(), "to", dst.String(), "bootfile", BootLoader)
+	if n.OnEvent != nil {
+		n.OnEvent("client", map[string]any{"mac": m.ClientHWAddr.String(), "type": m.MessageType().String()})
+	}
 }
 
 // readTFTP serves files from the boot directory. Any request whose name ends
@@ -263,6 +331,9 @@ func (n *Netboot) readTFTP(filename string, rf io.ReaderFrom) error {
 	_, err = rf.ReadFrom(f)
 	if err == nil {
 		n.Log.Info("netboot: tftp", "file", clean)
+		if n.OnEvent != nil {
+			n.OnEvent("tftp", map[string]any{"file": clean})
+		}
 	}
 	return err
 }

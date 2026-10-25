@@ -50,7 +50,8 @@ func runDepotPublish(args []string) error {
 	dir := depotFlags(fs)
 	name := fs.String("name", "maitre-server", "image name in the Depot")
 	tag := fs.String("tag", "dev", "tag in the Depot")
-	netboot := fs.Bool("netboot", false, "also build the netboot files (kernel, live initramfs, squashed root, GRUB) from this image")
+	netboot := fs.Bool("netboot", false, "also build the netboot files (kernel, live initramfs, squashed root, shim, GRUB) from this image")
+	imageRef := fs.String("image-ref", "", "with --netboot: record this public reference in netboot.json as the image to install (CI); empty means the Depot supplies it")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func runDepotPublish(args []string) error {
 	fmt.Printf("published %s as %s:%s in %s (%s)\n", image, *name, *tag, l.Images(), time.Since(started).Round(time.Second))
 	if *netboot {
 		started = time.Now()
-		if err := depot.BuildBootFiles(context.Background(), l, image, os.Stdout, os.Stderr); err != nil {
+		if err := depot.BuildBootFiles(context.Background(), l, image, *imageRef, os.Stdout, os.Stderr); err != nil {
 			return err
 		}
 		fmt.Printf("netboot files in %s (%s)\n", l.Boot(), time.Since(started).Round(time.Second))

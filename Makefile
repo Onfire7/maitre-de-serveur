@@ -44,8 +44,11 @@ dev-trust: ## Trust Maître Desktop's device key (DEVICE_PUB=path/to/identity.pu
 vm: build ## Boot Maître Server in QEMU from CI's installer media; Ctrl-C stops it (FRESH=1 wipes the VM disk)
 	FRESH=$(FRESH) RUN=$(RUN) ./scripts/vm.sh
 
-desktop: ## Run Maître Desktop with live reload
-	cd desktop && pnpm tauri dev
+TRIPLE  := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
+
+desktop: build ## Run Maître Desktop with live reload; bundles the maitre binary as its netboot helper
+	mkdir -p desktop/src-tauri/binaries && cp server/bin/maitre desktop/src-tauri/binaries/maitre-$(TRIPLE)
+	cd desktop && MAITRE_BIN=$(CURDIR)/server/bin/maitre $(PNPM) tauri dev
 
 info: build ## Call GetNodeInfo as the CLI device in $(STATE)/device
 	MAITRE_STATE=$(STATE) ./server/bin/maitre info
