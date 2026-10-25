@@ -537,6 +537,7 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
         name={node.name}
         m={maint}
         onDone={() => setMaint(null)}
+        onBack={onBack}
       />
     );
   return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} />;

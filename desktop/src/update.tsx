@@ -196,7 +196,7 @@ function Deployment({ label, d }: { label: string; d?: ImageDeployment }) {
  * Polls the Node, treats connection failures as "rebooting", and hands back
  * once the Node answers again (or the update failed without a reboot).
  */
-export function MaintenanceScreen({ target, name, m, onDone }: { target: Target; name: string; m: Maintenance; onDone: () => void }) {
+export function MaintenanceScreen({ target, name, m, onDone, onBack }: { target: Target; name: string; m: Maintenance; onDone: () => void; onBack: () => void }) {
   const client = useMemo(() => createClient(NodeService, transportFor(target)), [target.addr, target.fingerprint]);
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [phase, setPhase] = useState<"working" | "down" | "back" | "failed">("working");
@@ -218,8 +218,8 @@ export function MaintenanceScreen({ target, name, m, onDone }: { target: Target;
         if (wentDown) {
           // The Node answered after going away: it is back.
           setPhase("back");
-          setTimeout(() => !stop && onDone(), 1500);
           stop = true;
+          setTimeout(onDone, 1500);
           return;
         }
         if (st.state === UpdateStatus_State.FAILED) {
@@ -234,8 +234,8 @@ export function MaintenanceScreen({ target, name, m, onDone }: { target: Target;
         } else if (st.state === UpdateStatus_State.IDLE && !expectReboot) {
           // Staged without a reboot: nothing more to wait for.
           setPhase("back");
-          setTimeout(() => !stop && onDone(), 1500);
           stop = true;
+          setTimeout(onDone, 1500);
           return;
         }
       } catch {
@@ -255,6 +255,7 @@ export function MaintenanceScreen({ target, name, m, onDone }: { target: Target;
     m.kind === "update" ? `Updating ${name} to ${m.target}` : m.kind === "rollback" ? `Rolling ${name} back to its previous image` : `Rebooting ${name}`;
   return (
     <section>
+      <button onClick={onBack}>← Nodes</button>
       <h2>{what}</h2>
       {phase === "working" && (
         <>
@@ -269,7 +270,11 @@ export function MaintenanceScreen({ target, name, m, onDone }: { target: Target;
           <p style={{ color: "#555", fontSize: 13 }}>A Node normally takes under a minute. Its monitor shows the Maître banner when it is back.</p>
         </>
       )}
-      {phase === "back" && <p>{name} is back.</p>}
+      {phase === "back" && (
+        <p>
+          {name} is back. <button onClick={onDone}>Open it</button>
+        </p>
+      )}
       {phase === "failed" && (
         <>
           <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{failure}</pre>
