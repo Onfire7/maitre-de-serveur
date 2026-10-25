@@ -611,10 +611,13 @@ func gauge(pct float64) string {
 	return cap + st.Render(strings.Repeat("█", n)) + dim.Render(strings.Repeat("░", width-n)) + cap
 }
 
-// wholeBytes is humanBytes without decimals: "3 GiB", "700 GiB".
+// wholeBytes is humanBytes without decimals: "3 GiB", "700 GiB", and TiB
+// from 1 TiB up with one decimal, since whole terabytes hide too much.
 func wholeBytes(n uint64) string {
 	const unit = 1024
 	switch {
+	case n >= unit*unit*unit*unit:
+		return fmt.Sprintf("%.1f TiB", float64(n)/(unit*unit*unit*unit))
 	case n >= unit*unit*unit:
 		return fmt.Sprintf("%.0f GiB", float64(n)/(unit*unit*unit))
 	case n >= unit*unit:
@@ -629,6 +632,8 @@ func wholeBytes(n uint64) string {
 func humanBytes(n uint64) string {
 	const unit = 1024
 	switch {
+	case n >= unit*unit*unit*unit:
+		return fmt.Sprintf("%.1f TiB", float64(n)/(unit*unit*unit*unit))
 	case n >= unit*unit*unit:
 		return fmt.Sprintf("%.1f GiB", float64(n)/(unit*unit*unit))
 	case n >= unit*unit:

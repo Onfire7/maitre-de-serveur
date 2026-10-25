@@ -69,6 +69,14 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
+func TestWholeBytes(t *testing.T) {
+	for in, want := range map[uint64]string{3 << 30: "3 GiB", 700 << 30: "700 GiB", 1 << 40: "1.0 TiB", 2560 << 30: "2.5 TiB", 1 << 20: "1 MiB"} {
+		if got := wholeBytes(in); got != want {
+			t.Errorf("wholeBytes(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestParseBytes(t *testing.T) {
 	for in, want := range map[string]uint64{"12.3MB": 12300000, "1.5GiB": 1610612736, "512kB": 512000, "0B": 0} {
 		if got := parseBytes(in); got != want {
