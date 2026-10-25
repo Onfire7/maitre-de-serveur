@@ -5,7 +5,10 @@ import { transportFor, type Target } from "./transport";
 
 // Decision 82: updates are staged by the Node; the Console chooses whether to
 // reboot right away (the default) or later.
-export function UpdatePanel({ target }: { target: Target }) {
+/** What the Node is about to do, so the Node view can switch to the maintenance screen. */
+export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
+
+export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: (m: Maintenance) => void }) {
   const client = useMemo(() => createClient(NodeService, transportFor(target)), [target.addr, target.fingerprint]);
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [error, setError] = useState("");
@@ -65,11 +68,12 @@ export function UpdatePanel({ target }: { target: Target }) {
     setInsecure(/\.local(:\d+)?$/.test(host) || /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host) || /^localhost(:\d+)?$/.test(host));
   }, [image]);
 
-  async function run(fn: () => Promise<unknown>) {
+  async function run(fn: () => Promise<unknown>, started: Maintenance) {
     setBusy(true);
     try {
       await fn();
       setError("");
+      onStarted(started);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -144,14 +148,14 @@ export function UpdatePanel({ target }: { target: Target }) {
           <input type="checkbox" checked={insecure} onChange={(e) => setInsecure(e.target.checked)} /> Registry uses plain HTTP (local Depot)
         </label>
         <div style={{ display: "flex", gap: 6 }}>
-          <button disabled={busy || updating || !image.trim()} onClick={() => run(() => client.updateImage({ image: image.trim(), reboot, insecureRegistry: insecure }))}>
+          <button disabled={busy || updating || !image.trim()} onClick={() => run(() => client.updateImage({ image: image.trim(), reboot, insecureRegistry: insecure }), { kind: "update", target: image.trim(), reboot })}>
             Update
           </button>
           <button
             disabled={busy || updating || !status.rollback}
             onClick={() => {
               if (confirm(`Boot the previous image (${status.rollback?.version || status.rollback?.digest.slice(0, 19)})${reboot ? " and reboot now" : ""}?`))
-                run(() => client.rollback({ reboot }));
+                run(() => client.rollback({ reboot }), { kind: "rollback", reboot });
             }}
           >
             Roll back
@@ -159,7 +163,7 @@ export function UpdatePanel({ target }: { target: Target }) {
           <button
             disabled={busy || updating}
             onClick={() => {
-              if (confirm("Reboot this Node now? Services will be unavailable for a minute.")) run(() => client.reboot({}));
+              if (confirm("Reboot this Node now? Services will be unavailable for a minute.")) run(() => client.reboot({}), { kind: "reboot" });
             }}
           >
             Reboot
@@ -184,5 +188,99 @@ function Deployment({ label, d }: { label: string; d?: ImageDeployment }) {
         </div>
       </td>
     </tr>
+  );
+}
+
+/**
+ * Shown instead of the Node view while an update, rollback or reboot runs.
+ * Polls the Node, treats connection failures as "rebooting", and hands back
+ * once the Node answers again (or the update failed without a reboot).
+ */
+export function MaintenanceScreen({ target, name, m, onDone }: { target: Target; name: string; m: Maintenance; onDone: () => void }) {
+  const client = useMemo(() => createClient(NodeService, transportFor(target)), [target.addr, target.fingerprint]);
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [phase, setPhase] = useState<"working" | "down" | "back" | "failed">("working");
+  const [failure, setFailure] = useState("");
+  const [seconds, setSeconds] = useState(0);
+  const expectReboot = m.kind === "reboot" || m.reboot;
+
+  useEffect(() => {
+    let stop = false;
+    let wentDown = m.kind === "reboot";
+    const started = Date.now();
+    const tick = async () => {
+      if (stop) return;
+      setSeconds(Math.round((Date.now() - started) / 1000));
+      try {
+        const st = (await client.getUpdateStatus({})).status;
+        if (stop || !st) return;
+        setStatus(st);
+        if (wentDown) {
+          // The Node answered after going away: it is back.
+          setPhase("back");
+          setTimeout(() => !stop && onDone(), 1500);
+          stop = true;
+          return;
+        }
+        if (st.state === UpdateStatus_State.FAILED) {
+          setPhase("failed");
+          setFailure(st.message);
+          stop = true;
+          return;
+        }
+        if (st.state === UpdateStatus_State.REBOOTING) {
+          wentDown = true;
+          setPhase("down");
+        } else if (st.state === UpdateStatus_State.IDLE && !expectReboot) {
+          // Staged without a reboot: nothing more to wait for.
+          setPhase("back");
+          setTimeout(() => !stop && onDone(), 1500);
+          stop = true;
+          return;
+        }
+      } catch {
+        // Connection refused or reset: the Node is rebooting.
+        wentDown = true;
+        setPhase("down");
+      }
+      if (!stop) setTimeout(tick, 1500);
+    };
+    tick();
+    return () => {
+      stop = true;
+    };
+  }, [client]);
+
+  const what =
+    m.kind === "update" ? `Updating ${name} to ${m.target}` : m.kind === "rollback" ? `Rolling ${name} back to its previous image` : `Rebooting ${name}`;
+  return (
+    <section>
+      <h2>{what}</h2>
+      {phase === "working" && (
+        <>
+          <progress value={status?.progress ?? 0} max={1} style={{ width: "100%" }} />
+          <p>{status?.message || "starting"}</p>
+        </>
+      )}
+      {phase === "down" && (
+        <>
+          <progress style={{ width: "100%" }} />
+          <p>The Node is restarting. Waiting for it to answer again ({seconds}s).</p>
+          <p style={{ color: "#555", fontSize: 13 }}>A Node normally takes under a minute. Its monitor shows the Maître banner when it is back.</p>
+        </>
+      )}
+      {phase === "back" && <p>{name} is back.</p>}
+      {phase === "failed" && (
+        <>
+          <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{failure}</pre>
+          <button onClick={onDone}>Back to the Node</button>
+        </>
+      )}
+      {phase === "down" && seconds > 180 && (
+        <p>
+          Taking longer than expected. <button onClick={onDone}>Back to the Node</button>
+        </p>
+      )}
+    </section>
   );
 }

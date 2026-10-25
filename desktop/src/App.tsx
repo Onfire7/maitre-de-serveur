@@ -5,7 +5,7 @@ import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./ge
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
 import { ServicesPanel } from "./services";
-import { UpdatePanel } from "./update";
+import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 
 type Screen =
   | { name: "home" }
@@ -520,6 +520,20 @@ function AddNode({
 }
 
 function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
+  const [maint, setMaint] = useState<Maintenance | null>(null);
+  if (maint)
+    return (
+      <MaintenanceScreen
+        target={{ addr: node.addresses[0], fingerprint: node.node_id }}
+        name={node.name}
+        m={maint}
+        onDone={() => setMaint(null)}
+      />
+    );
+  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} />;
+}
+
+function NodeDetails({ node, onBack, onMaintenance }: { node: KnownNode; onBack: () => void; onMaintenance: (m: Maintenance) => void }) {
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
   const [error, setError] = useState("");
@@ -558,7 +572,7 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
       )}
       {metrics && <Gauges m={metrics} />}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
-      {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
+      {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>
   );
