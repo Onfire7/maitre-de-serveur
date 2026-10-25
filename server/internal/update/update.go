@@ -30,6 +30,10 @@ type Runner interface {
 	// Switch runs `bootc switch` streaming progress events (bootc
 	// --progress-fd) to progress until the command exits.
 	Switch(ctx context.Context, image string, progress func(Progress)) error
+	// Upgrade runs `bootc upgrade`: same reference, newer digest. bootc
+	// treats a switch to the current reference as "unchanged" and pulls
+	// nothing, so a rebuilt tag needs this path.
+	Upgrade(ctx context.Context, progress func(Progress)) error
 }
 
 // Progress is one event from bootc's --progress-fd stream. Only the fields
@@ -135,8 +139,15 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 		m.set(maitrev1.UpdateStatus_STATE_FAILED, fmt.Sprintf("%q is not an image reference", image), 0)
 		return
 	}
-	m.log.Info("update: staging", "image", image, "reboot", reboot)
-	err := m.run.Switch(ctx, image, func(p Progress) {
+	same := false
+	if out, err := m.run.Run(ctx, "bootc", "status", "--format", "json"); err == nil {
+		cur := &maitrev1.UpdateStatus{}
+		if ParseStatus(strings.NewReader(out), cur) == nil && cur.GetBooted().GetImage() == image {
+			same = true
+		}
+	}
+	m.log.Info("update: staging", "image", image, "reboot", reboot, "same_reference", same)
+	onProgress := func(p Progress) {
 		var frac float64
 		switch {
 		case p.BytesTotal > 0:
@@ -152,7 +163,13 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 			msg = fmt.Sprintf("%s (%s of %s)", msg, humanBytes(p.Bytes), humanBytes(p.BytesTotal))
 		}
 		m.set(maitrev1.UpdateStatus_STATE_UPDATING, msg, frac)
-	})
+	}
+	var err error
+	if same {
+		err = m.run.Upgrade(ctx, onProgress)
+	} else {
+		err = m.run.Switch(ctx, image, onProgress)
+	}
 	if err != nil {
 		m.log.Error("update failed", "image", image, "err", err)
 		m.set(maitrev1.UpdateStatus_STATE_FAILED, err.Error(), 0)
@@ -313,11 +330,20 @@ func (ExecRunner) Run(ctx context.Context, name string, args ...string) (string,
 // Switch implements Runner: `bootc switch --progress-fd 3 <image>` with the
 // progress pipe passed as fd 3.
 func (ExecRunner) Switch(ctx context.Context, image string, progress func(Progress)) error {
+	return bootcWithProgress(ctx, progress, "switch", "--quiet", "--progress-fd", "3", "--", image)
+}
+
+// Upgrade implements Runner: `bootc upgrade --progress-fd 3`.
+func (ExecRunner) Upgrade(ctx context.Context, progress func(Progress)) error {
+	return bootcWithProgress(ctx, progress, "upgrade", "--quiet", "--progress-fd", "3")
+}
+
+func bootcWithProgress(ctx context.Context, progress func(Progress), args ...string) error {
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "bootc", "switch", "--quiet", "--progress-fd", "3", "--", image)
+	cmd := exec.CommandContext(ctx, "bootc", args...)
 	cmd.ExtraFiles = []*os.File{pw}
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -337,7 +363,7 @@ func (ExecRunner) Switch(ctx context.Context, image string, progress func(Progre
 	pr.Close()
 	<-done
 	if werr != nil {
-		return fmt.Errorf("bootc switch %s: %w: %s", image, werr, strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("bootc %s: %w: %s", strings.Join(args, " "), werr, strings.TrimSpace(stderr.String()))
 	}
 	return nil
 }

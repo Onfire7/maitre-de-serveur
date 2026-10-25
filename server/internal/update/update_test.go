@@ -52,7 +52,17 @@ func TestRegistryHost(t *testing.T) {
 type fakeRunner struct {
 	calls    []string
 	switched string
+	upgraded bool
 	fail     bool
+}
+
+func (f *fakeRunner) Upgrade(_ context.Context, progress func(Progress)) error {
+	f.upgraded = true
+	progress(Progress{Type: "ProgressBytes", Description: "Pulling", Bytes: 50, BytesTotal: 100})
+	if f.fail {
+		return errors.New("boom")
+	}
+	return nil
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string, error) {
@@ -198,5 +208,27 @@ func TestInsecureOnlyForLANHosts(t *testing.T) {
 	}
 	if st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED); !strings.Contains(st.GetMessage(), "not an image reference") {
 		t.Errorf("option-looking ref accepted: %v", st)
+	}
+}
+
+func TestSameReferenceUpgrades(t *testing.T) {
+	f := &fakeRunner{}
+	m := New(f, nil)
+	// sampleStatus boots ghcr.io/onfire7/maitre-server:main.
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, m, maitrev1.UpdateStatus_STATE_IDLE)
+	if !f.upgraded || f.switched != "" {
+		t.Errorf("same reference: upgraded=%v switched=%q", f.upgraded, f.switched)
+	}
+	f2 := &fakeRunner{}
+	m2 := New(f2, nil)
+	if err := m2.Start("ghcr.io/onfire7/maitre-server:other", false, false); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, m2, maitrev1.UpdateStatus_STATE_IDLE)
+	if f2.upgraded || f2.switched == "" {
+		t.Errorf("other reference: upgraded=%v switched=%q", f2.upgraded, f2.switched)
 	}
 }

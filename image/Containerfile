@@ -36,8 +36,9 @@ RUN set -eu; arch="$(uname -m)"; \
     dnf -y install "/tmp/${rpm}" && dnf clean all && rm -f "/tmp/${rpm}"
 
 ARG VERSION=dev
-# The version the Depot and the Console show for this image.
-LABEL org.opencontainers.image.version="${VERSION}"
+# The version the Depot and the Console show for this image; bootc reports
+# the plain "version" label as the deployment's version.
+LABEL org.opencontainers.image.version="${VERSION}" version="${VERSION}"
 LABEL org.opencontainers.image.source="https://github.com/Onfire7/maitre-de-serveur" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 COPY --from=agent /maitre /usr/bin/maitre
