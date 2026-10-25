@@ -62,6 +62,9 @@ pub struct RpcResponse {
 pub struct Peek {
     pub fingerprint: String,
     pub pairing_code: String,
+    /// The Installer's key as PEM: it becomes the Node's key, and the Node
+    /// record introducing it to the Fleet carries it (Milestone 3).
+    pub public_key_pem: String,
 }
 
 struct AppState {
@@ -166,6 +169,7 @@ async fn peek_installer(state: State<'_, AppState>, addr: String) -> Result<Peek
     Ok(Peek {
         fingerprint: identity::fingerprint_of_raw_key(&key),
         pairing_code: pairing::code(&key, state.identity.public_key_raw()),
+        public_key_pem: identity::public_key_pem_of_raw(&key),
     })
 }
 

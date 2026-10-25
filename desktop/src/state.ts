@@ -34,6 +34,7 @@ export interface Found {
 export interface Peek {
   fingerprint: string;
   pairing_code: string;
+  public_key_pem: string;
 }
 
 export const api = {

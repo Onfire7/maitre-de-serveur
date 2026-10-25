@@ -71,6 +71,24 @@ pub fn fingerprint_of_raw_key(raw: &[u8]) -> String {
     hex::encode(Sha256::digest(raw))
 }
 
+/// PEM (SubjectPublicKeyInfo) for a raw Ed25519 public key: the form Node
+/// and Trusted Device records carry.
+pub fn public_key_pem_of_raw(raw: &[u8]) -> String {
+    use base64::Engine;
+    // SPKI prefix for Ed25519 (RFC 8410): SEQUENCE { SEQUENCE { OID 1.3.101.112 }, BIT STRING }
+    const PREFIX: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+    let mut der = PREFIX.to_vec();
+    der.extend_from_slice(raw);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(der);
+    let mut out = String::from("-----BEGIN PUBLIC KEY-----\n");
+    for chunk in b64.as_bytes().chunks(64) {
+        out.push_str(std::str::from_utf8(chunk).unwrap());
+        out.push('\n');
+    }
+    out.push_str("-----END PUBLIC KEY-----\n");
+    out
+}
+
 #[cfg(unix)]
 fn write_private(path: &Path, data: &[u8]) -> Result<(), String> {
     use std::os::unix::fs::OpenOptionsExt;

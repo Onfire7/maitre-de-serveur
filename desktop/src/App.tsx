@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { NodeService, type NodeInfo, type NodeMetrics } from "./gen/maitre/v1/node_pb";
+import { NodeSchema, TrustedDeviceSchema, type Node as FleetNode, type TrustedDevice } from "./gen/maitre/v1/fleet_pb";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./gen/maitre/v1/installer_pb";
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
@@ -363,6 +365,7 @@ function AddNode({
   const [altAddr, setAltAddr] = useState(qemuGuest ? "127.0.0.1:17443" : "");
   const [attempt, setAttempt] = useState(0);
   const [fp, setFp] = useState("");
+  const [pem, setPem] = useState("");
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -385,6 +388,7 @@ function AddNode({
           if (found.id && p.fingerprint !== found.id) throw new Error("the machine's key does not match what it advertised; try again");
           setAddr(a);
           setFp(p.fingerprint);
+          setPem(p.public_key_pem);
           setCode(p.pairing_code);
           setError("");
           return;
@@ -439,6 +443,32 @@ function AddNode({
     setError("");
     const client = createClient(InstallerService, transportFor({ addr, fingerprint: fp }));
     try {
+      // Milestone 3: a Fleet with Nodes already gives the newcomer its
+      // current devices and Nodes, and is told about the newcomer in turn,
+      // through whichever existing Node answers.
+      let trustedDevices: TrustedDevice[] = [
+        create(TrustedDeviceSchema, { name: device.name, publicKeyPem: device.public_key_pem, recoveryOnly: false }),
+        create(TrustedDeviceSchema, { name: "Recovery Phrase", publicKeyPem: state.fleet.recovery_public_key_pem, recoveryOnly: true }),
+      ];
+      let nodes: FleetNode[] = [];
+      let sponsor: { addr: string; fingerprint: string } | null = null;
+      for (const n of state.nodes) {
+        for (const a of n.addresses) {
+          try {
+            const nc = createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id }));
+            const recs = (await nc.listRecords({})).records.filter((r) => !r.deleted);
+            trustedDevices = recs.filter((r) => r.kind === "trusted_device").map((r) => fromBinary(TrustedDeviceSchema, r.body));
+            nodes = recs.filter((r) => r.kind === "node").map((r) => fromBinary(NodeSchema, r.body));
+            sponsor = { addr: a, fingerprint: n.node_id };
+            break;
+          } catch {
+            /* try the next address or Node */
+          }
+        }
+        if (sponsor) break;
+      }
+      if (state.nodes.length > 0 && !sponsor) throw new Error("none of the Fleet's Nodes can be reached to add this one; bring one online first");
+      if (nodes.some((n) => n.name === name.trim())) throw new Error(`the Fleet already has a Node named "${name.trim()}"`);
       await client.provision({
         fleet: {
           fleetId: state.fleet.fleet_id,
@@ -448,12 +478,14 @@ function AddNode({
         nodeName: name.trim(),
         targetDisk: chosen.path,
         dataPartition: dataPart,
-        trustedDevices: [
-          { name: device.name, publicKeyPem: device.public_key_pem, recoveryOnly: false },
-          { name: "Recovery Phrase", publicKeyPem: state.fleet.recovery_public_key_pem, recoveryOnly: true },
-        ],
+        trustedDevices,
+        nodes,
       });
       setStarted(true);
+      if (sponsor) {
+        const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: fp, name: name.trim(), publicKeyPem: pem, provisionedUnixMs: BigInt(Date.now()) }));
+        await createClient(NodeService, transportFor(sponsor)).putRecord({ record: { kind: "node", id: fp, body } });
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -613,6 +645,22 @@ function NodeDetails({ node, onBack, onMaintenance }: { node: KnownNode; onBack:
         </table>
       )}
       {metrics && <Gauges m={metrics} />}
+      {info && info.peers.length > 0 && (
+        <section>
+          <h3>Other Nodes in the Fleet</h3>
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {info.peers.map((p) => (
+              <li key={p.nodeId} style={{ padding: "4px 0" }}>
+                <b>{p.name}</b> {p.online ? <span style={{ color: "#2a7" }}>● in sync</span> : <span style={{ color: "#999" }}>● offline</span>}{" "}
+                <span style={{ color: "#555", fontSize: 13 }}>
+                  {p.address}
+                  {p.queued > 0 && ` · ${p.queued} change(s) waiting for it`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
