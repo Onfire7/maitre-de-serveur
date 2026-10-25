@@ -342,27 +342,30 @@ func newer(a, b *maitrev1.Record) bool {
 	return a.GetUpdatedUnixMs() > b.GetUpdatedUnixMs() || (a.GetUpdatedUnixMs() == b.GetUpdatedUnixMs() && a.GetOwnerNodeId() > b.GetOwnerNodeId())
 }
 
-// TrustedFingerprints is every key a Node should accept: Trusted Devices
-// that are not recovery-only, plus every other Node of the Fleet.
-func TrustedFingerprints(ctx context.Context, st *store.Store, self string) ([]string, error) {
+// TrustedFingerprints is every key a Node should accept in full: Trusted
+// Devices that are not recovery-only, plus every other Node of the Fleet.
+// Recovery-only keys come back separately (decision 100).
+func TrustedFingerprints(ctx context.Context, st *store.Store, self string) (full, limited []string, err error) {
 	var fps []string
 	devices, err := store.ListLive(ctx, st, store.KindTrustedDevice, func() *maitrev1.TrustedDevice { return &maitrev1.TrustedDevice{} })
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, d := range devices {
-		if !d.GetRecoveryOnly() {
+		if d.GetRecoveryOnly() {
+			limited = append(limited, d.GetDeviceId())
+		} else {
 			fps = append(fps, d.GetDeviceId())
 		}
 	}
 	nodes, err := store.ListLive(ctx, st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, n := range nodes {
 		if n.GetNodeId() != self {
 			fps = append(fps, n.GetNodeId())
 		}
 	}
-	return fps, nil
+	return fps, limited, nil
 }

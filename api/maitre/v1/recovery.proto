@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// RecoveryService is served by a Node for 15 minutes after it was rebooted
+// out of recovery mode (decision 101), on its own listener that accepts any
+// client key. The one-time code shown on the Node's screen during recovery
+// is the credential: presenting it adds the caller as a Trusted Device.
+service RecoveryService {
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse) {}
+}
+
+message AuthorizeRequest {
+  // The code from the Node's recovery screen.
+  string code = 1;
+  // Name for the new Trusted Device.
+  string name = 2;
+  // Its public key; must match the key on the TLS connection.
+  string public_key_pem = 3;
+}
+
+message AuthorizeResponse {
+  string fleet_id = 1;
+  string fleet_name = 2;
+  // The Node's own id, so the device can pin it.
+  string node_id = 3;
+}

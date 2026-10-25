@@ -26,7 +26,8 @@ func (fakeSource) Units() []string { return []string{"maitre-agent.service", "up
 func (fakeSource) Logs(_ context.Context, unit string, _ int) ([]string, error) {
 	return []string{"line one of " + unit, "line two"}, nil
 }
-func (fakeSource) Reboot() error { return nil }
+func (fakeSource) Reboot() error         { return nil }
+func (fakeSource) RebootRecovery() error { return nil }
 
 func TestPagesRender(t *testing.T) {
 	m := newModel(fakeSource{})
@@ -55,16 +56,16 @@ func TestPagesRender(t *testing.T) {
 	}
 	// r only works on the Status page.
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
-	if v := m.View(); strings.Contains(v, "Reboot this Node now?") {
+	if v := m.View(); strings.Contains(v, "Reboot this Node?") {
 		t.Errorf("reboot offered off the Status page")
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
-	if v := m.View(); !strings.Contains(v, "Reboot this Node now?") {
+	if v := m.View(); !strings.Contains(v, "Reboot this Node?") {
 		t.Errorf("no reboot confirmation:\n%s", v)
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
-	if v := m.View(); strings.Contains(v, "Reboot this Node now?") {
+	if v := m.View(); strings.Contains(v, "Reboot this Node?") {
 		t.Errorf("confirmation not dismissed")
 	}
 }

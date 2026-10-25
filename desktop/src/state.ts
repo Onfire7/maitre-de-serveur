@@ -23,13 +23,15 @@ export interface DeviceInfo {
   name: string;
 }
 export interface Found {
-  kind: "installer" | "node" | "depot";
+  kind: "installer" | "node" | "depot" | "device";
   id: string;
   name: string;
   machine: string;
   fleet_id: string;
   version: string;
   addresses: string[];
+  key_pem: string;
+  recovery: boolean;
 }
 export interface Peek {
   fingerprint: string;

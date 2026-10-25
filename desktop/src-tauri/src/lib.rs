@@ -242,6 +242,67 @@ fn netboot_status(state: State<'_, AppState>) -> netboot::Status {
     state.netboot.status()
 }
 
+/// Six-digit code for a device key (decision 99), for the asking Console's own
+/// screen and the approving Console's list.
+#[tauri::command]
+fn device_code(state: State<'_, AppState>, key_pem: Option<String>) -> Result<String, String> {
+    match key_pem {
+        Some(pem) if !pem.is_empty() => {
+            let raw = raw_key_of_pem(&pem)?;
+            Ok(pairing::device_code(&raw))
+        }
+        _ => Ok(pairing::device_code(state.identity.public_key_raw())),
+    }
+}
+
+fn raw_key_of_pem(pem: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    let b64: String = pem.lines().filter(|l| !l.starts_with("-----")).collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(b64.trim()).map_err(|e| e.to_string())?;
+    if der.len() != 44 {
+        return Err("not an Ed25519 public key".into());
+    }
+    Ok(der[12..].to_vec())
+}
+
+/// Announce this Console as a device asking to join a Fleet (decision 99).
+#[tauri::command]
+fn announce_join(state: State<'_, AppState>) -> Result<String, String> {
+    let name = device_name();
+    state.discovery.announce_device(&state.identity.fingerprint(), &name, state.identity.public_key_raw())
+}
+
+#[tauri::command]
+fn withdraw_join(state: State<'_, AppState>, fullname: String) {
+    state.discovery.withdraw(&fullname)
+}
+
+/// The Recovery Phrase path (decision 100): with the phrase's key, ask a Node
+/// to add this Console's own key as a Trusted Device. Returns the recovery
+/// public key PEM for the Console's Fleet state.
+#[tauri::command]
+async fn recover_with_phrase(_state: State<'_, AppState>, phrase: String, addr: String, fingerprint: String, body: Vec<u8>) -> Result<String, String> {
+    let entropy = recovery::parse(&phrase)?;
+    let key = recovery::key_pair(&entropy)?;
+    let pem = key.public_key_pem();
+    let rec_id = Identity::from_key_pair(key)?;
+    let client = rpc::build_client(&rec_id, HashSet::from([fingerprint.trim().to_lowercase()]))?;
+    let res = client
+        .post(format!("https://{addr}/maitre.v1.NodeService/PutRecord"))
+        .header("content-type", "application/proto")
+        .header("connect-protocol-version", "1")
+        .timeout(std::time::Duration::from_secs(15))
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        let text = res.text().await.unwrap_or_default();
+        return Err(format!("the Node refused the phrase: {text}"));
+    }
+    Ok(pem)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -275,6 +336,10 @@ pub fn run() {
             peek_installer,
             service_url,
             rpc,
+            device_code,
+            announce_join,
+            withdraw_join,
+            recover_with_phrase,
             netboot_files,
             netboot_download,
             netboot_start,

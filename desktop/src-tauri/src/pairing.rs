@@ -22,3 +22,15 @@ mod tests {
         assert_eq!(super::code(&installer, &device), "036 565");
     }
 }
+
+/// Six digits from one device key alone (decision 99): the device asking to
+/// join shows it, the approving Console shows the same for that device, and
+/// the person compares them.
+pub fn device_code(key: &[u8]) -> String {
+    let mut h = Sha256::new();
+    h.update(b"maitre-device-code-v1\0");
+    h.update(key);
+    let sum = h.finalize();
+    let n = u32::from_be_bytes([sum[0], sum[1], sum[2], sum[3]]) % 1_000_000;
+    format!("{:03} {:03}", n / 1000, n % 1000)
+}

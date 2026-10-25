@@ -12,6 +12,8 @@ pub const TYPE_NODE: &str = "_maitre-node._tcp.local.";
 /// Developer Depots announce themselves so the Console can list every one
 /// on the network and warn when more than one is talking (decision 96).
 pub const TYPE_DEPOT: &str = "_maitre-depot._tcp.local.";
+/// A Console asking to join a Fleet (decision 99) announces itself with its key.
+pub const TYPE_DEVICE: &str = "_maitre-device._tcp.local.";
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Found {
@@ -25,6 +27,11 @@ pub struct Found {
     pub version: String,
     /// host:port candidates, IPv4 first.
     pub addresses: Vec<String>,
+    /// Devices: their public key, PEM. Nodes: "1" while a recovery window is open.
+    #[serde(default)]
+    pub key_pem: String,
+    #[serde(default)]
+    pub recovery: bool,
 }
 
 #[derive(Clone)]
@@ -44,7 +51,7 @@ impl Discovery {
                 return Self { found, daemon: None };
             }
         };
-        for ty in [TYPE_INSTALLER, TYPE_NODE, TYPE_DEPOT] {
+        for ty in [TYPE_INSTALLER, TYPE_NODE, TYPE_DEPOT, TYPE_DEVICE] {
             let rx = match daemon.browse(ty) {
                 Ok(rx) => rx,
                 Err(e) => {
@@ -87,6 +94,11 @@ impl Discovery {
                                     machine: txt("machine"),
                                     fleet_id: txt("fleet"),
                                     version: txt("v"),
+                                    key_pem: {
+                                        let k = txt("key");
+                                        if k.is_empty() { String::new() } else { crate::identity::public_key_pem_of_b64(&k) }
+                                    },
+                                    recovery: txt("recovery") == "1",
                                     addresses: v4,
                                 },
                             );
@@ -108,6 +120,26 @@ impl Discovery {
         Self { found, daemon: Some(daemon) }
     }
 
+    /// Announce this Console as a device asking to join (decision 99). The
+    /// key travels as base64 SPKI in TXT. Returns the registered name.
+    pub fn announce_device(&self, id: &str, name: &str, key_raw: &[u8]) -> Result<String, String> {
+        let daemon = self.daemon.as_ref().ok_or("mDNS is not available")?;
+        let host = format!("{}.local.", std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).ok().filter(|h| !h.is_empty()).unwrap_or_else(|| "maitre-desktop".into()));
+        let instance = format!("{} ({})", name, &id[..8.min(id.len())]);
+        let props = [("id", id.to_string()), ("name", name.to_string()), ("key", crate::identity::b64_of_raw_key(key_raw))];
+        let info = mdns_sd::ServiceInfo::new(TYPE_DEVICE, &instance, &host, "", 7442, &props[..])
+            .map_err(|e| e.to_string())?
+            .enable_addr_auto();
+        daemon.register(info).map_err(|e| e.to_string())?;
+        Ok(format!("{instance}.{TYPE_DEVICE}"))
+    }
+
+    pub fn withdraw(&self, fullname: &str) {
+        if let Some(d) = &self.daemon {
+            let _ = d.unregister(fullname);
+        }
+    }
+
     pub fn snapshot(&self) -> Vec<Found> {
         self.found.lock().unwrap().values().cloned().collect()
     }
@@ -125,6 +157,8 @@ fn kind_of(ty: &str) -> &'static str {
         "installer"
     } else if ty.starts_with("_maitre-depot") {
         "depot"
+    } else if ty.starts_with("_maitre-device") {
+        "device"
     } else {
         "node"
     }

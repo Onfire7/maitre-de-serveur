@@ -40,3 +40,8 @@ func From(ctx context.Context) (Info, bool) {
 	p, ok := ctx.Value(key{}).(Info)
 	return p, ok
 }
+
+// WithInfo returns ctx carrying info, for tests and in-process callers.
+func WithInfo(ctx context.Context, info Info) context.Context {
+	return context.WithValue(ctx, key{}, info)
+}

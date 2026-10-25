@@ -37,6 +37,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peers"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/serviceservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -96,15 +97,21 @@ func runAgent(args []string) error {
 	// Trust list: devices that may manage this Node, and the Fleet's other
 	// Nodes (Milestone 3). Refreshed whenever those records change.
 	refreshTrust := func() {
-		fps, err := peers.TrustedFingerprints(ctx, st, id.Fingerprint())
+		full, limited, err := peers.TrustedFingerprints(ctx, st, id.Fingerprint())
 		if err != nil {
 			log.Error("load trust list", "err", err)
 			return
 		}
-		list.Replace(fps)
+		list.ReplaceWithLimited(full, limited)
 	}
 	refreshTrust()
 	log.Info("maitre agent", "node_id", id.Fingerprint(), "name", self.GetName(), "fleet", fleet.GetName(), "trusted_devices", list.Len())
+
+	// Decision 101: a reboot into recovery (chosen at the keyboard) runs
+	// with networking off, shows a one-time code, and restarts.
+	if recoverymode.Requested(*state) {
+		return runRecoveryScreen(ctx, log, *state, self.GetName(), fleet.GetName())
+	}
 
 	ensureHostname(log, hostLabel(self.GetName()))
 
@@ -131,6 +138,7 @@ func runAgent(args []string) error {
 
 	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
 	svc.Peers = pm
+	svc.Limited = list.Limited
 	svc.OnChange = func(r *maitrev1.Record) {
 		switch r.GetKind() {
 		case store.KindTrustedDevice:
@@ -254,7 +262,16 @@ func runAgent(args []string) error {
 		}
 	}()
 
-	rpc := connect.NewServer()
+	// Recovery-only callers (the Recovery Phrase, decision 100) reach one
+	// procedure: PutRecord, which itself limits them to adding a device.
+	rpc := connect.NewServer(func(next connect.ServerFunc) connect.ServerFunc {
+		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
+			if p, ok := peer.From(ctx); ok && list.Limited(p.Fingerprint) && spec.Procedure != "/maitre.v1.NodeService/PutRecord" {
+				return connect.NewError(connect.CodePermissionDenied, "the Recovery Phrase may only add a Trusted Device")
+			}
+			return next(ctx, spec, stream)
+		}
+	})
 	maitrev1connect.RegisterNodeServiceHandler(rpc, svc)
 	maitrev1connect.RegisterServiceServiceHandler(rpc, ssvc)
 	mux := http.NewServeMux()
@@ -262,10 +279,15 @@ func runAgent(args []string) error {
 
 	mdnsState := "off"
 	started := time.Now()
+	// Decision 101: a pending recovery code opens the recovery listener for
+	// 15 minutes and is announced so a new Console can find this Node.
+	recovering := recoverymode.Pending(*state)
 	if !*noMDNS {
-		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, listenPort(*listen), map[string]string{
-			"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version,
-		})
+		txt := map[string]string{"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version}
+		if recovering {
+			txt["recovery"] = "1"
+		}
+		ad, err := mdns.Publish(mdns.InstanceName(self.GetName(), id.Fingerprint()), mdns.TypeNode, listenPort(*listen), txt)
 		if err != nil {
 			log.Warn("mDNS advertisement unavailable", "err", err)
 			mdnsState = "not announced: " + err.Error()
@@ -273,6 +295,30 @@ func runAgent(args []string) error {
 			defer ad.Close()
 			mdnsState = "announced as " + self.GetName()
 		}
+	}
+	if recovering {
+		rsvc := recoverymode.NewService(*state, st, id.Fingerprint(), fleet)
+		rctx, rcancel := context.WithTimeout(ctx, recoverymode.Window)
+		rsvc.OnAdded = func(rec *maitrev1.Record) {
+			refreshTrust()
+			pm.Push(context.WithoutCancel(ctx), rec)
+			log.Info("recovery: device added", "device", rec.GetId())
+			rcancel()
+		}
+		rrpc := connect.NewServer()
+		maitrev1connect.RegisterRecoveryServiceHandler(rrpc, rsvc)
+		rmux := http.NewServeMux()
+		connecthttp.Mount(rmux, rrpc)
+		host, _, _ := net.SplitHostPort(*listen)
+		go func() {
+			defer rcancel()
+			log.Info("recovery window open", "minutes", int(recoverymode.Window.Minutes()), "port", recoverymode.Port)
+			if err := serve(rctx, log, net.JoinHostPort(host, fmt.Sprint(recoverymode.Port)), peer.Middleware(rmux), mtls.InstallerServerConfig(id)); err != nil {
+				log.Warn("recovery listener", "err", err)
+			}
+			recoverymode.Discard(*state)
+			log.Info("recovery window closed")
+		}()
 	}
 	// The machine's console (decision 72 revised): a text interface on tty1
 	// when the keyboard is ours, a plain live status page otherwise.
@@ -285,7 +331,7 @@ func runAgent(args []string) error {
 				}
 			}
 			return tui.Status{Version: version, Node: self.GetName(), Fleet: fleet.GetName(), Addresses: installer.Addresses(), Discovery: mdnsState, Trusted: list.Len(), Services: names, Started: started}
-		}, metrics: svc.Metrics}
+		}, metrics: svc.Metrics, stateDir: *state}
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			go func() {
 				if err := tui.Run(ctx, src); err != nil {

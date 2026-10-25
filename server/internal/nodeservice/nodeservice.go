@@ -12,6 +12,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
@@ -40,6 +41,9 @@ type Service struct {
 	// Peers forwards writes to their owner, pushes ours, and reports the
 	// Fleet's other Nodes. Nil on a single-Node or dev setup.
 	Peers Peers
+	// Limited reports whether a caller key is recovery-only (decision 100):
+	// such a caller may only add a Trusted Device.
+	Limited func(fingerprint string) bool
 }
 
 // Peers is what the sync layer offers this service (implemented by
@@ -106,6 +110,15 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 	in := req.GetRecord()
 	if in.GetKind() == "" || in.GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "record needs kind and id")
+	}
+	if p, ok := peer.From(ctx); ok && s.Limited != nil && s.Limited(p.Fingerprint) {
+		if in.GetKind() != store.KindTrustedDevice || in.GetDeleted() {
+			return nil, connect.NewError(connect.CodePermissionDenied, "the Recovery Phrase may only add a Trusted Device")
+		}
+		var d maitrev1.TrustedDevice
+		if err := proto.Unmarshal(in.GetBody(), &d); err != nil || d.GetRecoveryOnly() || d.GetPublicKeyPem() == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "a full (not recovery-only) Trusted Device with a key is required")
+		}
 	}
 	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && !in.GetDeleted() {
 		var n maitrev1.Node

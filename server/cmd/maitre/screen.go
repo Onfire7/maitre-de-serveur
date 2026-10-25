@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"math"
 	"os/exec"
 	"strings"
@@ -12,13 +13,15 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 )
 
 // agentSource feeds the Node's screen from the running agent.
 type agentSource struct {
-	status  func() tui.Status
-	metrics func() *maitrev1.NodeMetrics
+	status   func() tui.Status
+	metrics  func() *maitrev1.NodeMetrics
+	stateDir string
 }
 
 func (a *agentSource) Status() tui.Status { return a.status() }
@@ -42,6 +45,48 @@ func (a *agentSource) Logs(ctx context.Context, unit string, n int) ([]string, e
 	return tui.JournalLogs(ctx, unit, n)
 }
 func (a *agentSource) Reboot() error { return exec.Command("systemctl", "reboot").Run() }
+
+// RebootRecovery asks the next boot to enter recovery (decision 101).
+func (a *agentSource) RebootRecovery() error {
+	if err := recoverymode.Request(a.stateDir); err != nil {
+		return err
+	}
+	return exec.Command("systemctl", "reboot").Run()
+}
+
+// runRecoveryScreen is the recovery session: networking off, one code on
+// the screen, Enter restarts. Plain text: the keyboard is the only input.
+func runRecoveryScreen(ctx context.Context, log *slog.Logger, stateDir, node, fleet string) error {
+	if out, err := exec.Command("nmcli", "networking", "off").CombinedOutput(); err != nil {
+		log.Warn("networking off failed", "err", err, "out", strings.TrimSpace(string(out)))
+	}
+	defer exec.Command("nmcli", "networking", "on").Run()
+	code, err := recoverymode.NewCode(stateDir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\033[H\033[2J\n%s\n\n  Recovery mode  ·  Node %s in Fleet %q  ·  networking is off\n\n", ascii.Banner(), node, fleet)
+	fmt.Println("  This one-time code lets a new Maître Desktop join the Fleet.")
+	fmt.Println("  It works for 15 minutes after this machine restarts normally.")
+	fmt.Println()
+	fmt.Print(ascii.Digits(code[:4]+" "+code[4:], "      "))
+	fmt.Printf("\n\n      %s %s\n\n", code[:4], code[4:])
+	fmt.Println("  In Maître Desktop choose \"Join with a code from a Node\" and enter it.")
+	fmt.Println("  Press Enter to restart this machine now.")
+	log.Info("recovery: code issued; waiting for Enter")
+	done := make(chan struct{})
+	go func() {
+		var line string
+		fmt.Scanln(&line)
+		close(done)
+	}()
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-done:
+	}
+	return exec.Command("systemctl", "reboot").Run()
+}
 
 // plainStatusPage is the screen without a keyboard (stdout is not a
 // terminal): the Status page, redrawn every two seconds.
@@ -114,4 +159,5 @@ func (demoSource) Logs(_ context.Context, unit string, _ int) ([]string, error) 
 	}
 	return out, nil
 }
-func (demoSource) Reboot() error { return tui.ErrQuit }
+func (demoSource) Reboot() error         { return tui.ErrQuit }
+func (demoSource) RebootRecovery() error { return tui.ErrQuit }

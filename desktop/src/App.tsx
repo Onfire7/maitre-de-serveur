@@ -9,6 +9,7 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { ServicesPanel } from "./services";
 import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { NetbootPanel } from "./netboot";
+import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
 
 type Screen =
   | { name: "home" }
@@ -20,6 +21,7 @@ export default function App() {
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [state, setState] = useState<ConsoleState | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [firstRun, setFirstRun] = useState<"create" | "join" | "recover" | "code">("create");
 
   useEffect(() => {
     api.deviceInfo().then(setDevice);
@@ -34,14 +36,32 @@ export default function App() {
   if (!device || !state) return <Shell>loading…</Shell>;
 
   if (!state.fleet) {
+    const joined = async (s: ConsoleState) => {
+      await save(s);
+      setFirstRun("create");
+      setScreen({ name: "home" });
+    };
     return (
       <Shell>
-        <CreateFleet
-          onCreated={async (phrase) => {
-            setState(await api.getState());
-            setScreen({ name: "phrase", phrase });
-          }}
-        />
+        {firstRun === "create" && (
+          <>
+            <CreateFleet
+              onCreated={async (phrase) => {
+                setState(await api.getState());
+                setScreen({ name: "phrase", phrase });
+              }}
+            />
+            <section style={{ marginTop: 24, color: "#555" }}>
+              <p>Already have a Fleet?</p>
+              <button onClick={() => setFirstRun("join")}>Join it from another computer that manages it</button>{" "}
+              <button onClick={() => setFirstRun("recover")}>Recover with your phrase</button>{" "}
+              <button onClick={() => setFirstRun("code")}>Join with a code from a Node</button>
+            </section>
+          </>
+        )}
+        {firstRun === "join" && <JoinScreen device={device} onJoined={joined} onCancel={() => setFirstRun("create")} />}
+        {firstRun === "recover" && <RecoverScreen device={device} onJoined={joined} onCancel={() => setFirstRun("create")} />}
+        {firstRun === "code" && <CodeScreen device={device} onJoined={joined} onCancel={() => setFirstRun("create")} />}
       </Shell>
     );
   }
@@ -249,6 +269,8 @@ function Home({
         </ul>
       </section>
 
+      <AskingDevices state={state} found={found} />
+
       <section>
         <h2>Add a Node</h2>
         <NetbootPanel />
@@ -272,7 +294,7 @@ function Home({
         <p style={{ color: "#555", fontSize: 13 }}>
           Machine not listed (different network, or a VM)? Set it up by address:{" "}
           <input value={byAddr} onChange={(e) => setByAddr(e.target.value)} placeholder="192.168.1.20:7443" style={{ width: 180 }} />{" "}
-          <button disabled={!byAddr.includes(":")} onClick={() => onAdd({ kind: "installer", id: "", name: "", machine: "", fleet_id: "", version: "", addresses: [byAddr.trim()] })}>
+          <button disabled={!byAddr.includes(":")} onClick={() => onAdd({ kind: "installer", id: "", name: "", machine: "", fleet_id: "", version: "", addresses: [byAddr.trim()], key_pem: "", recovery: false })}>
             Set up by address
           </button>
         </p>

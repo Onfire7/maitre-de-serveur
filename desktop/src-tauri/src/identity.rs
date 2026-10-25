@@ -45,6 +45,15 @@ impl Identity {
         })
     }
 
+    /// An identity around an existing key pair (the Recovery Phrase's key).
+    pub fn from_key_pair(key_pair: KeyPair) -> Result<Self, String> {
+        let mut params = CertificateParams::new(vec!["maitre".to_string()]).map_err(|e| e.to_string())?;
+        params.not_before = rcgen::date_time_ymd(2020, 1, 1);
+        params.not_after = rcgen::date_time_ymd(2120, 1, 1);
+        let cert = params.self_signed(&key_pair).map_err(|e| e.to_string())?;
+        Ok(Self { cert_pem: cert.pem(), key_pair, public_key_path: PathBuf::new() })
+    }
+
     /// Lowercase hex SHA-256 of the raw 32-byte public key; matches Go.
     pub fn fingerprint(&self) -> String {
         fingerprint_of_raw_key(self.key_pair.public_key_raw())
@@ -71,13 +80,33 @@ pub fn fingerprint_of_raw_key(raw: &[u8]) -> String {
     hex::encode(Sha256::digest(raw))
 }
 
+// SPKI prefix for Ed25519 (RFC 8410): SEQUENCE { SEQUENCE { OID 1.3.101.112 }, BIT STRING }
+const SPKI_PREFIX: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+
+/// Base64 SPKI of a raw key: what fits in an mDNS TXT record.
+pub fn b64_of_raw_key(raw: &[u8]) -> String {
+    use base64::Engine;
+    let mut der = SPKI_PREFIX.to_vec();
+    der.extend_from_slice(raw);
+    base64::engine::general_purpose::STANDARD.encode(der)
+}
+
+/// PEM from the base64 SPKI form.
+pub fn public_key_pem_of_b64(b64: &str) -> String {
+    let mut out = String::from("-----BEGIN PUBLIC KEY-----\n");
+    for chunk in b64.as_bytes().chunks(64) {
+        out.push_str(std::str::from_utf8(chunk).unwrap_or(""));
+        out.push('\n');
+    }
+    out.push_str("-----END PUBLIC KEY-----\n");
+    out
+}
+
 /// PEM (SubjectPublicKeyInfo) for a raw Ed25519 public key: the form Node
 /// and Trusted Device records carry.
 pub fn public_key_pem_of_raw(raw: &[u8]) -> String {
     use base64::Engine;
-    // SPKI prefix for Ed25519 (RFC 8410): SEQUENCE { SEQUENCE { OID 1.3.101.112 }, BIT STRING }
-    const PREFIX: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
-    let mut der = PREFIX.to_vec();
+    let mut der = SPKI_PREFIX.to_vec();
     der.extend_from_slice(raw);
     let b64 = base64::engine::general_purpose::STANDARD.encode(der);
     let mut out = String::from("-----BEGIN PUBLIC KEY-----\n");

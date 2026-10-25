@@ -18,12 +18,38 @@ import (
 
 // List is a concurrency-safe set of trusted fingerprints.
 type List struct {
-	mu   sync.RWMutex
-	keys map[string]struct{}
+	mu      sync.RWMutex
+	keys    map[string]struct{}
+	limited map[string]struct{} // recovery-only keys: may add a Trusted Device, nothing else
 }
 
 // New returns an empty list.
-func New() *List { return &List{keys: map[string]struct{}{}} }
+func New() *List { return &List{keys: map[string]struct{}{}, limited: map[string]struct{}{}} }
+
+// ReplaceWithLimited swaps the whole list: full keys and recovery-only keys.
+func (l *List) ReplaceWithLimited(full, limited []string) {
+	nf := make(map[string]struct{}, len(full)+len(limited))
+	nl := make(map[string]struct{}, len(limited))
+	for _, fp := range full {
+		nf[fp] = struct{}{}
+	}
+	for _, fp := range limited {
+		nf[fp] = struct{}{}
+		nl[fp] = struct{}{}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.keys, l.limited = nf, nl
+}
+
+// Limited reports whether fingerprint is trusted for adding a Trusted
+// Device only (the Recovery Phrase, decision 100).
+func (l *List) Limited(fingerprint string) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	_, ok := l.limited[fingerprint]
+	return ok
+}
 
 // Add trusts a fingerprint.
 func (l *List) Add(fingerprint string) {
@@ -43,6 +69,7 @@ func (l *List) Replace(fingerprints []string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.keys = next
+	l.limited = map[string]struct{}{}
 }
 
 // Fingerprints returns the trusted fingerprints in no particular order.

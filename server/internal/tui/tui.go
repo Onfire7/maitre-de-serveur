@@ -56,6 +56,8 @@ type Source interface {
 	Units() []string
 	Logs(ctx context.Context, unit string, lines int) ([]string, error)
 	Reboot() error
+	// RebootRecovery restarts into recovery mode (decision 101).
+	RebootRecovery() error
 }
 
 // ErrQuit, returned by Source.Reboot, ends the screen instead (the demo).
@@ -224,6 +226,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.confirm = false
 				m.message = "rebooting..."
 				if err := m.src.Reboot(); errors.Is(err, ErrQuit) {
+					return m, tea.Quit
+				} else if err != nil {
+					m.message = "reboot failed: " + err.Error()
+				}
+			case "r", "R":
+				m.confirm = false
+				m.message = "rebooting into recovery..."
+				if err := m.src.RebootRecovery(); errors.Is(err, ErrQuit) {
 					return m, tea.Quit
 				} else if err != nil {
 					m.message = "reboot failed: " + err.Error()
@@ -419,7 +429,7 @@ func (m *model) View() string {
 	var hint string
 	switch {
 	case m.confirm:
-		hint = warn.Bold(true).Render("Reboot this Node now? Services stop for about a minute.   [y] yes   [any other key] no")
+		hint = warn.Bold(true).Render("Reboot this Node?   [y] reboot   [r] reboot into recovery (adds a device, networking off)   [other] no")
 	case m.page == pageStatus:
 		hint = keyHint.Render("r reboot")
 	case m.page == pageContainers:
