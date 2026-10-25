@@ -46,7 +46,7 @@ func runPoolUp(args []string) error {
 					if tier == storage.DefaultTier {
 						continue
 					}
-					if err := pool.Assemble(ctx, tier, branches); err != nil {
+					if err := pool.Assemble(ctx, tier, branches, len(branches)); err != nil {
 						fmt.Fprintln(os.Stderr, "pool-up:", err)
 					} else if len(branches) > 0 {
 						fmt.Printf("pool-up: Pool %s over %s\n", tier, strings.Join(branches, ", "))

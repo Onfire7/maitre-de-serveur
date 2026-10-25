@@ -128,6 +128,17 @@ func (m *Manager) Discovered(id, addr string) {
 	}
 }
 
+// Addresses returns every address known per peer, best first.
+func (m *Manager) Addresses() map[string][]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string][]string{}
+	for id, p := range m.peers {
+		out[id] = append([]string(nil), p.addrs...)
+	}
+	return out
+}
+
 // Status describes every peer for NodeInfo.
 func (m *Manager) Status(ctx context.Context) []*maitrev1.PeerStatus {
 	m.mu.Lock()

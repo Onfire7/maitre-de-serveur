@@ -235,12 +235,37 @@ func runAgent(args []string) error {
 		if _, err := pool.Up(ctx, byTier[storage.DefaultTier]...); err != nil {
 			log.Warn("pool", "err", err)
 		}
-		for tier, branches := range byTier {
-			if tier != storage.DefaultTier {
-				if err := pool.Assemble(ctx, tier, branches); err != nil {
-					log.Warn("pool", "tier", tier, "err", err)
-				}
+		// Spanning Tiers (105, 106): peers' Pools after our own Drives.
+		run := storage.ExecRunner{}
+		addrs := pm.Addresses()
+		best := map[string]string{}
+		for id, as := range addrs {
+			if len(as) > 0 {
+				best[id] = as[0]
 			}
+		}
+		remote, err := stor.RemoteBranches(ctx, run, best)
+		if err != nil {
+			log.Warn("remote pools", "err", err)
+		}
+		var tierIDs []string
+		for tier, branches := range byTier {
+			tierIDs = append(tierIDs, tier)
+			if tier == storage.DefaultTier {
+				continue
+			}
+			all := append(append([]string(nil), branches...), remote[tier]...)
+			if err := pool.Assemble(ctx, tier, all, len(branches)); err != nil {
+				log.Warn("pool", "tier", tier, "err", err)
+			}
+		}
+		peerSet := map[string]bool{}
+		for id := range addrs {
+			peerSet[id] = true
+		}
+		storage.UnmountStale(ctx, run, peerSet)
+		if err := storage.WriteExports(ctx, run, tierIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
+			log.Warn("nfs exports", "err", err)
 		}
 	}
 	stor.OnChange = func() {

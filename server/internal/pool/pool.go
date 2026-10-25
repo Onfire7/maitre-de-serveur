@@ -76,7 +76,7 @@ func Up(ctx context.Context, extra ...string) (*Status, error) {
 	// recipe: create new files on the branch with most free space, keep
 	// directory paths consistent, and use the pool through fuse without
 	// caching surprises for databases.
-	opts := "cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true,fsname=maitre-default"
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true,fsname=maitre-default"
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), DefaultPool).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("mergerfs: %v: %s", err, out)
 	}
@@ -101,8 +101,10 @@ func mounted(dir string) bool {
 
 // Assemble mounts the Pool for one Tier over branches at PoolsDir/<tier>,
 // updating the branch set in place when it is already mounted. A Tier with
-// no branches on this Node gets no Pool here.
-func Assemble(ctx context.Context, tier string, branches []string) error {
+// no branches on this Node gets no Pool here. local says how many leading
+// branches are this Node's own Drives: files are created on those first
+// (decision 106); the rest are peers' Pools over NFS.
+func Assemble(ctx context.Context, tier string, branches []string, local int) error {
 	mount := filepath.Join(PoolsDir, tier)
 	if len(branches) == 0 {
 		if mounted(mount) {
@@ -119,7 +121,11 @@ func Assemble(ctx context.Context, tier string, branches []string) error {
 		}
 		return nil
 	}
-	opts := "cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true,fsname=maitre-" + tier
+	create := "mfs"
+	if local < len(branches) {
+		create = "ff" // first branch with room: local before remote
+	}
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-" + tier
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), mount).CombinedOutput(); err != nil {
 		return fmt.Errorf("mergerfs %s: %v: %s", tier, err, out)
 	}
