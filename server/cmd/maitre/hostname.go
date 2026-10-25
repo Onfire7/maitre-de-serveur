@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
 )
 
 var hostnameClean = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -31,19 +33,23 @@ func ensureHostname(log *slog.Logger, label string) {
 		return
 	}
 	cur, _ := os.Hostname()
-	if cur == label {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	// hostnamed tells Avahi and friends; the syscall is the fallback (and
-	// is what the live Installer has, where hostnamed may not be up).
-	if err := exec.CommandContext(ctx, "hostnamectl", "set-hostname", label).Run(); err != nil {
-		if err := syscall.Sethostname([]byte(label)); err != nil {
-			log.Warn("hostname not set", "want", label, "err", err)
-			return
+	if cur != label {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// hostnamed persists it; the syscall is the fallback (the live
+		// Installer may not have hostnamed up).
+		if err := exec.CommandContext(ctx, "hostnamectl", "set-hostname", label).Run(); err != nil {
+			if err := syscall.Sethostname([]byte(label)); err != nil {
+				log.Warn("hostname not set", "want", label, "err", err)
+				return
+			}
+			_ = os.WriteFile("/etc/hostname", []byte(label+"\n"), 0o644)
 		}
-		_ = os.WriteFile("/etc/hostname", []byte(label+"\n"), 0o644)
+		log.Info("hostname set", "hostname", label, "was", cur)
 	}
-	log.Info("hostname set", "hostname", label, "was", cur)
+	// Avahi does not follow: tell it, every start, so the mDNS host record
+	// is this machine's own even on a system that booted with another name.
+	if err := mdns.SetHostName(label); err != nil {
+		log.Warn("mDNS host name not set", "want", label, "err", err)
+	}
 }

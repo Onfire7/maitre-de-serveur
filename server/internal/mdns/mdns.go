@@ -112,3 +112,24 @@ func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 	}
 	return &Advertisement{conn: conn, group: group}, nil
 }
+
+// SetHostName tells Avahi to announce under name (without ".local") from
+// now on. Avahi reads the system host name only at startup, so a Node that
+// renames itself after boot must say so, or it keeps answering for the old
+// name, "fedora.local" on every fresh install.
+func SetHostName(name string) error {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return fmt.Errorf("mdns: system bus: %w", err)
+	}
+	defer conn.Close()
+	obj := conn.Object("org.freedesktop.Avahi", "/")
+	var cur string
+	if err := obj.Call("org.freedesktop.Avahi.Server.GetHostName", 0).Store(&cur); err == nil && cur == name {
+		return nil
+	}
+	if err := obj.Call("org.freedesktop.Avahi.Server.SetHostName", 0, name).Err; err != nil {
+		return fmt.Errorf("mdns: set host name: %w", err)
+	}
+	return nil
+}
