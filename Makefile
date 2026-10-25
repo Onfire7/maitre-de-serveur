@@ -6,8 +6,9 @@ PNPM    ?= pnpm
 BUF     ?= buf
 STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+TAG     ?= dev
 
-.PHONY: help gen gen-check build test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot clean
+.PHONY: help gen gen-check build test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot publish depot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -59,6 +60,12 @@ m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, th
 
 image: build ## Build the Maître Server bootc image (needs podman)
 	podman build --retry 6 --retry-delay 30s --build-arg VERSION=$(VERSION) -t localhost/maitre-server:$(VERSION) -f image/Containerfile .
+
+publish: build ## Publish the local image build into the Depot as maitre-server:$(TAG) (TAG=dev)
+	./server/bin/maitre depot publish localhost/maitre-server:$(VERSION) --tag $(TAG)
+
+depot: build ## Serve the Depot (image registry + netboot files) to Nodes on the LAN
+	./server/bin/maitre depot serve
 
 image-boot: build ## Install from the image in QEMU and reboot into a Node (needs rootful podman, qemu, KVM)
 	MAITRE=./server/bin/maitre ./image/boot-test.sh localhost/maitre-server:$(VERSION)

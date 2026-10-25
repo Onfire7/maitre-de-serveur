@@ -51,6 +51,16 @@ The VM's window is the machine's monitor and shows the pairing code. Run `script
 
 On Linux the Desktop disables WebKitGTK's DMA-BUF renderer by default, because it crashes with a Wayland protocol error on NVIDIA. Set `WEBKIT_DISABLE_DMABUF_RENDERER=0` to opt back in.
 
+To run a build of your own on Nodes, publish it to the Depot and serve it (no containers, no registry daemon: the Depot is `maitre depot`, serving OCI layouts from `~/.maitre/depot/images` as a read-only registry over plain HTTP):
+
+```
+make image               # build localhost/maitre-server:<git describe> with podman
+make publish             # copy it into the Depot as maitre-server:dev
+make depot               # serve it; prints the reference to type into the Console
+```
+
+In the Console, open the Node, and under "Maître Server image" enter `<workstation IP>:8080/maitre-server:dev` (the VM behind QEMU's NAT reaches the workstation as `10.0.2.2`). The Node stages the image with `bootc switch` and reboots into it when "Reboot now" is ticked; "Roll back" returns to the previous image. The Depot also publishes itself as `maitre-depot.local`.
+
 `make tunnel-check` exercises the Console's Service tunnel without a VM: a dev Node with a built-in echo Service, and the Desktop's relay carrying a plain request and a WebSocket through it.
 
 To walk only the pairing flow, run an Installer with the fake runner and let the Console find it over mDNS:
