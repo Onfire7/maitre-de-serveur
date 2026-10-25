@@ -44,6 +44,8 @@ type Service struct {
 	// Limited reports whether a caller key is recovery-only (decision 100):
 	// such a caller may only add a Trusted Device.
 	Limited func(fingerprint string) bool
+	// Tailscale reports the Node's tsnet state; nil when not joined.
+	Tailscale func() *maitrev1.TailscaleStatus
 }
 
 // Peers is what the sync layer offers this service (implemented by
@@ -74,6 +76,9 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 	if s.Peers != nil {
 		info.Peers = s.Peers.Status(ctx)
 	}
+	if s.Tailscale != nil {
+		info.Tailscale = s.Tailscale()
+	}
 	return &maitrev1.GetNodeInfoResponse{Node: info}, nil
 }
 
@@ -92,7 +97,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice:
+	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale":
 		return true
 	}
 	return false

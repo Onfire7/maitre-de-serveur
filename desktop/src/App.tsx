@@ -12,6 +12,7 @@ import { NetbootPanel } from "./netboot";
 import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
 import { StoragePanel } from "./storage";
 import { TiersPanel, useTiers } from "./tiers";
+import { TailscalePanel, TailscaleRow } from "./tailscale";
 
 type Screen =
   | { name: "home" }
@@ -275,6 +276,8 @@ function Home({
       <AskingDevices state={state} found={found} />
 
       <TiersPanel state={state} />
+
+      <TailscalePanel state={state} />
 
       <section>
         <h2>Add a Node</h2>
@@ -808,6 +811,7 @@ function NodeDetails({ node, onBack, onMaintenance, state }: { node: KnownNode; 
             <tr><td>Uptime</td><td>{formatUptime(Number(info.uptimeSeconds))}</td></tr>
             <tr><td>Address</td><td>{node.addresses[0]}</td></tr>
             <tr><td>Dev mode</td><td>{info.devMode ? "yes" : "no"}</td></tr>
+            <TailscaleRow info={info} />
           </tbody>
         </table>
       )}

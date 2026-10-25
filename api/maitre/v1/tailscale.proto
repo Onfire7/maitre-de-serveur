@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// TailscaleConfig is the Fleet-wide kind "tailscale" Record (Milestone 5):
+// an OAuth client the Console created once in the Tailscale admin console,
+// scoped to creating auth keys, with which every Node enrolls itself.
+message TailscaleConfig {
+  string oauth_client_id = 1;
+  string oauth_client_secret = 2;
+  // Tag the OAuth client may create keys for, e.g. "tag:maitre".
+  string tag = 3;
+  int64 added_unix_ms = 4;
+}
+
+// TailscaleStatus is one tsnet node as the Console sees it.
+message TailscaleStatus {
+  string hostname = 1;
+  // ipn backend state: NeedsLogin, Starting, Running, ...
+  string state = 2;
+  // Set while the node waits for a browser login (no OAuth client).
+  string login_url = 3;
+  string dns_name = 4;
+  repeated string addresses = 5;
+  string tailnet = 6;
+  string error = 7;
+}

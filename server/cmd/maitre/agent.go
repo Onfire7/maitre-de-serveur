@@ -44,6 +44,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storageservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/tailnet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
@@ -59,6 +60,7 @@ func runAgent(args []string) error {
 	state := fs.String("state", "/var/lib/maitre", "config partition mount point")
 	listen := fs.String("listen", fmt.Sprintf("0.0.0.0:%d", port), "address to listen on")
 	noMDNS := fs.Bool("no-mdns", false, "do not advertise on mDNS")
+	noTailscale := fs.Bool("no-tailscale", false, "do not join the Fleet's Tailscale network even if configured")
 	catalogPath := fs.String("catalog", "/usr/share/maitre/catalog.json", "Catalog index baked into the image")
 	noScreen := fs.Bool("no-screen", false, "do not draw the status page on stdout")
 	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
@@ -353,6 +355,79 @@ func runAgent(args []string) error {
 	maitrev1connect.RegisterStorageServiceHandler(rpc, ssvc2)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
+
+	// Milestone 5: join the Fleet's tailnet as this Node, so the Console
+	// reaches it from anywhere; the mTLS listener is served there as well.
+	var ts *tailnet.Node
+	startTailscale := func() {
+		if *noTailscale || ts != nil {
+			return
+		}
+		var cfg maitrev1.TailscaleConfig
+		if _, err := st.Get(ctx, tailnet.KindTailscale, "fleet", &cfg); err != nil {
+			return
+		}
+		dir := tailnet.StateDir(*state, "node")
+		key := ""
+		if _, err := os.Stat(filepath.Join(dir, "tailscaled.state")); err != nil {
+			// First join: an auth key from the OAuth client; afterwards tsnet
+			// has its own node key and needs none.
+			k, err := tailnet.AuthKey(ctx, &cfg, false)
+			if err != nil {
+				log.Warn("tailscale", "err", err)
+			} else {
+				key = k
+			}
+		}
+		ts = tailnet.Start(ctx, log, dir, hostLabel(self.GetName()), key)
+		svc.Tailscale = ts.Status
+		go func() {
+			// Serve the agent on the tailnet once the node is up, and
+			// advertise the tailnet address in our Node record.
+			for ctx.Err() == nil {
+				stt := ts.Status()
+				if stt.GetState() == "Running" && len(stt.GetAddresses()) > 0 {
+					break
+				}
+				time.Sleep(2 * time.Second)
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			ln, err := ts.Listen(int(listenPort(*listen)))
+			if err != nil {
+				log.Warn("tailscale listener", "err", err)
+				return
+			}
+			stt := ts.Status()
+			addr := net.JoinHostPort(stt.GetAddresses()[0], fmt.Sprint(listenPort(*listen)))
+			if !slices.Contains(self.GetAddresses(), addr) {
+				self.Addresses = append(self.Addresses, addr)
+				if rec, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err == nil {
+					pm.Push(context.WithoutCancel(ctx), rec)
+				}
+			}
+			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)
+			srv := &http.Server{Handler: peer.Middleware(svcproxy.Handler(st, mux)), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
+			go func() { <-ctx.Done(); _ = srv.Close() }()
+			if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Warn("tailscale serve", "err", err)
+			}
+		}()
+	}
+	startTailscale()
+	withTailscale := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withTailscale(r)
+		if r.GetKind() == tailnet.KindTailscale {
+			startTailscale()
+		}
+	}
+	withTailscaleApplied := pm.OnApplied
+	pm.OnApplied = func() {
+		withTailscaleApplied()
+		startTailscale()
+	}
 
 	mdnsState := "off"
 	started := time.Now()

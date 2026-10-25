@@ -3,6 +3,7 @@ syntax = "proto3";
 package maitre.v1;
 
 import "maitre/v1/fleet.proto";
+import "maitre/v1/tailscale.proto";
 
 option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
 
@@ -197,4 +198,7 @@ message NodeInfo {
   bool dev_mode = 6;
   // The other Nodes of the Fleet as this Node sees them (Milestone 3).
   repeated PeerStatus peers = 7;
+  // This Node on the Fleet's Tailscale network (Milestone 5); unset when
+  // Tailscale is not configured.
+  TailscaleStatus tailscale = 8;
 }
