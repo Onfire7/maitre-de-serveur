@@ -105,7 +105,7 @@ set timeout=3
 set default=0
 menuentry "Install Maître Server ({{.Image}})" {
   echo "Loading the Maître Installer from {{.IP}}..."
-  linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
+  linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 loglevel=4 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
   initrd /initramfs.img
 }
 `))

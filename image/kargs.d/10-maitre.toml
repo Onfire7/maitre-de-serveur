@@ -1,0 +1,5 @@
+# Kernel arguments bootc applies on install and on every update.
+# loglevel=4: warnings and worse on the monitor, so the Node's status text
+# (decision 72) is readable instead of buried in audit and driver chatter.
+# Everything still goes to the journal.
+kargs = ["loglevel=4"]

@@ -40,6 +40,7 @@ LABEL org.opencontainers.image.source="https://github.com/Onfire7/maitre-de-serv
 COPY --from=agent /maitre /usr/bin/maitre
 COPY --from=agent /catalog.json /usr/share/maitre/catalog.json
 COPY image/maitre.network /etc/containers/systemd/maitre.network
+COPY image/kargs.d/ /usr/lib/bootc/kargs.d/
 COPY image/maitre-agent.service image/maitre-installer.service image/maitre-pool.service image/var-lib-maitre.mount /usr/lib/systemd/system/
 # Caddy starts with its stock config; the agent replaces it over the admin API.
 RUN systemctl enable maitre-agent.service maitre-installer.service maitre-pool.service var-lib-maitre.mount avahi-daemon.service podman.socket caddy.service

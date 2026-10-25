@@ -8,16 +8,21 @@ Wants=network-online.target podman.socket avahi-daemon.service caddy.service mai
 ConditionKernelCommandLine=!maitre.installer
 # The config partition (label maitre-config) holds identity and Fleet DB.
 RequiresMountsFor=/var/lib/maitre
+# The status text owns tty1 (decision 72); no login prompt there.
+Conflicts=getty@tty1.service
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/maitre agent --state /var/lib/maitre
 Restart=always
 RestartSec=2
-# Mirror logs to the console so the QEMU boot test (and a human at the screen)
-# can see the agent start.
-StandardOutput=journal+console
+# Status text (stdout) goes to the monitor; logs (stderr) go to the journal
+# and the console so the QEMU boot test can read them on the serial line.
+StandardOutput=tty
 StandardError=journal+console
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
 
 [Install]
 WantedBy=multi-user.target
