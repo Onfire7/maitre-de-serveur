@@ -5,9 +5,9 @@
 package installer
 
 import (
-	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
 	"context"
 	"fmt"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
 	"sync"
 	"time"
 
