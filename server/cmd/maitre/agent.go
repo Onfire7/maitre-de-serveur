@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -137,7 +138,7 @@ func runAgent(args []string) error {
 			if sp.GetWebHostPort() == 0 {
 				continue
 			}
-			host := sp.GetName() + ".maitre.local"
+			host := sp.GetName() + "." + services.DefaultSuffix
 			routes = append(routes, caddy.Route{Host: host, Upstream: fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())})
 			names = append(names, host)
 		}
@@ -188,6 +189,9 @@ func runAgent(args []string) error {
 			defer ad.Close()
 		}
 	}
+	// The end of startup, on the machine's console (decision 72).
+	fmt.Printf("\n%s\n\n  Maître Server %s\n  Node %q in Fleet %q\n  Address: %s\n  Open Maître Desktop on a computer on this network to manage it.\n\n",
+		ascii.Banner(), version, self.GetName(), fleet.GetName(), strings.Join(installer.Addresses(), ", "))
 	return serve(ctx, log, *listen, peer.Middleware(svcproxy.Handler(st, mux)), mtls.ServerConfig(id, list))
 }
 

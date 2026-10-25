@@ -1,7 +1,7 @@
 mod discovery;
-mod identity;
+pub mod identity;
 mod pairing;
-mod proxy;
+pub mod proxy;
 mod recovery;
 mod rpc;
 

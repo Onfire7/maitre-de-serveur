@@ -41,7 +41,7 @@ func Handler(st *store.Store, next http.Handler) http.Handler {
 			director(req)
 			req.Header.Del(Header)
 			// Apps see the name they are known by, not the loopback port.
-			req.Host = spec.GetName() + ".maitre.local"
+			req.Host = spec.GetName() + "." + services.DefaultSuffix
 		}
 		rp.ServeHTTP(w, r)
 	})

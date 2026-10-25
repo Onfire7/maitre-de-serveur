@@ -7,7 +7,7 @@ BUF     ?= buf
 STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: help gen gen-check build test lint dev dev-trust vm desktop info m0-check m1-check image image-boot clean
+.PHONY: help gen gen-check build test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -47,6 +47,9 @@ desktop: ## Run Maître Desktop with live reload
 
 info: build ## Call GetNodeInfo as the CLI device in $(STATE)/device
 	MAITRE_STATE=$(STATE) ./server/bin/maitre info
+
+tunnel-check: build ## End-to-end: Console's Service tunnel (HTTP + WebSocket) against a dev Node with an echo Service
+	./scripts/tunnel-check.sh
 
 m0-check: build ## End-to-end: Go dev Node <-> Rust client over mTLS, both directions of refusal
 	./scripts/m0-check.sh ./server/bin/maitre

@@ -11,9 +11,12 @@
 # artifact of the image job), because building the image needs podman. The
 # installer pulls the OS from ghcr.io, so the VM needs internet access.
 #
-# QEMU's user-mode network relays the VM's mDNS announcement, but the address
-# it advertises (10.0.2.x) is unreachable from the host: when the Console says
-# it cannot reach the machine, enter 127.0.0.1:${FWD_PORT}. The VM's display
+# Networking: after `scripts/vm-net-setup.sh` (one-time, sudo) the VM sits on
+# the host-only bridge maitre0 with its own 10.42.0.x address, the Console
+# discovers it over mDNS and <service>.local resolves from the host. Without
+# the bridge, QEMU's user-mode NAT is used: the Console cannot reach the
+# 10.0.2.x address the VM advertises, so enter 127.0.0.1:${FWD_PORT} when it
+# asks. NET=user forces NAT even when the bridge exists. The VM's display
 # window is the machine's monitor: the pairing code shows there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,6 +24,8 @@ WORK=${WORK:-$HOME/.maitre/qemu}
 FWD_PORT=${FWD_PORT:-17443}
 WEB_PORT=${WEB_PORT:-18080}
 DISK_SIZE=${DISK_SIZE:-40G}
+BRIDGE=${BRIDGE:-maitre0}
+NET=${NET:-auto}
 REPO=${REPO:-Onfire7/maitre-de-serveur}
 mkdir -p "$WORK"
 
@@ -75,6 +80,18 @@ done
 [ -n "$OVMF_CODE" ] && [ -n "$OVMF_VARS" ] || { echo "vm: OVMF firmware not found (install edk2-ovmf)"; exit 1; }
 [ -f "$WORK/vars.fd" ] || cp "$OVMF_VARS" "$WORK/vars.fd"
 
+if [ "$NET" = auto ]; then
+  if ip link show "$BRIDGE" >/dev/null 2>&1 && grep -qx "allow $BRIDGE" /etc/qemu/bridge.conf 2>/dev/null; then NET=bridge; else NET=user; fi
+fi
+if [ "$NET" = bridge ]; then
+  # Fixed MAC so the VM keeps its DHCP lease across runs.
+  NETDEV=(-netdev "bridge,id=n0,br=$BRIDGE" -device "virtio-net-pci,netdev=n0,mac=52:54:00:4d:41:49")
+  echo "network: bridge $BRIDGE (the VM gets its own address; the Console discovers it)"
+else
+  NETDEV=(-netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80" -device virtio-net-pci,netdev=n0)
+  echo "network: QEMU NAT with ports forwarded (run scripts/vm-net-setup.sh once for a bridged VM)"
+fi
+
 cleanup() { kill "${QEMU:-}" 2>/dev/null || true; }
 trap cleanup EXIT
 
@@ -87,19 +104,32 @@ qemu-system-x86_64 \
   -drive "if=pflash,format=raw,file=$WORK/vars.fd" \
   -drive "file=$WORK/target.qcow2,format=qcow2,if=none,id=target" -device virtio-blk-pci,drive=target,bootindex=0 \
   -drive "file=$WORK/maitre-installer.qcow2,format=qcow2,if=none,id=installer,snapshot=on" -device virtio-blk-pci,drive=installer,bootindex=1 \
-  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:${FWD_PORT}-:7443,hostfwd=tcp:127.0.0.1:${WEB_PORT}-:80" -device virtio-net-pci,netdev=n0 \
+  "${NETDEV[@]}" \
   &
 QEMU=$!
 
-cat <<MSG
+if [ "$NET" = bridge ]; then
+  cat <<MSG
+
+  The VM is on bridge $BRIDGE and shows its address on its screen. The Console
+  finds it by itself; Services open as http://<name>.local/ from this machine.
+  Serial log: $WORK/serial.log
+  CLI instead of the Console (replace ADDR with the address on the VM's screen):
+    ./server/bin/maitre provision --identity $WORK/device --addr ADDR:7443 --fleet Dev --name vm --disk /dev/vda --save-node-pub $WORK/node.pub
+
+Ctrl-C stops the VM. Start the Console with: make desktop
+MSG
+else
+  cat <<MSG
 
   VM agent port:  127.0.0.1:${FWD_PORT}   (enter this in the Console when it cannot reach the VM's 10.0.2.x address, or in "Set up by address")
-  VM web port:    http://127.0.0.1:${WEB_PORT}/  with Host: <service>.maitre.local
+  VM web port:    http://127.0.0.1:${WEB_PORT}/  with Host: <service>.local
   Serial log:     $WORK/serial.log
   CLI instead of the Console:
     ./server/bin/maitre provision --identity $WORK/device --addr 127.0.0.1:${FWD_PORT} --fleet Dev --name vm --disk /dev/vda --save-node-pub $WORK/node.pub
 
 Ctrl-C stops the VM. Start the Console with: make desktop
 MSG
+fi
 
 wait "$QEMU"

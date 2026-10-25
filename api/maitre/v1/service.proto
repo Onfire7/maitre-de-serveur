@@ -33,7 +33,7 @@ message GetCatalogResponse {
 
 // ServiceSpec is the kind "service" Record body: what the user chose.
 message ServiceSpec {
-  // Unique within the Fleet; also the mDNS name <name>.maitre.local.
+  // Unique within the Fleet; also the mDNS name <name>.local.
   string name = 1;
   string catalog_id = 2;
   // Image actually deployed, pinned by digest. Auto-update advances it.
@@ -69,7 +69,7 @@ message ServiceStatus {
   uint32 restarts = 4;
   // Human-readable reason when failed.
   string message = 5;
-  // Where the Console opens it, e.g. "http://jellyfin.maitre.local". Empty if headless.
+  // Where the Console opens it, e.g. "http://jellyfin.local". Empty if headless.
   string url = 6;
   int64 started_unix_ms = 7;
 }

@@ -18,7 +18,7 @@ import (
 
 // Route is one Service's web entry.
 type Route struct {
-	Host     string // e.g. jellyfin.maitre.local
+	Host     string // e.g. jellyfin.local
 	Upstream string // e.g. 127.0.0.1:20481
 }
 

@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/websocket"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
@@ -32,6 +34,9 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
@@ -82,6 +87,7 @@ func runDev(args []string) error {
 	state := fs.String("state", defaultState(), "directory for identity and trust list")
 	listen := fs.String("listen", "127.0.0.1:7443", "address to listen on")
 	name := fs.String("name", hostname(), "Node name to report")
+	fake := fs.String("fake-service", "", "register a Service of this name backed by a built-in echo server (HTTP and WebSocket), to exercise the Console's tunnel")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -113,7 +119,45 @@ func runDev(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return serve(ctx, log, *listen, peer.Middleware(mux), mtls.ServerConfig(id, list))
+	var h http.Handler = mux
+	if *fake != "" {
+		st, err := store.Open(filepath.Join(*state, "dev.db"), id.Fingerprint())
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+		port, err := startEchoService(ctx)
+		if err != nil {
+			return err
+		}
+		if _, err := st.Put(ctx, services.KindService, *fake, &maitrev1.ServiceSpec{Name: *fake, WebHostPort: uint32(port)}, false); err != nil {
+			return err
+		}
+		log.Info("fake service registered", "name", *fake, "port", port)
+		h = svcproxy.Handler(st, mux)
+	}
+	return serve(ctx, log, *listen, peer.Middleware(h), mtls.ServerConfig(id, list))
+}
+
+// startEchoService serves a stand-in Service on a loopback port: GET /path
+// answers with the request line and Host, and /ws echoes WebSocket messages.
+func startEchoService(ctx context.Context) (int, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/ws", websocket.Server{
+		Handshake: func(*websocket.Config, *http.Request) error { return nil },
+		Handler:   func(ws *websocket.Conn) { _, _ = io.Copy(ws, ws) },
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "echo %s %s host=%s", r.Method, r.URL.RequestURI(), r.Host)
+	})
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() { <-ctx.Done(); _ = srv.Close() }()
+	go func() { _ = srv.Serve(ln) }()
+	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
 func runKeygen(args []string) error {

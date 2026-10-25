@@ -47,9 +47,11 @@ make desktop             # terminal 2: the Console with live reload
 make vm FRESH=1          # wipe the VM and start over
 ```
 
-The VM's window is the machine's monitor and shows the pairing code. The VM is behind QEMU's NAT: its mDNS announcement may still reach the Console, but the address it advertises (10.0.2.x) is unreachable from the host. When the Console reports it cannot reach the machine, enter `127.0.0.1:17443` in the retry field; or skip discovery and use "Set up by address" with the same value. Services installed on the VM open in the Console as usual, or from the host with `curl -H 'Host: <name>.maitre.local' http://127.0.0.1:18080/`. The installer pulls the OS from `ghcr.io/onfire7/maitre-server`, which CI publishes on every push to main.
+The VM's window is the machine's monitor and shows the pairing code. Run `scripts/vm-net-setup.sh` once (it asks for sudo) to put the VM on a host-only bridge: it then has its own address, the Console discovers it, and `http://<service>.local/` works from this machine. Without the bridge the VM sits behind QEMU's NAT: the Console sees its announcement but cannot reach the 10.0.2.x address, and offers `127.0.0.1:17443` instead; Services are reachable with `curl -H 'Host: <name>.local' http://127.0.0.1:18080/`. The installer pulls the OS from `ghcr.io/onfire7/maitre-server`, which CI publishes on every push to main.
 
 On Linux the Desktop disables WebKitGTK's DMA-BUF renderer by default, because it crashes with a Wayland protocol error on NVIDIA. Set `WEBKIT_DISABLE_DMABUF_RENDERER=0` to opt back in.
+
+`make tunnel-check` exercises the Console's Service tunnel without a VM: a dev Node with a built-in echo Service, and the Desktop's relay carrying a plain request and a WebSocket through it.
 
 To walk only the pairing flow, run an Installer with the fake runner and let the Console find it over mDNS:
 

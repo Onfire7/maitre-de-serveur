@@ -76,7 +76,7 @@ func InstanceName(label, fingerprint string) string {
 }
 
 // PublishHosts publishes address records so <name> resolves to this
-// machine's IPv4 addresses on the local network, e.g. "jellyfin.maitre.local".
+// machine's IPv4 addresses on the local network, e.g. "jellyfin.local".
 // Returns a closer that withdraws them.
 func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 	conn, err := dbus.SystemBus()

@@ -62,7 +62,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if s.GetSpec().GetName() != "jellyfin" || s.GetSpec().GetWebHostPort() < 20000 || s.GetState() != maitrev1.ServiceStatus_STATE_RUNNING {
 		t.Fatalf("status %+v", s)
 	}
-	if s.GetUrl() != "http://jellyfin.maitre.local/" || s.GetRestarts() != 2 {
+	if s.GetUrl() != "http://jellyfin.local/" || s.GetRestarts() != 2 {
 		t.Fatalf("url/restarts %q %d", s.GetUrl(), s.GetRestarts())
 	}
 	unit, err := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))

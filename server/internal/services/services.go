@@ -52,11 +52,17 @@ type Config struct {
 	// HostPortBase..HostPortBase+9999 are loopback ports the agent assigns to
 	// Services' web ports for Caddy and health checks.
 	HostPortBase int
-	// Suffix is the mDNS/Caddy domain, e.g. "maitre.local".
+	// Suffix is the mDNS/Caddy domain; DefaultSuffix unless overridden.
 	Suffix string
 	// HTTPClient probes health; nil means a 2-second default.
 	HTTPClient *http.Client
 }
+
+// DefaultSuffix is the domain Services are reachable under on the LAN:
+// <name>.local. Two labels, because Linux desktops' default mDNS resolver
+// (nss-mdns mdns_minimal) rejects deeper names such as <name>.maitre.local
+// (decision 75).
+const DefaultSuffix = "local"
 
 // Manager implements Service operations for one Node.
 type Manager struct {
@@ -76,7 +82,7 @@ func New(cfg Config, st *store.Store, catalogFn func() *catalog.Index, run Runne
 		cfg.HostPortBase = 20000
 	}
 	if cfg.Suffix == "" {
-		cfg.Suffix = "maitre.local"
+		cfg.Suffix = DefaultSuffix
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: 2 * time.Second}

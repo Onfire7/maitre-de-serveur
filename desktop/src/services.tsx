@@ -210,7 +210,7 @@ function InstallDialog({
           Name{" "}
           <input value={name} onChange={(e) => setName(e.target.value.toLowerCase())} style={{ width: 220 }} />
         </label>
-        <div style={{ color: "#555", fontSize: 13 }}>Reachable as {name || "…"}.maitre.local on your network.</div>
+        <div style={{ color: "#555", fontSize: 13 }}>Reachable as {name || "…"}.local from devices on your network.</div>
         {(entry.settings ?? []).map((s) => (
           <label key={s.key} style={{ display: "block", marginTop: 8 }}>
             {s.label}{" "}

@@ -50,7 +50,7 @@ func TestForwardsByHeader(t *testing.T) {
 	if code, body := get("", "/maitre.v1.X/Y"); code != 200 || body != "rpc" {
 		t.Fatalf("passthrough: %d %q", code, body)
 	}
-	if code, body := get("kuma", "/dashboard/1"); code != 200 || body != "hello from /dashboard/1 host=kuma.maitre.local hdr=" {
+	if code, body := get("kuma", "/dashboard/1"); code != 200 || body != "hello from /dashboard/1 host=kuma.local hdr=" {
 		t.Fatalf("proxied: %d %q", code, body)
 	}
 	if code, _ := get("headless", "/"); code != 404 {

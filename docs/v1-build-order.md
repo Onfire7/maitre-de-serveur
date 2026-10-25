@@ -54,11 +54,11 @@ Goal: install a Catalog entry from the Console and open it in the built-in brows
 - Catalog repository with the manifest format: Quadlet files plus manifest (name, icon, description, volumes, exposure default, has own login, user-editable settings, infrastructure flag, declared host ports, health check). Start with three entries that cover the shapes: Jellyfin (media, big volume), Uptime Kuma (tiny, own login), AdGuard Home (Infrastructure, host ports).
 - Agent: fetch Catalog index, create a Service, write Quadlet units, start, stop, remove, status, log tail, restart count. Catalog images pinned by digest.
 - Default Tier (Local placement) with a single-Drive Pool on the data partition, mounted through MergerFS. Volumes at `<pool>/<service>/<volume>`.
-- Embedded Caddy: routes `<service>.maitre.local` to the Service. mDNS publishes the names. Private exposure only in this milestone.
+- Embedded Caddy: routes `<service>.local` to the Service. mDNS publishes the names. Private exposure only in this milestone.
 - Console: Catalog browser, install flow with settings form, Service page with status, logs, and the built-in browser tab.
 - Observability v1: Node gauges (CPU, memory, Pool capacity, network, temperature if available).
 
-Demo: install Jellyfin from the Console, open `jellyfin.maitre.local` inside the Console.
+Demo: install Jellyfin from the Console, open `jellyfin.local` inside the Console.
 
 Open question to resolve in this milestone: how the Console's webview trusts the TLS certificate for Private Services. Caddy's internal CA can issue them, but getting a Tauri webview to trust a custom CA is awkward on all three platforms. Preferred answer: the Console runs a loopback proxy that tunnels Service traffic over the existing mTLS channel, so the webview talks plain HTTP to localhost. Decide here because it affects how Caddy is configured for Private.
 
@@ -149,4 +149,9 @@ Demo: a fresh laptop, download Maître Desktop, prepare a USB, install a Node, r
 
 ## Open questions found while building
 
-- 75. `<service>.maitre.local` does not resolve from Linux desktops: nss-mdns's default `mdns_minimal` module rejects names with more than two labels (`foo.bar.local`), and that is what Fedora, Ubuntu and Arch ship. macOS, iOS, Windows and Android resolve them. Options: (a) keep the names and document that Linux users open Services through the Console (the proxy needs no name resolution); (b) flatten to `<service>.local`, which collides with other devices on the LAN and gives up the Maître namespace; (c) have the Node also answer plain DNS for `maitre.local` and let Linux users point at it. Recommended: (a) for v1, revisit with Milestone 5's remote access, where names stop being mDNS anyway.
+- 75. `<service>.maitre.local` does not resolve from Linux desktops: nss-mdns's default `mdns_minimal` module rejects names with more than two labels. Decided 2026-10-24: (b) Services are `<name>.local`; the Node publishes those names over mDNS and Caddy routes them. A name clash with another device on the LAN is the user's to avoid.
+- 76. Offline install from the media (follow-up to 68 and 70). The installer media is the same image, yet `bootc install` pulls it again from the registry. Recommended: bake an OCI archive of the image into a partition on the installer media (`podman save --format oci-archive`), and have the Installer compare the registry's digest with the baked one; install from the archive when it matches or when the registry is unreachable, pull only when the registry has a newer image. Also removes the need for a registry when installing a locally built image. Open.
+- 77. Local image deployment and Node updates (brought forward from Milestone 6). Recommended: a `maitre image-push` / `make image-push` that runs a registry container on the developer machine and pushes the local build; a NodeService `UpdateImage(ref, insecure_registry)` RPC that runs `bootc switch --apply`; a Console control in the Node view to enter an image reference. Netboot (PXE) for new installs is deferred until there is a second physical machine to test it on. Open.
+- 78. Catalog knowledge moves to the Desktop (73 revised). The Node's InstallService should take a complete ServiceSpec (image, ports, volumes, environment, health check, web path) instead of a Catalog id, so custom and customised Services need no Node support. The Node keeps nothing from the Catalog but the index baked into the image for the CLI. Open; planned as the first item after 77.
+
+Decisions 66 to 73 were confirmed 2026-10-24, with these notes: 68 and 70 stand until 76 is built; 72 adds text art at the end of startup and for the pairing code, a graphical boot logo may come once there is a logo, never a graphical session; 73 is superseded by 78.

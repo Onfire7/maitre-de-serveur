@@ -5,6 +5,7 @@
 package installer
 
 import (
+	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
 	"context"
 	"fmt"
 	"sync"
@@ -184,6 +185,8 @@ func (in *Installer) Screen() string {
 	var b []byte
 	w := func(f string, a ...any) { b = append(b, fmt.Sprintf(f+"\n", a...)...) }
 	w("")
+	w("%s", ascii.Banner())
+	w("")
 	w("  Maître Installer  %s", in.opts.Version)
 	w("  ─────────────────────────────────────────────")
 	addrs := Addresses()
@@ -201,9 +204,11 @@ func (in *Installer) Screen() string {
 			w("  Open Maître Desktop on a computer on this network.")
 			w("  It will find this machine automatically.")
 		} else {
-			w("  Pairing code:     %s", in.code)
+			w("  Pairing code:")
 			w("")
-			w("  Confirm in Maître Desktop that it shows the same code.")
+			w("%s", ascii.Digits(spaced(in.code), "      "))
+			w("")
+			w("  Confirm in Maître Desktop that it shows the same code (%s).", in.code)
 		}
 	case maitrev1.Provisioning_PHASE_FAILED:
 		w("  Install FAILED: %s", in.prov.GetMessage())
@@ -213,6 +218,14 @@ func (in *Installer) Screen() string {
 		w("  Do not power off.")
 	}
 	return string(b)
+}
+
+// spaced puts a gap in the middle of a six-digit code: "123 456".
+func spaced(code string) string {
+	if len(code) == 6 {
+		return code[:3] + " " + code[3:]
+	}
+	return code
 }
 
 func cloneProv(p *maitrev1.Provisioning) *maitrev1.Provisioning {

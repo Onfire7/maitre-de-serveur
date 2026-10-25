@@ -9,7 +9,7 @@ import (
 )
 
 func TestConfigIsValidJSONWithRoutes(t *testing.T) {
-	cfg := caddy.Config([]caddy.Route{{Host: "uptime.maitre.local", Upstream: "127.0.0.1:20001"}, {Host: "jellyfin.maitre.local", Upstream: "127.0.0.1:20002"}})
+	cfg := caddy.Config([]caddy.Route{{Host: "uptime.local", Upstream: "127.0.0.1:20001"}, {Host: "jellyfin.local", Upstream: "127.0.0.1:20002"}})
 	var v map[string]any
 	if err := json.Unmarshal(cfg, &v); err != nil {
 		t.Fatal(err)
