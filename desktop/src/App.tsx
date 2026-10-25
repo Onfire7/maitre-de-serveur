@@ -112,6 +112,7 @@ export default function App() {
             }}
             onAddDev={(node) => save({ ...state, nodes: [...state.nodes.filter((n) => n.node_id !== node.node_id), node] })}
             onForget={(node) => save({ ...state, nodes: state.nodes.filter((n) => n.node_id !== node.node_id) })}
+            onAddresses={(nodes) => save({ ...state, nodes })}
           />
         </Shell>
       );
@@ -185,6 +186,7 @@ function Home({
   onOpen,
   onAddDev,
   onForget,
+  onAddresses,
 }: {
   device: DeviceInfo;
   state: ConsoleState;
@@ -192,6 +194,7 @@ function Home({
   onOpen: (n: KnownNode) => void;
   onAddDev: (n: KnownNode) => void;
   onForget: (n: KnownNode) => void;
+  onAddresses: (nodes: KnownNode[]) => void;
 }) {
   const [found, setFound] = useState<Found[]>([]);
   const [showDev, setShowDev] = useState(false);
@@ -226,6 +229,24 @@ function Home({
         }
       }
       if (stop) return;
+      // Addresses in the records (LAN leases, and the tailnet address a Node
+      // adds once it joins Tailscale) become fallbacks for every known Node,
+      // so the Console reaches a Node away from home (Milestone 5).
+      let changed = false;
+      const next = state.nodes.map((n) => {
+        for (const a of alive) {
+          const own = a.records.get(n.node_id);
+          if (!own) continue;
+          const rec = fromBinary(NodeSchema, own);
+          const extra = rec.addresses.filter((x) => !n.addresses.includes(x));
+          if (extra.length > 0) {
+            changed = true;
+            return { ...n, addresses: [...n.addresses, ...extra] };
+          }
+        }
+        return n;
+      });
+      if (changed && !stop) onAddresses(next);
       for (const a of alive)
         for (const b of alive) {
           if (a === b || a.records.has(b.node.node_id)) continue;
