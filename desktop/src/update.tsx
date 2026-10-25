@@ -24,7 +24,7 @@ interface DepotImage {
 /** What the Node is about to do, so the Node view can switch to the maintenance screen. */
 export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
 
-export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: (m: Maintenance) => void }) {
+export function UpdatePanel({ target, onStarted, runningVersion }: { target: Target; onStarted: (m: Maintenance) => void; runningVersion?: string }) {
   const client = useMemo(() => createClient(NodeService, transportFor(target)), [target.addr, target.fingerprint]);
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [error, setError] = useState("");
@@ -131,7 +131,7 @@ export function UpdatePanel({ target, onStarted }: { target: Target; onStarted: 
       {error && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{error}</pre>}
       <table>
         <tbody>
-          <Deployment label="Running" d={status.booted} />
+          <Deployment label="Running" d={status.booted} version={runningVersion} />
           {status.staged && <Deployment label="Staged for next boot" d={status.staged} />}
           {status.rollback && <Deployment label={status.rollbackQueued ? "Rollback (boots next)" : "Previous"} d={status.rollback} />}
         </tbody>
@@ -217,15 +217,17 @@ function ago(iso: string) {
   return `${Math.round(s / 86400)} days ago`;
 }
 
-function Deployment({ label, d }: { label: string; d?: ImageDeployment }) {
+function Deployment({ label, d, version }: { label: string; d?: ImageDeployment; version?: string }) {
   if (!d) return null;
+  // The agent's own version is what we built; bootc's label is a fallback.
+  const v = version || d.version;
   return (
     <tr>
       <td>{label}</td>
       <td>
         <code>{d.image}</code>
         <div style={{ color: "#555", fontSize: 13 }}>
-          {d.version && `version ${d.version} · `}
+          {v && `version ${v} · `}
           {d.digest && <code title={d.digest}>{d.digest.slice(0, 19)}</code>}
           {d.timestamp && ` · built ${new Date(d.timestamp).toLocaleString()}`}
         </div>
