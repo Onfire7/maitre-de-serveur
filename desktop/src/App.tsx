@@ -199,12 +199,7 @@ function Home({
               key={n.node_id}
               node={n}
               live={found.find((f) => f.kind === "node" && f.id === n.node_id)}
-              onOpen={() => {
-                // A Node can come back from a reinstall or a new DHCP lease on
-                // another address; what mDNS says now beats what we stored.
-                const live = found.find((f) => f.kind === "node" && f.id === n.node_id);
-                onOpen(live ? { ...n, addresses: [...live.addresses, ...n.addresses.filter((a) => !live.addresses.includes(a))] } : n);
-              }}
+              onOpen={(addr) => onOpen({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
               onForget={() => onForget(n)}
               onAddress={(addr) => onAddDev({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
             />
@@ -275,7 +270,8 @@ function NodeRow({
 }: {
   node: KnownNode;
   live?: Found;
-  onOpen: () => void;
+  /** Called with the address that answered (or the one being tried). */
+  onOpen: (addr: string) => void;
   onForget: () => void;
   onAddress: (addr: string) => void;
 }) {
@@ -283,7 +279,11 @@ function NodeRow({
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState(false);
   const [manual, setManual] = useState("");
-  const addr = live?.addresses[0] ?? node.addresses[0];
+  // The stored address (which a manual entry overrides) is tried first;
+  // discovery is the fallback, since it can be wrong too.
+  const [useLive, setUseLive] = useState(false);
+  const liveAddr = live?.addresses[0];
+  const addr = useLive && liveAddr ? liveAddr : node.addresses[0];
   useEffect(() => {
     let stop = false;
     const client = createClient(NodeService, transportFor({ addr, fingerprint: node.node_id }));
@@ -298,6 +298,8 @@ function NodeRow({
         if (!stop) {
           setInfo(null);
           setErr(String(e));
+          if (liveAddr && liveAddr !== addr) setUseLive(true);
+          else if (useLive) setUseLive(false);
         }
       }
     };
@@ -307,7 +309,7 @@ function NodeRow({
       stop = true;
       clearInterval(t);
     };
-  }, [addr, node.node_id]);
+  }, [addr, liveAddr, node.node_id]);
   return (
     <li style={row}>
       <div>
@@ -318,7 +320,7 @@ function NodeRow({
         </div>
       </div>
       <div>
-        <button onClick={onOpen}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button> <button onClick={onForget}>Forget</button>
+        <button onClick={() => onOpen(addr)}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button> <button onClick={onForget}>Forget</button>
         {editing && (
           <div style={{ marginTop: 4 }}>
             <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="192.168.4.80:7443" style={{ width: 180 }} />{" "}
