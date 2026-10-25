@@ -14,8 +14,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -192,6 +194,9 @@ menuentry "Install Maître Server ({{.Image}})" {
 
 // WriteGrubConfig renders grub.cfg into l.Boot(). It is written at the root
 // and under EFI/fedora/, the two places Fedora's GRUB looks when netbooted.
+// Files are replaced by rename, so a copy left by an elevated run can still
+// be swapped out by the directory's owner, and anything written while
+// elevated is handed back to the invoking user.
 func WriteGrubConfig(l Layout, p BootParams) error {
 	var buf bytes.Buffer
 	if err := grubTemplate.Execute(&buf, p); err != nil {
@@ -202,11 +207,58 @@ func WriteGrubConfig(l Layout, p BootParams) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		OwnByInvoker(filepath.Dir(dst))
+		tmp := dst + ".tmp"
+		if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				return fmt.Errorf("%w (left behind by an elevated run? fix with: sudo chown -R $USER %s)", err, l.Boot())
+			}
+			return err
+		}
+		OwnByInvoker(tmp)
+		if err := os.Rename(tmp, dst); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// OwnByInvoker gives path to the user who ran sudo or pkexec, when this
+// process is root on their behalf, so they keep control of their own files.
+func OwnByInvoker(path string) {
+	if os.Getuid() != 0 {
+		return
+	}
+	uid, gid := invokerIDs()
+	if uid <= 0 {
+		return
+	}
+	_ = os.Lchown(path, uid, gid)
+}
+
+func invokerIDs() (uid, gid int) {
+	uid, gid = -1, -1
+	for _, k := range []string{"SUDO_UID", "PKEXEC_UID"} {
+		if v := os.Getenv(k); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				uid = n
+				break
+			}
+		}
+	}
+	if v := os.Getenv("SUDO_GID"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			gid = n
+		}
+	}
+	if uid >= 0 && gid < 0 {
+		if u, err := user.LookupId(strconv.Itoa(uid)); err == nil {
+			if n, err := strconv.Atoi(u.Gid); err == nil {
+				gid = n
+			}
+		}
+	}
+	return uid, gid
 }
 
 // Netboot answers PXE clients: proxyDHCP on 67 and 4011 (the LAN's own DHCP

@@ -166,6 +166,7 @@ func (e *eventLog) emit(kind string, fields map[string]any) {
 		if f, err := os.OpenFile(e.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
 			_, _ = f.Write(append(b, '\n'))
 			f.Close()
+			depot.OwnByInvoker(e.path)
 		}
 	}
 }
