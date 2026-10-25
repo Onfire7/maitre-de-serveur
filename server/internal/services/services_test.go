@@ -30,6 +30,12 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	if name == "journalctl" {
 		return "l1\nl2\n", nil
 	}
+	if name == "nmcli" && args[0] == "-t" && args[1] == "-f" {
+		return "lo:loopback:lo\nWired connection 1:802-3-ethernet:enp3s0\n", nil
+	}
+	if name == "nmcli" && args[0] == "-t" && args[1] == "-g" {
+		return "192.168.4.80/22\n192.168.4.1\n192.168.4.1 | 1.1.1.1\n", nil
+	}
 	return "", nil
 }
 
@@ -96,6 +102,16 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	ag, err := m.Install(ctx, catalog.SpecFor(idx.Find("adguard-home"), "", nil, ""))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// An Infrastructure Service pins the Node's address (Milestone 3).
+	pinned := false
+	for _, c := range run.cmds {
+		if strings.HasPrefix(c, "nmcli connection modify Wired connection 1 ipv4.method manual ipv4.addresses 192.168.4.80/22 ipv4.gateway 192.168.4.1 ipv4.dns 192.168.4.1,1.1.1.1") {
+			pinned = true
+		}
+	}
+	if !pinned {
+		t.Errorf("address not pinned; nmcli calls: %v", run.cmds)
 	}
 	agUnit, _ := os.ReadFile(filepath.Join(dir, "units", "adguard-home.container"))
 	if !strings.Contains(string(agUnit), "Before=network-online.target") || ag.GetSpec().GetWebHostPort() == s.GetSpec().GetWebHostPort() {

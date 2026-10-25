@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,6 +48,8 @@ func (ExecRunner) Run(ctx context.Context, name string, args ...string) (string,
 
 // Config locates things on the Node.
 type Config struct {
+	// Log for notable events; nil is fine.
+	Log *slog.Logger
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
 	// PoolDir is the default Tier's Pool; volumes live at PoolDir/<service>/<volume>.
@@ -144,6 +147,14 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	if err := m.apply(ctx, spec); err != nil {
 		return nil, err
+	}
+	if spec.GetInfrastructure() {
+		// Other devices will point at this Node; its address must not move.
+		if addr, err := PinAddress(ctx, m.run); err != nil {
+			return nil, fmt.Errorf("%s needs a fixed address for this Node, which could not be set: %w", name, err)
+		} else if m.cfg.Log != nil {
+			m.cfg.Log.Info("address pinned for infrastructure service", "service", name, "address", addr)
+		}
 	}
 	if _, err := m.store.Put(ctx, KindService, name, spec, false); err != nil {
 		return nil, err

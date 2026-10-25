@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
 import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action, ServiceSpecSchema, type ServiceStatus } from "./gen/maitre/v1/service_pb";
 import { create } from "@bufbuild/protobuf";
 import { transportFor, type Target } from "./transport";
+import { NodeService } from "./gen/maitre/v1/node_pb";
 // Decision 78: the Catalog lives with the Console. This index is generated
 // from the catalog/ submodule by `make gen`; the Node knows nothing of it.
 import bundledCatalog from "./catalog/index.json";
@@ -41,12 +42,29 @@ export function ServicesPanel({ target }: { target: Target }) {
   const [installing, setInstalling] = useState<CatalogEntry | null>(null);
   const [open, setOpen] = useState<{ name: string; url: string } | null>(null);
   const [logsFor, setLogsFor] = useState<{ name: string; lines: string[] } | null>(null);
+  // Milestone 3: a Service record whose version moved while this Console
+  // did not write it was changed from another device (or Node); say so.
+  const [notice, setNotice] = useState("");
+  const seen = useRef<Map<string, bigint>>(new Map());
+  const lastWrite = useRef(0);
+  const nodeClient = useMemo(() => createClient(NodeService, transportFor(target)), [target.addr, target.fingerprint]);
 
   const refresh = async () => {
     try {
       const r = await client.listServices({});
       setServices(r.services);
       setError("");
+      const recs = (await nodeClient.listRecords({ kind: "service" })).records;
+      const changed: string[] = [];
+      for (const rec of recs) {
+        const prev = seen.current.get(rec.id);
+        if (prev !== undefined && rec.version > prev && Date.now() - lastWrite.current > 5000) changed.push(rec.deleted ? `${rec.id} (removed)` : rec.id);
+        seen.current.set(rec.id, rec.version);
+      }
+      if (changed.length > 0) {
+        setNotice(`Changed from another device: ${changed.join(", ")}`);
+        setTimeout(() => setNotice(""), 15000);
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -61,6 +79,7 @@ export function ServicesPanel({ target }: { target: Target }) {
 
   async function control(name: string, action: ControlServiceRequest_Action) {
     try {
+      lastWrite.current = Date.now();
       await client.controlService({ name, action });
       await refresh();
     } catch (e) {
@@ -93,6 +112,7 @@ export function ServicesPanel({ target }: { target: Target }) {
   return (
     <>
       {error && <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{error}</pre>}
+      {notice && <p style={{ color: "#a60", fontSize: 13 }}>{notice}</p>}
 
       <section>
         <h3>Services on this Node</h3>
@@ -170,6 +190,7 @@ export function ServicesPanel({ target }: { target: Target }) {
           onCancel={() => setInstalling(null)}
           onInstall={async (name, settings) => {
             try {
+              lastWrite.current = Date.now();
               await client.installService({ spec: specFor(installing, name, settings) });
               setInstalling(null);
               await refresh();
