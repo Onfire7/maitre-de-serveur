@@ -8,7 +8,7 @@ STATE   ?= $(HOME)/.maitre
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 TAG     ?= dev
 
-.PHONY: help gen gen-check build test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot publish depot clean
+.PHONY: help gen gen-check build sidecar test lint dev dev-trust vm desktop info m0-check m1-check tunnel-check image image-boot publish depot clean
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -24,7 +24,7 @@ build: server/bin/maitre ## Build the agent binary
 server/bin/maitre: $(shell find server -name '*.go') server/go.mod
 	cd server && $(GO) build -ldflags "-X main.version=$(VERSION)" -o bin/maitre ./cmd/maitre
 
-test: ## Run Go, Rust, and TypeScript checks
+test: sidecar ## Run Go, Rust, and TypeScript checks
 	cd server && $(GO) vet ./... && $(GO) test ./...
 	cd desktop && $(PNPM) exec tsc --noEmit && $(PNPM) test
 	cd desktop/src-tauri && $(CARGO) test --lib
@@ -46,17 +46,19 @@ vm: build ## Boot Maître Server in QEMU from CI's installer media; Ctrl-C stops
 
 TRIPLE  := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
 
-desktop: build ## Run Maître Desktop with live reload; bundles the maitre binary as its netboot helper
+sidecar: build ## Place the maitre binary where the Desktop bundles it as its netboot helper (Tauri needs it to compile at all)
 	mkdir -p desktop/src-tauri/binaries && cp server/bin/maitre desktop/src-tauri/binaries/maitre-$(TRIPLE)
+
+desktop: sidecar ## Run Maître Desktop with live reload
 	cd desktop && MAITRE_BIN=$(CURDIR)/server/bin/maitre $(PNPM) tauri dev
 
 info: build ## Call GetNodeInfo as the CLI device in $(STATE)/device
 	MAITRE_STATE=$(STATE) ./server/bin/maitre info
 
-tunnel-check: build ## End-to-end: Console's Service tunnel (HTTP + WebSocket) against a dev Node with an echo Service
+tunnel-check: sidecar ## End-to-end: Console's Service tunnel (HTTP + WebSocket) against a dev Node with an echo Service
 	./scripts/tunnel-check.sh
 
-m0-check: build ## End-to-end: Go dev Node <-> Rust client over mTLS, both directions of refusal
+m0-check: sidecar ## End-to-end: Go dev Node <-> Rust client over mTLS, both directions of refusal
 	./scripts/m0-check.sh ./server/bin/maitre
 
 m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, then start the agent from its config
