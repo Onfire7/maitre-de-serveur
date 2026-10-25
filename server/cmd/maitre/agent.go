@@ -106,6 +106,7 @@ func runAgent(args []string) error {
 	refreshTrust()
 	log.Info("maitre agent", "node_id", id.Fingerprint(), "name", self.GetName(), "fleet", fleet.GetName(), "trusted_devices", list.Len())
 
+	ensureHostname(log, hostLabel(self.GetName()))
 	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
 	svc.OnChange = func(r *maitrev1.Record) {
 		if r.GetKind() == store.KindTrustedDevice {
@@ -294,6 +295,9 @@ func runInstaller(args []string) error {
 		opts.Reboot = func() error { return exec.Command("systemctl", "reboot").Run() }
 	}
 	in := installer.New(id, opts)
+	if *fake == "" {
+		ensureHostname(log, "maitre-installer-"+id.Fingerprint()[:8])
+	}
 
 	rpc := connect.NewServer()
 	maitrev1connect.RegisterInstallerServiceHandler(rpc, in)
