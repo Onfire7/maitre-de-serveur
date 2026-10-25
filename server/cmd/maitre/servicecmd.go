@@ -35,11 +35,24 @@ func runPoolUp(args []string) error {
 	var extra []string
 	if id, err := identity.Load(filepath.Join(*state, "node")); err == nil {
 		if db, err := store.Open(filepath.Join(*state, "fleet.db"), id.Fingerprint()); err == nil {
-			dirs, errs := storage.New(db, nil).MountAll(ctx)
+			sm := storage.New(db, nil)
+			_, errs := sm.MountAll(ctx)
 			for _, e := range errs {
 				fmt.Fprintln(os.Stderr, "pool-up:", e)
 			}
-			extra = dirs
+			if byTier, err := sm.LocalBranches(ctx); err == nil {
+				extra = byTier[storage.DefaultTier]
+				for tier, branches := range byTier {
+					if tier == storage.DefaultTier {
+						continue
+					}
+					if err := pool.Assemble(ctx, tier, branches); err != nil {
+						fmt.Fprintln(os.Stderr, "pool-up:", err)
+					} else if len(branches) > 0 {
+						fmt.Printf("pool-up: Pool %s over %s\n", tier, strings.Join(branches, ", "))
+					}
+				}
+			}
 			db.Close()
 		}
 	}

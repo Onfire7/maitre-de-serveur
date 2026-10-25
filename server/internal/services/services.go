@@ -137,9 +137,14 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	spec.NodeId = m.store.NodeID()
 	spec.CreatedUnixMs = time.Now().UnixMilli()
-	spec.VolumeTiers = map[string]string{}
+	// Volume Tiers come from the Console (decision 107); missing ones default.
+	if spec.VolumeTiers == nil {
+		spec.VolumeTiers = map[string]string{}
+	}
 	for _, v := range spec.GetVolumes() {
-		spec.VolumeTiers[v.GetName()] = "default"
+		if spec.VolumeTiers[v.GetName()] == "" {
+			spec.VolumeTiers[v.GetName()] = "default"
+		}
 	}
 	spec.WebHostPort = 0
 	if spec.GetWebPort() != 0 {
@@ -169,7 +174,16 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	vols := map[string]string{}
 	for _, v := range spec.GetVolumes() {
-		dir := filepath.Join(m.cfg.PoolDir, spec.GetName(), v.GetName())
+		// Milestone 4: each volume lives on the Pool of its Tier; "default"
+		// is cfg.PoolDir, others sit beside it as <pools>/<tier>.
+		base := m.cfg.PoolDir
+		if tier := spec.GetVolumeTiers()[v.GetName()]; tier != "" && tier != "default" {
+			base = filepath.Join(filepath.Dir(m.cfg.PoolDir), tier)
+			if _, err := os.Stat(base); err != nil {
+				return fmt.Errorf("volume %s wants Tier %q, which has no Pool on this Node", v.GetName(), tier)
+			}
+		}
+		dir := filepath.Join(base, spec.GetName(), v.GetName())
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}

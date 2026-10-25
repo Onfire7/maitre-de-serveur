@@ -219,19 +219,51 @@ func runAgent(args []string) error {
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
-	stor.OnChange = func() {
-		dirs, errs := stor.MountAll(ctx)
+	if err := storage.EnsureDefaultTier(ctx, st); err != nil {
+		log.Warn("default tier", "err", err)
+	}
+	assemblePools := func() {
+		_, errs := stor.MountAll(ctx)
 		for _, e := range errs {
 			log.Warn("drive", "err", e)
 		}
-		if _, err := pool.Up(ctx, dirs...); err != nil {
+		byTier, err := stor.LocalBranches(ctx)
+		if err != nil {
+			log.Warn("tiers", "err", err)
+			return
+		}
+		if _, err := pool.Up(ctx, byTier[storage.DefaultTier]...); err != nil {
 			log.Warn("pool", "err", err)
 		}
+		for tier, branches := range byTier {
+			if tier != storage.DefaultTier {
+				if err := pool.Assemble(ctx, tier, branches); err != nil {
+					log.Warn("pool", "tier", tier, "err", err)
+				}
+			}
+		}
+	}
+	stor.OnChange = func() {
+		assemblePools()
 		if recs, err := st.List(ctx, storage.KindDrive); err == nil {
 			pm.Push(context.WithoutCancel(ctx), recs...)
 		}
 		requestBackup()
 	}
+	// Tier or Drive records arriving from a Console or a peer reshape the Pools.
+	withTiers := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withTiers(r)
+		if r.GetKind() == storage.KindTier || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
+			assemblePools()
+		}
+	}
+	withPools := pm.OnApplied
+	pm.OnApplied = func() {
+		withPools()
+		assemblePools()
+	}
+	assemblePools()
 	ssvc2 := storageservice.New(stor)
 	var hostAd *mdns.Advertisement
 	publish := func() {

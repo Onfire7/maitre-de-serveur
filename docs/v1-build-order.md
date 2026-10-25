@@ -211,3 +211,9 @@ Scope: pairing, trust list, mTLS wiring, identity storage, and the code added si
 - 100. "Recover with your phrase": the recovery key is recovery-only; Nodes accept it for exactly one call, adding a Trusted Device.
 - 101. Recovery is chosen at the machine's keyboard: the reboot question offers "reboot into recovery", which boots with networking off, shows a one-time code, and on the next normal boot honours that code for 15 minutes (a device presenting it with its key is added as a Trusted Device, on a dedicated listener that accepts any client certificate for that one call). Nothing on the network can request recovery.
 
+
+### Milestone 4 progress (2026-10-25)
+
+- Drives (`server/internal/storage`): detection by lsblk with automatic tags (ssd/hdd, usb/nvme, size class), Adopt keeps the filesystem (ext4, xfs, btrfs, NTFS via ntfs3, exFAT) and mounts by UUID, Format wipes to btrfs behind a typed-model guard, Remove leaves data in place. Drive records are owned by the Node and synced. A USB stick as the only disk must keep its data partition unless the Fleet already has a Node.
+- Tiers (`tier` records, Fleet-wide): required tags, optional Nodes, priority; a Drive belongs to the highest-priority matching Tier, "default" (created by the agent) takes the rest. Each Tier with Drives on a Node gets a mergerfs Pool at `/var/mnt/pools/<tier>`; branch changes are applied in place through the mergerfs xattr. Service volumes carry a Tier each, chosen in the install dialog (107); a volume whose Tier has no Pool on the Node refuses to install there.
+- 103 (UUID identity), 104 (rules), 107 (per-volume Tier) built on the plan's wording; 105 (NFS trust) and 106 (spanning placement) wait for answers. Not yet: Spanning Tiers over NFS, Parity Drives (after v1), the typed-name guard for deleting Service data and removing a Node.

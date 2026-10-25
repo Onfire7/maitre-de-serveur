@@ -34,7 +34,7 @@ interface CatalogIndex {
   entries: CatalogEntry[];
 }
 
-export function ServicesPanel({ target }: { target: Target }) {
+export function ServicesPanel({ target, tiers = [] }: { target: Target; tiers?: { tierId: string; name: string }[] }) {
   const client = useMemo(() => createClient(ServiceService, transportFor(target)), [target.addr, target.fingerprint]);
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const catalog = bundledCatalog as CatalogIndex;
@@ -187,11 +187,14 @@ export function ServicesPanel({ target }: { target: Target }) {
       {installing && (
         <InstallDialog
           entry={installing}
+          tiers={tiers}
           onCancel={() => setInstalling(null)}
-          onInstall={async (name, settings) => {
+          onInstall={async (name, settings, volumeTiers) => {
             try {
               lastWrite.current = Date.now();
-              await client.installService({ spec: specFor(installing, name, settings) });
+              const spec = specFor(installing, name, settings);
+              spec.volumeTiers = volumeTiers;
+              await client.installService({ spec });
               setInstalling(null);
               await refresh();
             } catch (e) {
@@ -223,14 +226,17 @@ function specFor(e: CatalogEntry, name: string, settings: Record<string, string>
 
 function InstallDialog({
   entry,
+  tiers,
   onCancel,
   onInstall,
 }: {
   entry: CatalogEntry;
+  tiers: { tierId: string; name: string }[];
   onCancel: () => void;
-  onInstall: (name: string, settings: Record<string, string>) => void;
+  onInstall: (name: string, settings: Record<string, string>, volumeTiers: Record<string, string>) => void;
 }) {
   const [name, setName] = useState(entry.id);
+  const [volumeTiers, setVolumeTiers] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, "default"])));
   const [settings, setSettings] = useState<Record<string, string>>(
     Object.fromEntries((entry.settings ?? []).map((s) => [s.key, s.default ?? ""])),
   );
@@ -266,9 +272,23 @@ function InstallDialog({
             )}
           </label>
         ))}
+        {tiers.length > 1 &&
+          entry.volumes.map((v) => (
+            <label key={v.name} style={{ display: "block", marginTop: 8 }}>
+              Store {v.name}
+              {v.size ? ` (${v.size})` : ""} on{" "}
+              <select value={volumeTiers[v.name]} onChange={(e) => setVolumeTiers({ ...volumeTiers, [v.name]: e.target.value })}>
+                {tiers.map((t) => (
+                  <option key={t.tierId} value={t.tierId}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
         {entry.own_login && <p style={{ color: "#555", fontSize: 13 }}>{entry.name} has its own accounts; you will set one up the first time you open it.</p>}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings)}>
+          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeTiers)}>
             Install
           </button>
           <button onClick={onCancel}>Cancel</button>

@@ -98,3 +98,30 @@ func mounted(dir string) bool {
 	}
 	return false
 }
+
+// Assemble mounts the Pool for one Tier over branches at PoolsDir/<tier>,
+// updating the branch set in place when it is already mounted. A Tier with
+// no branches on this Node gets no Pool here.
+func Assemble(ctx context.Context, tier string, branches []string) error {
+	mount := filepath.Join(PoolsDir, tier)
+	if len(branches) == 0 {
+		if mounted(mount) {
+			_ = exec.CommandContext(ctx, "umount", "-l", mount).Run()
+		}
+		return nil
+	}
+	if err := os.MkdirAll(mount, 0o755); err != nil {
+		return err
+	}
+	if mounted(mount) {
+		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), filepath.Join(mount, ".mergerfs")).CombinedOutput(); err != nil {
+			return fmt.Errorf("update %s branches: %v: %s", tier, err, out)
+		}
+		return nil
+	}
+	opts := "cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true,fsname=maitre-" + tier
+	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), mount).CombinedOutput(); err != nil {
+		return fmt.Errorf("mergerfs %s: %v: %s", tier, err, out)
+	}
+	return nil
+}

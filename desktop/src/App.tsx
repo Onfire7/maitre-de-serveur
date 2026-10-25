@@ -11,6 +11,7 @@ import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { NetbootPanel } from "./netboot";
 import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
 import { StoragePanel } from "./storage";
+import { TiersPanel, useTiers } from "./tiers";
 
 type Screen =
   | { name: "home" }
@@ -92,7 +93,7 @@ export default function App() {
     case "node":
       return (
         <Shell>
-          <NodeView node={screen.node} onBack={() => setScreen({ name: "home" })} />
+          <NodeView node={screen.node} onBack={() => setScreen({ name: "home" })} state={state} />
         </Shell>
       );
     default:
@@ -271,6 +272,8 @@ function Home({
       </section>
 
       <AskingDevices state={state} found={found} />
+
+      <TiersPanel state={state} />
 
       <section>
         <h2>Add a Node</h2>
@@ -681,7 +684,7 @@ function AddNode({
   );
 }
 
-function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
+function NodeView({ node, onBack, state }: { node: KnownNode; onBack: () => void; state: ConsoleState }) {
   const [maint, setMaint] = useState<Maintenance | null>(null);
   if (maint)
     return (
@@ -693,10 +696,11 @@ function NodeView({ node, onBack }: { node: KnownNode; onBack: () => void }) {
         onBack={onBack}
       />
     );
-  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} />;
+  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} state={state} />;
 }
 
-function NodeDetails({ node, onBack, onMaintenance }: { node: KnownNode; onBack: () => void; onMaintenance: (m: Maintenance) => void }) {
+function NodeDetails({ node, onBack, onMaintenance, state }: { node: KnownNode; onBack: () => void; onMaintenance: (m: Maintenance) => void; state: ConsoleState }) {
+  const { tiers } = useTiers(state);
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
   const [error, setError] = useState("");
@@ -751,7 +755,7 @@ function NodeDetails({ node, onBack, onMaintenance }: { node: KnownNode; onBack:
         </section>
       )}
       {info && !info.devMode && <StoragePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
-      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
+      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} tiers={tiers} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>
