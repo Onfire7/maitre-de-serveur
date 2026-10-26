@@ -7,6 +7,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import type { Transport } from "@connectrpc/connect";
+import { isDemo } from "./demo/flag";
+import { createDemoTransport } from "./demo/transport";
 
 interface RpcResponse {
   status: number;
@@ -47,6 +49,10 @@ const cache = new Map<string, Transport>();
 export function transportFor(t: Target): Transport {
   const key = `${t.fingerprint}@${t.addr}`;
   let tr = cache.get(key);
+  if (!tr && isDemo()) {
+    tr = createDemoTransport(t.addr);
+    cache.set(key, tr);
+  }
   if (!tr) {
     tr = createConnectTransport({
       baseUrl: `https://${encodeURIComponent(t.fingerprint)}@${t.addr}`,

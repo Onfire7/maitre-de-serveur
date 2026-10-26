@@ -3,6 +3,7 @@ syntax = "proto3";
 package maitre.v1;
 
 import "maitre/v1/fleet.proto";
+import "maitre/v1/service.proto";
 import "maitre/v1/tailscale.proto";
 
 option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
@@ -42,6 +43,37 @@ service NodeService {
   // applied newest-wins (ADR 0003). Peers call it after every write and the
   // periodic reconcile pulls ListRecords the other way.
   rpc PushRecords(PushRecordsRequest) returns (PushRecordsResponse) {}
+  // GetFleetStatus returns what this Node knows about every Node of the
+  // Fleet, itself included: the last metrics sample and Service statuses
+  // each Node gossiped and when, plus whether this Node can reach it
+  // (ADR 0006). Nothing here is stored; a Node that just started knows only
+  // itself until the peers' next samples arrive.
+  rpc GetFleetStatus(GetFleetStatusRequest) returns (GetFleetStatusResponse) {}
+}
+
+message GetFleetStatusRequest {}
+
+message GetFleetStatusResponse {
+  // The answering Node's id, so the Console can tell "this Node" apart.
+  string node_id = 1;
+  // One entry per Node this Node knows of, itself first.
+  repeated FleetNodeStatus nodes = 2;
+}
+
+// FleetNodeStatus is one Node as seen by the answering Node (ADR 0006).
+message FleetNodeStatus {
+  string node_id = 1;
+  // True for the answering Node itself and for peers it reached recently.
+  bool reachable = 2;
+  // When this Node last heard from the peer (any message); now for itself.
+  int64 last_seen_unix_ms = 3;
+  // The last metrics sample gossiped by that Node, and when it was taken.
+  // Unset when nothing was heard yet.
+  NodeMetrics metrics = 4;
+  int64 metrics_unix_ms = 5;
+  // The last Service statuses gossiped by that Node, and when they changed.
+  repeated ServiceStatus services = 6;
+  int64 services_unix_ms = 7;
 }
 
 message PushRecordsRequest {

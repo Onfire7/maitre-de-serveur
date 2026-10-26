@@ -1,5 +1,7 @@
 // Mirrors the Rust ConsoleState / commands in src-tauri/src/lib.rs.
 import { invoke } from "@tauri-apps/api/core";
+import { isDemo } from "./demo/flag";
+import { demoApi } from "./demo/api";
 
 export interface FleetState {
   fleet_id: string;
@@ -39,7 +41,7 @@ export interface Peek {
   public_key_pem: string;
 }
 
-export const api = {
+const tauriApi = {
   deviceInfo: () => invoke<DeviceInfo>("device_info"),
   getState: () => invoke<ConsoleState>("get_state"),
   setState: (newState: ConsoleState) => invoke<void>("set_state", { newState }),
@@ -47,3 +49,6 @@ export const api = {
   discover: () => invoke<Found[]>("discover"),
   peekInstaller: (addr: string) => invoke<Peek>("peek_installer", { addr }),
 };
+
+/** The Console's own state and LAN discovery; the demo Fleet's when demo mode is on. */
+export const api: typeof tauriApi = isDemo() ? demoApi : tauriApi;

@@ -299,6 +299,13 @@ func runAgent(args []string) error {
 	}
 	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
+	svc.Services = func(ctx context.Context) []*maitrev1.ServiceStatus {
+		list, err := mgr.List(ctx)
+		if err != nil {
+			log.Warn("fleet status: list services", "err", err)
+		}
+		return list
+	}
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
 	// The Installer's data partition is the Node's built-in Drive: recorded

@@ -38,6 +38,9 @@ type Service struct {
 	OnChange func(*maitrev1.Record)
 	// Metrics supplies GetNodeMetrics; nil means empty readings.
 	Metrics func() *maitrev1.NodeMetrics
+	// Services lists this Node's Services with live status for
+	// GetFleetStatus; nil means none.
+	Services func(ctx context.Context) []*maitrev1.ServiceStatus
 	// Updates drives bootc; nil means this Node cannot update itself (dev mode).
 	Updates *update.Manager
 	// Peers forwards writes to their owner, pushes ours, and reports the
@@ -267,6 +270,29 @@ func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsReques
 		return &maitrev1.GetNodeMetricsResponse{Metrics: &maitrev1.NodeMetrics{}}, nil
 	}
 	return &maitrev1.GetNodeMetricsResponse{Metrics: s.Metrics()}, nil
+}
+
+// GetFleetStatus implements NodeService (ADR 0006). Until the peers gossip
+// their samples this answers with the Node's own metrics and Services and
+// the reachability of its peers; their metrics and Services stay unset.
+func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatusRequest) (*maitrev1.GetFleetStatusResponse, error) {
+	now := time.Now().UnixMilli()
+	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now}
+	if s.Metrics != nil {
+		self.Metrics = s.Metrics()
+	} else {
+		self.Metrics = &maitrev1.NodeMetrics{}
+	}
+	if s.Services != nil {
+		self.Services = s.Services(ctx)
+	}
+	out := &maitrev1.GetFleetStatusResponse{NodeId: self.NodeId, Nodes: []*maitrev1.FleetNodeStatus{self}}
+	if s.Peers != nil {
+		for _, p := range s.Peers.Status(ctx) {
+			out.Nodes = append(out.Nodes, &maitrev1.FleetNodeStatus{NodeId: p.GetNodeId(), Reachable: p.GetOnline(), LastSeenUnixMs: p.GetLastSeenUnixMs()})
+		}
+	}
+	return out, nil
 }
 
 // GetUpdateStatus implements NodeService.
