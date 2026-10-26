@@ -17,6 +17,7 @@ import { DriveRecordSchema, SpaceSchema, type Drive, type Space, type DriveRecor
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import { UpdateStatus_State, type UpdateStatus } from "@/gen/maitre/v1/node_pb";
 import type { Entry, Job, MoveRequest } from "@/gen/maitre/v1/files_pb";
+import { TailscaleConfigSchema } from "@/gen/maitre/v1/tailscale_pb";
 import bundledCatalog from "@/catalog/index.json";
 
 export const NODE_A = "a1".repeat(32);
@@ -275,6 +276,7 @@ export class DemoFleet {
     for (const d of this.drives) if (d.record) out.push(this.rec("drive", d.driveId + "@" + d.nodeId.slice(0, 4), d.nodeId, toBinary(DriveRecordSchema, d.record)));
     for (const s of this.services) out.push(this.rec("service", s.spec.name, s.spec.nodeId, toBinary(ServiceSpecSchema, s.spec)));
     out.push(this.rec("update_policy", "fleet", NODE_A, toBinary(UpdatePolicySchema, create(UpdatePolicySchema, { automatic: true, windowStartHour: 3, windowEndHour: 5, stageHours: 24, paused: false }))));
+    out.push(this.rec("tailscale", "fleet", NODE_A, toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: "k7Hs2demoClientId", oauthClientSecret: "tskey-client-demo", tag: "tag:maitre", addedUnixMs: BigInt(this.now - 12 * 86400_000) }))));
     out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
     // Keep tombstones.
     for (const r of this.records) if (r.deleted && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);

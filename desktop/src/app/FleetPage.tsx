@@ -6,12 +6,12 @@ import { CircleAlert, Info, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import type { ConsoleState, DeviceInfo, Found } from "@/state";
-import { TailscalePanel } from "@/tailscale";
 import { FLEET_TABS, FLEET_TAB_LABEL, useRoute, type FleetTab } from "./routes";
 import { NodesTab } from "./NodesTab";
 import { StorageTab } from "./StorageTab";
 import { UpdatesTab } from "./UpdatesTab";
 import { DevicesTab } from "./DevicesTab";
+import { RemoteTab } from "./RemoteTab";
 import type { Notice } from "./notices";
 
 export function FleetPage({
@@ -67,11 +67,7 @@ export function FleetPage({
         {tab === "files" && <FilesTab snap={snap} />}
         {tab === "devices" && <DevicesTab snap={snap} device={device} found={found} onPromote={onPromote} scoped={scoped} />}
         {tab === "updates" && <UpdatesTab snap={snap} state={state} />}
-        {tab === "remote" && (
-          <div className="legacy">
-            <TailscalePanel state={state} />
-          </div>
-        )}
+        {tab === "remote" && <RemoteTab snap={snap} state={state} />}
       </div>
     </div>
   );

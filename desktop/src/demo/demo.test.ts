@@ -36,7 +36,7 @@ describe("demo Fleet", () => {
     const recs = (await at(B).node.listRecords({ kind: "node" })).records;
     expect(recs.map((r) => fromBinary(NodeSchema, r.body).name).sort()).toEqual(["Alder", "Basalt"]);
     const all = (await at(A).node.listRecords({})).records;
-    expect(new Set(all.map((r) => r.kind))).toEqual(new Set(["fleet", "node", "trusted_device", "space", "drive", "service", "update_policy", "public_settings"]));
+    expect(new Set(all.map((r) => r.kind))).toEqual(new Set(["fleet", "node", "trusted_device", "space", "drive", "service", "update_policy", "tailscale", "public_settings"]));
   });
 
   it("makes a switched-off Node unreachable directly and in the anchor's view", async () => {
