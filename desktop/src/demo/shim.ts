@@ -22,6 +22,8 @@ export function installTauriShim() {
           return demoApi.getState();
         case "device_info":
           return demoApi.deviceInfo();
+        case "device_code":
+          return "482 913";
         case "peek_installer":
           return demoApi.peekInstaller(String(args?.addr ?? ""));
       }

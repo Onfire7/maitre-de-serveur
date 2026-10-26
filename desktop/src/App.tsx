@@ -9,7 +9,6 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { ServicesPanel } from "./services";
 import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { JoinScreen, RecoverScreen, CodeScreen } from "./join";
-import { StoragePanel } from "./storage";
 import { useSpaces, defaultSpace } from "./spaces";
 import { TailscaleRow } from "./tailscale";
 import { nextLetter, randomNodeName } from "./names";
@@ -557,7 +556,6 @@ function NodeDetails({
           </ul>
         </section>
       )}
-      {info && !info.devMode && <StoragePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
       {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} spaces={spaces} defaultSpaceId={defaultSpace(spaces)?.spaceId ?? ""} remoteReady={info.tailscale?.state === "Running"} publicIp={info.publicIp} portMapping={info.portMapping} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}

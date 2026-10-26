@@ -25,7 +25,7 @@ import { useRoute } from "./routes";
 
 export const SIDEBAR_WIDTH = 240;
 export const SIDEBAR_COLLAPSED = 56;
-const HOVER_DELAY = 600;
+const HOVER_DELAY = 1000;
 const LEAVE_DELAY = 300;
 
 export interface SidebarNode {
@@ -204,6 +204,7 @@ export function Sidebar({
                     openFor(s, el);
                   }}
                   onKeyOpen={(el) => openFor(s, el)}
+                flyOpen={fly?.service.spec.name === s.spec.name}
                 />
               </motion.li>
             ))}
@@ -380,6 +381,7 @@ function ServiceRow({
   onEnter,
   onChevron,
   onKeyOpen,
+  flyOpen,
 }: {
   service: FleetService;
   collapsed: boolean;
@@ -388,8 +390,10 @@ function ServiceRow({
   onEnter: (el: HTMLElement) => void;
   onChevron: (el: HTMLElement) => void;
   onKeyOpen: (el: HTMLElement) => void;
+  flyOpen: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [tipOpen, setTipOpen] = useState(false);
   const stopped = service.word === "Stopped";
   const row = (
     <div
@@ -437,7 +441,7 @@ function ServiceRow({
   );
   if (!collapsed) return row;
   return (
-    <Tooltip>
+    <Tooltip delayDuration={0} open={tipOpen && !flyOpen} onOpenChange={setTipOpen}>
       <TooltipTrigger asChild>{row}</TooltipTrigger>
       <TooltipContent side="right">
         {service.spec.name} · {service.word}

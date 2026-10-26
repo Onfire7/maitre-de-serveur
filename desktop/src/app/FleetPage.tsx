@@ -2,16 +2,16 @@
 // not yet redesigned embed the existing panels; step 4 migrates them.
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CircleAlert, Info, Laptop, FolderOpen } from "lucide-react";
+import { CircleAlert, Info, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import type { ConsoleState, DeviceInfo, Found } from "@/state";
-import { SpacesPanel } from "@/spaces";
-import { AskingDevices } from "@/join";
-import { UpdatePolicyPanel } from "@/policy";
 import { TailscalePanel } from "@/tailscale";
 import { FLEET_TABS, FLEET_TAB_LABEL, useRoute, type FleetTab } from "./routes";
 import { NodesTab } from "./NodesTab";
+import { StorageTab } from "./StorageTab";
+import { UpdatesTab } from "./UpdatesTab";
+import { DevicesTab } from "./DevicesTab";
 import type { Notice } from "./notices";
 
 export function FleetPage({
@@ -24,6 +24,7 @@ export function FleetPage({
   notices,
   onState,
   onPromote,
+  scoped,
 }: {
   tab: FleetTab;
   nodeId?: string;
@@ -34,6 +35,7 @@ export function FleetPage({
   notices: Notice[];
   onState: (s: ConsoleState) => Promise<void>;
   onPromote: () => void;
+  scoped: boolean;
 }) {
   const { go } = useRoute();
   const anchorName = snap ? snap.nodes.find((n) => n.nodeId === snap.anchor.nodeId)?.name : undefined;
@@ -61,39 +63,10 @@ export function FleetPage({
       <div className="min-h-0 flex-1 overflow-y-auto p-6 [&_section]:mb-6">
         {tab === "overview" && <Overview snap={snap} device={device} notices={notices} state={state} onPromote={onPromote} />}
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
-        {tab === "storage" && (
-          <div className="legacy">
-            <SpacesPanel state={state} />
-          </div>
-        )}
+        {tab === "storage" && <StorageTab snap={snap} state={state} />}
         {tab === "files" && <FilesTab snap={snap} />}
-        {tab === "devices" && (
-          <div className="space-y-6">
-            <section>
-              <h2 className="mb-2 text-base font-semibold">Trusted Devices</h2>
-              <ul className="divide-y rounded-lg border">
-                {(snap?.devices ?? []).map((d) => (
-                  <li key={d.deviceId} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <Laptop className="size-4 text-muted-foreground" />
-                    <span className="font-medium">{d.name}</span>
-                    {d.deviceId === device.fingerprint && <Badge variant="secondary">this device</Badge>}
-                    {d.recoveryOnly && <Badge variant="outline">recovery only</Badge>}
-                    {d.nodeScope && <Badge variant="outline">one Node only</Badge>}
-                    <span className="ml-auto text-xs text-muted-foreground">added {new Date(Number(d.addedUnixMs)).toLocaleDateString()}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-            <div className="legacy">
-              <AskingDevices state={state} found={found} />
-            </div>
-          </div>
-        )}
-        {tab === "updates" && (
-          <div className="legacy">
-            <UpdatePolicyPanel state={state} />
-          </div>
-        )}
+        {tab === "devices" && <DevicesTab snap={snap} device={device} found={found} onPromote={onPromote} scoped={scoped} />}
+        {tab === "updates" && <UpdatesTab snap={snap} state={state} />}
         {tab === "remote" && (
           <div className="legacy">
             <TailscalePanel state={state} />

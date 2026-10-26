@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createClient } from "@connectrpc/connect";
 import { fromBinary } from "@bufbuild/protobuf";
@@ -17,7 +18,8 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { useIntroduce } from "@/fleet/introduce";
-import { specFor, type CatalogEntry } from "@/services";
+import type { CatalogEntry } from "@/services";
+import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { AddNode } from "@/App";
 import { CodeScreen } from "@/join";
 import { Sidebar, sidebarNodes } from "./Sidebar";
@@ -128,14 +130,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     }
   }
 
-  async function install(entry: CatalogEntry, name: string, nodeId: string) {
+  async function install(_entry: CatalogEntry, spec: ServiceSpec, nodeId: string) {
     const t = targetFor(snap, state.nodes, nodeId);
     if (!t) throw new Error("that Node has no address");
-    const spec = specFor(entry, name, {});
     await serviceClient(t).installService({ spec });
-    toast.success(`${name} is installing`);
+    toast.success(`${spec.name} is installing`);
     await fleet.refresh();
-    go({ name: "service", service: name });
+    go({ name: "service", service: spec.name });
   }
 
   const current = route.name === "service" ? services.find((s) => s.spec.name === route.service) : undefined;
@@ -171,7 +172,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
               {route.name === "catalog" && <CatalogPage snap={snap} onInstall={install} />}
-              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} />}
+              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
               {route.name === "add-node" && addFound && (
                 <div className="legacy h-full overflow-y-auto p-6">
                   <AddNode
@@ -213,7 +214,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             <AlertDialogDescription>It stops and its page goes away. Its data stays in its Storage Space unless you also delete it.</AlertDialogDescription>
           </AlertDialogHeader>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={deleteData} onChange={(e) => setDeleteData(e.target.checked)} /> Also delete its data
+            <Checkbox checked={deleteData} onCheckedChange={(v) => setDeleteData(v === true)} /> Also delete its data
           </label>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
