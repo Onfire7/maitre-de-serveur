@@ -24,4 +24,3 @@ func IsFallback() bool {
 	}
 	return false
 }
-
