@@ -204,7 +204,7 @@ export function Sidebar({
                     openFor(s, el);
                   }}
                   onKeyOpen={(el) => openFor(s, el)}
-                flyOpen={fly?.service.spec.name === s.spec.name}
+                flyOpen={fly !== null}
                 />
               </motion.li>
             ))}
