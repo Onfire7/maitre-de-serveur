@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
-import { HardDrive, Lock, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, HardDrive, Lock, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +55,23 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
     await qc.invalidateQueries({ queryKey: ["fleet"] });
   }
   const tryPut = (s: Space, del = false) => put(s, del).catch((e) => toast.error(String((e as Error).message ?? e)));
+  // Decision 123: exactly one Space is the default; making one so clears the others.
+  const makeDefault = async (s: Space) => {
+    try {
+      for (const other of spaces.filter((o) => o.defaultForNew && o.spaceId !== s.spaceId)) await put(create(SpaceSchema, { ...other, defaultForNew: false }));
+      await put(create(SpaceSchema, { ...s, defaultForNew: true }));
+      toast.success(`New volumes go to ${s.name}`);
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e));
+    }
+  };
+  /** Member Drives grouped by Node, Nodes by letter, Drives by name. */
+  const byNode = (ds: DriveRecord[]): [string, DriveRecord[]][] => {
+    const m = new Map<string, DriveRecord[]>();
+    for (const d of ds) m.set(d.nodeId, [...(m.get(d.nodeId) ?? []), d]);
+    const letter = (id: string) => nodes.find((n) => n.nodeId === id)?.letter ?? "~";
+    return [...m.entries()].sort((a, b) => letter(a[0]).localeCompare(letter(b[0]))).map(([id, list]) => [id, [...list].sort((a, b) => a.name.localeCompare(b.name))]);
+  };
 
   // Capacity (decision 125): a Space's unique Drives' free space; Drives shared with other Spaces are shared capacity.
   const capacity = (s: Space) => {
@@ -99,22 +116,36 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                     {s.requireTags.length ? `Drives tagged ${s.requireTags.join(" + ")}` : "every Drive"}
                     {s.nodeIds.length ? ` on ${s.nodeIds.map(nodeName).join(", ")}` : ""} · {PLACEMENTS[s.placement] ?? s.placement}
                   </div>
-                  <div className="mt-1 text-sm">
-                    {cap.count === 0 ? <span className="text-muted-foreground">no Drives yet</span> : <>{members(s).map((d) => `${d.name} on ${nodeName(d.nodeId)}`).join(", ")}</>}
-                    {cap.count > 0 && (
-                      <span className="text-muted-foreground">
-                        {" · "}
-                        {formatBytes(cap.free)} free{cap.shared ? ", shared with other Spaces" : ""}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-4 text-xs">
+                  {cap.count === 0 ? (
+                    <div className="mt-1 text-sm text-muted-foreground">no Drives yet</div>
+                  ) : (
+                    <details className="group mt-1 text-sm">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 [&::-webkit-details-marker]:hidden">
+                        <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
+                        {cap.count} {cap.count === 1 ? "Drive" : "Drives"} on {byNode(members(s)).length} {byNode(members(s)).length === 1 ? "Node" : "Nodes"}
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          {formatBytes(cap.free)} free{cap.shared ? ", shared with other Spaces" : ""}
+                        </span>
+                      </summary>
+                      <ul className="ml-5 mt-1 space-y-0.5 text-sm">
+                        {byNode(members(s)).map(([nid, ds]) => (
+                          <li key={nid}>
+                            <span className="font-medium">{nodeName(nid)}:</span> {ds.map((d) => d.name).join(", ")}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
                     <label className="flex items-center gap-1.5">
                       <Switch checked={s.spanNodes} onCheckedChange={(v) => tryPut(create(SpaceSchema, { ...s, spanNodes: v }))} /> spans Nodes
                     </label>
-                    <label className="flex items-center gap-1.5">
-                      <Switch checked={s.defaultForNew} onCheckedChange={(v) => tryPut(create(SpaceSchema, { ...s, defaultForNew: v }))} /> default for new volumes
-                    </label>
+                    {!s.defaultForNew && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => makeDefault(s)}>
+                        Make default for new volumes
+                      </Button>
+                    )}
                     <Select value={s.placement} onValueChange={(v) => tryPut(create(SpaceSchema, { ...s, placement: v }))}>
                       <SelectTrigger size="sm" className="h-7 text-xs">
                         <SelectValue />
