@@ -55,7 +55,7 @@ export function Sidebar({
   canAddService: boolean;
   onFlyoutItem: (service: FleetService, item: FlyoutItem) => void;
   onPreferences: () => void;
-  provisioning?: { name: string };
+  provisioning?: { name: string; percent: number };
 }) {
   const { route, go } = useRoute();
   const wrapRef = useRef<HTMLDivElement>(null);

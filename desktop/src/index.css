@@ -129,18 +129,4 @@
   .dark input[type="checkbox"]:checked {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
   }
-  .legacy input:not([type="checkbox"]):not([type="radio"]),
-  .legacy select,
-  .legacy textarea {
-    @apply rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30;
-  }
-  .legacy button {
-    @apply rounded-md border border-input bg-background px-2.5 py-1 text-sm shadow-xs hover:bg-accent disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50;
-  }
-  .legacy pre {
-    @apply rounded-md bg-muted p-2 text-xs;
-  }
-  .legacy code {
-    @apply rounded bg-muted px-1;
-  }
 }

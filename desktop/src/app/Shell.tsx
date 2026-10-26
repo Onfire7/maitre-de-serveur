@@ -23,8 +23,8 @@ import { controlService, removeService, services as serviceClient, targetFor } f
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
-import { AddNode } from "@/App";
-import { CodeScreen } from "@/join";
+import { AddNode, type Provisioning } from "./AddNode";
+import { CodeScreen } from "./FirstRun";
 import { Sidebar, sidebarNodes } from "./Sidebar";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
@@ -94,7 +94,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   });
 
   // Decision 134/147: present once a Node exists or one is being set up.
-  const present = state.nodes.length > 0 || route.name === "add-node";
+  const [provisioning, setProvisioning] = useState<Provisioning | null>(null);
+  const present = state.nodes.length > 0 || provisioning !== null;
 
   const [prefs, setPrefs] = useState(false);
   const [logsOf, setLogsOf] = useState<string | null>(null);
@@ -167,7 +168,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               canAddService={!!snap?.spaces.some((s) => s.defaultForNew)}
               onFlyoutItem={act}
               onPreferences={() => setPrefs(true)}
-              provisioning={route.name === "add-node" ? { name: "New Node" } : undefined}
+              provisioning={provisioning ?? undefined}
             />
           )}
         </AnimatePresence>
@@ -183,12 +184,14 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               {route.name === "catalog" && <CatalogPage snap={snap} onInstall={install} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
               {route.name === "add-node" && addFound && (
-                <div className="legacy h-full overflow-y-auto p-6">
+                <div className="h-full overflow-y-auto">
                   <AddNode
                     found={addFound}
                     device={device}
                     state={state}
+                    snap={snap}
                     onCancel={() => go({ name: "fleet", tab: "nodes" })}
+                    onProgress={setProvisioning}
                     onProvisioned={async (node: KnownNode) => {
                       await save({ ...state, nodes: [...state.nodes.filter((n) => n.node_id !== node.node_id), node] });
                       go({ name: "fleet", tab: "nodes", nodeId: node.node_id });
@@ -197,7 +200,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 </div>
               )}
               {route.name === "code" && (
-                <div className="legacy h-full overflow-y-auto p-6">
+                <div className="h-full overflow-y-auto">
                   <CodeScreen
                     device={device}
                     promote

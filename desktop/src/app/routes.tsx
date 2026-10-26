@@ -42,6 +42,7 @@ export function routeFromUrl(fallback: Route): Route {
   const [name, arg] = v.split(":");
   if (name === "service" && arg) return { name: "service", service: arg };
   if (name === "catalog") return { name: "catalog" };
+  if (name === "add-node" && arg) return { name: "add-node", addr: arg + (v.split(":")[2] ? ":" + v.split(":")[2] : ""), installerId: "" };
   if (name === "fleet") return { name: "fleet", tab: (FLEET_TABS as readonly string[]).includes(arg) ? (arg as FleetTab) : "overview" };
   return fallback;
 }

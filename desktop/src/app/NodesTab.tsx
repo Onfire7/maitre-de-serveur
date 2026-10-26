@@ -16,8 +16,8 @@ import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import type { ConsoleState, Found } from "@/state";
 import { randomNodeName } from "@/names";
 import { formatBytes, ago } from "@/lib/format";
-import { NetbootPanel } from "@/netboot";
-import { MediaPanel } from "@/media";
+import { NetbootPanel } from "./NetbootPanel";
+import { MediaPanel } from "./MediaPanel";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
@@ -92,9 +92,13 @@ export function NodesTab({
           <ChevronDown className={cn("size-4 transition-transform", more && "rotate-180")} /> Boot from the network or prepare a USB stick
         </button>
         {more && (
-          <div className="rounded-lg border p-3 text-sm [&_h2]:text-base [&_h3]:text-sm">
-            <NetbootPanel />
-            <MediaPanel />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border bg-card p-4">
+              <NetbootPanel />
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <MediaPanel />
+            </div>
           </div>
         )}
       </section>
