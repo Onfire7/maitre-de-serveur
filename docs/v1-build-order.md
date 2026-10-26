@@ -284,3 +284,52 @@ The user's model, built as internals only (the UI sprint owns the Console; see d
 - 122 built (internals): `FilesService` (api/maitre/v1/files.proto) backed by `server/internal/files`. Scopes: a Space's Pool (merged view) or a Drive's root. `ListDir` gives entries with locations from mergerfs's `user.mergerfs.allpaths` xattr (Node + Drive for local branches, Node for a peer's Pool); `Usage` walks a tree in the background and caches a minute; `Move` queues a job: rsync copy with `--info=progress2`, a second checksum pass, then removal of the source (through the Pool, so every branch's copy goes). Destinations: a Space on this Node (mergerfs places), a specific Drive of the Space (written straight into `<drive>/<space>/`), or another Node, which pulls from this Node's Pool over the existing NFS export and reports back; the source is removed only after the peer says done. Files on a Drive root (unsorted, orphan folders) move to a Space on their own Node first, then anywhere. Jobs live in memory (`ListJobs`, `CancelJob`); the image gains rsync. UI needs in docs/ui-needs.md.
 - 128 settled (user, 2026-10-26): the name is **Storage Space** ("Space"): a set of Drives that are always in the same place. Record kind `space`, message `Space`, `ServiceSpec.volume_spaces`, folder marker `.maitre-space` (the older `.maitre-bin` still recognised); the short-lived kind `bin` migrates to `space` once at agent start. All code, docs and the UI needs list say Space now.
 
+
+### Console overhaul (decisions 129-164, 2026-10-26)
+
+Settled with the user over three rounds; nothing implemented yet. The rounds were asked as Q76-Q88 and Q142-Q164 and are logged here as 129-164 (76-128 were already taken above). Glossary gained a `## Console` section (Fleet page, Service status words, Node status words).
+
+Stack and shell:
+
+- 129 stack: shadcn/ui (Tailwind v4, Radix, Lucide) copied into `desktop/`, Motion for layout animations, interior.dev pieces copied in wherever they fit (Hold to Confirm for destructive guards, Loading Button, and others as they make sense), never as a wholesale dependency. Tailwind v4 needs WebKitGTK >= 2.40 on Linux; documented, not a blocker.
+- 130 Service-first: the sidebar lists every Service in the Fleet; the Node is a detail in the flyout, the status card and the Fleet page. Node-first navigation goes.
+- 131 hover affordance: a generic action icon (ellipsis or right chevron, not the Service's own icon) at the right of a row, shown on hover; it opens a flyout menu that slides out from behind the sidebar.
+- 132 the bottom entry is **Fleet** (the glossary's Fleet page), not Settings; app preferences (theme, dev mode, dev shortcuts) live under a small gear.
+- 133 adding a Node happens from the Nodes tab of the Fleet page, not from a sidebar row.
+- 134 sidebar presence: hidden through Create Fleet and the Recovery Phrase; slides in the moment the first Node's pairing code is confirmed and installation begins, so it can be explored and used for troubleshooting while the install runs; present at once on later launches.
+- 135 Service status words (glossary): Online, Starting, Stopped, Attention. In the sidebar, status is the icon's treatment, not a dot: a brightly coloured border, amber background tint for Attention, blue for Starting, greyscale and slightly greyed icon and menu when Stopped; Online shows nothing extra.
+- 136 Node status words (glossary): Healthy, Unreachable, Provisioning, Updating, Attention; same colour language as 135.
+- 137 collapse: manual toggle (Ctrl/Cmd+B) persisted in Console state; auto-collapse under about 900 px without overwriting the preference; collapsed, the Fleet entry is one icon and the Node list beneath it becomes stacked status marks with tooltips.
+- 138 a Service click shows its web page full-bleed with **no bar above it**; everything management-related is reached from the Service's hover flyout.
+- 139 Catalog: an "Add a Service" row at the end of the Service list opens a card grid (search, categories) in the main area; not a sidebar section.
+- 140 native window decorations, one window, theme follows the OS with an override in preferences.
+- 141 scope: design the shell for the whole v1 information architecture; implement against what the agent supports, including the needs in docs/ui-needs.md.
+
+Behaviour:
+
+- 142 flyout: appears after about 600 ms hovering a row or at once on the action icon; slides to follow the pointer from row to row; closes 300 ms after the pointer leaves sidebar and flyout; in the collapsed sidebar it also carries the Service's name and status; Right arrow or Enter on a focused row opens it.
+- 143 flyout contents: Runs on *Node* (with Node status) · Open in your browser · Start/Stop · Restart · Update (Roll back when a previous image exists) · Logs · Exposure... · Port forwarding... (Catalog permitting) · Storage (volumes and Spaces) · Remove... "..." items open side sheets, not modals.
+- 144 when a Service is not Online, or is headless, the main area shows a status card (status word, message, restart count, Logs, Start) instead of the web view; an Unreachable Node is named on it.
+- 145 Services on an Unreachable Node take the Stopped look with "Node X is unreachable" in tooltip and flyout, not Attention.
+- 146 one flat list sorted by name, never grouped by Node; "Add a Service" last; no pinning yet.
+- 147 during first provisioning the sidebar shows an empty list plus "Add a Service" (disabled until a default Space exists) and the Fleet entry expanded with the new Node as Provisioning; the main area keeps the installer progress.
+- 148 Fleet page: one route with tabs **Overview · Nodes · Storage · Files · Devices · Updates · Remote** (Files added by 149). Only the Node list hangs under Fleet in the sidebar; a sidebar Node opens Nodes with it selected.
+- 149 the file manager is both a top-level Files tab and openable in place from a Space, a Drive card, or an Orphan or Unsorted folder, with a scope switcher at its top.
+- 150 notices: toasts bottom-right for transient events; standing conditions as a badge count on the Fleet entry and a list on Overview; no modal alerts.
+- 151 install sheet: one scrolling sheet; name and Node at the top, a Space per volume defaulting to the default Space, an Options disclosure for exposure, auto-update, port forwarding and Catalog settings; one click when defaults suffice.
+- 152 data layer: TanStack Query and a typed in-memory route state, no URL router. The user's rule: anything the Console needs from every Node all the time is either broadcast between Nodes or stored in the synced database, so a single Node can serve it (156-162 give the shape; per-Node polling fan-out is out).
+- 153 demo Fleet: a fake transport implementing the same RPC surface with a scripted Fleet (two Nodes, five Services in mixed states, Spaces, Drives with unsorted files, a device asking to join), run with a flag, kept as the fixture for UI tests and screenshots.
+- 154 animation: sidebar slide-in 320 ms ease-out with 30 ms row stagger; collapse/expand 200 ms; flyout 150 ms; page change 120 ms cross-fade; reduced-motion jumps to the end state.
+- 155 build order: 1) shadcn, Tailwind, tokens, Query, demo Fleet; 2) shell (sidebar, flyout, Fleet skeleton, notices); 3) Service page and install sheet; 4) Fleet tabs migrated one at a time (Nodes, Devices, Updates, Remote, then Storage and Files); 5) screens from docs/ui-needs.md; 6) first-run and empty-state copy pass. Each step shippable.
+
+Fleet-wide status from one Node (ADR 0006):
+
+- 156 Service status is **in-memory state that is gossiped**, not a database record: each Node holds the status of its own Services (status word, message, restart count, healthy, forward state, image digests) and sends it to every peer on change, coalesced to at most one send per Service per two seconds. Nothing of it is written to SQLite.
+- 157 nothing ephemeral is ever written, so the config-partition backup trigger and the peer-sync records are untouched by status or metrics.
+- 158 metrics the same way: every Node sends its `NodeMetrics` sample with a timestamp to every peer every 5 s, kept in memory only. A new `GetFleetStatus` RPC on any Node returns every Node's last metrics sample and last Service statuses with their age, plus that Node's peer view (reachable, last seen). Samples older than 30 s are shown dimmed.
+- 159 anchor Node: the Console does all Fleet-wide reads (records plus `GetFleetStatus`) through one reachable Node, chosen as the last used, then the first Healthy Node by letter, and moves to the next within one poll if it stops answering. Writes still use forward-to-owner through the anchor. Fleet Overview says "connected through Node X" in small text; nowhere else does.
+- 160 stays a direct call to the owning Node: the Service web tunnel, logs, installer progress and pairing, file manager listings, usage and moves, Drive operations, a Node's own Update and Reboot.
+- 161 Console polling: one `GetFleetStatus` plus one records read against the anchor every 3 s drives the sidebar, Node list, gauges and notices; direct calls from 160 run only while their page is open; TanStack Query manages all of them.
+- 162 Unreachable is the anchor's opinion (no contact for 60 s); the anchor itself is judged by the Console; the Console does not probe other Nodes to second-guess it.
+- 163 sequencing: the agent work (156-158, `GetFleetStatus`) is its own step in parallel with the shell; the UI is built on the demo Fleet from day one and the real transport adapter targets only the new RPC shape.
+- 164 ADR 0006 written.

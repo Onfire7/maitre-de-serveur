@@ -66,25 +66,45 @@ _Avoid_: State partition, /var
 A physical disk on one Node, adopted or formatted, carrying automatic tags (ssd, hdd, usb, size, Node) and user tags.
 _Avoid_: Disk, device, volume
 
-**Tier**:
-A Fleet-wide, named set of rules saying which Drives qualify, how data is placed across them, and how it is protected. Services point at Tiers, never at Drives.
-_Avoid_: Storage class, storage location, share
+**Storage Space**:
+A Fleet-wide, named set of Drives that always hold the same kind of data, chosen by a rule (tags, Nodes, or every Drive). Services point at Spaces, never at Drives. Informally "Space". Replaces the retired term Tier (decision 128).
+_Avoid_: Tier, storage class, storage location, share, bin
 
 **Pool**:
-What a Node builds for a Tier out of the Drives available to it. Always a MergerFS mount, even over a single Drive.
+What a Node builds for a Space out of the Drives available to it. Always a MergerFS mount, even over a single Drive.
 _Avoid_: Mount, array, volume group
 
 **Placement**:
-A Tier's rule for where data lives: Local (each Node's own Pool, separate data), Synced (full copy on every Node), or Spanning (one Pool across qualifying Drives on all Nodes, remote parts unavailable while their Node is off).
+A Space's rule for which of its Drives receives new data: local first, most free space, or highest free share.
 _Avoid_: Mode, topology, replication type
 
+**Spanning**:
+A Space option that merges the Space's Pools on every Node into one view, with the parts on an unreachable Node unavailable until it returns.
+_Avoid_: Replication, sync
+
+**Exclusive**:
+A Space option meaning a Drive that matches its rule serves this Space alone.
+_Avoid_: Dedicated, locked
+
+**Default Space**:
+The one Space new Service volumes go to unless the user picks another. A Fleet with no Default Space cannot install Services.
+_Avoid_: Primary, main storage
+
 **Parity Drive**:
-A Drive on a Node dedicated to parity data protecting every other Drive on that Node. Excluded from all Tiers.
+A Drive on a Node dedicated to parity data protecting every other Drive on that Node. Excluded from all Spaces.
 _Avoid_: Parity disk, backup drive
 
 **Adopt**:
 Bringing an existing Drive and its data into a Node without reformatting it.
 _Avoid_: Import, mount, attach
+
+**Unsorted**:
+Files found at the root of an adopted Drive that belong to no Space; the File Manager moves them into one.
+_Avoid_: Loose files, legacy data
+
+**Orphan Folder**:
+A folder on a Drive left by a Space that no longer exists. Never deleted by a Node.
+_Avoid_: Stale folder, leftover
 
 ## Exposure
 
@@ -106,3 +126,17 @@ _Avoid_: System service, core service
 **Member**:
 A non-admin person (family, friend) granted access to specific Public Services. Not part of v1; reserved so the model stays ready for it.
 _Avoid_: User, guest, viewer
+
+## Console
+
+**Fleet page**:
+The area of the Console for administering the Fleet itself (Nodes, Storage, Devices, Updates, remote access) rather than using its Services.
+_Avoid_: Settings, admin, config
+
+**Service status**:
+One of four words the Console uses for a Service: **Online** (running and healthy), **Starting** (starting, or being updated), **Stopped** (stopped by the user), **Attention** (failed, running but unhealthy, or restart-looping).
+_Avoid_: Up, down, healthy (for Services), crashed, degraded
+
+**Node status**:
+One of five words the Console uses for a Node: **Healthy** (reachable and reporting no problem), **Unreachable** (no address answers), **Provisioning** (being installed or restored), **Updating** (applying a Maître Server update), **Attention** (reachable but reporting a problem, such as a rollback or a Pool missing a Drive).
+_Avoid_: Online/offline (for Nodes), up, down, degraded
