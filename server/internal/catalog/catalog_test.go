@@ -12,7 +12,7 @@ func TestRepoCatalogLoadsAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(idx.Entries) != 3 {
+	if len(idx.Entries) != 4 {
 		t.Fatalf("got %d entries", len(idx.Entries))
 	}
 	raw, _ := json.Marshal(idx)
