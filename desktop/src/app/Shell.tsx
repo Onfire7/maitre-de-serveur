@@ -37,7 +37,12 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const { route, go } = useRoute();
   const fleet = useFleet(state.nodes);
   const snap = fleet.data;
-  const now = Date.now();
+  // A coarse clock for staleness words, so derived lists keep their identity between renders.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
   const services = useFleetServices(snap, now);
   useIntroduce(state.nodes, (nodes) => save({ ...state, nodes }));
 
