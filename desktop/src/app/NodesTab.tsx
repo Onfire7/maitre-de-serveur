@@ -13,12 +13,12 @@ import { nodeWord, STALE_MS } from "@/fleet/useFleet";
 import { node as nodeClient, targetFor } from "@/fleet/actions";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import type { Node } from "@/gen/maitre/v1/fleet_pb";
-import type { ConsoleState, Found, KnownNode } from "@/state";
+import type { ConsoleState, Found } from "@/state";
 import { randomNodeName } from "@/names";
 import { formatBytes, ago } from "@/lib/format";
 import { NetbootPanel } from "@/netboot";
 import { MediaPanel } from "@/media";
-import { NodeView } from "@/App";
+import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
 
@@ -40,6 +40,8 @@ export function NodesTab({
   const now = Date.now();
   const [byAddr, setByAddr] = useState("");
   const [more, setMore] = useState(false);
+  // `?node=<letter>` opens that Node's details on load (screenshot fixture).
+  const fixtureLetter = useState(() => new URLSearchParams(window.location.search).get("node"))[0];
   const installers = found.filter((f) => f.kind === "installer");
   const knownIds = new Set(state.nodes.map((n) => n.node_id));
   return (
@@ -47,7 +49,7 @@ export function NodesTab({
       <section className="space-y-3">
         {nodes.length === 0 && <p className="text-sm text-muted-foreground">No Nodes yet. Set one up below.</p>}
         {nodes.map((n) => (
-          <NodeCard key={n.nodeId} node={n} snap={snap!} state={state} now={now} open={selected === n.nodeId} onOpen={(o) => go({ name: "fleet", tab: "nodes", nodeId: o ? n.nodeId : undefined })} onState={onState} />
+          <NodeCard key={n.nodeId} node={n} snap={snap!} state={state} now={now} open={selected ? selected === n.nodeId : n.letter === fixtureLetter} onOpen={(o) => go({ name: "fleet", tab: "nodes", nodeId: o ? n.nodeId : undefined })} onState={onState} />
         ))}
       </section>
 
@@ -105,7 +107,6 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
   const word = nodeWord(st, now);
   const stale = !st?.metrics || now - Number(st.metricsUnixMs) > STALE_MS;
   const t = targetFor(snap, state.nodes, node.nodeId);
-  const known: KnownNode = state.nodes.find((n) => n.node_id === node.nodeId) ?? { node_id: node.nodeId, name: node.name, addresses: node.addresses };
   const [renaming, setRenaming] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"reboot" | "remove" | null>(null);
   const [typed, setTyped] = useState("");
@@ -154,6 +155,9 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-base font-semibold">{node.name}</span>
+            <button className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40" title="Rename" aria-label={`Rename ${node.name}`} disabled={!t || word === "Unreachable"} onClick={() => setRenaming(node.name)}>
+              <Pencil className="size-3.5" />
+            </button>
             <span className="rounded bg-muted px-1.5 text-xs font-medium text-muted-foreground">{node.letter}</span>
             <StatusWord word={word} className="text-xs" />
           </div>
@@ -164,9 +168,6 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
           </div>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setRenaming(node.name)} disabled={!t || word === "Unreachable"}>
-            <Pencil /> Rename
-          </Button>
           <Button size="sm" variant="ghost" onClick={() => setConfirm("reboot")} disabled={!t || word === "Unreachable"}>
             <RefreshCw /> Restart
           </Button>
@@ -184,8 +185,8 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
         </div>
       )}
       {open && (
-        <div className="border-t p-4 text-sm [&_h2]:text-base [&_h3]:text-sm">
-          <NodeView node={known} onBack={() => onOpen(false)} state={state} onRenamed={async (name) => onState({ ...state, nodes: state.nodes.map((n) => (n.node_id === node.nodeId ? { ...n, name } : n)) })} />
+        <div className="border-t p-4">
+          <NodeDetails node={node} target={t} snap={snap} unreachable={word === "Unreachable"} />
         </div>
       )}
 

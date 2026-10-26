@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
-import { NodeService, type NodeInfo } from "./gen/maitre/v1/node_pb";
+import { NodeService } from "./gen/maitre/v1/node_pb";
 import { TailscaleConfigSchema } from "./gen/maitre/v1/tailscale_pb";
 import { transportFor } from "./transport";
 import type { ConsoleState } from "./state";
@@ -75,31 +75,5 @@ export function TailscalePanel({ state }: { state: ConsoleState }) {
         </div>
       )}
     </section>
-  );
-}
-
-export function TailscaleRow({ info }: { info: NodeInfo }) {
-  const t = info.tailscale;
-  if (!t) return null;
-  return (
-    <tr>
-      <td>Tailscale</td>
-      <td>
-        {t.state === "Running" ? (
-          <>
-            <span style={{ color: "#2a7" }}>● connected</span> as <code>{t.dnsName.replace(/\.$/, "")}</code> {t.addresses[0] && <span style={{ color: "#555" }}>({t.addresses[0]})</span>}
-          </>
-        ) : t.loginUrl ? (
-          <>
-            needs a login: <a href={t.loginUrl} target="_blank" rel="noreferrer">{t.loginUrl}</a>
-          </>
-        ) : (
-          <span style={{ color: "#555" }}>
-            {t.state || "starting"}
-            {t.error && ` · ${t.error}`}
-          </span>
-        )}
-      </td>
-    </tr>
   );
 }

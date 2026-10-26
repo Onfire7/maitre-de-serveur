@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@connectrpc/connect";
-import { NodeService, type NodeInfo, type NodeMetrics } from "./gen/maitre/v1/node_pb";
+import { NodeService } from "./gen/maitre/v1/node_pb";
 import { NodeSchema, TrustedDeviceSchema, type Node as FleetNode, type TrustedDevice } from "./gen/maitre/v1/fleet_pb";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { InstallerService, Provisioning_Phase, type InstallerStatus } from "./gen/maitre/v1/installer_pb";
 import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
-import { ServicesPanel } from "./services";
-import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { JoinScreen, RecoverScreen, CodeScreen } from "./join";
-import { useSpaces, defaultSpace } from "./spaces";
-import { TailscaleRow } from "./tailscale";
+import { useSpaces } from "./spaces";
 import { nextLetter, randomNodeName } from "./names";
 import { Shell as ConsoleShell } from "./app/Shell";
 import { RouteProvider, routeFromUrl } from "./app/routes";
@@ -430,175 +427,6 @@ export function AddNode({
   );
 }
 
-export function NodeView({ node, onBack, state, onRenamed }: { node: KnownNode; onBack: () => void; state: ConsoleState; onRenamed: (name: string) => void }) {
-  const [maint, setMaint] = useState<Maintenance | null>(null);
-  if (maint)
-    return (
-      <MaintenanceScreen
-        target={{ addr: node.addresses[0], fingerprint: node.node_id }}
-        name={node.name}
-        m={maint}
-        onDone={() => setMaint(null)}
-        onBack={onBack}
-      />
-    );
-  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} state={state} onRenamed={onRenamed} />;
-}
-
-function NodeDetails({
-  node,
-  onBack,
-  onMaintenance,
-  state,
-  onRenamed,
-}: {
-  node: KnownNode;
-  onBack: () => void;
-  onMaintenance: (m: Maintenance) => void;
-  state: ConsoleState;
-  onRenamed: (name: string) => void;
-}) {
-  const { spaces, nodes: fleetNodes, drives: fleetDrives } = useSpaces(state);
-  const myLetter = fleetNodes.find((n) => n.nodeId === node.node_id)?.letter || "";
-  const takenNames = [...state.nodes.map((n) => n.name), ...fleetNodes.map((n) => n.name), ...fleetDrives.map((d) => d.name)];
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [info, setInfo] = useState<NodeInfo | null>(null);
-  const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const client = createClient(NodeService, transportFor({ addr: node.addresses[0], fingerprint: node.node_id }));
-    const tick = () =>
-      client
-        .getNodeInfo({})
-        .then(async (r) => {
-          setInfo(r.node ?? null);
-          setError("");
-          if (!r.node?.devMode) setMetrics((await client.getNodeMetrics({})).metrics ?? null);
-        })
-        .catch((e) => setError(String(e)));
-    tick();
-    const t = setInterval(tick, 2000);
-    return () => clearInterval(t);
-  }, [node]);
-  return (
-    <section>
-      <button onClick={onBack}>← Nodes</button>
-      {renaming === null ? (
-        <h2>
-          {node.name}{" "}
-          <button style={{ fontSize: 13, fontWeight: "normal" }} onClick={() => setRenaming(node.name)}>
-            Rename…
-          </button>
-        </h2>
-      ) : (
-        <form
-          style={{ display: "flex", gap: 6, alignItems: "center", margin: "12px 0" }}
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const name = renaming.trim();
-            if (!name) return;
-            if (state.nodes.some((n) => n.node_id !== node.node_id && n.name.toLowerCase() === name.toLowerCase())) {
-              setError(`the Fleet already has a Node named "${name}"`);
-              return;
-            }
-            try {
-              await createClient(NodeService, transportFor({ addr: node.addresses[0], fingerprint: node.node_id })).renameNode({ name });
-              setRenaming(null);
-              setError("");
-              onRenamed(name);
-            } catch (err) {
-              setError(String(err));
-            }
-          }}
-        >
-          <input autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)} maxLength={40} style={{ fontSize: 18, width: 260 }} />
-          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(myLetter, takenNames))}>
-            🎲
-          </button>
-          <button type="submit">Save</button>
-          <button type="button" onClick={() => setRenaming(null)}>
-            Cancel
-          </button>
-          <span style={{ color: "#555", fontSize: 13 }}>
-            {myLetter ? `Node ${myLetter}: names start with ${myLetter}. ` : ""}The host name follows now; the Tailscale name on the next restart.
-          </span>
-        </form>
-      )}
-      {error && <ErrorBox>{error}</ErrorBox>}
-      {info && (
-        <table>
-          <tbody>
-            <tr><td>Name</td><td>{info.name}</td></tr>
-            <tr><td>Node ID</td><td><code>{info.nodeId}</code></td></tr>
-            <tr><td>Fleet</td><td>{info.fleetId || "(none)"}</td></tr>
-            <tr><td>Version</td><td>{info.version}</td></tr>
-            <tr><td>Uptime</td><td>{formatUptime(Number(info.uptimeSeconds))}</td></tr>
-            <tr><td>Address</td><td>{node.addresses[0]}</td></tr>
-            <tr><td>Dev mode</td><td>{info.devMode ? "yes" : "no"}</td></tr>
-            <TailscaleRow info={info} />
-          </tbody>
-        </table>
-      )}
-      {metrics && <Gauges m={metrics} />}
-      {info && info.peers.length > 0 && (
-        <section>
-          <h3>Other Nodes in the Fleet</h3>
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {info.peers.map((p) => (
-              <li key={p.nodeId} style={{ padding: "4px 0" }}>
-                <b>{p.name}</b> {p.online ? <span style={{ color: "#2a7" }}>● in sync</span> : <span style={{ color: "#999" }}>● offline</span>}{" "}
-                <span style={{ color: "#555", fontSize: 13 }}>
-                  {p.address}
-                  {p.queued > 0 && ` · ${p.queued} change(s) waiting for it`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} spaces={spaces} defaultSpaceId={defaultSpace(spaces)?.spaceId ?? ""} remoteReady={info.tailscale?.state === "Running"} publicIp={info.publicIp} portMapping={info.portMapping} />}
-      {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
-      {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
-    </section>
-  );
-}
-
-function Gauges({ m }: { m: NodeMetrics }) {
-  const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
-  const memPct = pct(m.memoryUsedBytes, m.memoryTotalBytes);
-  const poolPct = pct(m.poolUsedBytes, m.poolTotalBytes);
-  return (
-    <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, margin: "16px 0" }}>
-      <Gauge label="CPU" value={`${m.cpuPercent.toFixed(0)}%`} pct={m.cpuPercent} sub={`load ${m.load1m.toFixed(2)}`} />
-      <Gauge label="Memory" value={`${memPct.toFixed(0)}%`} pct={memPct} sub={`${formatBytes(Number(m.memoryUsedBytes))} of ${formatBytes(Number(m.memoryTotalBytes))}`} />
-      <Gauge
-        label="Storage"
-        value={`${poolPct.toFixed(0)}%`}
-        pct={poolPct}
-        sub={m.poolFallback ? "no Drive: data lives on the OS disk" : `${formatBytes(Number(m.poolUsedBytes))} of ${formatBytes(Number(m.poolTotalBytes))}`}
-        warn={m.poolFallback}
-      />
-      <Gauge label="Network" value={`↓ ${formatBytes(m.netRxBytesPerSec)}/s`} sub={`↑ ${formatBytes(m.netTxBytesPerSec)}/s`} />
-      {m.temperatureC > 0 && <Gauge label="Temperature" value={`${m.temperatureC.toFixed(0)} °C`} pct={m.temperatureC} />}
-    </section>
-  );
-}
-
-function Gauge({ label, value, pct, sub, warn }: { label: string; value: string; pct?: number; sub?: string; warn?: boolean }) {
-  return (
-    <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 10 }}>
-      <div style={{ color: "#555", fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 22 }}>{value}</div>
-      {pct !== undefined && (
-        <div style={{ height: 4, background: "#eee", borderRadius: 2, margin: "6px 0" }}>
-          <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: 4, background: pct > 90 ? "#b00020" : "#2a7", borderRadius: 2 }} />
-        </div>
-      )}
-      {sub && <div style={{ color: warn ? "#a60" : "#555", fontSize: 12 }}>{sub}</div>}
-    </div>
-  );
-}
-
 function ErrorBox({ children }: { children: React.ReactNode }) {
   return <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{children}</pre>;
 }
@@ -612,10 +440,4 @@ function formatBytes(n: number) {
     i++;
   }
   return `${n.toFixed(i >= 3 ? 1 : 0)} ${units[i]}`;
-}
-function formatUptime(s: number) {
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-  return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
 }
