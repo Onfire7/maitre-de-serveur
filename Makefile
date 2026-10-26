@@ -5,7 +5,12 @@ CARGO   ?= cargo
 PNPM    ?= pnpm
 BUF     ?= buf
 STATE   ?= $(HOME)/.maitre
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Evaluated once: with `?=` make re-runs git describe at every use, so a
+# commit made during `make image publish` built one version and published
+# another ("image not known").
+ifndef VERSION
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+endif
 TAG     ?= dev
 
 .PHONY: help gen gen-check build sidecar test lint dev dev-trust vm desktop info m0-check m1-check m3-check tunnel-check image image-boot publish depot clean
