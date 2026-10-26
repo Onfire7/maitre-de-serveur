@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ExposureSheet, PortForwardSheet, StorageSheet, type SheetKind } from "./ServiceSheets";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createClient } from "@connectrpc/connect";
 import { fromBinary } from "@bufbuild/protobuf";
@@ -97,6 +100,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const [logsOf, setLogsOf] = useState<string | null>(null);
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
+  const [typed, setTyped] = useState("");
+  // `?sheet=exposure:minecraft` opens a sheet on load (screenshot fixture).
+  const [sheet, setSheet] = useState<{ kind: SheetKind; service: string } | null>(() => {
+    const v = new URLSearchParams(window.location.search).get("sheet")?.split(":");
+    return v && ["exposure", "ports", "storage"].includes(v[0]) && v[1] ? { kind: v[0] as SheetKind, service: v[1] } : null;
+  });
+  const sheetService = sheet ? services.find((s) => s.spec.name === sheet.service) : undefined;
 
   const target = (s: FleetService) => targetFor(snap, state.nodes, s.spec.nodeId);
 
@@ -115,8 +125,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "exposure":
       case "ports":
       case "storage":
-        go({ name: "fleet", tab: "nodes", nodeId: s.spec.nodeId });
-        toast(`${item === "exposure" ? "Exposure" : item === "ports" ? "Port forwarding" : "Storage"} for ${s.spec.name} is in the Node's details until step 3 of the overhaul.`);
+        setSheet({ kind: item, service: s.spec.name });
         return;
       default:
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
@@ -207,7 +216,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       </div>
       <PreferencesDialog open={prefs} onClose={() => setPrefs(false)} device={device} onAddDev={(n) => save({ ...state, nodes: [...state.nodes.filter((x) => x.node_id !== n.node_id), n] })} />
       <LogsSheet name={logsOf} target={logsOf ? targetFor(snap, state.nodes, services.find((s) => s.spec.name === logsOf)?.spec.nodeId ?? "") : undefined} onClose={() => setLogsOf(null)} />
-      <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false))}>
+      {sheetService && <ExposureSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "exposure"} onClose={() => setSheet(null)} />}
+      {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
+      {sheetService && <StorageSheet service={sheetService} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
+      <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {removing?.spec.name}?</AlertDialogTitle>
@@ -216,10 +228,22 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={deleteData} onCheckedChange={(v) => setDeleteData(v === true)} /> Also delete its data
           </label>
+          {deleteData && removing && (
+            <div className="space-y-2 rounded-lg border border-destructive/60 bg-destructive/5 p-3 text-sm">
+              <p>
+                <b>This cannot be undone.</b> Gone for good: {removing.spec.volumes.length ? removing.spec.volumes.map((v) => `${v.name} in ${snap?.spaces.find((sp) => sp.spaceId === removing.spec.volumeSpaces[v.name])?.name ?? removing.spec.volumeSpaces[v.name] ?? "its Space"}`).join(", ") : "nothing, it keeps no data"}.
+              </p>
+              <Label htmlFor="rm-typed">
+                Type <code className="rounded bg-muted px-1">{removing.spec.name}</code> to confirm
+              </Label>
+              <Input id="rm-typed" value={typed} onChange={(e) => setTyped(e.target.value)} />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={deleteData && typed.trim() !== removing?.spec.name}
               onClick={async () => {
                 const s = removing!;
                 const t = target(s);
@@ -234,7 +258,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 }
               }}
             >
-              Remove
+              {deleteData ? "Remove and delete its data" : "Remove, keep its data"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

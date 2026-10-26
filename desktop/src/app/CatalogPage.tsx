@@ -113,7 +113,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
       <SheetContent className="flex w-[440px] flex-col sm:max-w-[440px]">
         {entry && (
           <>
-            <SheetHeader>
+            <SheetHeader className="pr-10">
               <div className="flex items-center gap-3">
                 <ServiceIcon catalogId={entry.id} word="Online" size={44} />
                 <div>

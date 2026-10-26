@@ -45,6 +45,7 @@ const handlers: Record<string, Handler> = {
         peers: f.nodes.filter((p) => p !== me).map((p) => ({ nodeId: p.nodeId, name: p.name, address: p.addr, online: p.reachable, lastSeenUnixMs: BigInt(p.lastSeenUnixMs), queued: p.reachable ? 0 : 1 })),
         portMapping: me.portMapping,
         publicIp: me.publicIp,
+        tailscale: me.letter === "A" ? { hostname: me.name.toLowerCase(), state: "Running", loginUrl: "", dnsName: `${me.name.toLowerCase()}.home-fleet.ts.net.`, addresses: ["100.64.0.5"], tailnet: "home-fleet.ts.net", error: "" } : undefined,
       },
     };
   },
