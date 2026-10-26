@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/recovery.proto.
  */
 export const file_maitre_v1_recovery: GenFile = /*@__PURE__*/
-  fileDesc("ChhtYWl0cmUvdjEvcmVjb3ZlcnkucHJvdG8SCW1haXRyZS52MSJGChBBdXRob3JpemVSZXF1ZXN0EgwKBGNvZGUYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5wdWJsaWNfa2V5X3BlbRgDIAEoCSJKChFBdXRob3JpemVSZXNwb25zZRIQCghmbGVldF9pZBgBIAEoCRISCgpmbGVldF9uYW1lGAIgASgJEg8KB25vZGVfaWQYAyABKAkyWwoPUmVjb3ZlcnlTZXJ2aWNlEkgKCUF1dGhvcml6ZRIbLm1haXRyZS52MS5BdXRob3JpemVSZXF1ZXN0GhwubWFpdHJlLnYxLkF1dGhvcml6ZVJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChhtYWl0cmUvdjEvcmVjb3ZlcnkucHJvdG8SCW1haXRyZS52MSJGChBBdXRob3JpemVSZXF1ZXN0EgwKBGNvZGUYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5wdWJsaWNfa2V5X3BlbRgDIAEoCSJdChFBdXRob3JpemVSZXNwb25zZRIQCghmbGVldF9pZBgBIAEoCRISCgpmbGVldF9uYW1lGAIgASgJEg8KB25vZGVfaWQYAyABKAkSEQoJbm9kZV9vbmx5GAQgASgIMlsKD1JlY292ZXJ5U2VydmljZRJICglBdXRob3JpemUSGy5tYWl0cmUudjEuQXV0aG9yaXplUmVxdWVzdBocLm1haXRyZS52MS5BdXRob3JpemVSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * @generated from message maitre.v1.AuthorizeRequest
@@ -65,6 +65,14 @@ export type AuthorizeResponse = Message<"maitre.v1.AuthorizeResponse"> & {
    * @generated from field: string node_id = 3;
    */
   nodeId: string;
+
+  /**
+   * Decision 120: true when only this Node trusts the device so far; a
+   * recovery code at another Node within a day makes it Fleet-wide.
+   *
+   * @generated from field: bool node_only = 4;
+   */
+  nodeOnly: boolean;
 };
 
 /**

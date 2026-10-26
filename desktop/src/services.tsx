@@ -161,6 +161,17 @@ export function ServicesPanel({
                   <div style={{ fontSize: 13, color: "#555" }}>
                     {s.spec?.forwardPorts && <span style={{ color: "#b00020" }}>Internet: </span>}
                     {s.forwardState}
+                    {s.spec?.forwardPorts && publicIp && s.forwardState.startsWith("forwarded") && (
+                      <>
+                        {" "}
+                        · friends connect to{" "}
+                        {(s.spec.hostPorts ?? []).map((hp) => (
+                          <code key={hp} style={{ marginRight: 6 }}>
+                            {publicIp}:{hp.split("/")[0]}
+                          </code>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -77,13 +77,23 @@ type Manager struct {
 	router    Router
 	routerErr string
 	looked    bool
+	firstLook time.Time
+	lastLook  time.Time
+	now       func() time.Time
 	wake      chan struct{}
 }
+
+// Discovery cadence while no router answers (decision 118): every pass for
+// the first hour, then every five minutes.
+const (
+	eagerFor   = time.Hour
+	backoffGap = 5 * time.Minute
+)
 
 // New builds a Manager that discovers a UPnP router. localIP gives this
 // Node's LAN address, the one the router must forward to.
 func New(log *slog.Logger, localIP func() string) *Manager {
-	return &Manager{log: log, Discover: discoverUPnP, LocalIP: localIP, wants: map[key]Mapping{}, state: map[key]*live{}, wake: make(chan struct{}, 1)}
+	return &Manager{log: log, Discover: discoverUPnP, LocalIP: localIP, wants: map[key]Mapping{}, state: map[key]*live{}, now: time.Now, wake: make(chan struct{}, 1)}
 }
 
 // Reconcile sets the complete list of wanted mappings. Changes are applied
@@ -198,7 +208,18 @@ func (m *Manager) tick(ctx context.Context) {
 	}
 	if router == nil {
 		// A router is looked for only while something wants a mapping;
-		// re-tried every pass (a minute) so a router that appears is found.
+		// every pass (a minute) for the first hour, then every five minutes.
+		m.mu.Lock()
+		now := m.now()
+		if m.firstLook.IsZero() {
+			m.firstLook = now
+		}
+		if now.Sub(m.firstLook) > eagerFor && now.Sub(m.lastLook) < backoffGap {
+			m.mu.Unlock()
+			return
+		}
+		m.lastLook = now
+		m.mu.Unlock()
 		dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		r, err := m.Discover(dctx)
 		cancel()

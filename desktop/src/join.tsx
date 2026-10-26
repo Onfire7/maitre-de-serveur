@@ -146,7 +146,7 @@ export function RecoverScreen({ device, onJoined, onCancel }: { device: DeviceIn
   );
 }
 
-export function CodeScreen({ device, onJoined, onCancel }: { device: DeviceInfo; onJoined: (s: ConsoleState) => void; onCancel: () => void }) {
+export function CodeScreen({ device, onJoined, onCancel, promote = false }: { device: DeviceInfo; onJoined: (s: ConsoleState) => void; onCancel: () => void; promote?: boolean }) {
   const [code, setCode] = useState("");
   const [nodes, setNodes] = useState<Found[]>([]);
   const [busy, setBusy] = useState(false);
@@ -184,8 +184,13 @@ export function CodeScreen({ device, onJoined, onCancel }: { device: DeviceInfo;
   }
   return (
     <section>
-      <h2>Join with a code from a Node</h2>
+      <h2>{promote ? "Be trusted by the whole Fleet" : "Join with a code from a Node"}</h2>
       <p>At the Node's keyboard, press r on the Status page and choose "reboot into recovery". It shows an eight-digit code and restarts; enter the code here within 15 minutes.</p>
+      {promote ? (
+        <p style={{ color: "#555", fontSize: 13 }}>Use a different Node than the one that trusted this device: a code from each of two Nodes is what makes the trust Fleet-wide.</p>
+      ) : (
+        <p style={{ color: "#555", fontSize: 13 }}>In a Fleet of two or more Nodes, one code makes this device trusted by that Node alone; a second code from another Node within a day makes it trusted everywhere.</p>
+      )}
       <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="1234 5678" style={{ fontSize: 24, fontFamily: "monospace", width: 200 }} />
       {open.length === 0 ? (
         <p style={{ color: "#555", fontSize: 13 }}>No Node is accepting a code right now{nodes.length > 0 ? ` (found: ${nodes.map((n) => n.name).join(", ")})` : ""}.</p>

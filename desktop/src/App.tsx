@@ -15,13 +15,14 @@ import { TiersPanel, useTiers } from "./tiers";
 import { TailscalePanel, TailscaleRow } from "./tailscale";
 import { UpdatePolicyPanel } from "./policy";
 import { MediaPanel } from "./media";
-import { randomNodeName } from "./names";
+import { nextLetter, randomNodeName } from "./names";
 
 type Screen =
   | { name: "home" }
   | { name: "phrase"; phrase: string }
   | { name: "add"; found: Found }
-  | { name: "node"; node: KnownNode };
+  | { name: "node"; node: KnownNode }
+  | { name: "code" };
 
 export default function App() {
   const [device, setDevice] = useState<DeviceInfo | null>(null);
@@ -94,6 +95,12 @@ export default function App() {
           />
         </Shell>
       );
+    case "code":
+      return (
+        <Shell>
+          <CodeScreen device={device} promote onJoined={async (s) => { await save(s); setScreen({ name: "home" }); }} onCancel={() => setScreen({ name: "home" })} />
+        </Shell>
+      );
     case "node":
       return (
         <Shell>
@@ -116,6 +123,7 @@ export default function App() {
             device={device}
             state={state}
             onAdd={(found) => setScreen({ name: "add", found })}
+            onPromote={() => setScreen({ name: "code" })}
             onOpen={(node) => {
               // Persist the address the Node answered on last.
               if (node.addresses[0] !== state.nodes.find((n) => n.node_id === node.node_id)?.addresses[0])
@@ -199,6 +207,7 @@ function Home({
   onAddDev,
   onForget,
   onAddresses,
+  onPromote,
 }: {
   device: DeviceInfo;
   state: ConsoleState;
@@ -207,8 +216,30 @@ function Home({
   onAddDev: (n: KnownNode) => void;
   onForget: (n: KnownNode) => void;
   onAddresses: (nodes: KnownNode[]) => void;
+  onPromote: () => void;
 }) {
   const [found, setFound] = useState<Found[]>([]);
+  // Decision 120: this device may be trusted by one Node only so far.
+  const [scope, setScope] = useState<{ nodeId: string; addedUnixMs: number } | null>(null);
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      for (const n of state.nodes)
+        for (const addr of n.addresses) {
+          try {
+            const recs = (await createClient(NodeService, transportFor({ addr, fingerprint: n.node_id })).listRecords({ kind: "trusted_device" })).records.filter((r) => !r.deleted);
+            const me = recs.map((r) => fromBinary(TrustedDeviceSchema, r.body)).find((d) => d.deviceId === device.fingerprint);
+            if (!stop) setScope(me?.nodeScope ? { nodeId: me.nodeScope, addedUnixMs: Number(me.addedUnixMs) } : null);
+            return;
+          } catch {
+            /* next */
+          }
+        }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [state.nodes.map((n) => n.node_id).join(","), device.fingerprint]);
   const [showDev, setShowDev] = useState(false);
   const [devAddr, setDevAddr] = useState("127.0.0.1:7443");
   const [devFp, setDevFp] = useState("");
@@ -287,6 +318,13 @@ function Home({
       <p style={{ color: "#555", marginTop: 0 }}>
         Fleet <b>{state.fleet?.name}</b> · this device is <b>{device.name}</b>
       </p>
+      {scope && (
+        <div style={{ border: "1px solid #a60", borderRadius: 6, padding: 8, marginBottom: 12, fontSize: 13 }}>
+          <b>Trusted by {state.nodes.find((n) => n.node_id === scope.nodeId)?.name ?? "one Node"} only.</b> The other Nodes do not answer this device yet. To be trusted everywhere, reboot any other Node into
+          recovery from its keyboard and enter its code here{scope.addedUnixMs ? ` before ${new Date(scope.addedUnixMs + 24 * 3600 * 1000).toLocaleString()}` : ""}.{" "}
+          <button onClick={onPromote}>Enter a code from another Node</button>
+        </div>
+      )}
 
       <section>
         <h2>Nodes</h2>
@@ -548,7 +586,12 @@ function AddNode({
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [name, setName] = useState(() => randomNodeName(state.nodes.map((n) => n.name)));
+  const fleetNodes = useTiers(state).nodes;
+  const letter = nextLetter(fleetNodes.map((n) => n.letter));
+  const [name, setName] = useState("");
+  useEffect(() => {
+    if (!name) setName(randomNodeName(letter, state.nodes.map((n) => n.name)));
+  }, [letter]);
   const [disk, setDisk] = useState("");
   const [dataPart, setDataPart] = useState(false);
   const [started, setStarted] = useState(false);
@@ -743,10 +786,13 @@ function AddNode({
             Node name{" "}
             <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: 240 }} />
           </label>{" "}
-          <button type="button" title="Draw another name" onClick={() => setName(randomNodeName(state.nodes.map((n) => n.name)))}>
+          <button type="button" title="Draw another name" onClick={() => setName(randomNodeName(letter, state.nodes.map((n) => n.name)))}>
             🎲
           </button>
-          {found.machine && <span style={{ color: "#555", fontSize: 13 }}> (the machine calls itself {found.machine})</span>}
+          <span style={{ color: "#555", fontSize: 13 }}>
+            {" "}
+            This will be Node {letter || "?"}; its name starts with that letter, like its Drives.{found.machine ? ` The machine calls itself ${found.machine}.` : ""}
+          </span>
           <h4 style={{ marginBottom: 4 }}>Install Maître Server on</h4>
           <p style={{ color: "#b00020", fontSize: 13, marginTop: 0 }}>Everything on the chosen disk will be erased.</p>
           {status?.image && (
@@ -829,7 +875,8 @@ function NodeDetails({
   state: ConsoleState;
   onRenamed: (name: string) => void;
 }) {
-  const { tiers } = useTiers(state);
+  const { tiers, nodes: fleetNodes } = useTiers(state);
+  const myLetter = fleetNodes.find((n) => n.nodeId === node.node_id)?.letter || "";
   const [renaming, setRenaming] = useState<string | null>(null);
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
@@ -881,14 +928,16 @@ function NodeDetails({
           }}
         >
           <input autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)} maxLength={40} style={{ fontSize: 18, width: 260 }} />
-          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(state.nodes.map((n) => n.name)))}>
+          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(myLetter, state.nodes.map((n) => n.name)))}>
             🎲
           </button>
           <button type="submit">Save</button>
           <button type="button" onClick={() => setRenaming(null)}>
             Cancel
           </button>
-          <span style={{ color: "#555", fontSize: 13 }}>The host name follows now; the Tailscale name on the next restart.</span>
+          <span style={{ color: "#555", fontSize: 13 }}>
+            {myLetter ? `Node ${myLetter}: names start with ${myLetter}. ` : ""}The host name follows now; the Tailscale name on the next restart.
+          </span>
         </form>
       )}
       {error && <ErrorBox>{error}</ErrorBox>}

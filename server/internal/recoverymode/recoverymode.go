@@ -39,6 +39,9 @@ const (
 	MaxAttempts = 5
 	// Port of the recovery listener.
 	Port = 7444
+	// PromoteWithin is how long a Node-only device has to bring a recovery
+	// code to a second Node for Fleet-wide trust (decision 120).
+	PromoteWithin = 24 * time.Hour
 )
 
 type codeRecord struct {
@@ -177,6 +180,20 @@ func (s *Service) Authorize(ctx context.Context, req *maitrev1.AuthorizeRequest)
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Sprintf("wrong code (%d attempt(s) left)", MaxAttempts-s.attempts))
 	}
 	device := &maitrev1.TrustedDevice{DeviceId: p.Fingerprint, Name: req.GetName(), PublicKeyPem: req.GetPublicKeyPem(), AddedUnixMs: time.Now().UnixMilli()}
+	// Decision 120: in a Fleet of two or more Nodes a recovery code buys
+	// trust from this Node only. The same device bringing a code to a second
+	// Node within a day proves presence at two machines and is promoted to
+	// Fleet-wide trust. A one-Node Fleet has nothing else to protect.
+	nodes, _ := store.ListLive(ctx, s.st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
+	if len(nodes) > 1 {
+		var prev maitrev1.TrustedDevice
+		if _, err := s.st.Get(ctx, store.KindTrustedDevice, p.Fingerprint, &prev); err == nil && prev.GetNodeScope() != "" && prev.GetNodeScope() != s.self && time.Since(time.UnixMilli(prev.GetAddedUnixMs())) < PromoteWithin {
+			device.Name = prev.GetName()
+			device.AddedUnixMs = prev.GetAddedUnixMs()
+		} else {
+			device.NodeScope = s.self
+		}
+	}
 	out, err := s.st.Put(ctx, store.KindTrustedDevice, device.DeviceId, device, true)
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
@@ -186,7 +203,7 @@ func (s *Service) Authorize(ctx context.Context, req *maitrev1.AuthorizeRequest)
 	if s.OnAdded != nil {
 		s.OnAdded(out)
 	}
-	return &maitrev1.AuthorizeResponse{FleetId: s.fleet.GetFleetId(), FleetName: s.fleet.GetName(), NodeId: s.self}, nil
+	return &maitrev1.AuthorizeResponse{FleetId: s.fleet.GetFleetId(), FleetName: s.fleet.GetName(), NodeId: s.self, NodeOnly: device.GetNodeScope() != ""}, nil
 }
 
 // ErrClosed is returned by Wait when the window ended without a device.

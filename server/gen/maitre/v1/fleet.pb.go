@@ -391,12 +391,17 @@ func (x *UpdatePolicy) GetPaused() bool {
 // (its key fingerprint). The Recovery Phrase appears here as a device whose
 // `recovery_only` flag limits it to approving other devices.
 type TrustedDevice struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DeviceId      string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	PublicKeyPem  string                 `protobuf:"bytes,3,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
-	RecoveryOnly  bool                   `protobuf:"varint,4,opt,name=recovery_only,json=recoveryOnly,proto3" json:"recovery_only,omitempty"`
-	AddedUnixMs   int64                  `protobuf:"varint,5,opt,name=added_unix_ms,json=addedUnixMs,proto3" json:"added_unix_ms,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId     string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	PublicKeyPem string                 `protobuf:"bytes,3,opt,name=public_key_pem,json=publicKeyPem,proto3" json:"public_key_pem,omitempty"`
+	RecoveryOnly bool                   `protobuf:"varint,4,opt,name=recovery_only,json=recoveryOnly,proto3" json:"recovery_only,omitempty"`
+	AddedUnixMs  int64                  `protobuf:"varint,5,opt,name=added_unix_ms,json=addedUnixMs,proto3" json:"added_unix_ms,omitempty"`
+	// Decision 120: set to a Node id when the device was added through that
+	// Node's recovery code in a Fleet of two or more Nodes. Only that Node
+	// trusts it until a recovery code at another Node, within a day, clears
+	// this and makes the trust Fleet-wide. Empty: trusted by every Node.
+	NodeScope     string `protobuf:"bytes,6,opt,name=node_scope,json=nodeScope,proto3" json:"node_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -466,6 +471,13 @@ func (x *TrustedDevice) GetAddedUnixMs() int64 {
 	return 0
 }
 
+func (x *TrustedDevice) GetNodeScope() string {
+	if x != nil {
+		return x.NodeScope
+	}
+	return ""
+}
+
 var File_maitre_v1_fleet_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_fleet_proto_rawDesc = "" +
@@ -499,13 +511,15 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x0fwindow_end_hour\x18\x03 \x01(\x05R\rwindowEndHour\x12\x1f\n" +
 	"\vstage_hours\x18\x04 \x01(\x05R\n" +
 	"stageHours\x12\x16\n" +
-	"\x06paused\x18\x05 \x01(\bR\x06paused\"\xaf\x01\n" +
+	"\x06paused\x18\x05 \x01(\bR\x06paused\"\xce\x01\n" +
 	"\rTrustedDevice\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
 	"\x0epublic_key_pem\x18\x03 \x01(\tR\fpublicKeyPem\x12#\n" +
 	"\rrecovery_only\x18\x04 \x01(\bR\frecoveryOnly\x12\"\n" +
-	"\radded_unix_ms\x18\x05 \x01(\x03R\vaddedUnixMsBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\radded_unix_ms\x18\x05 \x01(\x03R\vaddedUnixMs\x12\x1d\n" +
+	"\n" +
+	"node_scope\x18\x06 \x01(\tR\tnodeScopeBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_fleet_proto_rawDescOnce sync.Once

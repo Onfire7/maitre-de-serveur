@@ -363,9 +363,12 @@ func TrustedFingerprints(ctx context.Context, st *store.Store, self string) (ful
 		return nil, nil, err
 	}
 	for _, d := range devices {
-		if d.GetRecoveryOnly() {
+		switch {
+		case d.GetNodeScope() != "" && d.GetNodeScope() != self:
+			// Decision 120: trusted by another Node only, not by us.
+		case d.GetRecoveryOnly():
 			limited = append(limited, d.GetDeviceId())
-		} else {
+		default:
 			fps = append(fps, d.GetDeviceId())
 		}
 	}

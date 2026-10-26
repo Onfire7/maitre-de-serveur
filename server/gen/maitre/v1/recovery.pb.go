@@ -89,7 +89,10 @@ type AuthorizeResponse struct {
 	FleetId   string                 `protobuf:"bytes,1,opt,name=fleet_id,json=fleetId,proto3" json:"fleet_id,omitempty"`
 	FleetName string                 `protobuf:"bytes,2,opt,name=fleet_name,json=fleetName,proto3" json:"fleet_name,omitempty"`
 	// The Node's own id, so the device can pin it.
-	NodeId        string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeId string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	// Decision 120: true when only this Node trusts the device so far; a
+	// recovery code at another Node within a day makes it Fleet-wide.
+	NodeOnly      bool `protobuf:"varint,4,opt,name=node_only,json=nodeOnly,proto3" json:"node_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,6 +148,13 @@ func (x *AuthorizeResponse) GetNodeId() string {
 	return ""
 }
 
+func (x *AuthorizeResponse) GetNodeOnly() bool {
+	if x != nil {
+		return x.NodeOnly
+	}
+	return false
+}
+
 var File_maitre_v1_recovery_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_recovery_proto_rawDesc = "" +
@@ -153,12 +163,13 @@ const file_maitre_v1_recovery_proto_rawDesc = "" +
 	"\x10AuthorizeRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
-	"\x0epublic_key_pem\x18\x03 \x01(\tR\fpublicKeyPem\"f\n" +
+	"\x0epublic_key_pem\x18\x03 \x01(\tR\fpublicKeyPem\"\x83\x01\n" +
 	"\x11AuthorizeResponse\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x1d\n" +
 	"\n" +
 	"fleet_name\x18\x02 \x01(\tR\tfleetName\x12\x17\n" +
-	"\anode_id\x18\x03 \x01(\tR\x06nodeId2[\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12\x1b\n" +
+	"\tnode_only\x18\x04 \x01(\bR\bnodeOnly2[\n" +
 	"\x0fRecoveryService\x12H\n" +
 	"\tAuthorize\x12\x1b.maitre.v1.AuthorizeRequest\x1a\x1c.maitre.v1.AuthorizeResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 

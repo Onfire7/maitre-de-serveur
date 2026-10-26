@@ -26,4 +26,7 @@ message AuthorizeResponse {
   string fleet_name = 2;
   // The Node's own id, so the device can pin it.
   string node_id = 3;
+  // Decision 120: true when only this Node trusts the device so far; a
+  // recovery code at another Node within a day makes it Fleet-wide.
+  bool node_only = 4;
 }

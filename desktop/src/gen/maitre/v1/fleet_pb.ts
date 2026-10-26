@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMivgEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJInoKDFVwZGF0ZVBvbGljeRIRCglhdXRvbWF0aWMYASABKAgSGQoRd2luZG93X3N0YXJ0X2hvdXIYAiABKAUSFwoPd2luZG93X2VuZF9ob3VyGAMgASgFEhMKC3N0YWdlX2hvdXJzGAQgASgFEg4KBnBhdXNlZBgFIAEoCCJ2Cg1UcnVzdGVkRGV2aWNlEhEKCWRldmljZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhUKDXJlY292ZXJ5X29ubHkYBCABKAgSFQoNYWRkZWRfdW5peF9tcxgFIAEoA0JEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMivgEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJInoKDFVwZGF0ZVBvbGljeRIRCglhdXRvbWF0aWMYASABKAgSGQoRd2luZG93X3N0YXJ0X2hvdXIYAiABKAUSFwoPd2luZG93X2VuZF9ob3VyGAMgASgFEhMKC3N0YWdlX2hvdXJzGAQgASgFEg4KBnBhdXNlZBgFIAEoCCKKAQoNVHJ1c3RlZERldmljZRIRCglkZXZpY2VfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5wdWJsaWNfa2V5X3BlbRgDIAEoCRIVCg1yZWNvdmVyeV9vbmx5GAQgASgIEhUKDWFkZGVkX3VuaXhfbXMYBSABKAMSEgoKbm9kZV9zY29wZRgGIAEoCUJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -260,6 +260,16 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
    * @generated from field: int64 added_unix_ms = 5;
    */
   addedUnixMs: bigint;
+
+  /**
+   * Decision 120: set to a Node id when the device was added through that
+   * Node's recovery code in a Fleet of two or more Nodes. Only that Node
+   * trusts it until a recovery code at another Node, within a day, clears
+   * this and makes the trust Fleet-wide. Empty: trusted by every Node.
+   *
+   * @generated from field: string node_scope = 6;
+   */
+  nodeScope: string;
 };
 
 /**

@@ -138,3 +138,27 @@ func TestNoRouter(t *testing.T) {
 		t.Fatal("not mapped once the router appeared")
 	}
 }
+
+func TestDiscoveryBacksOffAfterAnHour(t *testing.T) {
+	calls := 0
+	m, _ := newTest(nil, errors.New("no UPnP gateway answered"))
+	m.Discover = func(context.Context) (Router, error) { calls++; return nil, errors.New("no") }
+	clock := time.Now()
+	m.now = func() time.Time { return clock }
+	m.Reconcile([]Mapping{{25565, "tcp", "minecraft"}})
+	for i := 0; i < 3; i++ {
+		m.tick(context.Background())
+		clock = clock.Add(time.Minute)
+	}
+	if calls != 3 {
+		t.Fatalf("first hour: %d looks in 3 passes", calls)
+	}
+	clock = clock.Add(2 * time.Hour)
+	for i := 0; i < 5; i++ {
+		m.tick(context.Background())
+		clock = clock.Add(time.Minute)
+	}
+	if calls != 4 {
+		t.Fatalf("after an hour: %d looks in 5 minute-passes, want 1", calls-3)
+	}
+}

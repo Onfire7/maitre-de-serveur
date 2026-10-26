@@ -79,4 +79,9 @@ message TrustedDevice {
   string public_key_pem = 3;
   bool recovery_only = 4;
   int64 added_unix_ms = 5;
+  // Decision 120: set to a Node id when the device was added through that
+  // Node's recovery code in a Fleet of two or more Nodes. Only that Node
+  // trusts it until a recovery code at another Node, within a day, clears
+  // this and makes the trust Fleet-wide. Empty: trusted by every Node.
+  string node_scope = 6;
 }
