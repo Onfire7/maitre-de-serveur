@@ -10,7 +10,7 @@ import { NodeService } from "./gen/maitre/v1/node_pb";
 import bundledCatalog from "./catalog/index.json";
 
 // Mirrors catalog/FORMAT.md (the agent hands us index.json verbatim).
-interface CatalogEntry {
+export interface CatalogEntry {
   id: string;
   name: string;
   summary: string;
@@ -30,7 +30,7 @@ interface CatalogEntry {
   health?: { http?: string };
   quadlet: string;
 }
-interface CatalogIndex {
+export interface CatalogIndex {
   format: number;
   entries: CatalogEntry[];
 }
@@ -327,7 +327,7 @@ export function ServicesPanel({
 }
 
 /** Mirrors catalog.SpecFor on the Go side: everything the Node needs to run the Service. */
-function specFor(e: CatalogEntry, name: string, settings: Record<string, string>) {
+export function specFor(e: CatalogEntry, name: string, settings: Record<string, string>) {
   return create(ServiceSpecSchema, {
     name: name || e.id,
     catalogId: e.id,

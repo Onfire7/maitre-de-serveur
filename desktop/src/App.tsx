@@ -8,21 +8,16 @@ import { transportFor } from "./transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "./state";
 import { ServicesPanel } from "./services";
 import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
-import { NetbootPanel } from "./netboot";
-import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
+import { JoinScreen, RecoverScreen, CodeScreen } from "./join";
 import { StoragePanel } from "./storage";
-import { SpacesPanel, useSpaces, defaultSpace } from "./spaces";
-import { TailscalePanel, TailscaleRow } from "./tailscale";
-import { UpdatePolicyPanel } from "./policy";
-import { MediaPanel } from "./media";
+import { useSpaces, defaultSpace } from "./spaces";
+import { TailscaleRow } from "./tailscale";
 import { nextLetter, randomNodeName } from "./names";
+import { Shell as ConsoleShell } from "./app/Shell";
+import { RouteProvider, routeFromUrl } from "./app/routes";
+import { ThemeProvider } from "./app/theme";
 
-type Screen =
-  | { name: "home" }
-  | { name: "phrase"; phrase: string }
-  | { name: "add"; found: Found }
-  | { name: "node"; node: KnownNode }
-  | { name: "code" };
+type Screen = { name: "home" } | { name: "phrase"; phrase: string };
 
 export default function App() {
   const [device, setDevice] = useState<DeviceInfo | null>(null);
@@ -73,70 +68,19 @@ export default function App() {
     );
   }
 
-  switch (screen.name) {
-    case "phrase":
-      return (
-        <Shell>
-          <RecoveryPhrase phrase={screen.phrase} onDone={() => setScreen({ name: "home" })} />
-        </Shell>
-      );
-    case "add":
-      return (
-        <Shell>
-          <AddNode
-            found={screen.found}
-            device={device}
-            state={state}
-            onCancel={() => setScreen({ name: "home" })}
-            onProvisioned={async (node) => {
-              await save({ ...state, nodes: [...state.nodes.filter((n) => n.node_id !== node.node_id), node] });
-              setScreen({ name: "home" });
-            }}
-          />
-        </Shell>
-      );
-    case "code":
-      return (
-        <Shell>
-          <CodeScreen device={device} promote onJoined={async (s) => { await save(s); setScreen({ name: "home" }); }} onCancel={() => setScreen({ name: "home" })} />
-        </Shell>
-      );
-    case "node":
-      return (
-        <Shell>
-          <NodeView
-            node={screen.node}
-            onBack={() => setScreen({ name: "home" })}
-            state={state}
-            onRenamed={async (name) => {
-              const nodes = state.nodes.map((n) => (n.node_id === screen.node.node_id ? { ...n, name } : n));
-              await save({ ...state, nodes });
-              setScreen({ name: "node", node: { ...screen.node, name } });
-            }}
-          />
-        </Shell>
-      );
-    default:
-      return (
-        <Shell>
-          <Home
-            device={device}
-            state={state}
-            onAdd={(found) => setScreen({ name: "add", found })}
-            onPromote={() => setScreen({ name: "code" })}
-            onOpen={(node) => {
-              // Persist the address the Node answered on last.
-              if (node.addresses[0] !== state.nodes.find((n) => n.node_id === node.node_id)?.addresses[0])
-                save({ ...state, nodes: state.nodes.map((n) => (n.node_id === node.node_id ? node : n)) });
-              setScreen({ name: "node", node });
-            }}
-            onAddDev={(node) => save({ ...state, nodes: [...state.nodes.filter((n) => n.node_id !== node.node_id), node] })}
-            onForget={(node) => save({ ...state, nodes: state.nodes.filter((n) => n.node_id !== node.node_id) })}
-            onAddresses={(nodes) => save({ ...state, nodes })}
-          />
-        </Shell>
-      );
-  }
+  if (screen.name === "phrase")
+    return (
+      <Shell>
+        <RecoveryPhrase phrase={screen.phrase} onDone={() => setScreen({ name: "home" })} />
+      </Shell>
+    );
+  return (
+    <ThemeProvider>
+      <RouteProvider initial={routeFromUrl({ name: "fleet", tab: "overview" })}>
+        <ConsoleShell device={device} state={state} save={save} />
+      </RouteProvider>
+    </ThemeProvider>
+  );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -199,368 +143,7 @@ function RecoveryPhrase({ phrase, onDone }: { phrase: string; onDone: () => void
   );
 }
 
-function Home({
-  device,
-  state,
-  onAdd,
-  onOpen,
-  onAddDev,
-  onForget,
-  onAddresses,
-  onPromote,
-}: {
-  device: DeviceInfo;
-  state: ConsoleState;
-  onAdd: (f: Found) => void;
-  onOpen: (n: KnownNode) => void;
-  onAddDev: (n: KnownNode) => void;
-  onForget: (n: KnownNode) => void;
-  onAddresses: (nodes: KnownNode[]) => void;
-  onPromote: () => void;
-}) {
-  const [found, setFound] = useState<Found[]>([]);
-  // Decision 120: this device may be trusted by one Node only so far.
-  const [scope, setScope] = useState<{ nodeId: string; addedUnixMs: number } | null>(null);
-  useEffect(() => {
-    let stop = false;
-    (async () => {
-      for (const n of state.nodes)
-        for (const addr of n.addresses) {
-          try {
-            const recs = (await createClient(NodeService, transportFor({ addr, fingerprint: n.node_id })).listRecords({ kind: "trusted_device" })).records.filter((r) => !r.deleted);
-            const me = recs.map((r) => fromBinary(TrustedDeviceSchema, r.body)).find((d) => d.deviceId === device.fingerprint);
-            if (!stop) setScope(me?.nodeScope ? { nodeId: me.nodeScope, addedUnixMs: Number(me.addedUnixMs) } : null);
-            return;
-          } catch {
-            /* next */
-          }
-        }
-    })();
-    return () => {
-      stop = true;
-    };
-  }, [state.nodes.map((n) => n.node_id).join(","), device.fingerprint]);
-  const [showDev, setShowDev] = useState(false);
-  const [devAddr, setDevAddr] = useState("127.0.0.1:7443");
-  const [devFp, setDevFp] = useState("");
-  const [byAddr, setByAddr] = useState("");
-
-  useEffect(() => {
-    const tick = () => api.discover().then(setFound).catch(() => {});
-    tick();
-    const t = setInterval(tick, 2000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Milestone 3 repair: Nodes provisioned before the sync layer existed (or
-  // while their sponsor was down) do not know each other. Whenever two known
-  // Nodes answer and one lacks the other's record, hand it over; from then
-  // on they sync by themselves.
-  useEffect(() => {
-    let stop = false;
-    const introduce = async () => {
-      const alive: { node: KnownNode; addr: string; records: Map<string, Uint8Array> }[] = [];
-      for (const n of state.nodes) {
-        for (const a of n.addresses) {
-          try {
-            const recs = (await createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id })).listRecords({ kind: "node" })).records;
-            alive.push({ node: n, addr: a, records: new Map(recs.filter((r) => !r.deleted).map((r) => [r.id, r.body])) });
-            break;
-          } catch {
-            /* offline or unreachable here */
-          }
-        }
-      }
-      if (stop) return;
-      // Addresses in the records (LAN leases, and the tailnet address a Node
-      // adds once it joins Tailscale) become fallbacks for every known Node,
-      // so the Console reaches a Node away from home (Milestone 5).
-      let changed = false;
-      const next = state.nodes.map((n) => {
-        for (const a of alive) {
-          const own = a.records.get(n.node_id);
-          if (!own) continue;
-          const rec = fromBinary(NodeSchema, own);
-          const extra = rec.addresses.filter((x) => !n.addresses.includes(x));
-          if (extra.length > 0) {
-            changed = true;
-            return { ...n, addresses: [...n.addresses, ...extra] };
-          }
-        }
-        return n;
-      });
-      if (changed && !stop) onAddresses(next);
-      for (const a of alive)
-        for (const b of alive) {
-          if (a === b || a.records.has(b.node.node_id)) continue;
-          const own = b.records.get(b.node.node_id);
-          if (!own) continue;
-          try {
-            await createClient(NodeService, transportFor({ addr: a.addr, fingerprint: a.node.node_id })).putRecord({ record: { kind: "node", id: b.node.node_id, body: own } });
-          } catch {
-            /* next round */
-          }
-        }
-    };
-    introduce();
-    const t = setInterval(introduce, 30000);
-    return () => {
-      stop = true;
-      clearInterval(t);
-    };
-  }, [state.nodes]);
-
-  const installers = found.filter((f) => f.kind === "installer");
-  const knownIds = new Set(state.nodes.map((n) => n.node_id));
-
-  return (
-    <>
-      <p style={{ color: "#555", marginTop: 0 }}>
-        Fleet <b>{state.fleet?.name}</b> · this device is <b>{device.name}</b>
-      </p>
-      {scope && (
-        <div style={{ border: "1px solid #a60", borderRadius: 6, padding: 8, marginBottom: 12, fontSize: 13 }}>
-          <b>Trusted by {state.nodes.find((n) => n.node_id === scope.nodeId)?.name ?? "one Node"} only.</b> The other Nodes do not answer this device yet. To be trusted everywhere, reboot any other Node into
-          recovery from its keyboard and enter its code here{scope.addedUnixMs ? ` before ${new Date(scope.addedUnixMs + 24 * 3600 * 1000).toLocaleString()}` : ""}.{" "}
-          <button onClick={onPromote}>Enter a code from another Node</button>
-        </div>
-      )}
-
-      <section>
-        <h2>Nodes</h2>
-        {state.nodes.length === 0 && <p style={{ color: "#555" }}>No Nodes yet. Boot a machine from the network or from the Maître installer USB and it will appear below.</p>}
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {[...state.nodes].sort((a, b) => a.name.localeCompare(b.name)).map((n) => (
-            <NodeRow
-              key={n.node_id}
-              node={n}
-              live={found.find((f) => f.kind === "node" && f.id === n.node_id)}
-              onOpen={(addr) => onOpen({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
-              onForget={() => onForget(n)}
-              state={state}
-              onAddress={(addr) => onAddDev({ ...n, addresses: [addr, ...n.addresses.filter((a) => a !== addr)] })}
-            />
-          ))}
-        </ul>
-      </section>
-
-      <AskingDevices state={state} found={found} />
-
-      <SpacesPanel state={state} />
-
-      <TailscalePanel state={state} />
-
-      <UpdatePolicyPanel state={state} />
-
-      <section>
-        <h2>Add a Node</h2>
-        <NetbootPanel />
-        <MediaPanel />
-        {installers.length === 0 ? (
-          <p style={{ color: "#555" }}>Looking for machines booted from the installer… none found on this network yet.</p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {installers.map((f) => (
-              <li key={f.id} style={row}>
-                <div>
-                  <b>{f.machine || "A machine"}</b> is ready to install
-                  <div style={{ color: "#555", fontSize: 13 }}>
-                    {f.addresses[0]} · installer {f.id.slice(0, 8)}
-                  </div>
-                </div>
-                <button onClick={() => onAdd(f)}>Set up</button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p style={{ color: "#555", fontSize: 13 }}>
-          Machine not listed (different network, or a VM)? Set it up by address:{" "}
-          <input value={byAddr} onChange={(e) => setByAddr(e.target.value)} placeholder="192.168.1.20:7443" style={{ width: 180 }} />{" "}
-          <button disabled={!byAddr.includes(":")} onClick={() => onAdd({ kind: "installer", id: "", name: "", machine: "", fleet_id: "", version: "", addresses: [byAddr.trim()], key_pem: "", recovery: false })}>
-            Set up by address
-          </button>
-        </p>
-        {found
-          .filter((f) => f.kind === "node" && !knownIds.has(f.id))
-          .map((f) => (
-            <p key={f.id} style={{ color: "#555", fontSize: 13 }}>
-              Node <b>{f.name}</b> ({f.id.slice(0, 8)}) is on this network but belongs to {f.fleet_id === state.fleet?.fleet_id ? "this Fleet; joining from a second device arrives in Milestone 3" : "another Fleet"}.
-            </p>
-          ))}
-      </section>
-
-      <details open={showDev} onToggle={(e) => setShowDev((e.target as HTMLDetailsElement).open)} style={{ marginTop: 32, color: "#555" }}>
-        <summary>Developer</summary>
-        <p style={{ fontSize: 13 }}>
-          Device fingerprint <code>{device.fingerprint}</code>
-          <br />
-          Public key file <code>{device.public_key_path}</code>
-        </p>
-        <p style={{ fontSize: 13 }}>Add a <code>maitre dev</code> Node by hand (its trust dir must already contain this device's public key):</p>
-        <input value={devAddr} onChange={(e) => setDevAddr(e.target.value)} style={{ width: 180 }} />{" "}
-        <input value={devFp} onChange={(e) => setDevFp(e.target.value)} placeholder="node fingerprint" style={{ width: 360, fontFamily: "monospace" }} />{" "}
-        <button disabled={!devAddr || devFp.length !== 64} onClick={() => onAddDev({ node_id: devFp.trim().toLowerCase(), name: "dev node", addresses: [devAddr] })}>
-          Add
-        </button>
-      </details>
-    </>
-  );
-}
-
-function NodeRow({
-  node,
-  live,
-  onOpen,
-  onForget,
-  onAddress,
-  state,
-}: {
-  node: KnownNode;
-  state: ConsoleState;
-  live?: Found;
-  /** Called with the address that answered (or the one being tried). */
-  onOpen: (addr: string) => void;
-  onForget: () => void;
-  onAddress: (addr: string) => void;
-}) {
-  const [info, setInfo] = useState<NodeInfo | null>(null);
-  const [err, setErr] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  const [manual, setManual] = useState("");
-  // The stored address (which a manual entry overrides) is tried first;
-  // discovery is the fallback, since it can be wrong too.
-  const [useLive, setUseLive] = useState(false);
-  const liveAddr = live?.addresses[0];
-  const addr = useLive && liveAddr ? liveAddr : node.addresses[0];
-  useEffect(() => {
-    let stop = false;
-    const client = createClient(NodeService, transportFor({ addr, fingerprint: node.node_id }));
-    const tick = async () => {
-      try {
-        const r = await client.getNodeInfo({});
-        if (!stop) {
-          setInfo(r.node ?? null);
-          setErr("");
-        }
-      } catch (e) {
-        if (!stop) {
-          setInfo(null);
-          setErr(String(e));
-          if (liveAddr && liveAddr !== addr) setUseLive(true);
-          else if (useLive) setUseLive(false);
-        }
-      }
-    };
-    tick();
-    const t = setInterval(tick, 3000);
-    return () => {
-      stop = true;
-      clearInterval(t);
-    };
-  }, [addr, liveAddr, node.node_id]);
-  return (
-    <li style={row}>
-      <div>
-        <b>{node.name}</b>{" "}
-        {info ? <span style={{ color: "#2a7" }}>● online</span> : <span style={{ color: "#999" }} title={err}>● unreachable</span>}
-        <div style={{ color: "#555", fontSize: 13 }}>
-          {addr} · {info ? `version ${info.version}, up ${formatUptime(Number(info.uptimeSeconds))}` : err.includes("trust") ? "this device is not trusted by that Node" : "waiting…"}
-        </div>
-      </div>
-      <div>
-        <button onClick={() => onOpen(addr)}>Open</button> <button onClick={() => setEditing((e) => !e)}>Address…</button>{" "}
-        <button onClick={() => setRemoving(true)}>Remove…</button>
-        {removing && <RemoveNodeDialog node={node} state={state} onCancel={() => setRemoving(false)} onForget={onForget} />}
-        {editing && (
-          <div style={{ marginTop: 4 }}>
-            <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="192.168.4.80:7443" style={{ width: 180 }} />{" "}
-            <button
-              disabled={!manual.includes(":")}
-              onClick={() => {
-                onAddress(manual.trim());
-                setEditing(false);
-              }}
-            >
-              Use
-            </button>
-            <div style={{ color: "#555", fontSize: 12 }}>For when discovery gets it wrong. The Node's own screen shows its address.</div>
-          </div>
-        )}
-      </div>
-    </li>
-  );
-}
-
-/** The guard (Milestone 4): removing a Node names what becomes unavailable and needs its name typed. */
-function RemoveNodeDialog({ node, state, onCancel, onForget }: { node: KnownNode; state: ConsoleState; onCancel: () => void; onForget: () => void }) {
-  const [services, setServices] = useState<string[] | null>(null);
-  const [typed, setTyped] = useState("");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    (async () => {
-      for (const n of state.nodes)
-        for (const a of n.addresses) {
-          try {
-            const recs = (await createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id })).listRecords({ kind: "service" })).records;
-            setServices(recs.filter((r) => !r.deleted && r.ownerNodeId === node.node_id).map((r) => r.id));
-            return;
-          } catch {
-            /* next */
-          }
-        }
-      setServices([]);
-    })();
-  }, [node.node_id]);
-  async function remove() {
-    // Forget here always; remove from the Fleet through any Node that answers.
-    for (const n of state.nodes.filter((x) => x.node_id !== node.node_id))
-      for (const a of n.addresses) {
-        try {
-          await createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id })).putRecord({ record: { kind: "node", id: node.node_id, deleted: true } });
-          onForget();
-          return;
-        } catch (e) {
-          setError(String(e));
-        }
-      }
-    onForget();
-  }
-  const other = state.nodes.length > 1;
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 480 }}>
-        <h3 style={{ marginTop: 0 }}>Remove {node.name} from the Fleet</h3>
-        {other ? (
-          <p>The other Nodes stop trusting it and forget it. Reinstall it to bring it back.</p>
-        ) : (
-          <p>It is the only Node, so this only forgets it on this computer.</p>
-        )}
-        {services === null ? (
-          <p style={{ color: "#555" }}>Checking what runs on it…</p>
-        ) : services.length > 0 ? (
-          <div style={{ color: "#b00020", fontSize: 13 }}>
-            Services that become unavailable: <b>{services.join(", ")}</b>. Their data stays on that machine's Drives.
-          </div>
-        ) : (
-          <p style={{ color: "#555", fontSize: 13 }}>No Services run on it.</p>
-        )}
-        {error && <ErrorBox>{error}</ErrorBox>}
-        <p>
-          Type <code>{node.name}</code> to confirm: <input value={typed} onChange={(e) => setTyped(e.target.value)} style={{ width: 200 }} />
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button disabled={typed.trim() !== node.name || services === null} onClick={remove}>
-            Remove
-          </button>
-          <button onClick={onCancel}>Cancel</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddNode({
+export function AddNode({
   found,
   device,
   state,
@@ -848,7 +431,7 @@ function AddNode({
   );
 }
 
-function NodeView({ node, onBack, state, onRenamed }: { node: KnownNode; onBack: () => void; state: ConsoleState; onRenamed: (name: string) => void }) {
+export function NodeView({ node, onBack, state, onRenamed }: { node: KnownNode; onBack: () => void; state: ConsoleState; onRenamed: (name: string) => void }) {
   const [maint, setMaint] = useState<Maintenance | null>(null);
   if (maint)
     return (
@@ -1022,7 +605,6 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
   return <pre style={{ color: "#b00020", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{children}</pre>;
 }
 
-const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" };
 
 function formatBytes(n: number) {
   const units = ["B", "KB", "MB", "GB", "TB"];
