@@ -102,6 +102,10 @@ const handlers: Record<string, Handler> = {
     f.rename(me.nodeId, name);
     return { node: { nodeId: me.nodeId, name, letter: me.letter, addresses: [me.addr] } };
   },
+  "NodeService/PushStatus": (_f, n, _i, addr) => {
+    needNode(n, addr);
+    return {};
+  },
   "NodeService/PushRecords": (f, n, i, addr) => {
     needNode(n, addr);
     for (const r of (i.records as { kind: string; id: string; body?: Uint8Array; deleted?: boolean }[]) ?? []) f.putRecord(r);

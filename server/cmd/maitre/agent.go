@@ -306,6 +306,27 @@ func runAgent(args []string) error {
 		}
 		return list
 	}
+	// ADR 0006: gossip this Node's metrics and Service statuses to every
+	// peer: every 5 s, and within 2 s of a Service changing state.
+	go func() {
+		var lastSent time.Time
+		var lastKey string
+		t := time.NewTicker(2 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			own := svc.OwnStatus(ctx)
+			key := statusKey(own.GetServices())
+			if key != lastKey || time.Since(lastSent) >= 5*time.Second {
+				pm.Gossip(context.WithoutCancel(ctx), own)
+				lastSent, lastKey = time.Now(), key
+			}
+		}
+	}()
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
 	// The Installer's data partition is the Node's built-in Drive: recorded
@@ -916,4 +937,13 @@ func kernelArg(key string) string {
 		}
 	}
 	return ""
+}
+
+// statusKey summarises Service statuses so a change is noticed between gossips.
+func statusKey(list []*maitrev1.ServiceStatus) string {
+	var b strings.Builder
+	for _, st := range list {
+		fmt.Fprintf(&b, "%s:%d:%t:%d:%s:%s;", st.GetSpec().GetName(), st.GetState(), st.GetHealthy(), st.GetRestarts(), st.GetMessage(), st.GetForwardState())
+	}
+	return b.String()
 }

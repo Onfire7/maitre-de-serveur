@@ -53,12 +53,14 @@ type Manager struct {
 	mu    sync.Mutex
 	peers map[string]*peer
 	http  *http.Client
+	// heard is the last status each peer gossiped (ADR 0006), memory only.
+	heard map[string]*maitrev1.FleetNodeStatus
 }
 
 // New builds a Manager; list is the trust list shared with the listener.
 func New(st *store.Store, id *identity.Identity, list *trust.List, log *slog.Logger) *Manager {
 	cfg := mtls.ClientConfig(id, list)
-	m := &Manager{st: st, id: id, list: list, log: log, peers: map[string]*peer{}}
+	m := &Manager{st: st, id: id, list: list, log: log, peers: map[string]*peer{}, heard: map[string]*maitrev1.FleetNodeStatus{}}
 	m.http = &http.Client{Transport: &http2.Transport{
 		TLSClientConfig: cfg,
 		DialTLSContext: func(ctx context.Context, network, addr string, c *tls.Config) (net.Conn, error) {
@@ -221,6 +223,51 @@ func (m *Manager) Push(ctx context.Context, recs ...*maitrev1.Record) {
 			}
 		}()
 	}
+}
+
+// Gossip hands this Node's own status to every peer (ADR 0006). Failures
+// are dropped: the next sample comes in a few seconds.
+func (m *Manager) Gossip(ctx context.Context, st *maitrev1.FleetNodeStatus) {
+	m.mu.Lock()
+	ids := make([]string, 0, len(m.peers))
+	for id := range m.peers {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+	for _, id := range ids {
+		id := id
+		go func() {
+			err := m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+				_, err := c.PushStatus(ctx, &maitrev1.PushStatusRequest{Status: st})
+				return err
+			})
+			if err != nil {
+				m.log.Debug("gossip failed", "peer", id, "err", err)
+			}
+		}()
+	}
+}
+
+// Received keeps a peer's gossiped status and counts it as having been
+// heard from: a Node that talks to us is reachable, whether or not our
+// own calls to it succeed.
+func (m *Manager) Received(st *maitrev1.FleetNodeStatus) {
+	if st == nil || st.GetNodeId() == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.heard[st.GetNodeId()] = st
+	if p, ok := m.peers[st.GetNodeId()]; ok {
+		p.online, p.lastSeen = true, time.Now()
+	}
+}
+
+// Last returns the last status a peer gossiped, or nil.
+func (m *Manager) Last(id string) *maitrev1.FleetNodeStatus {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.heard[id]
 }
 
 // Forward writes a record owned by another Node by asking that Node; when

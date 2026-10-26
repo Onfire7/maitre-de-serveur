@@ -70,6 +70,9 @@ type Peers interface {
 	Forward(ctx context.Context, owner string, rec *maitrev1.Record) (*maitrev1.Record, bool, error)
 	Push(ctx context.Context, recs ...*maitrev1.Record)
 	Status(ctx context.Context) []*maitrev1.PeerStatus
+	// Received keeps a peer's gossiped status; Last returns it (ADR 0006).
+	Received(st *maitrev1.FleetNodeStatus)
+	Last(id string) *maitrev1.FleetNodeStatus
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -272,10 +275,8 @@ func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsReques
 	return &maitrev1.GetNodeMetricsResponse{Metrics: s.Metrics()}, nil
 }
 
-// GetFleetStatus implements NodeService (ADR 0006). Until the peers gossip
-// their samples this answers with the Node's own metrics and Services and
-// the reachability of its peers; their metrics and Services stay unset.
-func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatusRequest) (*maitrev1.GetFleetStatusResponse, error) {
+// OwnStatus is what this Node gossips (ADR 0006): its metrics and Services now.
+func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	now := time.Now().UnixMilli()
 	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now}
 	if s.Metrics != nil {
@@ -286,13 +287,34 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 	if s.Services != nil {
 		self.Services = s.Services(ctx)
 	}
+	return self
+}
+
+// GetFleetStatus implements NodeService (ADR 0006): this Node's own status,
+// then every peer with its reachability as seen from here and the last
+// metrics and Services it gossiped.
+func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatusRequest) (*maitrev1.GetFleetStatusResponse, error) {
+	self := s.OwnStatus(ctx)
 	out := &maitrev1.GetFleetStatusResponse{NodeId: self.NodeId, Nodes: []*maitrev1.FleetNodeStatus{self}}
 	if s.Peers != nil {
 		for _, p := range s.Peers.Status(ctx) {
-			out.Nodes = append(out.Nodes, &maitrev1.FleetNodeStatus{NodeId: p.GetNodeId(), Reachable: p.GetOnline(), LastSeenUnixMs: p.GetLastSeenUnixMs()})
+			st := &maitrev1.FleetNodeStatus{NodeId: p.GetNodeId(), Reachable: p.GetOnline(), LastSeenUnixMs: p.GetLastSeenUnixMs()}
+			if last := s.Peers.Last(p.GetNodeId()); last != nil {
+				st.Metrics, st.MetricsUnixMs = last.GetMetrics(), last.GetMetricsUnixMs()
+				st.Services, st.ServicesUnixMs = last.GetServices(), last.GetServicesUnixMs()
+			}
+			out.Nodes = append(out.Nodes, st)
 		}
 	}
 	return out, nil
+}
+
+// PushStatus implements NodeService: a peer's gossip, kept in memory.
+func (s *Service) PushStatus(_ context.Context, req *maitrev1.PushStatusRequest) (*maitrev1.PushStatusResponse, error) {
+	if s.Peers != nil {
+		s.Peers.Received(req.GetStatus())
+	}
+	return &maitrev1.PushStatusResponse{}, nil
 }
 
 // GetUpdateStatus implements NodeService.

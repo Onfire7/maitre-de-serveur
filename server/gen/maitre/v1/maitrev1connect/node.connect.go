@@ -47,6 +47,8 @@ const (
 	NodeServicePushRecordsProcedure = "/maitre.v1.NodeService/PushRecords"
 	// NodeServiceGetFleetStatusProcedure is the procedure name of the NodeService's GetFleetStatus RPC.
 	NodeServiceGetFleetStatusProcedure = "/maitre.v1.NodeService/GetFleetStatus"
+	// NodeServicePushStatusProcedure is the procedure name of the NodeService's PushStatus RPC.
+	NodeServicePushStatusProcedure = "/maitre.v1.NodeService/PushStatus"
 )
 
 var (
@@ -127,6 +129,13 @@ var (
 			Procedure:  NodeServiceGetFleetStatusProcedure,
 		}
 	})
+	nodeServicePushStatusSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("PushStatus"),
+			Procedure:  NodeServicePushStatusProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -168,6 +177,11 @@ type NodeServiceClient interface {
 	// (ADR 0006). Nothing here is stored; a Node that just started knows only
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
+	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
+	// metrics sample and Service statuses. Kept in memory only, never stored;
+	// every Node sends it to every peer every few seconds and when a Service
+	// changes state.
+	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -215,6 +229,11 @@ type NodeServiceHandler interface {
 	// (ADR 0006). Nothing here is stored; a Node that just started knows only
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
+	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
+	// metrics sample and Service statuses. Kept in memory only, never stored;
+	// every Node sends it to every peer every few seconds and when a Service
+	// changes state.
+	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -232,6 +251,7 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceRenameNodeSpec(), Handler: adapter.renameNode},
 		connect.Method{Spec: nodeServicePushRecordsSpec(), Handler: adapter.pushRecords},
 		connect.Method{Spec: nodeServiceGetFleetStatusSpec(), Handler: adapter.getFleetStatus},
+		connect.Method{Spec: nodeServicePushStatusSpec(), Handler: adapter.pushStatus},
 	)
 }
 
@@ -280,6 +300,10 @@ func (UnimplementedNodeServiceHandler) PushRecords(context.Context, *v1.PushReco
 
 func (UnimplementedNodeServiceHandler) GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetFleetStatus is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.PushStatus is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -369,6 +393,14 @@ func (c *nodeServiceClient) PushRecords(ctx context.Context, req *v1.PushRecords
 func (c *nodeServiceClient) GetFleetStatus(ctx context.Context, req *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error) {
 	var res v1.GetFleetStatusResponse
 	if err := c.client.CallUnary(ctx, nodeServiceGetFleetStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) PushStatus(ctx context.Context, req *v1.PushStatusRequest) (*v1.PushStatusResponse, error) {
+	var res v1.PushStatusResponse
+	if err := c.client.CallUnary(ctx, nodeServicePushStatusSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -502,6 +534,18 @@ func (h nodeServiceHandler) getFleetStatus(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.GetFleetStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) pushStatus(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PushStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PushStatus(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -49,7 +49,19 @@ service NodeService {
   // (ADR 0006). Nothing here is stored; a Node that just started knows only
   // itself until the peers' next samples arrive.
   rpc GetFleetStatus(GetFleetStatusRequest) returns (GetFleetStatusResponse) {}
+  // PushStatus is the gossip (ADR 0006): a peer hands this Node its own
+  // metrics sample and Service statuses. Kept in memory only, never stored;
+  // every Node sends it to every peer every few seconds and when a Service
+  // changes state.
+  rpc PushStatus(PushStatusRequest) returns (PushStatusResponse) {}
 }
+
+message PushStatusRequest {
+  // The sender's own status: node_id, metrics, services and their times.
+  FleetNodeStatus status = 1;
+}
+
+message PushStatusResponse {}
 
 message GetFleetStatusRequest {}
 
