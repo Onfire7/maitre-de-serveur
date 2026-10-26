@@ -22,25 +22,47 @@ const (
 
 // Advertisement is one published DNS-SD service.
 type Advertisement struct {
-	conn  *dbus.Conn
-	group *avahi.EntryGroup
+	conn   *dbus.Conn
+	server *avahi.Server
+	group  *avahi.EntryGroup
+}
+
+// connect opens a private connection to the system bus and an Avahi client
+// on it. Every publisher and browser gets its own: godbus's shared
+// SystemBus() connection is closed for the whole process by the first
+// Close, which closes every Avahi client's signal channel at once, and
+// go-avahi's dispatch loop then spins on the closed channel forever (one
+// core per client; this put a Node at 75% CPU with no Services running).
+func connect() (*dbus.Conn, *avahi.Server, error) {
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return nil, nil, fmt.Errorf("mdns: system bus: %w", err)
+	}
+	server, err := avahi.ServerNew(conn)
+	if err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("mdns: avahi: %w", err)
+	}
+	return conn, server, nil
+}
+
+// closeAll stops the Avahi client's dispatch loop first, then the
+// connection, in that order: the loop must not see its channel close.
+func closeAll(conn *dbus.Conn, server *avahi.Server) error {
+	server.Close()
+	return conn.Close()
 }
 
 // Publish announces instance `name` of `serviceType` on `port` with TXT
 // records built from txt (key=value). It stays published until Close.
 func Publish(name, serviceType string, port uint16, txt map[string]string) (*Advertisement, error) {
-	conn, err := dbus.SystemBus()
+	conn, server, err := connect()
 	if err != nil {
-		return nil, fmt.Errorf("mdns: system bus: %w", err)
-	}
-	server, err := avahi.ServerNew(conn)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("mdns: avahi: %w", err)
+		return nil, err
 	}
 	group, err := server.EntryGroupNew()
 	if err != nil {
-		conn.Close()
+		closeAll(conn, server)
 		return nil, fmt.Errorf("mdns: entry group: %w", err)
 	}
 	var records [][]byte
@@ -48,23 +70,23 @@ func Publish(name, serviceType string, port uint16, txt map[string]string) (*Adv
 		records = append(records, []byte(k+"="+v))
 	}
 	if err := group.AddService(avahi.InterfaceUnspec, avahi.ProtoUnspec, 0, name, serviceType, "local", "", port, records); err != nil {
-		conn.Close()
+		closeAll(conn, server)
 		return nil, fmt.Errorf("mdns: add service: %w", err)
 	}
 	if err := group.Commit(); err != nil {
-		conn.Close()
+		closeAll(conn, server)
 		return nil, fmt.Errorf("mdns: commit: %w", err)
 	}
-	return &Advertisement{conn: conn, group: group}, nil
+	return &Advertisement{conn: conn, server: server, group: group}, nil
 }
 
-// Close withdraws the advertisement.
+// Close withdraws the advertisement and releases its Avahi client.
 func (a *Advertisement) Close() error {
 	if a == nil {
 		return nil
 	}
 	_ = a.group.Reset()
-	return a.conn.Close()
+	return closeAll(a.conn, a.server)
 }
 
 // InstanceName makes a readable, unique mDNS instance name from a human
@@ -83,35 +105,30 @@ func InstanceName(label, fingerprint string) string {
 // Avahi reports a local name collision otherwise. Returns a closer that
 // withdraws them.
 func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
-	conn, err := dbus.SystemBus()
+	conn, server, err := connect()
 	if err != nil {
-		return nil, fmt.Errorf("mdns: system bus: %w", err)
-	}
-	server, err := avahi.ServerNew(conn)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("mdns: avahi: %w", err)
+		return nil, err
 	}
 	group, err := server.EntryGroupNew()
 	if err != nil {
-		conn.Close()
+		closeAll(conn, server)
 		return nil, fmt.Errorf("mdns: entry group: %w", err)
 	}
 	for _, n := range names {
 		for _, a := range addrs {
 			if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, avahi.PublishNoReverse, n, a); err != nil {
-				conn.Close()
+				closeAll(conn, server)
 				return nil, fmt.Errorf("mdns: add address %s: %w", n, err)
 			}
 		}
 	}
 	if len(names) > 0 {
 		if err := group.Commit(); err != nil {
-			conn.Close()
+			closeAll(conn, server)
 			return nil, fmt.Errorf("mdns: commit: %w", err)
 		}
 	}
-	return &Advertisement{conn: conn, group: group}, nil
+	return &Advertisement{conn: conn, server: server, group: group}, nil
 }
 
 // SetHostName tells Avahi to announce under name (without ".local") from
@@ -119,7 +136,7 @@ func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 // renames itself after boot must say so, or it keeps answering for the old
 // name, "fedora.local" on every fresh install.
 func SetHostName(name string) error {
-	conn, err := dbus.SystemBus()
+	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return fmt.Errorf("mdns: system bus: %w", err)
 	}
@@ -139,27 +156,25 @@ func SetHostName(name string) error {
 // resolved instance's TXT id and fleet, address and port, until ctx ends.
 // Used by Nodes to find their peers.
 func Browse(ctx context.Context, serviceType string, found func(id, fleet, addr string, port uint16)) error {
-	conn, err := dbus.SystemBus()
+	conn, server, err := connect()
 	if err != nil {
-		return fmt.Errorf("mdns: system bus: %w", err)
-	}
-	server, err := avahi.ServerNew(conn)
-	if err != nil {
-		conn.Close()
-		return fmt.Errorf("mdns: avahi: %w", err)
+		return err
 	}
 	sb, err := server.ServiceBrowserNew(avahi.InterfaceUnspec, avahi.ProtoInet, serviceType, "local", 0)
 	if err != nil {
-		conn.Close()
+		closeAll(conn, server)
 		return fmt.Errorf("mdns: browse: %w", err)
 	}
 	go func() {
-		defer conn.Close()
+		defer closeAll(conn, server)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case svc := <-sb.AddChannel:
+			case svc, ok := <-sb.AddChannel:
+				if !ok {
+					return
+				}
 				r, err := server.ResolveService(svc.Interface, svc.Protocol, svc.Name, svc.Type, svc.Domain, avahi.ProtoInet, 0)
 				if err != nil {
 					continue
@@ -173,7 +188,10 @@ func Browse(ctx context.Context, serviceType string, found func(id, fleet, addr 
 				if txt["id"] != "" {
 					found(txt["id"], txt["fleet"], r.Address, r.Port)
 				}
-			case <-sb.RemoveChannel:
+			case _, ok := <-sb.RemoveChannel:
+				if !ok {
+					return
+				}
 			}
 		}
 	}()

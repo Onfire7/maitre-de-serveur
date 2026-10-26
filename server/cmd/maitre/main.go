@@ -56,6 +56,8 @@ func main() {
 		err = runKeygen(os.Args[2:])
 	case "info":
 		err = runInfo(os.Args[2:])
+	case "metrics":
+		err = runInfo(append([]string{"-metrics"}, os.Args[2:]...))
 	case "agent":
 		err = runAgent(os.Args[2:])
 	case "installer":
@@ -197,6 +199,7 @@ func runInfo(args []string) error {
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
+	metrics := fs.Bool("metrics", false, "print the Node's gauges (CPU, memory, Pool, network, temperature, load) instead")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -210,8 +213,26 @@ func runInfo(args []string) error {
 	}
 	transport := connecthttp.NewTransport(NewHTTPClient(mtls.ClientConfig(id, list)), "https://"+*addr)
 	client := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if *metrics {
+		// Two readings: the first since the agent's previous reading primes the
+		// rates, the second covers a known two-second window.
+		if _, err := client.GetNodeMetrics(ctx, &maitrev1.GetNodeMetricsRequest{}); err != nil {
+			return err
+		}
+		time.Sleep(2 * time.Second)
+		res, err := client.GetNodeMetrics(ctx, &maitrev1.GetNodeMetricsRequest{})
+		if err != nil {
+			return err
+		}
+		m := res.GetMetrics()
+		fmt.Printf("cpu_percent  %.1f\nload_1m      %.2f\nmemory       %d / %d MiB\npool         %d / %d GiB (fallback=%v)\nnet          rx %.0f B/s, tx %.0f B/s\ntemperature  %.0f C\n",
+			m.GetCpuPercent(), m.GetLoad_1M(), m.GetMemoryUsedBytes()>>20, m.GetMemoryTotalBytes()>>20,
+			m.GetPoolUsedBytes()>>30, m.GetPoolTotalBytes()>>30, m.GetPoolFallback(),
+			m.GetNetRxBytesPerSec(), m.GetNetTxBytesPerSec(), m.GetTemperatureC())
+		return nil
+	}
 	res, err := client.GetNodeInfo(ctx, &maitrev1.GetNodeInfoRequest{})
 	if err != nil {
 		return err
