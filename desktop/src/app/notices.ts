@@ -23,6 +23,9 @@ export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: 
   for (const n of snap.nodes) {
     const st = snap.status.get(n.nodeId);
     if (nodeWord(st, now) === "Unreachable") out.push({ id: `unreachable:${n.nodeId}`, title: `${n.name} is unreachable`, detail: "Its Services are unavailable until it is back.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    else if (st?.updateState === 3) out.push({ id: `update-failed:${n.nodeId}`, title: `${n.name}'s update failed`, detail: st.updateMessage || "See the Node's details.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    else if (st?.lastRollback) out.push({ id: `rolled-back:${n.nodeId}`, title: `${n.name} rolled back its last update`, detail: st.lastRollback, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    else if (st?.updateStaged) out.push({ id: `staged:${n.nodeId}`, title: `${n.name} has an update staged`, detail: "Restart it to run the new version.", tab: "nodes", nodeId: n.nodeId, severity: "info" });
     else if (st?.metrics?.poolFallback) out.push({ id: `fallback:${n.nodeId}`, title: `${n.name} has no Pool for the default Space`, detail: "Service data is landing on its system disk.", tab: "storage", nodeId: n.nodeId, severity: "attention" });
   }
   if (scope) out.push({ id: "scope", title: `Trusted by ${scope.nodeName} only`, detail: `Enter a recovery code from another Node before ${new Date(scope.until).toLocaleString()} to be trusted everywhere.`, tab: "devices", severity: "attention" });

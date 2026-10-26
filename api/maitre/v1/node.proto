@@ -86,6 +86,15 @@ message FleetNodeStatus {
   // The last Service statuses gossiped by that Node, and when they changed.
   repeated ServiceStatus services = 6;
   int64 services_unix_ms = 7;
+  // The Node's own image update, for the Console's Node status words
+  // (Updating, Attention) without a call to each Node: the state and its
+  // message and progress, whether an update is staged, and the last
+  // rollback greenboot made (empty if none).
+  UpdateStatus.State update_state = 8;
+  string update_message = 9;
+  double update_progress = 10;
+  bool update_staged = 11;
+  string last_rollback = 12;
 }
 
 message PushRecordsRequest {

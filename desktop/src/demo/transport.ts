@@ -73,6 +73,11 @@ const handlers: Record<string, Handler> = {
       metricsUnixMs: BigInt(p.metricsUnixMs),
       services: f.servicesOn(p.nodeId),
       servicesUnixMs: BigInt(f.services.filter((s) => s.spec.nodeId === p.nodeId).reduce((m, s) => Math.max(m, s.statusUnixMs), 0)),
+      updateState: p.update.state,
+      updateMessage: p.update.message,
+      updateProgress: p.update.progress,
+      updateStaged: !!p.update.staged && !p.update.rollbackQueued,
+      lastRollback: p.update.lastRollback,
     });
     return { nodeId: me.nodeId, nodes: [entry(me), ...f.nodes.filter((p) => p !== me).map(entry)] };
   },

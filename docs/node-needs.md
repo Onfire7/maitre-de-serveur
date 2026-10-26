@@ -20,18 +20,16 @@ survives.
   the Console that started it. Other Consoles see nothing until the Node
   record arrives. Nice to have: the sponsor Node gossips "provisioning:
   name, percent" from the Installer status it can read.
-- **Node status words beyond Healthy, Unreachable, Attention.** Updating
-  (an image update in progress, from `UpdateStatus.state`) and Attention for
-  a failed update or a rollback are read today with a direct
-  `GetUpdateStatus` per Node. Add `UpdateStatus.state` and `last_rollback`
-  to `FleetNodeStatus` so the anchor answers for every Node (decision 136).
-- **Unreachable from the anchor's view only.** `FleetNodeStatus.reachable`
-  comes from the sync layer's per-peer `online`, which flips false only when
-  one of our own calls fails. A peer that stops gossiping but was never
-  called stays `online` until the 20 s reconcile. Consider marking a peer
-  offline when nothing was heard for 60 s (decision 162).
-
 ## Built
+
+- **Update state in the gossip.** `FleetNodeStatus` carries the Node's
+  update state, message, progress, whether one is staged, and the last
+  rollback, so the anchor says Updating or Attention for every Node and the
+  Overview lists failed, rolled-back and staged updates. The Node reads
+  `bootc status` at most every 30 s for this (5 s while updating).
+- **Silent peers go offline.** `peers.Manager.Status` reports a peer online
+  only when its last answered call or gossip is under `SilentFor` (60 s),
+  so a Node that stopped talking is Unreachable without a failed call.
 
 - **`GetFleetStatus` (ADR 0006).** Any Node answers for the Fleet: its own
   metrics and Services, every peer's reachability and last gossip. In

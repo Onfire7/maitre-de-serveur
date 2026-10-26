@@ -120,9 +120,11 @@ export interface FleetService {
   nodeUnreachable: boolean;
 }
 
-export function nodeWord(n: FleetNodeStatus | undefined, now: number): "Healthy" | "Unreachable" | "Attention" {
+export function nodeWord(n: FleetNodeStatus | undefined, now: number): "Healthy" | "Unreachable" | "Updating" | "Attention" {
   if (!n || !n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) return "Unreachable";
-  if (n.metrics?.poolFallback) return "Attention";
+  // UpdateStatus.State: 2 updating, 3 failed, 4 rebooting.
+  if (n.updateState === 2 || n.updateState === 4) return "Updating";
+  if (n.updateState === 3 || n.lastRollback || n.metrics?.poolFallback) return "Attention";
   return "Healthy";
 }
 

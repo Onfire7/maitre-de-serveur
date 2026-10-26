@@ -145,18 +145,27 @@ func (m *Manager) Addresses() map[string][]string {
 	return out
 }
 
-// Status describes every peer for NodeInfo.
+// SilentFor is how long a peer may go unheard (no answered call, no
+// gossip) before it counts as offline (decision 162).
+var SilentFor = 60 * time.Second
+
+// Status describes every peer for NodeInfo and GetFleetStatus. A peer is
+// online when its last call or gossip was recent, whatever the last call
+// said: a Node that stopped talking is unreachable even if nothing failed.
 func (m *Manager) Status(ctx context.Context) []*maitrev1.PeerStatus {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []*maitrev1.PeerStatus
 	for _, p := range m.peers {
-		st := &maitrev1.PeerStatus{NodeId: p.id, Name: p.name, Online: p.online, LastSeenUnixMs: p.lastSeen.UnixMilli()}
+		online := p.online && time.Since(p.lastSeen) < SilentFor
+		st := &maitrev1.PeerStatus{NodeId: p.id, Name: p.name, Online: online, LastSeenUnixMs: p.lastSeen.UnixMilli()}
 		if len(p.addrs) > 0 {
 			st.Address = p.addrs[0]
 		}
-		if q, err := m.st.Pending(ctx, p.id); err == nil {
-			st.Queued = uint32(len(q))
+		if m.st != nil {
+			if q, err := m.st.Pending(ctx, p.id); err == nil {
+				st.Queued = uint32(len(q))
+			}
 		}
 		out = append(out, st)
 	}

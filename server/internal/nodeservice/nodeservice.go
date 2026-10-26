@@ -2,6 +2,7 @@
 package nodeservice
 
 import (
+	"sync"
 	"context"
 	"errors"
 	"strings"
@@ -41,6 +42,11 @@ type Service struct {
 	// Services lists this Node's Services with live status for
 	// GetFleetStatus; nil means none.
 	Services func(ctx context.Context) []*maitrev1.ServiceStatus
+	// The last update status read for the gossip, so `bootc status` runs
+	// at most every 30 s when idle (every 5 s while an update runs).
+	updMu   sync.Mutex
+	updLast *maitrev1.UpdateStatus
+	updAt   time.Time
 	// Updates drives bootc; nil means this Node cannot update itself (dev mode).
 	Updates *update.Manager
 	// Peers forwards writes to their owner, pushes ours, and reports the
@@ -287,7 +293,33 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	if s.Services != nil {
 		self.Services = s.Services(ctx)
 	}
+	if st := s.cachedUpdate(ctx); st != nil {
+		self.UpdateState, self.UpdateMessage, self.UpdateProgress = st.GetState(), st.GetMessage(), st.GetProgress()
+		self.UpdateStaged, self.LastRollback = st.GetStaged() != nil && !st.GetRollbackQueued(), st.GetLastRollback()
+	}
 	return self
+}
+
+func (s *Service) cachedUpdate(ctx context.Context) *maitrev1.UpdateStatus {
+	if s.Updates == nil {
+		return nil
+	}
+	s.updMu.Lock()
+	defer s.updMu.Unlock()
+	every := 30 * time.Second
+	if s.updLast != nil && (s.updLast.GetState() == maitrev1.UpdateStatus_STATE_UPDATING || s.updLast.GetState() == maitrev1.UpdateStatus_STATE_REBOOTING) {
+		every = 5 * time.Second
+	}
+	if s.updLast == nil || time.Since(s.updAt) >= every {
+		if st, err := s.Updates.Status(ctx); err == nil {
+			if s.Rollout != nil {
+				st.Rollout = s.Rollout()
+			}
+			s.updLast = st
+		}
+		s.updAt = time.Now()
+	}
+	return s.updLast
 }
 
 // GetFleetStatus implements NodeService (ADR 0006): this Node's own status,

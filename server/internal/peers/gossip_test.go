@@ -40,3 +40,14 @@ func TestReceivedMarksPeerHeard(t *testing.T) {
 		t.Fatal("unknown sender's status kept")
 	}
 }
+
+func TestSilentPeerGoesOffline(t *testing.T) {
+	m := &Manager{log: slog.Default(), peers: map[string]*peer{"b": {id: "b", name: "Basalt", online: true, lastSeen: time.Now().Add(-2 * SilentFor)}}, heard: map[string]*maitrev1.FleetNodeStatus{}}
+	if st := m.Status(nil); st[0].GetOnline() {
+		t.Fatal("a peer unheard for longer than SilentFor is offline")
+	}
+	m.Received(&maitrev1.FleetNodeStatus{NodeId: "b"})
+	if st := m.Status(nil); !st[0].GetOnline() {
+		t.Fatal("gossip brings it back")
+	}
+}
