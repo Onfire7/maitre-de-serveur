@@ -203,6 +203,7 @@ func runInfo(args []string) error {
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
 	metrics := fs.Bool("metrics", false, "print the Node's gauges (CPU, memory, Pool, network, temperature, load) instead")
 	drives := fs.Bool("drives", false, "print the Node's Drives (ListDrives) instead")
+	rename := fs.String("rename", "", "give the Node this name instead")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -218,6 +219,14 @@ func runInfo(args []string) error {
 	client := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if *rename != "" {
+		res, err := client.RenameNode(ctx, &maitrev1.RenameNodeRequest{Name: *rename})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("renamed to %s\n", res.GetNode().GetName())
+		return nil
+	}
 	if *drives {
 		sc := maitrev1connect.NewStorageServiceClient(connect.NewClient(transport))
 		res, err := sc.ListDrives(ctx, &maitrev1.ListDrivesRequest{})

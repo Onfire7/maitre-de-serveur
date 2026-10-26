@@ -15,6 +15,7 @@ import { TiersPanel, useTiers } from "./tiers";
 import { TailscalePanel, TailscaleRow } from "./tailscale";
 import { UpdatePolicyPanel } from "./policy";
 import { MediaPanel } from "./media";
+import { randomNodeName } from "./names";
 
 type Screen =
   | { name: "home" }
@@ -96,7 +97,16 @@ export default function App() {
     case "node":
       return (
         <Shell>
-          <NodeView node={screen.node} onBack={() => setScreen({ name: "home" })} state={state} />
+          <NodeView
+            node={screen.node}
+            onBack={() => setScreen({ name: "home" })}
+            state={state}
+            onRenamed={async (name) => {
+              const nodes = state.nodes.map((n) => (n.node_id === screen.node.node_id ? { ...n, name } : n));
+              await save({ ...state, nodes });
+              setScreen({ name: "node", node: { ...screen.node, name } });
+            }}
+          />
         </Shell>
       );
     default:
@@ -538,7 +548,7 @@ function AddNode({
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [name, setName] = useState(found.machine ? found.machine.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "node");
+  const [name, setName] = useState(() => randomNodeName(state.nodes.map((n) => n.name)));
   const [disk, setDisk] = useState("");
   const [dataPart, setDataPart] = useState(false);
   const [started, setStarted] = useState(false);
@@ -732,7 +742,11 @@ function AddNode({
           <label>
             Node name{" "}
             <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: 240 }} />
-          </label>
+          </label>{" "}
+          <button type="button" title="Draw another name" onClick={() => setName(randomNodeName(state.nodes.map((n) => n.name)))}>
+            🎲
+          </button>
+          {found.machine && <span style={{ color: "#555", fontSize: 13 }}> (the machine calls itself {found.machine})</span>}
           <h4 style={{ marginBottom: 4 }}>Install Maître Server on</h4>
           <p style={{ color: "#b00020", fontSize: 13, marginTop: 0 }}>Everything on the chosen disk will be erased.</p>
           {status?.image && (
@@ -787,7 +801,7 @@ function AddNode({
   );
 }
 
-function NodeView({ node, onBack, state }: { node: KnownNode; onBack: () => void; state: ConsoleState }) {
+function NodeView({ node, onBack, state, onRenamed }: { node: KnownNode; onBack: () => void; state: ConsoleState; onRenamed: (name: string) => void }) {
   const [maint, setMaint] = useState<Maintenance | null>(null);
   if (maint)
     return (
@@ -799,11 +813,24 @@ function NodeView({ node, onBack, state }: { node: KnownNode; onBack: () => void
         onBack={onBack}
       />
     );
-  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} state={state} />;
+  return <NodeDetails node={node} onBack={onBack} onMaintenance={setMaint} state={state} onRenamed={onRenamed} />;
 }
 
-function NodeDetails({ node, onBack, onMaintenance, state }: { node: KnownNode; onBack: () => void; onMaintenance: (m: Maintenance) => void; state: ConsoleState }) {
+function NodeDetails({
+  node,
+  onBack,
+  onMaintenance,
+  state,
+  onRenamed,
+}: {
+  node: KnownNode;
+  onBack: () => void;
+  onMaintenance: (m: Maintenance) => void;
+  state: ConsoleState;
+  onRenamed: (name: string) => void;
+}) {
   const { tiers } = useTiers(state);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
   const [error, setError] = useState("");
@@ -825,7 +852,45 @@ function NodeDetails({ node, onBack, onMaintenance, state }: { node: KnownNode; 
   return (
     <section>
       <button onClick={onBack}>← Nodes</button>
-      <h2>{node.name}</h2>
+      {renaming === null ? (
+        <h2>
+          {node.name}{" "}
+          <button style={{ fontSize: 13, fontWeight: "normal" }} onClick={() => setRenaming(node.name)}>
+            Rename…
+          </button>
+        </h2>
+      ) : (
+        <form
+          style={{ display: "flex", gap: 6, alignItems: "center", margin: "12px 0" }}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const name = renaming.trim();
+            if (!name) return;
+            if (state.nodes.some((n) => n.node_id !== node.node_id && n.name.toLowerCase() === name.toLowerCase())) {
+              setError(`the Fleet already has a Node named "${name}"`);
+              return;
+            }
+            try {
+              await createClient(NodeService, transportFor({ addr: node.addresses[0], fingerprint: node.node_id })).renameNode({ name });
+              setRenaming(null);
+              setError("");
+              onRenamed(name);
+            } catch (err) {
+              setError(String(err));
+            }
+          }}
+        >
+          <input autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)} maxLength={40} style={{ fontSize: 18, width: 260 }} />
+          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(state.nodes.map((n) => n.name)))}>
+            🎲
+          </button>
+          <button type="submit">Save</button>
+          <button type="button" onClick={() => setRenaming(null)}>
+            Cancel
+          </button>
+          <span style={{ color: "#555", fontSize: 13 }}>The host name follows now; the Tailscale name on the next restart.</span>
+        </form>
+      )}
       {error && <ErrorBox>{error}</ErrorBox>}
       {info && (
         <table>

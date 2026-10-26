@@ -35,6 +35,9 @@ service NodeService {
   rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
   // Reboot restarts the Node.
   rpc Reboot(RebootRequest) returns (RebootResponse) {}
+  // Give this Node a new name: its record, host name and mDNS announcement
+  // follow at once; its Tailscale name on the next start.
+  rpc RenameNode(RenameNodeRequest) returns (RenameNodeResponse) {}
   // PushRecords hands this Node Records another Node (or a device) holds,
   // applied newest-wins (ADR 0003). Peers call it after every write and the
   // periodic reconcile pulls ListRecords the other way.
@@ -133,6 +136,14 @@ message RollbackRequest {
 }
 
 message RollbackResponse {}
+
+message RenameNodeRequest {
+  string name = 1;
+}
+
+message RenameNodeResponse {
+  Node node = 1;
+}
 
 message RebootRequest {}
 

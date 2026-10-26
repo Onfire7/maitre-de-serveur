@@ -4,6 +4,7 @@ package nodeservice
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -41,6 +42,9 @@ type Service struct {
 	// Peers forwards writes to their owner, pushes ours, and reports the
 	// Fleet's other Nodes. Nil on a single-Node or dev setup.
 	Peers Peers
+	// Rename gives the Node a new name (record, host name, announcement);
+	// nil in dev mode.
+	Rename func(ctx context.Context, name string) (*maitrev1.Node, error)
 	// Limited reports whether a caller key is recovery-only (decision 100):
 	// such a caller may only add a Trusted Device.
 	Limited func(fingerprint string) bool
@@ -296,6 +300,23 @@ func (s *Service) Rollback(ctx context.Context, req *maitrev1.RollbackRequest) (
 }
 
 // Reboot implements NodeService.
+// RenameNode implements NodeService.
+func (s *Service) RenameNode(ctx context.Context, req *maitrev1.RenameNodeRequest) (*maitrev1.RenameNodeResponse, error) {
+	name := strings.TrimSpace(req.GetName())
+	if name == "" || len(name) > 40 {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "a Node name is 1 to 40 characters")
+	}
+	if s.Rename == nil {
+		return nil, connect.Errorf(connect.CodeUnimplemented, "this Node cannot be renamed (dev mode)")
+	}
+	n, err := s.Rename(ctx, name)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	s.info.Name = name
+	return &maitrev1.RenameNodeResponse{Node: n}, nil
+}
+
 func (s *Service) Reboot(ctx context.Context, _ *maitrev1.RebootRequest) (*maitrev1.RebootResponse, error) {
 	if s.Updates == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "this Node does not run on bootc (dev mode)")

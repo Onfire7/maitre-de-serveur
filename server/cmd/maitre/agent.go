@@ -557,7 +557,15 @@ func runAgent(args []string) error {
 	// Decision 101: a pending recovery code opens the recovery listener for
 	// 15 minutes and is announced so a new Console can find this Node.
 	recovering := recoverymode.Pending(*state)
-	if !*noMDNS {
+	var nodeAd *mdns.Advertisement
+	announce := func() {
+		if *noMDNS {
+			return
+		}
+		if nodeAd != nil {
+			nodeAd.Close()
+			nodeAd = nil
+		}
 		txt := map[string]string{"id": id.Fingerprint(), "fleet": fleet.GetFleetId(), "name": self.GetName(), "v": version}
 		if recovering {
 			txt["recovery"] = "1"
@@ -567,9 +575,35 @@ func runAgent(args []string) error {
 			log.Warn("mDNS advertisement unavailable", "err", err)
 			mdnsState = "not announced: " + err.Error()
 		} else {
-			defer ad.Close()
+			nodeAd = ad
 			mdnsState = "announced as " + self.GetName()
 		}
+	}
+	announce()
+	defer func() {
+		if nodeAd != nil {
+			nodeAd.Close()
+		}
+	}()
+	// A rename from the Console: record, host name and announcement follow
+	// at once; the tailnet name follows on the next start.
+	svc.Rename = func(ctx context.Context, name string) (*maitrev1.Node, error) {
+		var cur maitrev1.Node
+		if _, err := st.Get(ctx, store.KindNode, id.Fingerprint(), &cur); err != nil {
+			return nil, err
+		}
+		cur.Name = name
+		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &cur, false); err != nil {
+			return nil, err
+		}
+		self.Name = name
+		if rec, err := st.Get(ctx, store.KindNode, id.Fingerprint(), &cur); err == nil {
+			pm.Push(context.WithoutCancel(ctx), rec)
+		}
+		ensureHostname(log, hostLabel(name))
+		announce()
+		log.Info("node renamed", "name", name)
+		return &cur, nil
 	}
 	if recovering {
 		rsvc := recoverymode.NewService(*state, st, id.Fingerprint(), fleet)

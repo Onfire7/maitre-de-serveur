@@ -41,6 +41,8 @@ const (
 	NodeServiceRollbackProcedure = "/maitre.v1.NodeService/Rollback"
 	// NodeServiceRebootProcedure is the procedure name of the NodeService's Reboot RPC.
 	NodeServiceRebootProcedure = "/maitre.v1.NodeService/Reboot"
+	// NodeServiceRenameNodeProcedure is the procedure name of the NodeService's RenameNode RPC.
+	NodeServiceRenameNodeProcedure = "/maitre.v1.NodeService/RenameNode"
 	// NodeServicePushRecordsProcedure is the procedure name of the NodeService's PushRecords RPC.
 	NodeServicePushRecordsProcedure = "/maitre.v1.NodeService/PushRecords"
 )
@@ -102,6 +104,13 @@ var (
 			Procedure:  NodeServiceRebootProcedure,
 		}
 	})
+	nodeServiceRenameNodeSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("RenameNode"),
+			Procedure:  NodeServiceRenameNodeProcedure,
+		}
+	})
 	nodeServicePushRecordsSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -137,6 +146,9 @@ type NodeServiceClient interface {
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Reboot restarts the Node.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
+	// Give this Node a new name: its record, host name and mDNS announcement
+	// follow at once; its Tailscale name on the next start.
+	RenameNode(context.Context, *v1.RenameNodeRequest) (*v1.RenameNodeResponse, error)
 	// PushRecords hands this Node Records another Node (or a device) holds,
 	// applied newest-wins (ADR 0003). Peers call it after every write and the
 	// periodic reconcile pulls ListRecords the other way.
@@ -175,6 +187,9 @@ type NodeServiceHandler interface {
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
 	// Reboot restarts the Node.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
+	// Give this Node a new name: its record, host name and mDNS announcement
+	// follow at once; its Tailscale name on the next start.
+	RenameNode(context.Context, *v1.RenameNodeRequest) (*v1.RenameNodeResponse, error)
 	// PushRecords hands this Node Records another Node (or a device) holds,
 	// applied newest-wins (ADR 0003). Peers call it after every write and the
 	// periodic reconcile pulls ListRecords the other way.
@@ -193,6 +208,7 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceUpdateImageSpec(), Handler: adapter.updateImage},
 		connect.Method{Spec: nodeServiceRollbackSpec(), Handler: adapter.rollback},
 		connect.Method{Spec: nodeServiceRebootSpec(), Handler: adapter.reboot},
+		connect.Method{Spec: nodeServiceRenameNodeSpec(), Handler: adapter.renameNode},
 		connect.Method{Spec: nodeServicePushRecordsSpec(), Handler: adapter.pushRecords},
 	)
 }
@@ -230,6 +246,10 @@ func (UnimplementedNodeServiceHandler) Rollback(context.Context, *v1.RollbackReq
 
 func (UnimplementedNodeServiceHandler) Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.Reboot is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) RenameNode(context.Context, *v1.RenameNodeRequest) (*v1.RenameNodeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.RenameNode is not implemented")
 }
 
 func (UnimplementedNodeServiceHandler) PushRecords(context.Context, *v1.PushRecordsRequest) (*v1.PushRecordsResponse, error) {
@@ -299,6 +319,14 @@ func (c *nodeServiceClient) Rollback(ctx context.Context, req *v1.RollbackReques
 func (c *nodeServiceClient) Reboot(ctx context.Context, req *v1.RebootRequest) (*v1.RebootResponse, error) {
 	var res v1.RebootResponse
 	if err := c.client.CallUnary(ctx, nodeServiceRebootSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) RenameNode(ctx context.Context, req *v1.RenameNodeRequest) (*v1.RenameNodeResponse, error) {
+	var res v1.RenameNodeResponse
+	if err := c.client.CallUnary(ctx, nodeServiceRenameNodeSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -404,6 +432,18 @@ func (h nodeServiceHandler) reboot(ctx context.Context, _ connect.Spec, stream c
 		return err
 	}
 	res, err := h.svc.Reboot(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) renameNode(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RenameNodeRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RenameNode(ctx, &req)
 	if err != nil {
 		return err
 	}
