@@ -58,6 +58,8 @@ func main() {
 		err = runInfo(os.Args[2:])
 	case "metrics":
 		err = runInfo(append([]string{"-metrics"}, os.Args[2:]...))
+	case "drives":
+		err = runInfo(append([]string{"-drives"}, os.Args[2:]...))
 	case "agent":
 		err = runAgent(os.Args[2:])
 	case "installer":
@@ -200,6 +202,7 @@ func runInfo(args []string) error {
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
 	metrics := fs.Bool("metrics", false, "print the Node's gauges (CPU, memory, Pool, network, temperature, load) instead")
+	drives := fs.Bool("drives", false, "print the Node's Drives (ListDrives) instead")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -215,6 +218,18 @@ func runInfo(args []string) error {
 	client := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if *drives {
+		sc := maitrev1connect.NewStorageServiceClient(connect.NewClient(transport))
+		res, err := sc.ListDrives(ctx, &maitrev1.ListDrivesRequest{})
+		if err != nil {
+			return err
+		}
+		for _, d := range res.GetDrives() {
+			fmt.Printf("%-14s %-9s id=%-36s size=%6dG fstype=%-6s label=%-14s system=%-5v adopted=%-5v model=%q tran=%s tags=%v name=%q\n",
+				d.GetDevice(), d.GetTransport(), d.GetDriveId(), d.GetSizeBytes()>>30, d.GetFstype(), d.GetLabel(), d.GetSystem(), d.GetAdopted(), d.GetModel(), d.GetTransport(), d.GetAutoTags(), d.GetRecord().GetName())
+		}
+		return nil
+	}
 	if *metrics {
 		// Two readings: the first since the agent's previous reading primes the
 		// rates, the second covers a known two-second window.

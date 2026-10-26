@@ -281,6 +281,16 @@ func runAgent(args []string) error {
 	if err := storage.EnsureDefaultTier(ctx, st); err != nil {
 		log.Warn("default tier", "err", err)
 	}
+	// The Installer's data partition is the Node's built-in Drive: recorded
+	// once, then treated like any other (name, tags, Tier rules).
+	if wrote, err := stor.AdoptInternal(ctx); err != nil {
+		log.Warn("built-in drive", "err", err)
+	} else if wrote {
+		log.Info("built-in drive recorded")
+		if recs, err := st.List(ctx, storage.KindDrive); err == nil {
+			pm.Push(context.WithoutCancel(ctx), recs...)
+		}
+	}
 	assemblePools := func() {
 		_, errs := stor.MountAll(ctx)
 		for _, e := range errs {

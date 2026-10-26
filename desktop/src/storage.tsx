@@ -38,6 +38,7 @@ export function StoragePanel({ target }: { target: Target }) {
             <div>
               <b>{d.record?.name || d.label || d.model}</b>{" "}
               {d.adopted ? <span style={{ color: "#2a7", fontSize: 13 }}>● in the Pool</span> : <span style={{ color: "#999", fontSize: 13 }}>● not used</span>}
+              {d.record?.origin === "internal" && <span style={{ color: "#555", fontSize: 13 }}> · built in (the rest of the system disk)</span>}
               <div style={{ color: "#555", fontSize: 13 }}>
                 {d.model} · {gb(d.sizeBytes)} · {d.fstype || "no filesystem"} · {d.device}
                 {d.adopted && d.freeBytes > 0n && ` · ${gb(d.freeBytes)} free`}
@@ -53,7 +54,7 @@ export function StoragePanel({ target }: { target: Target }) {
             <div style={{ display: "flex", gap: 4 }}>
               {!d.adopted && d.fstype && <button onClick={() => setDialog({ kind: "adopt", drive: d })}>Adopt</button>}
               {!d.adopted && <button onClick={() => setDialog({ kind: "format", drive: d })}>Format</button>}
-              {d.adopted && <button onClick={() => setDialog({ kind: "forget", drive: d })}>Remove</button>}
+              {d.adopted && d.record?.origin !== "internal" && <button onClick={() => setDialog({ kind: "forget", drive: d })}>Remove</button>}
             </div>
           </li>
         ))}

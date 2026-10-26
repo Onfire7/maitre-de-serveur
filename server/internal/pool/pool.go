@@ -1,8 +1,10 @@
 // Package pool assembles the default Tier's Pool on one Node (ADR 0004: every
-// Pool is MergerFS, even over one Drive). Milestone 2 knows one Drive: the
-// data partition the Installer created, labelled maitre-data. If there is no
-// Drive at all the Pool is a directory on the OS partition so Services still
-// work; the Console warns about it.
+// Pool is MergerFS, even over one Drive). The branches are the Node's Drives
+// in the default Tier, mounted by the storage manager; the data partition the
+// Installer created (label maitre-data) is one of them, adopted by itself as
+// the Node's built-in Drive. If there is no Drive at all the Pool is a
+// directory on the OS partition so Services still work; the Console warns
+// about it.
 package pool
 
 import (
@@ -31,23 +33,10 @@ type Status struct {
 	Fallback bool
 }
 
-// Up mounts every known Drive and assembles the default Pool over them.
-// Idempotent: safe to run at every boot. extra are additional branch
-// directories (Drives mounted by the storage manager, Milestone 4).
+// Up assembles the default Pool over the mounted branch directories given
+// (the default Tier's Drives). Idempotent: safe to run at every boot.
 func Up(ctx context.Context, extra ...string) (*Status, error) {
 	var branches []string
-	if dev := "/dev/disk/by-label/" + DataLabel; exists(dev) {
-		dir := filepath.Join(DrivesDir, "data")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, err
-		}
-		if !mounted(dir) {
-			if out, err := exec.CommandContext(ctx, "mount", "-o", "noatime", dev, dir).CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("mount %s: %v: %s", dev, err, out)
-			}
-		}
-		branches = append(branches, dir)
-	}
 	for _, e := range extra {
 		if mounted(e) {
 			branches = append(branches, e)

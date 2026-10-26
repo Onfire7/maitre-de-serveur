@@ -139,8 +139,8 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 				Transport:  str(d.Tran),
 				Fstype:     str(c.FSType),
 				Label:      str(c.Label),
-				System:     system || isSystemPartition(c),
-				AutoTags:   autoTags(d, c.Size),
+				System:     isSystemPartition(c) || (c.Path == d.Path && system),
+				AutoTags:   autoTags(d, c.Size, str(c.Label)),
 			}
 			if dr.Model == "" {
 				dr.Model = strings.ToUpper(dr.Transport) + " disk"
@@ -162,11 +162,11 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 
 func isSystemPartition(c lsblkDev) bool {
 	switch str(c.Label) {
-	case "maitre-config", "maitre-data", "maitre-image", "boot", "EFI-SYSTEM", "root":
+	case "maitre-config", "maitre-image", "boot", "EFI-SYSTEM", "root":
 		return true
 	}
 	for _, mp := range c.Mountpoints {
-		if mp != nil && (*mp == "/" || *mp == "/sysroot" || *mp == "/boot" || *mp == "/boot/efi" || *mp == "/var/lib/maitre" || *mp == "/var/mnt/drives/data") {
+		if mp != nil && (*mp == "/" || *mp == "/sysroot" || *mp == "/boot" || *mp == "/boot/efi" || *mp == "/var/lib/maitre") {
 			return true
 		}
 	}
@@ -185,9 +185,13 @@ func holdsSystem(d lsblkDev) bool {
 	return false
 }
 
-// autoTags derives the automatic tags: medium, bus, and a size class.
-func autoTags(d lsblkDev, size uint64) []string {
+// autoTags derives the automatic tags: medium, bus, a size class, and
+// "internal" for the data partition the Installer made on the system disk.
+func autoTags(d lsblkDev, size uint64, label string) []string {
 	var tags []string
+	if label == pool.DataLabel {
+		tags = append(tags, "internal")
+	}
 	if d.Rota {
 		tags = append(tags, "hdd")
 	} else {
@@ -256,6 +260,43 @@ func (m *Manager) Contents(ctx context.Context, device string) (*maitrev1.DriveC
 		res.Entries = append(res.Entries, name)
 	}
 	return res, nil
+}
+
+// OriginInternal marks the Drive the Installer made from the rest of the
+// system disk (label maitre-data). It is adopted by itself and cannot be
+// removed: it is the Node's built-in storage.
+const OriginInternal = "internal"
+
+// AdoptInternal records the Installer's data partition as a Drive of this
+// Node if it is not one yet, so it shows in the Console, takes a name and
+// tags, and Tier rules can select it. Idempotent; returns whether a record
+// was written.
+func (m *Manager) AdoptInternal(ctx context.Context) (bool, error) {
+	drives, err := m.List(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range drives {
+		if d.GetLabel() != pool.DataLabel || d.GetAdopted() || d.GetDriveId() == "" || d.GetFstype() == "" {
+			continue
+		}
+		name := m.SuggestName(ctx)
+		if name == "" {
+			name = "Internal"
+		}
+		rec := &maitrev1.DriveRecord{
+			DriveId: d.GetDriveId(), NodeId: m.st.NodeID(), Name: name, Model: d.GetModel(), Serial: d.GetSerial(),
+			SizeBytes: d.GetSizeBytes(), Fstype: d.GetFstype(), AutoTags: d.GetAutoTags(), Origin: OriginInternal, AddedUnixMs: time.Now().UnixMilli(),
+		}
+		if err := m.Mount(ctx, rec); err != nil {
+			return false, err
+		}
+		if _, err := m.st.Put(ctx, KindDrive, rec.DriveId, rec, false); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // Adopt mounts an existing filesystem and records the Drive.
@@ -429,6 +470,9 @@ func (m *Manager) Forget(ctx context.Context, driveID, confirm string) error {
 	var rec maitrev1.DriveRecord
 	if _, err := m.st.Get(ctx, KindDrive, driveID, &rec); err != nil {
 		return fmt.Errorf("no Drive %s", driveID)
+	}
+	if rec.GetOrigin() == OriginInternal {
+		return errors.New("that is the Node's built-in storage; it cannot be removed")
 	}
 	if strings.TrimSpace(confirm) != rec.GetName() {
 		return fmt.Errorf("to remove it, repeat exactly: %s", rec.GetName())

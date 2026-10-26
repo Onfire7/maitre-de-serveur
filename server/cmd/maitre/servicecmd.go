@@ -36,6 +36,9 @@ func runPoolUp(args []string) error {
 	if id, err := identity.Load(filepath.Join(*state, "node")); err == nil {
 		if db, err := store.Open(filepath.Join(*state, "fleet.db"), id.Fingerprint()); err == nil {
 			sm := storage.New(db, nil)
+			if _, err := sm.AdoptInternal(ctx); err != nil {
+				fmt.Fprintln(os.Stderr, "pool-up: built-in drive:", err)
+			}
 			_, errs := sm.MountAll(ctx)
 			for _, e := range errs {
 				fmt.Fprintln(os.Stderr, "pool-up:", e)

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,7 +14,8 @@ const lsblkFixture = `{"blockdevices":[
  {"name":"zram0","path":"/dev/zram0","model":null,"serial":null,"size":1,"rm":false,"rota":false,"type":"disk","tran":null,"fstype":"swap","uuid":null,"label":null,"mountpoints":["[SWAP]"]},
  {"name":"vda","path":"/dev/vda","model":null,"serial":null,"size":42949672960,"rm":false,"rota":false,"type":"disk","tran":"virtio","fstype":null,"uuid":null,"label":null,"mountpoints":[],
   "children":[{"name":"vda3","path":"/dev/vda3","model":null,"serial":null,"size":30000000000,"rm":false,"rota":false,"type":"part","tran":null,"fstype":"xfs","uuid":"aaaa","label":"root","mountpoints":["/sysroot"]},
-              {"name":"vda4","path":"/dev/vda4","model":null,"serial":null,"size":500000000,"rm":false,"rota":false,"type":"part","tran":null,"fstype":"ext4","uuid":"cccc","label":"maitre-config","mountpoints":["/var/lib/maitre"]}]},
+              {"name":"vda4","path":"/dev/vda4","model":null,"serial":null,"size":500000000,"rm":false,"rota":false,"type":"part","tran":null,"fstype":"ext4","uuid":"cccc","label":"maitre-config","mountpoints":["/var/lib/maitre"]},
+              {"name":"vda5","path":"/dev/vda5","model":null,"serial":null,"size":12000000000,"rm":false,"rota":false,"type":"part","tran":null,"fstype":"ext4","uuid":"eeee","label":"maitre-data","mountpoints":[]}]},
  {"name":"sdb","path":"/dev/sdb","model":"WD Red 4TB","serial":"WD-1","size":4000787030016,"rm":false,"rota":true,"type":"disk","tran":"sata","fstype":null,"uuid":null,"label":null,"mountpoints":[],
   "children":[{"name":"sdb1","path":"/dev/sdb1","model":null,"serial":null,"size":4000000000000,"rm":false,"rota":true,"type":"part","tran":null,"fstype":"ntfs","uuid":"BBBB-1","label":"Media","mountpoints":[]}]},
  {"name":"sdc","path":"/dev/sdc","model":"Kingston DataTraveler","serial":"KT-2","size":64000000000,"rm":true,"rota":false,"type":"disk","tran":"usb","fstype":null,"uuid":null,"label":null,"mountpoints":[]}
@@ -54,7 +56,7 @@ func TestListAdoptFormatForget(t *testing.T) {
 	for _, d := range drives {
 		byDev[d.GetDevice()] = d.GetSystem()
 	}
-	if len(drives) != 4 || !byDev["/dev/vda3"] || !byDev["/dev/vda4"] || byDev["/dev/sdb1"] || byDev["/dev/sdc"] {
+	if len(drives) != 5 || !byDev["/dev/vda3"] || !byDev["/dev/vda4"] || byDev["/dev/vda5"] || byDev["/dev/sdb1"] || byDev["/dev/sdc"] {
 		t.Fatalf("drives: %v", byDev)
 	}
 	var sdb1 = drives[0]
@@ -104,5 +106,38 @@ func TestListAdoptFormatForget(t *testing.T) {
 		if x.GetDevice() == "/dev/sdc" && x.GetAdopted() {
 			t.Error("still adopted after forget")
 		}
+	}
+}
+
+// The Installer's data partition is listed as usable storage, becomes a
+// Drive by itself, and cannot be removed.
+func TestInternalDrive(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	m := New(st, &fakeRunner{})
+	m.Mounts = t.TempDir()
+	wrote, err := m.AdoptInternal(ctx)
+	if err != nil || !wrote {
+		t.Fatalf("adopt internal: wrote=%v err=%v", wrote, err)
+	}
+	if wrote, err := m.AdoptInternal(ctx); err != nil || wrote {
+		t.Fatalf("second adopt: wrote=%v err=%v", wrote, err)
+	}
+	drives, _ := m.List(ctx)
+	var data *maitrev1.Drive
+	for _, d := range drives {
+		if d.GetDevice() == "/dev/vda5" {
+			data = d
+		}
+	}
+	if data == nil || data.GetSystem() || !data.GetAdopted() || data.GetRecord().GetOrigin() != OriginInternal || data.GetRecord().GetName() == "" {
+		t.Fatalf("data partition: %v", data)
+	}
+	if strings.Join(data.GetAutoTags(), ",") != "internal,ssd,small" {
+		t.Fatalf("tags %v", data.GetAutoTags())
+	}
+	if err := m.Forget(ctx, "eeee", data.GetRecord().GetName()); err == nil {
+		t.Fatal("built-in drive was forgotten")
 	}
 }
