@@ -21,6 +21,8 @@ import { transportFor, type Target } from "@/transport";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { services as serviceClient } from "@/fleet/actions";
 import { ServiceIcon, StatusWord } from "./status";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 
 export type SheetKind = "exposure" | "ports" | "storage";
@@ -256,28 +258,80 @@ export function PortForwardSheet({ service, target, open, onClose }: { service: 
   );
 }
 
-export function StorageSheet({ service, snap, open, onClose }: { service: FleetService; snap: FleetSnapshot | undefined; open: boolean; onClose: () => void }) {
+export function StorageSheet({ service, target, snap, open, onClose }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined; open: boolean; onClose: () => void }) {
   const { go } = useRoute();
+  const qc = useQueryClient();
   const spaces = snap?.spaces ?? [];
   const spaceName = (id: string) => spaces.find((s) => s.spaceId === id)?.name ?? (id ? `${id} (removed Space)` : "no Space");
+  // Spaces with a Pool on the Service's Node: the ones a volume can move to.
+  const here = spaces.filter((sp) => sp.spanNodes || (snap?.drives ?? []).some((d) => d.nodeId === service.spec.nodeId && spacesOf(d, spaces).includes(sp.spaceId)));
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [moving, setMoving] = useState<string | null>(null);
+  useEffect(() => {
+    if (open) setPicked({});
+  }, [open]);
+  async function move(volume: string) {
+    const to = picked[volume];
+    if (!to || !target) return;
+    setMoving(volume);
+    try {
+      const { jobId } = await serviceClient(target).moveVolume({ name: service.spec.name, volume, toSpace: to });
+      toast.success(`${service.spec.name} stops while ${volume} moves to ${spaceName(to)}`, { description: `Job ${jobId}; progress is on the Files tab.` });
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+      setPicked((p) => ({ ...p, [volume]: "" }));
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e));
+    } finally {
+      setMoving(null);
+    }
+  }
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="flex w-[440px] flex-col sm:max-w-[440px]">
         <Head service={service} title={`${service.spec.name}'s storage`} description={service.spec.volumes.length ? `${service.spec.volumes.length} ${service.spec.volumes.length === 1 ? "volume" : "volumes"} on ${service.node?.name ?? "its Node"}` : "This Service keeps no data of its own."} />
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 text-sm">
           <ul className="divide-y rounded-lg border">
-            {service.spec.volumes.map((v) => (
-              <li key={v.name} className="flex items-center gap-3 px-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">{v.name}</div>
-                  <div className="truncate font-mono text-[11px] text-muted-foreground">{v.path}</div>
-                </div>
-                <Badge variant="secondary">{spaceName(service.spec.volumeSpaces[v.name])}</Badge>
-                {v.size && <span className="text-xs text-muted-foreground">{v.size}</span>}
-              </li>
-            ))}
+            {service.spec.volumes.map((v) => {
+              const cur = service.spec.volumeSpaces[v.name];
+              const to = picked[v.name] ?? "";
+              return (
+                <li key={v.name} className="space-y-2 px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">{v.name}</div>
+                      <div className="truncate font-mono text-[11px] text-muted-foreground">{v.path}</div>
+                    </div>
+                    <Badge variant="secondary">{spaceName(cur)}</Badge>
+                    {v.size && <span className="text-xs text-muted-foreground">{v.size}</span>}
+                  </div>
+                  {here.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Select value={to || "stay"} onValueChange={(val) => setPicked((p) => ({ ...p, [v.name]: val === "stay" ? "" : val }))} disabled={service.nodeUnreachable || moving !== null}>
+                        <SelectTrigger size="sm" className="flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="stay">Keep in {spaceName(cur)}</SelectItem>
+                          {here
+                            .filter((sp) => sp.spaceId !== cur)
+                            .map((sp) => (
+                              <SelectItem key={sp.spaceId} value={sp.spaceId}>
+                                Move to {sp.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" disabled={!to || !target || moving !== null} onClick={() => move(v.name)}>
+                        {moving === v.name ? "Moving…" : "Move"}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
-          <p className="text-xs text-muted-foreground">A volume lives in one Space, chosen at install. Moving it to another Space comes with the file manager; until then the Files tab shows what is in it.</p>
+          <p className="text-xs text-muted-foreground">A volume lives in one Space on {service.node?.name ?? "its Node"}. Moving it stops the Service, copies and checks the folder, then starts it again; the Files tab shows progress.</p>
           <p className="text-xs">
             Status: <StatusWord word={service.word} />
           </p>

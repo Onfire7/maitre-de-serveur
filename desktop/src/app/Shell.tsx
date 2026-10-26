@@ -221,7 +221,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       <LogsSheet name={logsOf} target={logsOf ? targetFor(snap, state.nodes, services.find((s) => s.spec.name === logsOf)?.spec.nodeId ?? "") : undefined} onClose={() => setLogsOf(null)} />
       {sheetService && <ExposureSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "exposure"} onClose={() => setSheet(null)} />}
       {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
-      {sheetService && <StorageSheet service={sheetService} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
+      {sheetService && <StorageSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>

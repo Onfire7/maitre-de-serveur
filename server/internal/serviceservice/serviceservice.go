@@ -130,6 +130,15 @@ func (s *Service) SetPortForwarding(ctx context.Context, req *maitrev1.SetPortFo
 	return &maitrev1.SetPortForwardingResponse{Service: st}, nil
 }
 
+// MoveVolume implements ServiceService.
+func (s *Service) MoveVolume(ctx context.Context, req *maitrev1.MoveVolumeRequest) (*maitrev1.MoveVolumeResponse, error) {
+	id, err := s.mgr.MoveVolume(ctx, req.GetName(), req.GetVolume(), req.GetToSpace())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return &maitrev1.MoveVolumeResponse{JobId: id}, nil
+}
+
 // GetServiceLogs implements ServiceService.
 func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLogsRequest) (*maitrev1.GetServiceLogsResponse, error) {
 	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetLines())

@@ -87,6 +87,7 @@ interface FileNode {
 export interface DemoJob extends Omit<Job, "$typeName" | "request"> {
   request: MoveRequest;
   nodeId: string;
+  onDone?: () => void;
 }
 
 function metrics(init: Partial<Omit<NodeMetrics, "memoryTotalBytes" | "memoryUsedBytes" | "poolTotalBytes" | "poolUsedBytes">> & { memoryTotalBytes?: number; memoryUsedBytes?: number; poolTotalBytes?: number; poolUsedBytes?: number }): NodeMetrics {
@@ -412,7 +413,8 @@ export class DemoFleet {
         j.state = "done";
         j.finishedUnixMs = BigInt(this.now);
         j.message = "verified";
-        this.applyMove(j);
+        if (j.onDone) j.onDone();
+        else this.applyMove(j);
       } else j.message = "copying";
     }
     if (this.installer.provisioning && this.installer.progress < 1) {
@@ -612,6 +614,37 @@ export class DemoFleet {
     retarget(item);
     (dest ?? this.files.get("space:" + req.toSpace) ?? []).push(item);
     this.changed();
+  }
+
+  /** MoveVolume: stop, queue the folder move, follow the spec when done, restart. */
+  moveVolume(name: string, volume: string, toSpace: string, nodeId: string): string {
+    const s = this.services.find((x) => x.spec.name === name);
+    if (!s) throw new Error(`no Service ${name}`);
+    if (!s.spec.volumes.some((v) => v.name === volume)) throw new Error(`${name} has no volume ${volume}`);
+    const from = s.spec.volumeSpaces[volume];
+    if (from === toSpace) throw new Error(`volume ${volume} is already in Space ${toSpace}`);
+    if (!this.spaces.some((sp) => sp.spaceId === toSpace)) throw new Error(`no Space ${toSpace}`);
+    const wasRunning = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
+    s.state = ServiceStatus_State.STOPPED;
+    s.healthy = false;
+    s.readyAt = undefined;
+    s.message = `stopped while ${volume} moves to ${toSpace}`;
+    s.statusUnixMs = this.now;
+    const path = `${name}/${volume}`;
+    const req = { from: { spaceId: from, driveId: "" }, path, toSpace, toPath: path, toNodeId: "", toDriveId: "", fromNodeId: "" } as MoveRequest;
+    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "copying", bytesDone: 0n, bytesTotal: BigInt(Math.round(1.5 * GiB)), current: path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, request: req, nodeId, onDone: () => {
+      s.spec.volumeSpaces[volume] = toSpace;
+      this.rebuildRecords();
+      if (wasRunning) {
+        s.state = ServiceStatus_State.STARTING;
+        s.readyAt = this.tickCount + 4;
+      }
+      s.message = "";
+      s.statusUnixMs = this.now;
+    } };
+    this.jobs.push(job);
+    this.changed();
+    return job.jobId;
   }
 
   cancelJob(id: string) {

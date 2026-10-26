@@ -8,19 +8,21 @@ survives.
 
 ## Open
 
-- **Move a Service volume to another Space.** The Storage sheet on a
-  Service lists its volumes and their Spaces but cannot change one. Needed:
-  an RPC (say `ServiceService.MoveVolume{name, volume, to_space, to_node_id?}`)
-  that stops the Service, moves the folder through the file manager's job
-  machinery (copy, verify, remove), rewrites `ServiceSpec.volume_spaces`,
-  and restarts; it should return a `FilesService` job id so the Moves panel
-  shows progress. Until then the sheet says so and links to Files.
 - **Gossip a Node's own Provisioning state.** While a new Node installs, the
   sidebar shows it as Provisioning from the Installer's progress only on
   the Console that started it. Other Consoles see nothing until the Node
   record arrives. Nice to have: the sponsor Node gossips "provisioning:
   name, percent" from the Installer status it can read.
 ## Built
+
+- **Move a Service volume to another Space.** `ServiceService.MoveVolume
+  {name, volume, to_space}` on the Service's Node: stops the Service, queues
+  the folder move through the file manager (`files.Manager.MoveThen`, which
+  calls back when the job ends), rewrites `volume_spaces` and the Quadlet
+  unit on success, and starts the Service again if it was running; a failed
+  or cancelled move leaves the spec alone and restarts it on the old place.
+  Returns the job id. Same-Node only: the destination Space needs a Pool on
+  the Service's Node. The Storage sheet offers it per volume.
 
 - **Update state in the gossip.** `FleetNodeStatus` carries the Node's
   update state, message, progress, whether one is staged, and the last

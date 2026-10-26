@@ -92,3 +92,18 @@ describe("demo Fleet", () => {
     await expect(at("10.0.0.99:7443").node.getNodeInfo({})).rejects.toThrow(/nothing answers/);
   });
 });
+
+describe("MoveVolume", () => {
+  it("stops the Service, moves the folder as a job, follows the spec and restarts", async () => {
+    const svc = createClient(ServiceService, createDemoTransport("10.0.0.5:7443", fleet));
+    const { jobId } = await svc.moveVolume({ name: "jellyfin", volume: "media", toSpace: "general" });
+    expect(jobId).toMatch(/^job-/);
+    let st = (await svc.listServices({})).services.find((s) => s.spec?.name === "jellyfin")!;
+    expect(st.state).toBe(ServiceStatus_State.STOPPED);
+    for (let i = 0; i < 20; i++) fleet.tick(fleet.now + 1000);
+    st = (await svc.listServices({})).services.find((s) => s.spec?.name === "jellyfin")!;
+    expect(st.spec?.volumeSpaces.media).toBe("general");
+    expect(st.state).toBe(ServiceStatus_State.RUNNING);
+    await expect(svc.moveVolume({ name: "jellyfin", volume: "media", toSpace: "general" })).rejects.toThrow(/already in/);
+  });
+});

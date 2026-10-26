@@ -43,6 +43,8 @@ const (
 	// ServiceServiceSetPortForwardingProcedure is the procedure name of the ServiceService's
 	// SetPortForwarding RPC.
 	ServiceServiceSetPortForwardingProcedure = "/maitre.v1.ServiceService/SetPortForwarding"
+	// ServiceServiceMoveVolumeProcedure is the procedure name of the ServiceService's MoveVolume RPC.
+	ServiceServiceMoveVolumeProcedure = "/maitre.v1.ServiceService/MoveVolume"
 )
 
 var (
@@ -95,6 +97,13 @@ var (
 			Procedure:  ServiceServiceSetPortForwardingProcedure,
 		}
 	})
+	serviceServiceMoveVolumeSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("MoveVolume"),
+			Procedure:  ServiceServiceMoveVolumeProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -116,6 +125,11 @@ type ServiceServiceClient interface {
 	// Decision 115: ask the router to forward a Service's host_ports from the
 	// internet (UPnP), or stop doing so.
 	SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error)
+	// MoveVolume moves one of a Service's volumes to another Space on this
+	// Node: the Service stops, the folder moves as a file manager job (copy,
+	// verify, remove), the spec's volume_spaces is rewritten, and the Service
+	// starts again if it was running. Returns the job id for ListJobs.
+	MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -143,6 +157,11 @@ type ServiceServiceHandler interface {
 	// Decision 115: ask the router to forward a Service's host_ports from the
 	// internet (UPnP), or stop doing so.
 	SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error)
+	// MoveVolume moves one of a Service's volumes to another Space on this
+	// Node: the Service stops, the folder moves as a file manager job (copy,
+	// verify, remove), the spec's volume_spaces is rewritten, and the Service
+	// starts again if it was running. Returns the job id for ListJobs.
+	MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -157,6 +176,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceGetServiceLogsSpec(), Handler: adapter.getServiceLogs},
 		connect.Method{Spec: serviceServiceSetExposureSpec(), Handler: adapter.setExposure},
 		connect.Method{Spec: serviceServiceSetPortForwardingSpec(), Handler: adapter.setPortForwarding},
+		connect.Method{Spec: serviceServiceMoveVolumeSpec(), Handler: adapter.moveVolume},
 	)
 }
 
@@ -189,6 +209,10 @@ func (UnimplementedServiceServiceHandler) SetExposure(context.Context, *v1.SetEx
 
 func (UnimplementedServiceServiceHandler) SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetPortForwarding is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.MoveVolume is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -246,6 +270,14 @@ func (c *serviceServiceClient) SetExposure(ctx context.Context, req *v1.SetExpos
 func (c *serviceServiceClient) SetPortForwarding(ctx context.Context, req *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error) {
 	var res v1.SetPortForwardingResponse
 	if err := c.client.CallUnary(ctx, serviceServiceSetPortForwardingSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) MoveVolume(ctx context.Context, req *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error) {
+	var res v1.MoveVolumeResponse
+	if err := c.client.CallUnary(ctx, serviceServiceMoveVolumeSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -331,6 +363,18 @@ func (h serviceServiceHandler) setPortForwarding(ctx context.Context, _ connect.
 		return err
 	}
 	res, err := h.svc.SetPortForwarding(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) moveVolume(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.MoveVolumeRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.MoveVolume(ctx, &req)
 	if err != nil {
 		return err
 	}

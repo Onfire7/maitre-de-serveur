@@ -581,6 +581,7 @@ func runAgent(args []string) error {
 	maitrev1connect.RegisterStorageServiceHandler(rpc, ssvc2)
 	// Decision 122: the file manager's back end.
 	fm := files.New(st, log, id.Fingerprint())
+	mgr.Mover = fm
 	fm.PeerAddr = func(nodeID string) string {
 		if as := pm.Addresses()[nodeID]; len(as) > 0 {
 			return as[0]

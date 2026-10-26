@@ -26,6 +26,21 @@ service ServiceService {
   // Decision 115: ask the router to forward a Service's host_ports from the
   // internet (UPnP), or stop doing so.
   rpc SetPortForwarding(SetPortForwardingRequest) returns (SetPortForwardingResponse) {}
+  // MoveVolume moves one of a Service's volumes to another Space on this
+  // Node: the Service stops, the folder moves as a file manager job (copy,
+  // verify, remove), the spec's volume_spaces is rewritten, and the Service
+  // starts again if it was running. Returns the job id for ListJobs.
+  rpc MoveVolume(MoveVolumeRequest) returns (MoveVolumeResponse) {}
+}
+
+message MoveVolumeRequest {
+  string name = 1;
+  string volume = 2;
+  string to_space = 3;
+}
+
+message MoveVolumeResponse {
+  string job_id = 1;
 }
 
 message GetCatalogRequest {}

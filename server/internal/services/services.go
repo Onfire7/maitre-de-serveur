@@ -79,13 +79,21 @@ type Config struct {
 // (decision 75).
 const DefaultSuffix = "local"
 
+// Mover queues a file move and reports when it finished: the file
+// manager (files.Manager.MoveThen). Nil when the Node has none.
+type Mover interface {
+	MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done func(error)) (*maitrev1.Job, error)
+}
+
 // Manager implements Service operations for one Node.
 type Manager struct {
 	// OnExposure runs after a Service's exposure changed (remote reconcile).
 	OnExposure func()
-	cfg        Config
-	store      *store.Store
-	run        Runner
+	// Mover moves volumes between Spaces (MoveVolume); nil means it cannot.
+	Mover Mover
+	cfg   Config
+	store *store.Store
+	run   Runner
 }
 
 // New builds a Manager.
@@ -225,6 +233,90 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 		return fmt.Errorf("daemon-reload: %w", err)
 	}
 	return nil
+}
+
+// MoveVolume moves one volume of a Service to another Space on this Node
+// (docs/node-needs.md). The Service stops, the folder moves as a file
+// manager job, the spec follows, and the Service starts again if it was
+// running. A failed move leaves the volume where it was and restarts the
+// Service on it.
+func (m *Manager) MoveVolume(ctx context.Context, name, volume, toSpace string) (string, error) {
+	if m.Mover == nil {
+		return "", errors.New("this Node has no file manager")
+	}
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
+		return "", ErrNotFound
+	}
+	var vol *maitrev1.ServiceVolume
+	for _, v := range spec.GetVolumes() {
+		if v.GetName() == volume {
+			vol = v
+		}
+	}
+	if vol == nil {
+		return "", fmt.Errorf("%s has no volume %q", name, volume)
+	}
+	from := spec.GetVolumeSpaces()[volume]
+	if from == "" {
+		return "", fmt.Errorf("volume %s has no Space", volume)
+	}
+	if from == toSpace {
+		return "", fmt.Errorf("volume %s is already in Space %s", volume, toSpace)
+	}
+	if m.cfg.PoolsDir != "" {
+		if _, err := os.Stat(filepath.Join(m.cfg.PoolsDir, toSpace)); err != nil {
+			return "", fmt.Errorf("Space %q has no Pool on this Node", toSpace)
+		}
+	}
+	st, err := m.Status(ctx, &spec)
+	if err != nil {
+		return "", err
+	}
+	wasRunning := st.GetState() == maitrev1.ServiceStatus_STATE_RUNNING || st.GetState() == maitrev1.ServiceStatus_STATE_STARTING
+	unit := spec.GetName() + ".service"
+	if _, err := m.run.Run(ctx, "systemctl", "stop", unit); err != nil {
+		return "", fmt.Errorf("stop %s: %w", name, err)
+	}
+	path := filepath.Join(name, volume)
+	req := &maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: from}, Path: path, ToSpace: toSpace, ToPath: path}
+	bg := context.WithoutCancel(ctx)
+	job, err := m.Mover.MoveThen(ctx, req, func(moveErr error) {
+		if moveErr == nil {
+			var cur maitrev1.ServiceSpec
+			if _, err := m.store.Get(bg, KindService, name, &cur); err == nil {
+				if cur.VolumeSpaces == nil {
+					cur.VolumeSpaces = map[string]string{}
+				}
+				cur.VolumeSpaces[volume] = toSpace
+				if err := m.apply(bg, &cur); err != nil {
+					m.logf("move volume: apply %s: %v", name, err)
+				} else if _, err := m.store.Put(bg, KindService, name, &cur, false); err != nil {
+					m.logf("move volume: store %s: %v", name, err)
+				}
+			}
+		} else {
+			m.logf("move volume %s/%s to %s: %v; the volume stays in %s", name, volume, toSpace, moveErr, from)
+		}
+		if wasRunning {
+			if _, err := m.run.Run(bg, "systemctl", "start", "--no-block", unit); err != nil {
+				m.logf("move volume: start %s: %v", name, err)
+			}
+		}
+	})
+	if err != nil {
+		if wasRunning {
+			_, _ = m.run.Run(ctx, "systemctl", "start", "--no-block", unit)
+		}
+		return "", err
+	}
+	return job.GetJobId(), nil
+}
+
+func (m *Manager) logf(format string, args ...any) {
+	if m.cfg.Log != nil {
+		m.cfg.Log.Warn(fmt.Sprintf(format, args...))
+	}
 }
 
 // Render produces the full Quadlet unit for a Service.

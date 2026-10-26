@@ -79,6 +79,9 @@ type job struct {
 	mu  sync.Mutex
 	pb  *maitrev1.Job
 	ctx context.Context
+	// done runs once the job finished, with nil on success, the error on
+	// failure, or context.Canceled when cancelled.
+	done func(error)
 }
 
 // New builds a Manager. self is this Node's id.
@@ -265,6 +268,12 @@ func walk(dir string) (bytes, files uint64) {
 
 // Move queues a move and returns its job.
 func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev1.Job, error) {
+	return m.MoveThen(ctx, req, nil)
+}
+
+// MoveThen queues a move and runs done when it has finished (nil, the
+// error, or context.Canceled). Used by Service volume moves.
+func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done func(error)) (*maitrev1.Job, error) {
 	if _, err := rel(req.GetPath()); err != nil {
 		return nil, err
 	}
@@ -321,7 +330,7 @@ func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev
 	m.mu.Lock()
 	m.seq++
 	id := fmt.Sprintf("job-%d-%d", time.Now().Unix(), m.seq)
-	j := &job{pb: &maitrev1.Job{JobId: id, State: "queued", Request: req}}
+	j := &job{pb: &maitrev1.Job{JobId: id, State: "queued", Request: req}, done: done}
 	m.jobs[id] = j
 	m.order = append(m.order, id)
 	m.mu.Unlock()
@@ -409,9 +418,13 @@ func (m *Manager) execute(parent context.Context, j *job) {
 		m.setState(j, "done", "")
 	case ctx.Err() != nil:
 		m.setState(j, "cancelled", "stopped; the source is untouched, a partial copy may remain at the destination")
+		err = context.Canceled
 	default:
 		m.setState(j, "failed", err.Error()+"; the source is untouched")
 		m.log.Warn("move failed", "job", j.pb.JobId, "err", err)
+	}
+	if j.done != nil {
+		j.done(err)
 	}
 }
 

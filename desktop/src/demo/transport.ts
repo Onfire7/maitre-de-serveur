@@ -212,7 +212,15 @@ const handlers: Record<string, Handler> = {
   "FilesService/Move": (f, n, i, addr) => ({ jobId: f.move(i as never, needNode(n, addr).nodeId) }),
   "FilesService/ListJobs": (f, n, _i, addr) => {
     const me = needNode(n, addr);
-    return { jobs: f.jobs.filter((j) => j.nodeId === me.nodeId).map(({ nodeId: _n, ...j }) => j) };
+    return { jobs: f.jobs.filter((j) => j.nodeId === me.nodeId).map(({ nodeId: _n, onDone: _d, ...j }) => j) };
+  },
+  "ServiceService/MoveVolume": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    try {
+      return { jobId: f.moveVolume(i.name as string, i.volume as string, i.toSpace as string, me.nodeId) };
+    } catch (e) {
+      throw fail(Code.FailedPrecondition, (e as Error).message);
+    }
   },
   "FilesService/CancelJob": (f, n, i, addr) => {
     needNode(n, addr);
