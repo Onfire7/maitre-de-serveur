@@ -16,32 +16,32 @@ import (
 // driveNames is the name list, six per letter, friendly and easy to say out
 // loud. When a letter runs out the names continue as <Letter>-drive-N.
 var driveNames = map[byte][]string{
-	'A': {"Apollo", "Atlas", "Aurora", "Aspen", "Amber", "Argon"},
-	'B': {"Beacon", "Birch", "Basil", "Bolt", "Bramble", "Breeze"},
-	'C': {"Cedar", "Comet", "Coral", "Cobalt", "Canyon", "Clover"},
-	'D': {"Delta", "Dune", "Dusk", "Dahlia", "Drift", "Domino"},
-	'E': {"Ember", "Echo", "Elm", "Eagle", "Everest", "Emerald"},
-	'F': {"Falcon", "Fern", "Fjord", "Flint", "Fable", "Frost"},
-	'G': {"Granite", "Gale", "Glacier", "Garnet", "Grove", "Gust"},
-	'H': {"Harbor", "Hazel", "Helix", "Heron", "Horizon", "Hollow"},
-	'I': {"Iris", "Indigo", "Ivory", "Island", "Icicle", "Ion"},
-	'J': {"Jasper", "Juniper", "Jade", "Jet", "Jetty", "Jubilee"},
-	'K': {"Kestrel", "Kite", "Kelp", "Keel", "Krypton", "Koa"},
-	'L': {"Lark", "Lotus", "Lumen", "Lagoon", "Larch", "Lantern"},
-	'M': {"Maple", "Meteor", "Mesa", "Marble", "Mist", "Mango"},
-	'N': {"Nova", "Nectar", "Nimbus", "Nutmeg", "Nickel", "North"},
-	'O': {"Orbit", "Oak", "Onyx", "Opal", "Otter", "Oasis"},
-	'P': {"Pebble", "Pine", "Prism", "Pluto", "Pepper", "Pixel"},
-	'Q': {"Quartz", "Quill", "Quest", "Quasar", "Quince", "Quiver"},
-	'R': {"Raven", "Reef", "Rune", "Ridge", "Ruby", "Rocket"},
-	'S': {"Sage", "Summit", "Saturn", "Spruce", "Sparrow", "Slate"},
-	'T': {"Tundra", "Topaz", "Tide", "Thistle", "Timber", "Talon"},
-	'U': {"Umber", "Unity", "Upland", "Ursa", "Umbra", "Utah"},
-	'V': {"Vega", "Velvet", "Violet", "Vortex", "Valley", "Vapor"},
-	'W': {"Willow", "Walnut", "Wren", "Wave", "Winter", "Wisp"},
-	'X': {"Xenon", "Xylem", "Xenia", "Xavier", "Xanadu", "Xerus"},
-	'Y': {"Yarrow", "Yonder", "Yew", "Yukon", "Yacht", "Yeti"},
-	'Z': {"Zephyr", "Zenith", "Zinc", "Zodiac", "Zircon", "Zinnia"},
+	'A': {"Apollo", "Atlas", "Aurora", "Aspen", "Amber", "Argon", "Alpine", "Anchor", "Aria", "Arrow", "Ash", "Avon", "Azure", "Acorn", "Adobe", "Aegis", "Albion", "Almond", "Amethyst", "Andes", "Antler", "Apex", "Arbor", "Astra"},
+	'B': {"Beacon", "Birch", "Basil", "Bolt", "Bramble", "Breeze", "Badger", "Banyan", "Baron", "Bay", "Bellow", "Berry", "Bison", "Blaze", "Bluebell", "Bonsai", "Borealis", "Brook", "Bronze", "Buckeye", "Burrow", "Butte", "Byway", "Bexley"},
+	'C': {"Cedar", "Comet", "Coral", "Cobalt", "Canyon", "Clover", "Cairn", "Calypso", "Camber", "Caper", "Caravel", "Cardinal", "Carmine", "Cashmere", "Cello", "Chalk", "Chestnut", "Citrine", "Cliff", "Compass", "Condor", "Copper", "Crag", "Crocus"},
+	'D': {"Delta", "Dune", "Dusk", "Dahlia", "Drift", "Domino", "Dagger", "Damson", "Dandelion", "Dart", "Dell", "Denim", "Derby", "Dew", "Dingle", "Dipper", "Dolphin", "Dorado", "Dragonfly", "Drake", "Druid", "Dulcet", "Durham", "Dynamo"},
+	'E': {"Ember", "Echo", "Elm", "Eagle", "Everest", "Emerald", "Eclipse", "Edgewood", "Eider", "Elk", "Ellery", "Elysium", "Embark", "Emery", "Empire", "Encore", "Enigma", "Epoch", "Equinox", "Ermine", "Escher", "Esker", "Evergreen", "Exeter"},
+	'F': {"Falcon", "Fern", "Fjord", "Flint", "Fable", "Frost", "Fairway", "Fawn", "Feather", "Fennec", "Fig", "Finch", "Fireside", "Flare", "Flax", "Fleet", "Flora", "Flume", "Folio", "Fossil", "Fox", "Freesia", "Fresco", "Fulcrum"},
+	'G': {"Granite", "Gale", "Glacier", "Garnet", "Grove", "Gust", "Galaxy", "Gannet", "Gardenia", "Gazelle", "Geyser", "Gilder", "Ginger", "Glade", "Glen", "Glint", "Gobi", "Gold", "Goshawk", "Gradient", "Grouse", "Gulch", "Gypsum", "Gyre"},
+	'H': {"Harbor", "Hazel", "Helix", "Heron", "Horizon", "Hollow", "Halcyon", "Halo", "Hamlet", "Harrier", "Hawthorn", "Heath", "Heather", "Hemlock", "Hermes", "Highland", "Hinterland", "Hoopoe", "Hornet", "Huckleberry", "Hudson", "Humber", "Hyacinth", "Hydra"},
+	'I': {"Iris", "Indigo", "Ivory", "Island", "Icicle", "Ion", "Ibex", "Icarus", "Idyll", "Igloo", "Iguana", "Ilex", "Imber", "Impala", "Inca", "Incense", "Inkwell", "Inverness", "Iona", "Ipswich", "Iridium", "Iron", "Isthmus", "Ithaca"},
+	'J': {"Jasper", "Juniper", "Jade", "Jet", "Jetty", "Jubilee", "Jackdaw", "Jaguar", "Jamboree", "Jasmine", "Javelin", "Jay", "Jenga", "Jersey", "Jewel", "Jiffy", "Jingle", "Jocund", "Jodhpur", "Jostle", "Journey", "Joust", "Jovial", "Jumbo"},
+	'K': {"Kestrel", "Kite", "Kelp", "Keel", "Krypton", "Koa", "Kahuna", "Kale", "Kaleido", "Kangaroo", "Kapok", "Karst", "Kayak", "Kazoo", "Kelvin", "Kepler", "Kerosene", "Kettle", "Kilim", "Kingfisher", "Kiwi", "Klaxon", "Koala", "Kudu"},
+	'L': {"Lark", "Lotus", "Lumen", "Lagoon", "Larch", "Lantern", "Labrador", "Lacewing", "Lakeshore", "Lapis", "Larkspur", "Latitude", "Lava", "Lavender", "Ledger", "Lemur", "Levee", "Lilac", "Lime", "Lioness", "Llama", "Loch", "Lodestar", "Lynx"},
+	'M': {"Maple", "Meteor", "Mesa", "Marble", "Mist", "Mango", "Macaw", "Magpie", "Mahogany", "Mandolin", "Mantis", "Maraca", "Marigold", "Mariner", "Marten", "Meadowlark", "Melody", "Mercury", "Merlin", "Mica", "Mimosa", "Monarch", "Moonstone", "Mosaic"},
+	'N': {"Nova", "Nectar", "Nimbus", "Nutmeg", "Nickel", "North", "Nacre", "Narwhal", "Nebula", "Needle", "Neon", "Neptune", "Nest", "Newt", "Niche", "Nightjar", "Nile", "Nomad", "Nordic", "Notch", "Nougat", "Nuance", "Nymph", "Nyx"},
+	'O': {"Orbit", "Oak", "Onyx", "Opal", "Otter", "Oasis", "Oatmeal", "Obelisk", "Ocelot", "Octave", "Odyssey", "Ogham", "Okapi", "Olm", "Omega", "Onward", "Oracle", "Orca", "Oregano", "Oriole", "Orion", "Osier", "Ossian", "Oxbow"},
+	'P': {"Pebble", "Pine", "Prism", "Pluto", "Pepper", "Pixel", "Pagoda", "Palisade", "Panda", "Pansy", "Papyrus", "Parsley", "Pavilion", "Peony", "Peregrine", "Periwinkle", "Petrel", "Pewter", "Phoenix", "Pike", "Piper", "Plover", "Primrose", "Puffin"},
+	'Q': {"Quartz", "Quill", "Quest", "Quasar", "Quince", "Quiver", "Quadrant", "Quail", "Quaver", "Quebec", "Queensland", "Quenda", "Query", "Quartet", "Quiche", "Quicksilver", "Quiet", "Quilt", "Quinault", "Quinn", "Quintet", "Quip", "Quito", "Quorum"},
+	'R': {"Raven", "Reef", "Rune", "Ridge", "Ruby", "Rocket", "Raccoon", "Radiant", "Rainier", "Rampart", "Ranger", "Rapids", "Raspberry", "Redwood", "Regatta", "Relic", "Rhapsody", "Rhine", "Riddle", "Ripple", "Robin", "Rosemary", "Rudder", "Rye"},
+	'S': {"Sage", "Summit", "Saturn", "Spruce", "Sparrow", "Slate", "Saddle", "Saga", "Sahara", "Salmon", "Sandpiper", "Sapphire", "Satin", "Savanna", "Scout", "Sedge", "Sequoia", "Sierra", "Silk", "Skylark", "Solstice", "Sonnet", "Starling", "Sterling"},
+	'T': {"Tundra", "Topaz", "Tide", "Thistle", "Timber", "Talon", "Tabor", "Taiga", "Tamarind", "Tangent", "Tapestry", "Tarn", "Tempest", "Tern", "Thimble", "Thrush", "Thunder", "Tiber", "Titan", "Toucan", "Trellis", "Trident", "Trillium", "Tulip"},
+	'U': {"Umber", "Unity", "Upland", "Ursa", "Umbra", "Utah", "Ukulele", "Ulysses", "Umbrella", "Umpire", "Unicorn", "Union", "Universe", "Upbeat", "Upkeep", "Upriver", "Upstream", "Uptide", "Urchin", "Ural", "Uranus", "Urn", "Usher", "Utopia"},
+	'V': {"Vega", "Velvet", "Violet", "Vortex", "Valley", "Vapor", "Valiant", "Vanilla", "Vantage", "Vector", "Velodrome", "Venture", "Venus", "Verbena", "Verdigris", "Vermont", "Vernal", "Vertex", "Vesper", "Viburnum", "Viking", "Viola", "Vixen", "Voyager"},
+	'W': {"Willow", "Walnut", "Wren", "Wave", "Winter", "Wisp", "Wagtail", "Walrus", "Wander", "Warden", "Waterfall", "Wayfarer", "Weaver", "Wellspring", "Westwind", "Whale", "Wheat", "Whistler", "Wild", "Windward", "Wisteria", "Wolf", "Woodland", "Wyvern"},
+	'X': {"Xenon", "Xylem", "Xenia", "Xavier", "Xanadu", "Xerus", "Xebec", "Xena", "Xeno", "Xenops", "Xerxes", "Xiphias", "Xingu", "Xiphos", "Xoanon", "Xochitl", "Xylia", "Xyris", "Xystus", "Xanthia", "Xanthus", "Xenith", "Xerophyte", "Xylophone"},
+	'Y': {"Yarrow", "Yonder", "Yew", "Yukon", "Yacht", "Yeti", "Yak", "Yam", "Yangtze", "Yardarm", "Yawl", "Yearling", "Yellowhammer", "Yellowstone", "Yeoman", "Yerba", "Yield", "Yoho", "Yoke", "Yodel", "Yolk", "Yosemite", "Yucca", "Yurt"},
+	'Z': {"Zephyr", "Zenith", "Zinc", "Zodiac", "Zircon", "Zinnia", "Zambezi", "Zander", "Zanzibar", "Zeal", "Zebra", "Zebu", "Zelkova", "Zen", "Zenobia", "Zeppelin", "Zabra", "Zeus", "Ziggurat", "Zigzag", "Zilch", "Zinger", "Zorilla", "Zither"},
 }
 
 // Letters is the alphabet Nodes draw from, in order.
@@ -63,8 +63,11 @@ func PickLetter(used []string) string {
 	return ""
 }
 
-// NextName returns the first name for letter that is not in used; after
-// the list runs out, <Letter>-drive-N. An empty letter yields "".
+// NextName returns the first name for letter that is not in used. The
+// lists hold 24 names per letter; past that the list is walked again with
+// a round number ("Apollo 2", "Atlas 2", ... "Apollo 3"), so a Node with
+// any number of Drives keeps letter-led, pronounceable names. An empty
+// letter yields "".
 func NextName(letter string, used []string) string {
 	letter = strings.ToUpper(letter)
 	if len(letter) != 1 {
@@ -79,10 +82,12 @@ func NextName(letter string, used []string) string {
 			return n
 		}
 	}
-	for i := 1; ; i++ {
-		n := fmt.Sprintf("%s-drive-%d", letter, i)
-		if !taken[strings.ToLower(n)] {
-			return n
+	for round := 2; ; round++ {
+		for _, base := range driveNames[letter[0]] {
+			n := fmt.Sprintf("%s %d", base, round)
+			if !taken[strings.ToLower(n)] {
+				return n
+			}
 		}
 	}
 }

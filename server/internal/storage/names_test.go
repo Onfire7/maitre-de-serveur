@@ -26,8 +26,22 @@ func TestNextName(t *testing.T) {
 		t.Fatalf("third A name %q", got)
 	}
 	used := append([]string{}, driveNames['A']...)
-	if got := NextName("A", used); got != "A-drive-1" {
+	if got := NextName("A", used); got != "Apollo 2" {
 		t.Fatalf("overflow name %q", got)
+	}
+	used = append(used, "Apollo 2")
+	if got := NextName("A", used); got != "Atlas 2" {
+		t.Fatalf("second overflow name %q", got)
+	}
+	for l := byte('A'); l <= 'Z'; l++ {
+		if len(driveNames[l]) != 24 {
+			t.Fatalf("letter %c has %d names, want 24", l, len(driveNames[l]))
+		}
+		for _, n := range driveNames[l] {
+			if n[0] != l {
+				t.Fatalf("%q listed under %c", n, l)
+			}
+		}
 	}
 	if got := NextName("", nil); got != "" {
 		t.Fatalf("no letter gave %q", got)
