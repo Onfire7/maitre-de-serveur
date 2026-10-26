@@ -93,7 +93,16 @@ export function TiersPanel({ state }: { state: ConsoleState }) {
             <div style={{ fontSize: 13, color: "#555", marginLeft: 16 }}>
               {members(t).length === 0 ? "no Drives yet" : members(t).map((d) => `${d.name} on ${nodeName(d.nodeId)}`).join(", ")}
             </div>
-            {t.tierId !== "default" && (
+            {t.tierId === "default" ? (
+              <label style={{ fontSize: 13 }} title="One Pool over every Default Drive on every Node, over the network. New files land on the local Drives first.">
+                <input
+                  type="checkbox"
+                  checked={t.placement === "spanning"}
+                  onChange={(e) => put(create(TierSchema, { ...t, placement: e.target.checked ? "spanning" : "local" })).catch((err) => setError(String(err)))}
+                />{" "}
+                spans Nodes
+              </label>
+            ) : (
               <button
                 onClick={() => {
                   if (confirm(`Remove Tier ${t.name}? Its Drives fall back to Default; nothing is deleted.`)) put(t, true).catch((e) => setError(String(e)));
@@ -105,6 +114,9 @@ export function TiersPanel({ state }: { state: ConsoleState }) {
           </li>
         ))}
       </ul>
+      <p style={{ color: "#555", fontSize: 13 }}>
+        Default holds every Drive no other Tier claims; tick "spans Nodes" on it to make one Pool of all of them across the Fleet. Other Tiers carve out Drives by tag, such as hdd + media for a slow, large Media Tier.
+      </p>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tier name, e.g. Media" style={{ width: 160 }} />
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="required tags, e.g. hdd media" style={{ width: 220 }} />

@@ -305,10 +305,10 @@ func runAgent(args []string) error {
 			log.Warn("tiers", "err", err)
 			return
 		}
-		if _, err := pool.Up(ctx, byTier[storage.DefaultTier]...); err != nil {
-			log.Warn("pool", "err", err)
-		}
-		// Spanning Tiers (105, 106): peers' Pools after our own Drives.
+		// Spanning Tiers (105, 106): peers' Pools after our own Drives. The
+		// default Tier can span too (user, 2026-10-26: "every Drive, across
+		// Nodes" is the default Pool spanning, not a second Tier that
+		// empties it).
 		run := storage.ExecRunner{}
 		addrs := pm.Addresses()
 		best := map[string]string{}
@@ -320,6 +320,9 @@ func runAgent(args []string) error {
 		remote, err := stor.RemoteBranches(ctx, run, best)
 		if err != nil {
 			log.Warn("remote pools", "err", err)
+		}
+		if _, err := pool.UpSpanning(ctx, byTier[storage.DefaultTier], remote[storage.DefaultTier]); err != nil {
+			log.Warn("pool", "err", err)
 		}
 		var tierIDs []string
 		for tier, branches := range byTier {

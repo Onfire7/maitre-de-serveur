@@ -36,8 +36,21 @@ type Status struct {
 // Up assembles the default Pool over the mounted branch directories given
 // (the default Tier's Drives). Idempotent: safe to run at every boot.
 func Up(ctx context.Context, extra ...string) (*Status, error) {
+	return UpSpanning(ctx, extra, nil)
+}
+
+// UpSpanning is Up with peers' default Pools (mounted over NFS) as further
+// branches after this Node's own: the default Tier set to span Nodes. New
+// files land on the first branch with room, so local Drives fill first.
+func UpSpanning(ctx context.Context, local, remote []string) (*Status, error) {
 	var branches []string
-	for _, e := range extra {
+	for _, e := range local {
+		if mounted(e) {
+			branches = append(branches, e)
+		}
+	}
+	nLocal := len(branches)
+	for _, e := range remote {
 		if mounted(e) {
 			branches = append(branches, e)
 		}
@@ -65,7 +78,11 @@ func Up(ctx context.Context, extra ...string) (*Status, error) {
 	// recipe: create new files on the branch with most free space, keep
 	// directory paths consistent, and use the pool through fuse without
 	// caching surprises for databases.
-	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=mfs,moveonenospc=true,fsname=maitre-default"
+	create := "mfs"
+	if nLocal < len(branches) {
+		create = "ff" // first branch with room: local before remote
+	}
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-default"
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), DefaultPool).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("mergerfs: %v: %s", err, out)
 	}
