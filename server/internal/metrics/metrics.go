@@ -16,21 +16,20 @@ import (
 
 // Collector keeps the previous CPU and network counters for rates.
 type Collector struct {
-	mu      sync.Mutex
-	poolDir string
-	// Fallback reports whether the Pool is a directory on the OS partition
-	// right now; nil means the value given to New.
-	Fallback func() bool
-	fallback bool
+	mu sync.Mutex
+	// PoolDir returns the mount of the Pool to report (the Bin marked
+	// default for new volumes), or "" when the Node has none: then
+	// pool_fallback is set and capacity is zero.
+	PoolDir  func() string
 	lastAt   time.Time
 	cpuBusy  uint64
 	cpuTotal uint64
 	rx, tx   uint64
 }
 
-// New builds a Collector for the Pool at poolDir.
-func New(poolDir string, fallback bool) *Collector {
-	c := &Collector{poolDir: poolDir, fallback: fallback}
+// New builds a Collector; poolDir resolves the Pool to report each time.
+func New(poolDir func() string) *Collector {
+	c := &Collector{PoolDir: poolDir}
 	c.Read() // prime the counters
 	return c
 }
@@ -40,10 +39,7 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
-	m := &maitrev1.NodeMetrics{PoolFallback: c.fallback}
-	if c.Fallback != nil {
-		m.PoolFallback = c.Fallback()
-	}
+	m := &maitrev1.NodeMetrics{}
 
 	busy, total := cpuCounters()
 	if c.cpuTotal > 0 && total > c.cpuTotal {
@@ -59,7 +55,11 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 	c.rx, c.tx, c.lastAt = rx, tx, now
 
 	m.MemoryTotalBytes, m.MemoryUsedBytes = memory()
-	m.PoolTotalBytes, m.PoolUsedBytes = disk(c.poolDir)
+	if dir := c.PoolDir(); dir != "" {
+		m.PoolTotalBytes, m.PoolUsedBytes = disk(dir)
+	} else {
+		m.PoolFallback = true
+	}
 	m.TemperatureC = temperature()
 	m.Load_1M = load()
 	return m

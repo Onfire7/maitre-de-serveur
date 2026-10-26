@@ -59,8 +59,11 @@ type Config struct {
 	Forward func(name string) string
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
-	// PoolDir is the default Tier's Pool; volumes live at PoolDir/<service>/<volume>.
-	PoolDir string
+	// PoolsDir holds one Pool per Bin: volumes live at PoolsDir/<bin>/<service>/<volume>.
+	PoolsDir string
+	// DefaultBin returns the id of the Bin new volumes land in, or "" when
+	// the Fleet has none marked (install then fails with a clear message).
+	DefaultBin func(ctx context.Context) string
 	// HostPortBase..HostPortBase+9999 are loopback ports the agent assigns to
 	// Services' web ports for Caddy and health checks.
 	HostPortBase int
@@ -146,13 +149,21 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	spec.NodeId = m.store.NodeID()
 	spec.CreatedUnixMs = time.Now().UnixMilli()
-	// Volume Tiers come from the Console (decision 107); missing ones default.
-	if spec.VolumeTiers == nil {
-		spec.VolumeTiers = map[string]string{}
+	// Volume Bins come from the Console (decision 107); missing ones take
+	// the Bin marked default for new volumes (decision 123: no built-in one).
+	if spec.VolumeBins == nil {
+		spec.VolumeBins = map[string]string{}
 	}
 	for _, v := range spec.GetVolumes() {
-		if spec.VolumeTiers[v.GetName()] == "" {
-			spec.VolumeTiers[v.GetName()] = "default"
+		if spec.VolumeBins[v.GetName()] == "" {
+			def := ""
+			if m.cfg.DefaultBin != nil {
+				def = m.cfg.DefaultBin(ctx)
+			}
+			if def == "" {
+				return nil, fmt.Errorf("no Storage Bin is marked as the default for new volumes; create one first")
+			}
+			spec.VolumeBins[v.GetName()] = def
 		}
 	}
 	spec.WebHostPort = 0
@@ -183,14 +194,16 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	vols := map[string]string{}
 	for _, v := range spec.GetVolumes() {
-		// Milestone 4: each volume lives on the Pool of its Tier; "default"
-		// is cfg.PoolDir, others sit beside it as <pools>/<tier>.
-		base := m.cfg.PoolDir
-		if tier := spec.GetVolumeTiers()[v.GetName()]; tier != "" && tier != "default" {
-			base = filepath.Join(filepath.Dir(m.cfg.PoolDir), tier)
-			if _, err := os.Stat(base); err != nil {
-				return fmt.Errorf("volume %s wants Tier %q, which has no Pool on this Node", v.GetName(), tier)
-			}
+		// Each volume lives on the Pool of its Bin: <pools>/<bin>/<service>/<volume>.
+		bin := spec.GetVolumeBins()[v.GetName()]
+		if bin == "" {
+			return fmt.Errorf("volume %s has no Bin", v.GetName())
+		}
+		base := filepath.Join(m.cfg.PoolsDir, bin)
+		if m.cfg.PoolsDir == "" {
+			base = filepath.Join(os.TempDir(), "maitre-pools", bin) // dev mode
+		} else if _, err := os.Stat(base); err != nil {
+			return fmt.Errorf("volume %s wants Bin %q, which has no Pool on this Node", v.GetName(), bin)
 		}
 		dir := filepath.Join(base, spec.GetName(), v.GetName())
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -326,18 +339,14 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		if _, err := m.run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
 			return nil, err
 		}
-		if req.GetDeleteData() && m.cfg.PoolDir != "" {
-			// Every volume, on whichever Tier's Pool it lives.
+		if req.GetDeleteData() && m.cfg.PoolsDir != "" {
+			// Every volume, on whichever Bin's Pool it lives.
 			for _, v := range spec.GetVolumes() {
-				base := m.cfg.PoolDir
-				if tier := spec.GetVolumeTiers()[v.GetName()]; tier != "" && tier != "default" {
-					base = filepath.Join(filepath.Dir(m.cfg.PoolDir), tier)
+				base := filepath.Join(m.cfg.PoolsDir, spec.GetVolumeBins()[v.GetName()])
+				if err := os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName())); err != nil {
+					return nil, err
 				}
-				_ = os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName()))
 				_ = os.Remove(filepath.Join(base, spec.GetName()))
-			}
-			if err := os.RemoveAll(filepath.Join(m.cfg.PoolDir, spec.Name)); err != nil {
-				return nil, err
 			}
 		}
 		if _, err := m.store.Delete(ctx, KindService, spec.Name, false); err != nil {

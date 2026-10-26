@@ -69,7 +69,7 @@ func runAgent(args []string) error {
 	catalogPath := fs.String("catalog", "/usr/share/maitre/catalog.json", "Catalog index baked into the image")
 	noScreen := fs.Bool("no-screen", false, "do not draw the status page on stdout")
 	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
-	poolDir := fs.String("pool", pool.DefaultPool, "default Pool directory for Service volumes")
+	poolsDir := fs.String("pools", pool.PoolsDir, "directory holding one Pool per Storage Bin")
 	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
 	advertise := fs.String("advertise", "", "host:port peers should reach this Node at (default: every address, port from --listen)")
 	recoveryPort := fs.Int("recovery-port", recoverymode.Port, "port of the recovery listener while a recovery code is pending")
@@ -221,11 +221,28 @@ func runAgent(args []string) error {
 			log.Warn("peer discovery unavailable", "err", err)
 		}
 	}
-	collector := metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir))
-	if *poolDir == pool.DefaultPool {
-		collector.Fallback = pool.IsFallback
+	// The Pool the Console's gauges show is the default Bin's (decision 123).
+	defaultBin := func(ctx context.Context) string {
+		bins, err := storage.Bins(ctx, st)
+		if err != nil {
+			return ""
+		}
+		if b := storage.DefaultBin(bins); b != nil {
+			return b.GetBinId()
+		}
+		return ""
 	}
-	svc.Metrics = collector.Read
+	svc.Metrics = metrics.New(func() string {
+		id := defaultBin(ctx)
+		if id == "" {
+			return ""
+		}
+		dir := filepath.Join(*poolsDir, id)
+		if !isMountpoint(dir) {
+			return ""
+		}
+		return dir
+	}).Read
 	svc.Updates = update.New(nil, log)
 	// Milestone 6: record what this Node runs, for the staged rollout, and
 	// let the rollout runner act on the Fleet's policy every hour.
@@ -278,13 +295,10 @@ func runAgent(args []string) error {
 		}
 		return dir.Status(name)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultBin: defaultBin, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
-	if err := storage.EnsureDefaultTier(ctx, st); err != nil {
-		log.Warn("default tier", "err", err)
-	}
 	// The Installer's data partition is the Node's built-in Drive: recorded
 	// once, then treated like any other (name, tags, Tier rules).
 	if wrote, err := stor.AdoptInternal(ctx); err != nil {
@@ -295,15 +309,41 @@ func runAgent(args []string) error {
 			pm.Push(context.WithoutCancel(ctx), recs...)
 		}
 	}
+	// Decision 121: Tiers became Bins. Old records convert once (the former
+	// default Tier becomes the default Bin) and files at a Drive's root move
+	// into that Bin's folder.
+	if _, errs := stor.MountAll(ctx); len(errs) > 0 {
+		for _, e := range errs {
+			log.Warn("drive", "err", e)
+		}
+	}
+	if converted, err := stor.MigrateTiers(ctx); err != nil {
+		log.Warn("tier migration", "err", err)
+	} else if converted {
+		log.Info("tiers converted to bins")
+		if recs, err := st.List(ctx, storage.KindBin); err == nil {
+			pm.Push(context.WithoutCancel(ctx), recs...)
+		}
+	}
+	if def := defaultBin(ctx); def != "" {
+		if err := stor.MoveRootFilesIntoBin(ctx, def); err != nil {
+			log.Warn("drive layout", "err", err)
+		}
+	}
 	assemblePools := func() {
 		_, errs := stor.MountAll(ctx)
 		for _, e := range errs {
 			log.Warn("drive", "err", e)
 		}
-		byTier, err := stor.LocalBranches(ctx)
+		byBin, err := stor.LocalBranches(ctx)
 		if err != nil {
-			log.Warn("tiers", "err", err)
+			log.Warn("bins", "err", err)
 			return
+		}
+		bins, _ := storage.Bins(ctx, st)
+		placement := map[string]string{}
+		for _, b := range bins {
+			placement[b.GetBinId()] = b.GetPlacement()
 		}
 		// Spanning Tiers (105, 106): peers' Pools after our own Drives. The
 		// default Tier can span too (user, 2026-10-26: "every Drive, across
@@ -321,18 +361,13 @@ func runAgent(args []string) error {
 		if err != nil {
 			log.Warn("remote pools", "err", err)
 		}
-		if _, err := pool.UpSpanning(ctx, byTier[storage.DefaultTier], remote[storage.DefaultTier]); err != nil {
-			log.Warn("pool", "err", err)
-		}
-		var tierIDs []string
-		for tier, branches := range byTier {
-			tierIDs = append(tierIDs, tier)
-			if tier == storage.DefaultTier {
-				continue
-			}
-			all := append(append([]string(nil), branches...), remote[tier]...)
-			if err := pool.Assemble(ctx, tier, all, len(branches)); err != nil {
-				log.Warn("pool", "tier", tier, "err", err)
+		var binIDs []string
+		for bin, branches := range byBin {
+			binIDs = append(binIDs, bin)
+			storage.MarkBinFolders(branches)
+			all := append(append([]string(nil), branches...), remote[bin]...)
+			if err := pool.Assemble(ctx, bin, all, len(branches), placement[bin]); err != nil {
+				log.Warn("pool", "bin", bin, "err", err)
 			}
 		}
 		peerSet := map[string]bool{}
@@ -340,7 +375,7 @@ func runAgent(args []string) error {
 			peerSet[id] = true
 		}
 		storage.UnmountStale(ctx, run, peerSet)
-		if err := storage.WriteExports(ctx, run, tierIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
+		if err := storage.WriteExports(ctx, run, binIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
 			log.Warn("nfs exports", "err", err)
 		}
 	}
@@ -372,11 +407,11 @@ func runAgent(args []string) error {
 		}
 		requestBackup()
 	}
-	// Tier or Drive records arriving from a Console or a peer reshape the Pools.
-	withTiers := svc.OnChange
+	// Bin or Drive records arriving from a Console or a peer reshape the Pools.
+	withBins := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
-		withTiers(r)
-		if r.GetKind() == storage.KindTier || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
+		withBins(r)
+		if r.GetKind() == storage.KindBin || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
 			requestAssemble()
 		}
 	}

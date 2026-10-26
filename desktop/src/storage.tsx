@@ -148,7 +148,7 @@ function DriveDialog({
             <label>
               Tags <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="media, backups" style={{ width: 240 }} />
             </label>
-            <div style={{ color: "#555", fontSize: 13 }}>Tiers pick Drives by tag. Automatic tags: {drive.autoTags.join(", ")}.</div>
+            <div style={{ color: "#555", fontSize: 13 }}>Bins pick Drives by tag. Automatic tags: {drive.autoTags.join(", ")}.</div>
           </>
         )}
         {(kind === "format" || kind === "forget") && (

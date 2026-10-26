@@ -11,7 +11,7 @@ import { UpdatePanel, MaintenanceScreen, type Maintenance } from "./update";
 import { NetbootPanel } from "./netboot";
 import { JoinScreen, RecoverScreen, CodeScreen, AskingDevices } from "./join";
 import { StoragePanel } from "./storage";
-import { TiersPanel, useTiers } from "./tiers";
+import { BinsPanel, useBins, defaultBin } from "./bins";
 import { TailscalePanel, TailscaleRow } from "./tailscale";
 import { UpdatePolicyPanel } from "./policy";
 import { MediaPanel } from "./media";
@@ -346,7 +346,7 @@ function Home({
 
       <AskingDevices state={state} found={found} />
 
-      <TiersPanel state={state} />
+      <BinsPanel state={state} />
 
       <TailscalePanel state={state} />
 
@@ -586,7 +586,7 @@ function AddNode({
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const { nodes: fleetNodes, drives: fleetDrives } = useTiers(state);
+  const { nodes: fleetNodes, drives: fleetDrives } = useBins(state);
   const letter = nextLetter(fleetNodes.map((n) => n.letter));
   const takenNames = [...state.nodes.map((n) => n.name), ...fleetNodes.map((n) => n.name), ...fleetDrives.map((d) => d.name)];
   const [name, setName] = useState("");
@@ -876,7 +876,7 @@ function NodeDetails({
   state: ConsoleState;
   onRenamed: (name: string) => void;
 }) {
-  const { tiers, nodes: fleetNodes, drives: fleetDrives } = useTiers(state);
+  const { bins, nodes: fleetNodes, drives: fleetDrives } = useBins(state);
   const myLetter = fleetNodes.find((n) => n.nodeId === node.node_id)?.letter || "";
   const takenNames = [...state.nodes.map((n) => n.name), ...fleetNodes.map((n) => n.name), ...fleetDrives.map((d) => d.name)];
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -975,7 +975,7 @@ function NodeDetails({
         </section>
       )}
       {info && !info.devMode && <StoragePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} />}
-      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} tiers={tiers} remoteReady={info.tailscale?.state === "Running"} publicIp={info.publicIp} portMapping={info.portMapping} />}
+      {info && !info.devMode && <ServicesPanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} bins={bins} defaultBinId={defaultBin(bins)?.binId ?? ""} remoteReady={info.tailscale?.state === "Running"} publicIp={info.publicIp} portMapping={info.portMapping} />}
       {info && !info.devMode && <UpdatePanel target={{ addr: node.addresses[0], fingerprint: node.node_id }} onStarted={onMaintenance} runningVersion={info.version} />}
       {info?.devMode && <p style={{ color: "#555" }}>Services are not available on a dev Node.</p>}
     </section>

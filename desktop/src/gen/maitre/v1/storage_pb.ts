@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/storage.proto.
  */
 export const file_maitre_v1_storage: GenFile = /*@__PURE__*/
-  fileDesc("ChdtYWl0cmUvdjEvc3RvcmFnZS5wcm90bxIJbWFpdHJlLnYxIskBCgtEcml2ZVJlY29yZBIQCghkcml2ZV9pZBgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDQoFbW9kZWwYBCABKAkSDgoGc2VyaWFsGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAQSDgoGZnN0eXBlGAcgASgJEhEKCWF1dG9fdGFncxgIIAMoCRIMCgR0YWdzGAkgAygJEg4KBm9yaWdpbhgKIAEoCRIVCg1hZGRlZF91bml4X21zGAsgASgDItECCgVEcml2ZRIOCgZkZXZpY2UYASABKAkSEAoIZHJpdmVfaWQYAiABKAkSDQoFbW9kZWwYAyABKAkSDgoGc2VyaWFsGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSEQoJcmVtb3ZhYmxlGAYgASgIEhIKCnJvdGF0aW9uYWwYByABKAgSEQoJdHJhbnNwb3J0GAggASgJEg4KBmZzdHlwZRgJIAEoCRINCgVsYWJlbBgKIAEoCRIOCgZzeXN0ZW0YCyABKAgSDwoHYWRvcHRlZBgMIAEoCBISCgptb3VudF9wYXRoGA0gASgJEiYKBnJlY29yZBgOIAEoCzIWLm1haXRyZS52MS5Ecml2ZVJlY29yZBIRCglhdXRvX3RhZ3MYDyADKAkSEgoKZnJlZV9ieXRlcxgQIAEoBBIWCg5zdWdnZXN0ZWRfbmFtZRgRIAEoCSITChFMaXN0RHJpdmVzUmVxdWVzdCI2ChJMaXN0RHJpdmVzUmVzcG9uc2USIAoGZHJpdmVzGAEgAygLMhAubWFpdHJlLnYxLkRyaXZlIiYKFERyaXZlQ29udGVudHNSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCSJLChVEcml2ZUNvbnRlbnRzUmVzcG9uc2USDwoHZW50cmllcxgBIAMoCRISCgp1c2VkX2J5dGVzGAIgASgEEg0KBWVtcHR5GAMgASgIIj8KEUFkb3B0RHJpdmVSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHRhZ3MYAyADKAkiNQoSQWRvcHREcml2ZVJlc3BvbnNlEh8KBWRyaXZlGAEgASgLMhAubWFpdHJlLnYxLkRyaXZlIlEKEkZvcm1hdERyaXZlUmVxdWVzdBIOCgZkZXZpY2UYASABKAkSDAoEbmFtZRgCIAEoCRIMCgR0YWdzGAMgAygJEg8KB2NvbmZpcm0YBCABKAkiNgoTRm9ybWF0RHJpdmVSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSJDChNTZXREcml2ZVRhZ3NSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkSDAoEbmFtZRgDIAEoCSI3ChRTZXREcml2ZVRhZ3NSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSI3ChJGb3JnZXREcml2ZVJlcXVlc3QSEAoIZHJpdmVfaWQYASABKAkSDwoHY29uZmlybRgCIAEoCSIVChNGb3JnZXREcml2ZVJlc3BvbnNlIosBCgRUaWVyEg8KB3RpZXJfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglwbGFjZW1lbnQYAyABKAkSFAoMcmVxdWlyZV90YWdzGAQgAygJEhAKCG5vZGVfaWRzGAUgAygJEhAKCHByaW9yaXR5GAYgASgFEhcKD2NyZWF0ZWRfdW5peF9tcxgHIAEoAzLzAwoOU3RvcmFnZVNlcnZpY2USSwoKTGlzdERyaXZlcxIcLm1haXRyZS52MS5MaXN0RHJpdmVzUmVxdWVzdBodLm1haXRyZS52MS5MaXN0RHJpdmVzUmVzcG9uc2UiABJUCg1Ecml2ZUNvbnRlbnRzEh8ubWFpdHJlLnYxLkRyaXZlQ29udGVudHNSZXF1ZXN0GiAubWFpdHJlLnYxLkRyaXZlQ29udGVudHNSZXNwb25zZSIAEksKCkFkb3B0RHJpdmUSHC5tYWl0cmUudjEuQWRvcHREcml2ZVJlcXVlc3QaHS5tYWl0cmUudjEuQWRvcHREcml2ZVJlc3BvbnNlIgASTgoLRm9ybWF0RHJpdmUSHS5tYWl0cmUudjEuRm9ybWF0RHJpdmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLkZvcm1hdERyaXZlUmVzcG9uc2UiABJRCgxTZXREcml2ZVRhZ3MSHi5tYWl0cmUudjEuU2V0RHJpdmVUYWdzUmVxdWVzdBofLm1haXRyZS52MS5TZXREcml2ZVRhZ3NSZXNwb25zZSIAEk4KC0ZvcmdldERyaXZlEh0ubWFpdHJlLnYxLkZvcmdldERyaXZlUmVxdWVzdBoeLm1haXRyZS52MS5Gb3JnZXREcml2ZVJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChdtYWl0cmUvdjEvc3RvcmFnZS5wcm90bxIJbWFpdHJlLnYxIskBCgtEcml2ZVJlY29yZBIQCghkcml2ZV9pZBgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDQoFbW9kZWwYBCABKAkSDgoGc2VyaWFsGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAQSDgoGZnN0eXBlGAcgASgJEhEKCWF1dG9fdGFncxgIIAMoCRIMCgR0YWdzGAkgAygJEg4KBm9yaWdpbhgKIAEoCRIVCg1hZGRlZF91bml4X21zGAsgASgDIogDCgVEcml2ZRIOCgZkZXZpY2UYASABKAkSEAoIZHJpdmVfaWQYAiABKAkSDQoFbW9kZWwYAyABKAkSDgoGc2VyaWFsGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSEQoJcmVtb3ZhYmxlGAYgASgIEhIKCnJvdGF0aW9uYWwYByABKAgSEQoJdHJhbnNwb3J0GAggASgJEg4KBmZzdHlwZRgJIAEoCRINCgVsYWJlbBgKIAEoCRIOCgZzeXN0ZW0YCyABKAgSDwoHYWRvcHRlZBgMIAEoCBISCgptb3VudF9wYXRoGA0gASgJEiYKBnJlY29yZBgOIAEoCzIWLm1haXRyZS52MS5Ecml2ZVJlY29yZBIRCglhdXRvX3RhZ3MYDyADKAkSEgoKZnJlZV9ieXRlcxgQIAEoBBIWCg5zdWdnZXN0ZWRfbmFtZRgRIAEoCRIMCgRiaW5zGBIgAygJEicKB2ZvbGRlcnMYEyADKAsyFi5tYWl0cmUudjEuRHJpdmVGb2xkZXIiOQoLRHJpdmVGb2xkZXISDAoEbmFtZRgBIAEoCRIMCgRraW5kGAIgASgJEg4KBmJpbl9pZBgDIAEoCSITChFMaXN0RHJpdmVzUmVxdWVzdCI2ChJMaXN0RHJpdmVzUmVzcG9uc2USIAoGZHJpdmVzGAEgAygLMhAubWFpdHJlLnYxLkRyaXZlIiYKFERyaXZlQ29udGVudHNSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCSJLChVEcml2ZUNvbnRlbnRzUmVzcG9uc2USDwoHZW50cmllcxgBIAMoCRISCgp1c2VkX2J5dGVzGAIgASgEEg0KBWVtcHR5GAMgASgIIj8KEUFkb3B0RHJpdmVSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHRhZ3MYAyADKAkiNQoSQWRvcHREcml2ZVJlc3BvbnNlEh8KBWRyaXZlGAEgASgLMhAubWFpdHJlLnYxLkRyaXZlIlEKEkZvcm1hdERyaXZlUmVxdWVzdBIOCgZkZXZpY2UYASABKAkSDAoEbmFtZRgCIAEoCRIMCgR0YWdzGAMgAygJEg8KB2NvbmZpcm0YBCABKAkiNgoTRm9ybWF0RHJpdmVSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSJDChNTZXREcml2ZVRhZ3NSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkSDAoEbmFtZRgDIAEoCSI3ChRTZXREcml2ZVRhZ3NSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSI3ChJGb3JnZXREcml2ZVJlcXVlc3QSEAoIZHJpdmVfaWQYASABKAkSDwoHY29uZmlybRgCIAEoCSIVChNGb3JnZXREcml2ZVJlc3BvbnNlIskBCgNCaW4SDgoGYmluX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJcGxhY2VtZW50GAMgASgJEhQKDHJlcXVpcmVfdGFncxgEIAMoCRIQCghub2RlX2lkcxgFIAMoCRIQCghwcmlvcml0eRgGIAEoBRIXCg9jcmVhdGVkX3VuaXhfbXMYByABKAMSEgoKc3Bhbl9ub2RlcxgIIAEoCBIRCglleGNsdXNpdmUYCSABKAgSFwoPZGVmYXVsdF9mb3JfbmV3GAogASgIMvMDCg5TdG9yYWdlU2VydmljZRJLCgpMaXN0RHJpdmVzEhwubWFpdHJlLnYxLkxpc3REcml2ZXNSZXF1ZXN0Gh0ubWFpdHJlLnYxLkxpc3REcml2ZXNSZXNwb25zZSIAElQKDURyaXZlQ29udGVudHMSHy5tYWl0cmUudjEuRHJpdmVDb250ZW50c1JlcXVlc3QaIC5tYWl0cmUudjEuRHJpdmVDb250ZW50c1Jlc3BvbnNlIgASSwoKQWRvcHREcml2ZRIcLm1haXRyZS52MS5BZG9wdERyaXZlUmVxdWVzdBodLm1haXRyZS52MS5BZG9wdERyaXZlUmVzcG9uc2UiABJOCgtGb3JtYXREcml2ZRIdLm1haXRyZS52MS5Gb3JtYXREcml2ZVJlcXVlc3QaHi5tYWl0cmUudjEuRm9ybWF0RHJpdmVSZXNwb25zZSIAElEKDFNldERyaXZlVGFncxIeLm1haXRyZS52MS5TZXREcml2ZVRhZ3NSZXF1ZXN0Gh8ubWFpdHJlLnYxLlNldERyaXZlVGFnc1Jlc3BvbnNlIgASTgoLRm9yZ2V0RHJpdmUSHS5tYWl0cmUudjEuRm9yZ2V0RHJpdmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLkZvcmdldERyaXZlUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * DriveRecord is the kind "drive" Record body, owned by the Node holding
@@ -190,6 +190,23 @@ export type Drive = Message<"maitre.v1.Drive"> & {
    * @generated from field: string suggested_name = 17;
    */
   suggestedName: string;
+
+  /**
+   * For an adopted Drive: its Bins (by id), from the Fleet's rules.
+   *
+   * @generated from field: repeated string bins = 18;
+   */
+  bins: string[];
+
+  /**
+   * For an adopted Drive: top-level folders on it. Each is a Bin's folder
+   * (bin set), a folder of a Bin that no longer exists (orphan), or files
+   * that were on the Drive before it was adopted (unsorted). Decision 124:
+   * nothing here is ever deleted by the Node; the file manager moves it.
+   *
+   * @generated from field: repeated maitre.v1.DriveFolder folders = 19;
+   */
+  folders: DriveFolder[];
 };
 
 /**
@@ -198,6 +215,37 @@ export type Drive = Message<"maitre.v1.Drive"> & {
  */
 export const DriveSchema: GenMessage<Drive> = /*@__PURE__*/
   messageDesc(file_maitre_v1_storage, 1);
+
+/**
+ * @generated from message maitre.v1.DriveFolder
+ */
+export type DriveFolder = Message<"maitre.v1.DriveFolder"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * "bin" | "orphan" | "unsorted"
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind: string;
+
+  /**
+   * The Bin id for kind "bin"; the former Bin id for "orphan".
+   *
+   * @generated from field: string bin_id = 3;
+   */
+  binId: string;
+};
+
+/**
+ * Describes the message maitre.v1.DriveFolder.
+ * Use `create(DriveFolderSchema)` to create a new message.
+ */
+export const DriveFolderSchema: GenMessage<DriveFolder> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 2);
 
 /**
  * @generated from message maitre.v1.ListDrivesRequest
@@ -210,7 +258,7 @@ export type ListDrivesRequest = Message<"maitre.v1.ListDrivesRequest"> & {
  * Use `create(ListDrivesRequestSchema)` to create a new message.
  */
 export const ListDrivesRequestSchema: GenMessage<ListDrivesRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 2);
+  messageDesc(file_maitre_v1_storage, 3);
 
 /**
  * @generated from message maitre.v1.ListDrivesResponse
@@ -227,7 +275,7 @@ export type ListDrivesResponse = Message<"maitre.v1.ListDrivesResponse"> & {
  * Use `create(ListDrivesResponseSchema)` to create a new message.
  */
 export const ListDrivesResponseSchema: GenMessage<ListDrivesResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 3);
+  messageDesc(file_maitre_v1_storage, 4);
 
 /**
  * @generated from message maitre.v1.DriveContentsRequest
@@ -244,7 +292,7 @@ export type DriveContentsRequest = Message<"maitre.v1.DriveContentsRequest"> & {
  * Use `create(DriveContentsRequestSchema)` to create a new message.
  */
 export const DriveContentsRequestSchema: GenMessage<DriveContentsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 4);
+  messageDesc(file_maitre_v1_storage, 5);
 
 /**
  * @generated from message maitre.v1.DriveContentsResponse
@@ -273,7 +321,7 @@ export type DriveContentsResponse = Message<"maitre.v1.DriveContentsResponse"> &
  * Use `create(DriveContentsResponseSchema)` to create a new message.
  */
 export const DriveContentsResponseSchema: GenMessage<DriveContentsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 5);
+  messageDesc(file_maitre_v1_storage, 6);
 
 /**
  * @generated from message maitre.v1.AdoptDriveRequest
@@ -300,7 +348,7 @@ export type AdoptDriveRequest = Message<"maitre.v1.AdoptDriveRequest"> & {
  * Use `create(AdoptDriveRequestSchema)` to create a new message.
  */
 export const AdoptDriveRequestSchema: GenMessage<AdoptDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 6);
+  messageDesc(file_maitre_v1_storage, 7);
 
 /**
  * @generated from message maitre.v1.AdoptDriveResponse
@@ -317,7 +365,7 @@ export type AdoptDriveResponse = Message<"maitre.v1.AdoptDriveResponse"> & {
  * Use `create(AdoptDriveResponseSchema)` to create a new message.
  */
 export const AdoptDriveResponseSchema: GenMessage<AdoptDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 7);
+  messageDesc(file_maitre_v1_storage, 8);
 
 /**
  * @generated from message maitre.v1.FormatDriveRequest
@@ -351,7 +399,7 @@ export type FormatDriveRequest = Message<"maitre.v1.FormatDriveRequest"> & {
  * Use `create(FormatDriveRequestSchema)` to create a new message.
  */
 export const FormatDriveRequestSchema: GenMessage<FormatDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 8);
+  messageDesc(file_maitre_v1_storage, 9);
 
 /**
  * @generated from message maitre.v1.FormatDriveResponse
@@ -368,7 +416,7 @@ export type FormatDriveResponse = Message<"maitre.v1.FormatDriveResponse"> & {
  * Use `create(FormatDriveResponseSchema)` to create a new message.
  */
 export const FormatDriveResponseSchema: GenMessage<FormatDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 9);
+  messageDesc(file_maitre_v1_storage, 10);
 
 /**
  * @generated from message maitre.v1.SetDriveTagsRequest
@@ -395,7 +443,7 @@ export type SetDriveTagsRequest = Message<"maitre.v1.SetDriveTagsRequest"> & {
  * Use `create(SetDriveTagsRequestSchema)` to create a new message.
  */
 export const SetDriveTagsRequestSchema: GenMessage<SetDriveTagsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 10);
+  messageDesc(file_maitre_v1_storage, 11);
 
 /**
  * @generated from message maitre.v1.SetDriveTagsResponse
@@ -412,7 +460,7 @@ export type SetDriveTagsResponse = Message<"maitre.v1.SetDriveTagsResponse"> & {
  * Use `create(SetDriveTagsResponseSchema)` to create a new message.
  */
 export const SetDriveTagsResponseSchema: GenMessage<SetDriveTagsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 11);
+  messageDesc(file_maitre_v1_storage, 12);
 
 /**
  * @generated from message maitre.v1.ForgetDriveRequest
@@ -436,7 +484,7 @@ export type ForgetDriveRequest = Message<"maitre.v1.ForgetDriveRequest"> & {
  * Use `create(ForgetDriveRequestSchema)` to create a new message.
  */
 export const ForgetDriveRequestSchema: GenMessage<ForgetDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 12);
+  messageDesc(file_maitre_v1_storage, 13);
 
 /**
  * @generated from message maitre.v1.ForgetDriveResponse
@@ -449,20 +497,24 @@ export type ForgetDriveResponse = Message<"maitre.v1.ForgetDriveResponse"> & {
  * Use `create(ForgetDriveResponseSchema)` to create a new message.
  */
 export const ForgetDriveResponseSchema: GenMessage<ForgetDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 13);
+  messageDesc(file_maitre_v1_storage, 14);
 
 /**
- * Tier is the kind "tier" Record body (Fleet-wide). A Drive belongs to the
- * highest-priority Tier whose rules it matches; the Tier "default" matches
- * everything and has the lowest priority.
+ * Bin is a Storage Bin (decisions 121-128, replacing Tiers): a place for
+ * one kind of data. It is the kind "bin" Record body (Fleet-wide). A Drive
+ * is a member of every Bin whose rule matches it, and each Bin keeps its
+ * own folder on each member Drive (<drive>/<bin_id>/); a Node materialises
+ * a Bin as a Pool, mergerfs over those folders. An exclusive Bin claims its
+ * matching Drives for itself alone. There is no built-in Bin: the user
+ * defines each one and marks one as the default for new Service volumes.
  *
- * @generated from message maitre.v1.Tier
+ * @generated from message maitre.v1.Bin
  */
-export type Tier = Message<"maitre.v1.Tier"> & {
+export type Bin = Message<"maitre.v1.Bin"> & {
   /**
-   * @generated from field: string tier_id = 1;
+   * @generated from field: string bin_id = 1;
    */
-  tierId: string;
+  binId: string;
 
   /**
    * @generated from field: string name = 2;
@@ -470,14 +522,18 @@ export type Tier = Message<"maitre.v1.Tier"> & {
   name: string;
 
   /**
-   * "local" or "spanning".
+   * Where new files go among the Pool's branches:
+   *   "local_first"       this Node's Drives while any has room, then peers'
+   *   "most_free"         the Drive with the most free space, wherever it is
+   *   "most_free_percent" the Drive with the highest share of free space
    *
    * @generated from field: string placement = 3;
    */
   placement: string;
 
   /**
-   * Every listed tag must be on the Drive (auto or user).
+   * Every listed tag must be on the Drive (auto or user). Empty, with no
+   * node_ids: every Drive (not allowed for an exclusive Bin).
    *
    * @generated from field: repeated string require_tags = 4;
    */
@@ -491,7 +547,7 @@ export type Tier = Message<"maitre.v1.Tier"> & {
   nodeIds: string[];
 
   /**
-   * Higher wins when several Tiers match a Drive.
+   * Among exclusive Bins matching the same Drive, the highest claims it.
    *
    * @generated from field: int32 priority = 6;
    */
@@ -501,14 +557,36 @@ export type Tier = Message<"maitre.v1.Tier"> & {
    * @generated from field: int64 created_unix_ms = 7;
    */
   createdUnixMs: bigint;
+
+  /**
+   * One Pool across every Node holding a member Drive, over the network.
+   *
+   * @generated from field: bool span_nodes = 8;
+   */
+  spanNodes: boolean;
+
+  /**
+   * Member Drives belong to this Bin only.
+   *
+   * @generated from field: bool exclusive = 9;
+   */
+  exclusive: boolean;
+
+  /**
+   * New Service volumes land here unless the user picks another Bin. Exactly
+   * one Bin should carry this; the newest write wins otherwise.
+   *
+   * @generated from field: bool default_for_new = 10;
+   */
+  defaultForNew: boolean;
 };
 
 /**
- * Describes the message maitre.v1.Tier.
- * Use `create(TierSchema)` to create a new message.
+ * Describes the message maitre.v1.Bin.
+ * Use `create(BinSchema)` to create a new message.
  */
-export const TierSchema: GenMessage<Tier> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 14);
+export const BinSchema: GenMessage<Bin> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 15);
 
 /**
  * StorageService manages one Node's Drives (Milestone 4). Tiers are

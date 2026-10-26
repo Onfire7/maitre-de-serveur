@@ -23,9 +23,6 @@ import (
 // KindDrive is the Record kind for DriveRecord bodies.
 const KindDrive = "drive"
 
-// KindTier is the Record kind for Tier bodies (Fleet-wide).
-const KindTier = "tier"
-
 // Runner executes commands; swapped for a fake in tests.
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) (string, error)
@@ -108,6 +105,7 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 		}
 	}
 	suggested := m.SuggestName(ctx)
+	bins, _ := Bins(ctx, m.st)
 	var drives []*maitrev1.Drive
 	for _, d := range parsed.Blockdevices {
 		if d.Type != "disk" || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") || strings.HasPrefix(d.Name, "ram") {
@@ -150,6 +148,10 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 				dr.Adopted = true
 				dr.MountPath = filepath.Join(m.Mounts, dr.DriveId)
 				dr.FreeBytes = freeBytes(dr.MountPath)
+				dr.Bins = BinsOf(rec, bins)
+				if mounted(dr.MountPath) {
+					dr.Folders = Folders(dr.MountPath, bins, dr.Bins)
+				}
 			} else if !dr.System {
 				dr.SuggestedName = suggested
 			}
@@ -497,7 +499,13 @@ func orNone(s string) string {
 	return s
 }
 
+// mountedDirs, when set (tests), stands in for /proc/self/mounts.
+var mountedDirs map[string]bool
+
 func mounted(dir string) bool {
+	if mountedDirs != nil {
+		return mountedDirs[dir]
+	}
 	b, err := os.ReadFile("/proc/self/mounts")
 	if err != nil {
 		return false

@@ -14,6 +14,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
@@ -115,7 +116,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale", "update_policy", "public_settings":
+	case store.KindFleet, store.KindTrustedDevice, "bin", "tailscale", "update_policy", "public_settings":
 		return true
 	}
 	return false
@@ -141,6 +142,18 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		var d maitrev1.TrustedDevice
 		if err := proto.Unmarshal(in.GetBody(), &d); err != nil || d.GetRecoveryOnly() || d.GetPublicKeyPem() == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, "a full (not recovery-only) Trusted Device with a key is required")
+		}
+	}
+	if in.GetKind() == "bin" && !in.GetDeleted() {
+		var b maitrev1.Bin
+		if err := proto.Unmarshal(in.GetBody(), &b); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "bad Bin body")
+		}
+		if b.GetBinId() != in.GetId() {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "the Bin's id must match the record id")
+		}
+		if err := storage.ValidateBin(&b); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
 		}
 	}
 	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && in.GetDeleted() {

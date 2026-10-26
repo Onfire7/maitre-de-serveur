@@ -18,76 +18,10 @@ import (
 
 // Layout on the Node.
 const (
-	DrivesDir   = "/var/mnt/drives"
-	PoolsDir    = "/var/mnt/pools"
-	DefaultPool = PoolsDir + "/default"
-	// FallbackDir backs the default Pool when the Node has no Drive.
-	FallbackDir = "/var/maitre/pool-fallback"
-	DataLabel   = "maitre-data"
+	DrivesDir = "/var/mnt/drives"
+	PoolsDir  = "/var/mnt/pools"
+	DataLabel = "maitre-data"
 )
-
-// Status describes the assembled Pool.
-type Status struct {
-	Mount    string
-	Branches []string
-	Fallback bool
-}
-
-// Up assembles the default Pool over the mounted branch directories given
-// (the default Tier's Drives). Idempotent: safe to run at every boot.
-func Up(ctx context.Context, extra ...string) (*Status, error) {
-	return UpSpanning(ctx, extra, nil)
-}
-
-// UpSpanning is Up with peers' default Pools (mounted over NFS) as further
-// branches after this Node's own: the default Tier set to span Nodes. New
-// files land on the first branch with room, so local Drives fill first.
-func UpSpanning(ctx context.Context, local, remote []string) (*Status, error) {
-	var branches []string
-	for _, e := range local {
-		if mounted(e) {
-			branches = append(branches, e)
-		}
-	}
-	nLocal := len(branches)
-	for _, e := range remote {
-		if mounted(e) {
-			branches = append(branches, e)
-		}
-	}
-	st := &Status{Mount: DefaultPool, Branches: branches}
-	if len(branches) == 0 {
-		st.Fallback = true
-		if err := os.MkdirAll(FallbackDir, 0o755); err != nil {
-			return nil, err
-		}
-		branches = []string{FallbackDir}
-	}
-	if err := os.MkdirAll(DefaultPool, 0o755); err != nil {
-		return nil, err
-	}
-	if mounted(DefaultPool) {
-		// Already assembled: make the branch set match without a remount
-		// (mergerfs takes the list through an xattr; open files survive).
-		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), filepath.Join(DefaultPool, ".mergerfs")).CombinedOutput(); err != nil {
-			return st, fmt.Errorf("update pool branches: %v: %s", err, out)
-		}
-		return st, nil
-	}
-	// mergerfs over the branches. Options follow the usual media-server
-	// recipe: create new files on the branch with most free space, keep
-	// directory paths consistent, and use the pool through fuse without
-	// caching surprises for databases.
-	create := "mfs"
-	if nLocal < len(branches) {
-		create = "ff" // first branch with room: local before remote
-	}
-	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-default"
-	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), DefaultPool).CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("mergerfs: %v: %s", err, out)
-	}
-	return st, nil
-}
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
@@ -110,8 +44,12 @@ func mounted(dir string) bool {
 // no branches on this Node gets no Pool here. local says how many leading
 // branches are this Node's own Drives: files are created on those first
 // (decision 106); the rest are peers' Pools over NFS.
-func Assemble(ctx context.Context, tier string, branches []string, local int) error {
-	mount := filepath.Join(PoolsDir, tier)
+// Assemble mounts (or re-shapes in place) the Pool of one Bin over its
+// branches: this Node's Bin folders first, then peers' Pools. placement is
+// the Bin's: local_first (first branch with room), most_free (most free
+// space), most_free_percent. Idempotent; an empty branch list unmounts.
+func Assemble(ctx context.Context, bin string, branches []string, local int, placement string) error {
+	mount := filepath.Join(PoolsDir, bin)
 	if len(branches) == 0 {
 		if mounted(mount) {
 			_ = exec.CommandContext(ctx, "umount", "-l", mount).Run()
@@ -121,19 +59,38 @@ func Assemble(ctx context.Context, tier string, branches []string, local int) er
 	if err := os.MkdirAll(mount, 0o755); err != nil {
 		return err
 	}
+	create := CreatePolicy(placement, local < len(branches))
 	if mounted(mount) {
-		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), filepath.Join(mount, ".mergerfs")).CombinedOutput(); err != nil {
-			return fmt.Errorf("update %s branches: %v: %s", tier, err, out)
+		ctl := filepath.Join(mount, ".mergerfs")
+		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), ctl).CombinedOutput(); err != nil {
+			return fmt.Errorf("update %s branches: %v: %s", bin, err, out)
 		}
+		_ = exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.category.create", "-v", create, ctl).Run()
 		return nil
 	}
-	create := "mfs"
-	if local < len(branches) {
-		create = "ff" // first branch with room: local before remote
-	}
-	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-" + tier
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-" + bin
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), mount).CombinedOutput(); err != nil {
-		return fmt.Errorf("mergerfs %s: %v: %s", tier, err, out)
+		return fmt.Errorf("mergerfs %s: %v: %s", bin, err, out)
 	}
 	return nil
 }
+
+// CreatePolicy maps a Bin's placement to mergerfs's create policy. With
+// remote branches present, local_first is "ff" (first branch with room,
+// local branches come first); on local branches alone it is "mfs".
+func CreatePolicy(placement string, hasRemote bool) string {
+	switch placement {
+	case "most_free_percent":
+		return "pfrd"
+	case "local_first":
+		if hasRemote {
+			return "ff"
+		}
+		return "mfs"
+	default:
+		return "mfs"
+	}
+}
+
+// Mounted reports whether dir is a mount point.
+func Mounted(dir string) bool { return mounted(dir) }

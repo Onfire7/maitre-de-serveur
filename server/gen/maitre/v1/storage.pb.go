@@ -177,6 +177,13 @@ type Drive struct {
 	// For a disk not yet adopted: the name it would get (decision 104), the
 	// first unused name from the list for this Node's letter.
 	SuggestedName string `protobuf:"bytes,17,opt,name=suggested_name,json=suggestedName,proto3" json:"suggested_name,omitempty"`
+	// For an adopted Drive: its Bins (by id), from the Fleet's rules.
+	Bins []string `protobuf:"bytes,18,rep,name=bins,proto3" json:"bins,omitempty"`
+	// For an adopted Drive: top-level folders on it. Each is a Bin's folder
+	// (bin set), a folder of a Bin that no longer exists (orphan), or files
+	// that were on the Drive before it was adopted (unsorted). Decision 124:
+	// nothing here is ever deleted by the Node; the file manager moves it.
+	Folders       []*DriveFolder `protobuf:"bytes,19,rep,name=folders,proto3" json:"folders,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -330,6 +337,82 @@ func (x *Drive) GetSuggestedName() string {
 	return ""
 }
 
+func (x *Drive) GetBins() []string {
+	if x != nil {
+		return x.Bins
+	}
+	return nil
+}
+
+func (x *Drive) GetFolders() []*DriveFolder {
+	if x != nil {
+		return x.Folders
+	}
+	return nil
+}
+
+type DriveFolder struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// "bin" | "orphan" | "unsorted"
+	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	// The Bin id for kind "bin"; the former Bin id for "orphan".
+	BinId         string `protobuf:"bytes,3,opt,name=bin_id,json=binId,proto3" json:"bin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DriveFolder) Reset() {
+	*x = DriveFolder{}
+	mi := &file_maitre_v1_storage_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DriveFolder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DriveFolder) ProtoMessage() {}
+
+func (x *DriveFolder) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_storage_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DriveFolder.ProtoReflect.Descriptor instead.
+func (*DriveFolder) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DriveFolder) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DriveFolder) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DriveFolder) GetBinId() string {
+	if x != nil {
+		return x.BinId
+	}
+	return ""
+}
+
 type ListDrivesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -338,7 +421,7 @@ type ListDrivesRequest struct {
 
 func (x *ListDrivesRequest) Reset() {
 	*x = ListDrivesRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[2]
+	mi := &file_maitre_v1_storage_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -350,7 +433,7 @@ func (x *ListDrivesRequest) String() string {
 func (*ListDrivesRequest) ProtoMessage() {}
 
 func (x *ListDrivesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[2]
+	mi := &file_maitre_v1_storage_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -363,7 +446,7 @@ func (x *ListDrivesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDrivesRequest.ProtoReflect.Descriptor instead.
 func (*ListDrivesRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{2}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{3}
 }
 
 type ListDrivesResponse struct {
@@ -375,7 +458,7 @@ type ListDrivesResponse struct {
 
 func (x *ListDrivesResponse) Reset() {
 	*x = ListDrivesResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[3]
+	mi := &file_maitre_v1_storage_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -387,7 +470,7 @@ func (x *ListDrivesResponse) String() string {
 func (*ListDrivesResponse) ProtoMessage() {}
 
 func (x *ListDrivesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[3]
+	mi := &file_maitre_v1_storage_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -400,7 +483,7 @@ func (x *ListDrivesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDrivesResponse.ProtoReflect.Descriptor instead.
 func (*ListDrivesResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListDrivesResponse) GetDrives() []*Drive {
@@ -419,7 +502,7 @@ type DriveContentsRequest struct {
 
 func (x *DriveContentsRequest) Reset() {
 	*x = DriveContentsRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[4]
+	mi := &file_maitre_v1_storage_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -431,7 +514,7 @@ func (x *DriveContentsRequest) String() string {
 func (*DriveContentsRequest) ProtoMessage() {}
 
 func (x *DriveContentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[4]
+	mi := &file_maitre_v1_storage_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -444,7 +527,7 @@ func (x *DriveContentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriveContentsRequest.ProtoReflect.Descriptor instead.
 func (*DriveContentsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DriveContentsRequest) GetDevice() string {
@@ -466,7 +549,7 @@ type DriveContentsResponse struct {
 
 func (x *DriveContentsResponse) Reset() {
 	*x = DriveContentsResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[5]
+	mi := &file_maitre_v1_storage_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -478,7 +561,7 @@ func (x *DriveContentsResponse) String() string {
 func (*DriveContentsResponse) ProtoMessage() {}
 
 func (x *DriveContentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[5]
+	mi := &file_maitre_v1_storage_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -491,7 +574,7 @@ func (x *DriveContentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriveContentsResponse.ProtoReflect.Descriptor instead.
 func (*DriveContentsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DriveContentsResponse) GetEntries() []string {
@@ -526,7 +609,7 @@ type AdoptDriveRequest struct {
 
 func (x *AdoptDriveRequest) Reset() {
 	*x = AdoptDriveRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[6]
+	mi := &file_maitre_v1_storage_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +621,7 @@ func (x *AdoptDriveRequest) String() string {
 func (*AdoptDriveRequest) ProtoMessage() {}
 
 func (x *AdoptDriveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[6]
+	mi := &file_maitre_v1_storage_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -551,7 +634,7 @@ func (x *AdoptDriveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdoptDriveRequest.ProtoReflect.Descriptor instead.
 func (*AdoptDriveRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AdoptDriveRequest) GetDevice() string {
@@ -584,7 +667,7 @@ type AdoptDriveResponse struct {
 
 func (x *AdoptDriveResponse) Reset() {
 	*x = AdoptDriveResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[7]
+	mi := &file_maitre_v1_storage_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -596,7 +679,7 @@ func (x *AdoptDriveResponse) String() string {
 func (*AdoptDriveResponse) ProtoMessage() {}
 
 func (x *AdoptDriveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[7]
+	mi := &file_maitre_v1_storage_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -609,7 +692,7 @@ func (x *AdoptDriveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdoptDriveResponse.ProtoReflect.Descriptor instead.
 func (*AdoptDriveResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AdoptDriveResponse) GetDrive() *Drive {
@@ -632,7 +715,7 @@ type FormatDriveRequest struct {
 
 func (x *FormatDriveRequest) Reset() {
 	*x = FormatDriveRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[8]
+	mi := &file_maitre_v1_storage_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -644,7 +727,7 @@ func (x *FormatDriveRequest) String() string {
 func (*FormatDriveRequest) ProtoMessage() {}
 
 func (x *FormatDriveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[8]
+	mi := &file_maitre_v1_storage_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -657,7 +740,7 @@ func (x *FormatDriveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FormatDriveRequest.ProtoReflect.Descriptor instead.
 func (*FormatDriveRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{8}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FormatDriveRequest) GetDevice() string {
@@ -697,7 +780,7 @@ type FormatDriveResponse struct {
 
 func (x *FormatDriveResponse) Reset() {
 	*x = FormatDriveResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[9]
+	mi := &file_maitre_v1_storage_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -709,7 +792,7 @@ func (x *FormatDriveResponse) String() string {
 func (*FormatDriveResponse) ProtoMessage() {}
 
 func (x *FormatDriveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[9]
+	mi := &file_maitre_v1_storage_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -722,7 +805,7 @@ func (x *FormatDriveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FormatDriveResponse.ProtoReflect.Descriptor instead.
 func (*FormatDriveResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{9}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *FormatDriveResponse) GetDrive() *Drive {
@@ -743,7 +826,7 @@ type SetDriveTagsRequest struct {
 
 func (x *SetDriveTagsRequest) Reset() {
 	*x = SetDriveTagsRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[10]
+	mi := &file_maitre_v1_storage_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -755,7 +838,7 @@ func (x *SetDriveTagsRequest) String() string {
 func (*SetDriveTagsRequest) ProtoMessage() {}
 
 func (x *SetDriveTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[10]
+	mi := &file_maitre_v1_storage_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -768,7 +851,7 @@ func (x *SetDriveTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDriveTagsRequest.ProtoReflect.Descriptor instead.
 func (*SetDriveTagsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{10}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SetDriveTagsRequest) GetDriveId() string {
@@ -801,7 +884,7 @@ type SetDriveTagsResponse struct {
 
 func (x *SetDriveTagsResponse) Reset() {
 	*x = SetDriveTagsResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[11]
+	mi := &file_maitre_v1_storage_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +896,7 @@ func (x *SetDriveTagsResponse) String() string {
 func (*SetDriveTagsResponse) ProtoMessage() {}
 
 func (x *SetDriveTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[11]
+	mi := &file_maitre_v1_storage_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -826,7 +909,7 @@ func (x *SetDriveTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDriveTagsResponse.ProtoReflect.Descriptor instead.
 func (*SetDriveTagsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{11}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SetDriveTagsResponse) GetDrive() *Drive {
@@ -847,7 +930,7 @@ type ForgetDriveRequest struct {
 
 func (x *ForgetDriveRequest) Reset() {
 	*x = ForgetDriveRequest{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[12]
+	mi := &file_maitre_v1_storage_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -859,7 +942,7 @@ func (x *ForgetDriveRequest) String() string {
 func (*ForgetDriveRequest) ProtoMessage() {}
 
 func (x *ForgetDriveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[12]
+	mi := &file_maitre_v1_storage_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,7 +955,7 @@ func (x *ForgetDriveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetDriveRequest.ProtoReflect.Descriptor instead.
 func (*ForgetDriveRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{12}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ForgetDriveRequest) GetDriveId() string {
@@ -897,7 +980,7 @@ type ForgetDriveResponse struct {
 
 func (x *ForgetDriveResponse) Reset() {
 	*x = ForgetDriveResponse{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[13]
+	mi := &file_maitre_v1_storage_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -909,7 +992,7 @@ func (x *ForgetDriveResponse) String() string {
 func (*ForgetDriveResponse) ProtoMessage() {}
 
 func (x *ForgetDriveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[13]
+	mi := &file_maitre_v1_storage_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -922,44 +1005,60 @@ func (x *ForgetDriveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetDriveResponse.ProtoReflect.Descriptor instead.
 func (*ForgetDriveResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{13}
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{14}
 }
 
-// Tier is the kind "tier" Record body (Fleet-wide). A Drive belongs to the
-// highest-priority Tier whose rules it matches; the Tier "default" matches
-// everything and has the lowest priority.
-type Tier struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	TierId string                 `protobuf:"bytes,1,opt,name=tier_id,json=tierId,proto3" json:"tier_id,omitempty"`
-	Name   string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// "local" or "spanning".
+// Bin is a Storage Bin (decisions 121-128, replacing Tiers): a place for
+// one kind of data. It is the kind "bin" Record body (Fleet-wide). A Drive
+// is a member of every Bin whose rule matches it, and each Bin keeps its
+// own folder on each member Drive (<drive>/<bin_id>/); a Node materialises
+// a Bin as a Pool, mergerfs over those folders. An exclusive Bin claims its
+// matching Drives for itself alone. There is no built-in Bin: the user
+// defines each one and marks one as the default for new Service volumes.
+type Bin struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	BinId string                 `protobuf:"bytes,1,opt,name=bin_id,json=binId,proto3" json:"bin_id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Where new files go among the Pool's branches:
+	//
+	//	"local_first"       this Node's Drives while any has room, then peers'
+	//	"most_free"         the Drive with the most free space, wherever it is
+	//	"most_free_percent" the Drive with the highest share of free space
 	Placement string `protobuf:"bytes,3,opt,name=placement,proto3" json:"placement,omitempty"`
-	// Every listed tag must be on the Drive (auto or user).
+	// Every listed tag must be on the Drive (auto or user). Empty, with no
+	// node_ids: every Drive (not allowed for an exclusive Bin).
 	RequireTags []string `protobuf:"bytes,4,rep,name=require_tags,json=requireTags,proto3" json:"require_tags,omitempty"`
 	// Only Drives on these Nodes; empty means any Node.
 	NodeIds []string `protobuf:"bytes,5,rep,name=node_ids,json=nodeIds,proto3" json:"node_ids,omitempty"`
-	// Higher wins when several Tiers match a Drive.
+	// Among exclusive Bins matching the same Drive, the highest claims it.
 	Priority      int32 `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
 	CreatedUnixMs int64 `protobuf:"varint,7,opt,name=created_unix_ms,json=createdUnixMs,proto3" json:"created_unix_ms,omitempty"`
+	// One Pool across every Node holding a member Drive, over the network.
+	SpanNodes bool `protobuf:"varint,8,opt,name=span_nodes,json=spanNodes,proto3" json:"span_nodes,omitempty"`
+	// Member Drives belong to this Bin only.
+	Exclusive bool `protobuf:"varint,9,opt,name=exclusive,proto3" json:"exclusive,omitempty"`
+	// New Service volumes land here unless the user picks another Bin. Exactly
+	// one Bin should carry this; the newest write wins otherwise.
+	DefaultForNew bool `protobuf:"varint,10,opt,name=default_for_new,json=defaultForNew,proto3" json:"default_for_new,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Tier) Reset() {
-	*x = Tier{}
-	mi := &file_maitre_v1_storage_proto_msgTypes[14]
+func (x *Bin) Reset() {
+	*x = Bin{}
+	mi := &file_maitre_v1_storage_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Tier) String() string {
+func (x *Bin) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Tier) ProtoMessage() {}
+func (*Bin) ProtoMessage() {}
 
-func (x *Tier) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_storage_proto_msgTypes[14]
+func (x *Bin) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_storage_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,58 +1069,79 @@ func (x *Tier) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Tier.ProtoReflect.Descriptor instead.
-func (*Tier) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{14}
+// Deprecated: Use Bin.ProtoReflect.Descriptor instead.
+func (*Bin) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *Tier) GetTierId() string {
+func (x *Bin) GetBinId() string {
 	if x != nil {
-		return x.TierId
+		return x.BinId
 	}
 	return ""
 }
 
-func (x *Tier) GetName() string {
+func (x *Bin) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *Tier) GetPlacement() string {
+func (x *Bin) GetPlacement() string {
 	if x != nil {
 		return x.Placement
 	}
 	return ""
 }
 
-func (x *Tier) GetRequireTags() []string {
+func (x *Bin) GetRequireTags() []string {
 	if x != nil {
 		return x.RequireTags
 	}
 	return nil
 }
 
-func (x *Tier) GetNodeIds() []string {
+func (x *Bin) GetNodeIds() []string {
 	if x != nil {
 		return x.NodeIds
 	}
 	return nil
 }
 
-func (x *Tier) GetPriority() int32 {
+func (x *Bin) GetPriority() int32 {
 	if x != nil {
 		return x.Priority
 	}
 	return 0
 }
 
-func (x *Tier) GetCreatedUnixMs() int64 {
+func (x *Bin) GetCreatedUnixMs() int64 {
 	if x != nil {
 		return x.CreatedUnixMs
 	}
 	return 0
+}
+
+func (x *Bin) GetSpanNodes() bool {
+	if x != nil {
+		return x.SpanNodes
+	}
+	return false
+}
+
+func (x *Bin) GetExclusive() bool {
+	if x != nil {
+		return x.Exclusive
+	}
+	return false
+}
+
+func (x *Bin) GetDefaultForNew() bool {
+	if x != nil {
+		return x.DefaultForNew
+	}
+	return false
 }
 
 var File_maitre_v1_storage_proto protoreflect.FileDescriptor
@@ -1042,7 +1162,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x04tags\x18\t \x03(\tR\x04tags\x12\x16\n" +
 	"\x06origin\x18\n" +
 	" \x01(\tR\x06origin\x12\"\n" +
-	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xf5\x03\n" +
+	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xbb\x04\n" +
 	"\x05Drive\x12\x16\n" +
 	"\x06device\x18\x01 \x01(\tR\x06device\x12\x19\n" +
 	"\bdrive_id\x18\x02 \x01(\tR\adriveId\x12\x14\n" +
@@ -1066,7 +1186,13 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\tauto_tags\x18\x0f \x03(\tR\bautoTags\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x10 \x01(\x04R\tfreeBytes\x12%\n" +
-	"\x0esuggested_name\x18\x11 \x01(\tR\rsuggestedName\"\x13\n" +
+	"\x0esuggested_name\x18\x11 \x01(\tR\rsuggestedName\x12\x12\n" +
+	"\x04bins\x18\x12 \x03(\tR\x04bins\x120\n" +
+	"\afolders\x18\x13 \x03(\v2\x16.maitre.v1.DriveFolderR\afolders\"L\n" +
+	"\vDriveFolder\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x15\n" +
+	"\x06bin_id\x18\x03 \x01(\tR\x05binId\"\x13\n" +
 	"\x11ListDrivesRequest\">\n" +
 	"\x12ListDrivesResponse\x12(\n" +
 	"\x06drives\x18\x01 \x03(\v2\x10.maitre.v1.DriveR\x06drives\".\n" +
@@ -1099,15 +1225,20 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x12ForgetDriveRequest\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x18\n" +
 	"\aconfirm\x18\x02 \x01(\tR\aconfirm\"\x15\n" +
-	"\x13ForgetDriveResponse\"\xd3\x01\n" +
-	"\x04Tier\x12\x17\n" +
-	"\atier_id\x18\x01 \x01(\tR\x06tierId\x12\x12\n" +
+	"\x13ForgetDriveResponse\"\xb5\x02\n" +
+	"\x03Bin\x12\x15\n" +
+	"\x06bin_id\x18\x01 \x01(\tR\x05binId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tplacement\x18\x03 \x01(\tR\tplacement\x12!\n" +
 	"\frequire_tags\x18\x04 \x03(\tR\vrequireTags\x12\x19\n" +
 	"\bnode_ids\x18\x05 \x03(\tR\anodeIds\x12\x1a\n" +
 	"\bpriority\x18\x06 \x01(\x05R\bpriority\x12&\n" +
-	"\x0fcreated_unix_ms\x18\a \x01(\x03R\rcreatedUnixMs2\xf3\x03\n" +
+	"\x0fcreated_unix_ms\x18\a \x01(\x03R\rcreatedUnixMs\x12\x1d\n" +
+	"\n" +
+	"span_nodes\x18\b \x01(\bR\tspanNodes\x12\x1c\n" +
+	"\texclusive\x18\t \x01(\bR\texclusive\x12&\n" +
+	"\x0fdefault_for_new\x18\n" +
+	" \x01(\bR\rdefaultForNew2\xf3\x03\n" +
 	"\x0eStorageService\x12K\n" +
 	"\n" +
 	"ListDrives\x12\x1c.maitre.v1.ListDrivesRequest\x1a\x1d.maitre.v1.ListDrivesResponse\"\x00\x12T\n" +
@@ -1130,47 +1261,49 @@ func file_maitre_v1_storage_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_storage_proto_rawDescData
 }
 
-var file_maitre_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_maitre_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_maitre_v1_storage_proto_goTypes = []any{
 	(*DriveRecord)(nil),           // 0: maitre.v1.DriveRecord
 	(*Drive)(nil),                 // 1: maitre.v1.Drive
-	(*ListDrivesRequest)(nil),     // 2: maitre.v1.ListDrivesRequest
-	(*ListDrivesResponse)(nil),    // 3: maitre.v1.ListDrivesResponse
-	(*DriveContentsRequest)(nil),  // 4: maitre.v1.DriveContentsRequest
-	(*DriveContentsResponse)(nil), // 5: maitre.v1.DriveContentsResponse
-	(*AdoptDriveRequest)(nil),     // 6: maitre.v1.AdoptDriveRequest
-	(*AdoptDriveResponse)(nil),    // 7: maitre.v1.AdoptDriveResponse
-	(*FormatDriveRequest)(nil),    // 8: maitre.v1.FormatDriveRequest
-	(*FormatDriveResponse)(nil),   // 9: maitre.v1.FormatDriveResponse
-	(*SetDriveTagsRequest)(nil),   // 10: maitre.v1.SetDriveTagsRequest
-	(*SetDriveTagsResponse)(nil),  // 11: maitre.v1.SetDriveTagsResponse
-	(*ForgetDriveRequest)(nil),    // 12: maitre.v1.ForgetDriveRequest
-	(*ForgetDriveResponse)(nil),   // 13: maitre.v1.ForgetDriveResponse
-	(*Tier)(nil),                  // 14: maitre.v1.Tier
+	(*DriveFolder)(nil),           // 2: maitre.v1.DriveFolder
+	(*ListDrivesRequest)(nil),     // 3: maitre.v1.ListDrivesRequest
+	(*ListDrivesResponse)(nil),    // 4: maitre.v1.ListDrivesResponse
+	(*DriveContentsRequest)(nil),  // 5: maitre.v1.DriveContentsRequest
+	(*DriveContentsResponse)(nil), // 6: maitre.v1.DriveContentsResponse
+	(*AdoptDriveRequest)(nil),     // 7: maitre.v1.AdoptDriveRequest
+	(*AdoptDriveResponse)(nil),    // 8: maitre.v1.AdoptDriveResponse
+	(*FormatDriveRequest)(nil),    // 9: maitre.v1.FormatDriveRequest
+	(*FormatDriveResponse)(nil),   // 10: maitre.v1.FormatDriveResponse
+	(*SetDriveTagsRequest)(nil),   // 11: maitre.v1.SetDriveTagsRequest
+	(*SetDriveTagsResponse)(nil),  // 12: maitre.v1.SetDriveTagsResponse
+	(*ForgetDriveRequest)(nil),    // 13: maitre.v1.ForgetDriveRequest
+	(*ForgetDriveResponse)(nil),   // 14: maitre.v1.ForgetDriveResponse
+	(*Bin)(nil),                   // 15: maitre.v1.Bin
 }
 var file_maitre_v1_storage_proto_depIdxs = []int32{
 	0,  // 0: maitre.v1.Drive.record:type_name -> maitre.v1.DriveRecord
-	1,  // 1: maitre.v1.ListDrivesResponse.drives:type_name -> maitre.v1.Drive
-	1,  // 2: maitre.v1.AdoptDriveResponse.drive:type_name -> maitre.v1.Drive
-	1,  // 3: maitre.v1.FormatDriveResponse.drive:type_name -> maitre.v1.Drive
-	1,  // 4: maitre.v1.SetDriveTagsResponse.drive:type_name -> maitre.v1.Drive
-	2,  // 5: maitre.v1.StorageService.ListDrives:input_type -> maitre.v1.ListDrivesRequest
-	4,  // 6: maitre.v1.StorageService.DriveContents:input_type -> maitre.v1.DriveContentsRequest
-	6,  // 7: maitre.v1.StorageService.AdoptDrive:input_type -> maitre.v1.AdoptDriveRequest
-	8,  // 8: maitre.v1.StorageService.FormatDrive:input_type -> maitre.v1.FormatDriveRequest
-	10, // 9: maitre.v1.StorageService.SetDriveTags:input_type -> maitre.v1.SetDriveTagsRequest
-	12, // 10: maitre.v1.StorageService.ForgetDrive:input_type -> maitre.v1.ForgetDriveRequest
-	3,  // 11: maitre.v1.StorageService.ListDrives:output_type -> maitre.v1.ListDrivesResponse
-	5,  // 12: maitre.v1.StorageService.DriveContents:output_type -> maitre.v1.DriveContentsResponse
-	7,  // 13: maitre.v1.StorageService.AdoptDrive:output_type -> maitre.v1.AdoptDriveResponse
-	9,  // 14: maitre.v1.StorageService.FormatDrive:output_type -> maitre.v1.FormatDriveResponse
-	11, // 15: maitre.v1.StorageService.SetDriveTags:output_type -> maitre.v1.SetDriveTagsResponse
-	13, // 16: maitre.v1.StorageService.ForgetDrive:output_type -> maitre.v1.ForgetDriveResponse
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	2,  // 1: maitre.v1.Drive.folders:type_name -> maitre.v1.DriveFolder
+	1,  // 2: maitre.v1.ListDrivesResponse.drives:type_name -> maitre.v1.Drive
+	1,  // 3: maitre.v1.AdoptDriveResponse.drive:type_name -> maitre.v1.Drive
+	1,  // 4: maitre.v1.FormatDriveResponse.drive:type_name -> maitre.v1.Drive
+	1,  // 5: maitre.v1.SetDriveTagsResponse.drive:type_name -> maitre.v1.Drive
+	3,  // 6: maitre.v1.StorageService.ListDrives:input_type -> maitre.v1.ListDrivesRequest
+	5,  // 7: maitre.v1.StorageService.DriveContents:input_type -> maitre.v1.DriveContentsRequest
+	7,  // 8: maitre.v1.StorageService.AdoptDrive:input_type -> maitre.v1.AdoptDriveRequest
+	9,  // 9: maitre.v1.StorageService.FormatDrive:input_type -> maitre.v1.FormatDriveRequest
+	11, // 10: maitre.v1.StorageService.SetDriveTags:input_type -> maitre.v1.SetDriveTagsRequest
+	13, // 11: maitre.v1.StorageService.ForgetDrive:input_type -> maitre.v1.ForgetDriveRequest
+	4,  // 12: maitre.v1.StorageService.ListDrives:output_type -> maitre.v1.ListDrivesResponse
+	6,  // 13: maitre.v1.StorageService.DriveContents:output_type -> maitre.v1.DriveContentsResponse
+	8,  // 14: maitre.v1.StorageService.AdoptDrive:output_type -> maitre.v1.AdoptDriveResponse
+	10, // 15: maitre.v1.StorageService.FormatDrive:output_type -> maitre.v1.FormatDriveResponse
+	12, // 16: maitre.v1.StorageService.SetDriveTags:output_type -> maitre.v1.SetDriveTagsResponse
+	14, // 17: maitre.v1.StorageService.ForgetDrive:output_type -> maitre.v1.ForgetDriveResponse
+	12, // [12:18] is the sub-list for method output_type
+	6,  // [6:12] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_storage_proto_init() }
@@ -1184,7 +1317,7 @@ func file_maitre_v1_storage_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_storage_proto_rawDesc), len(file_maitre_v1_storage_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

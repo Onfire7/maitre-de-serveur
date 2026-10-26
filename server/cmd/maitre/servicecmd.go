@@ -31,42 +31,45 @@ func runPoolUp(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	// Milestone 4: mount this Node's Drives first; they become branches.
-	var extra []string
-	if id, err := identity.Load(filepath.Join(*state, "node")); err == nil {
-		if db, err := store.Open(filepath.Join(*state, "fleet.db"), id.Fingerprint()); err == nil {
-			sm := storage.New(db, nil)
-			if _, err := sm.AdoptInternal(ctx); err != nil {
-				fmt.Fprintln(os.Stderr, "pool-up: built-in drive:", err)
-			}
-			_, errs := sm.MountAll(ctx)
-			for _, e := range errs {
-				fmt.Fprintln(os.Stderr, "pool-up:", e)
-			}
-			if byTier, err := sm.LocalBranches(ctx); err == nil {
-				extra = byTier[storage.DefaultTier]
-				for tier, branches := range byTier {
-					if tier == storage.DefaultTier {
-						continue
-					}
-					if err := pool.Assemble(ctx, tier, branches, len(branches)); err != nil {
-						fmt.Fprintln(os.Stderr, "pool-up:", err)
-					} else if len(branches) > 0 {
-						fmt.Printf("pool-up: Pool %s over %s\n", tier, strings.Join(branches, ", "))
-					}
-				}
-			}
-			db.Close()
-		}
+	// Mount this Node's Drives and assemble every Bin's Pool over their
+	// local folders; the agent adds peers' Pools for spanning Bins later.
+	id, err := identity.Load(filepath.Join(*state, "node"))
+	if err != nil {
+		fmt.Println("pool-up: no Node identity yet; nothing to assemble")
+		return nil
 	}
-	st, err := pool.Up(ctx, extra...)
+	db, err := store.Open(filepath.Join(*state, "fleet.db"), id.Fingerprint())
 	if err != nil {
 		return err
 	}
-	if st.Fallback {
-		fmt.Printf("pool-up: no Drive found; default Pool %s is a directory on the OS partition\n", st.Mount)
-	} else {
-		fmt.Printf("pool-up: default Pool %s over %s\n", st.Mount, strings.Join(st.Branches, ", "))
+	defer db.Close()
+	sm := storage.New(db, nil)
+	if _, err := sm.AdoptInternal(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "pool-up: built-in drive:", err)
+	}
+	_, errs := sm.MountAll(ctx)
+	for _, e := range errs {
+		fmt.Fprintln(os.Stderr, "pool-up:", e)
+	}
+	byBin, err := sm.LocalBranches(ctx)
+	if err != nil {
+		return err
+	}
+	bins, _ := storage.Bins(ctx, db)
+	placement := map[string]string{}
+	for _, b := range bins {
+		placement[b.GetBinId()] = b.GetPlacement()
+	}
+	if len(byBin) == 0 {
+		fmt.Println("pool-up: the Fleet has no Storage Bins yet")
+	}
+	for bin, branches := range byBin {
+		storage.MarkBinFolders(branches)
+		if err := pool.Assemble(ctx, bin, branches, len(branches), placement[bin]); err != nil {
+			fmt.Fprintln(os.Stderr, "pool-up:", err)
+		} else if len(branches) > 0 {
+			fmt.Printf("pool-up: Pool %s over %s\n", bin, strings.Join(branches, ", "))
+		}
 	}
 	return nil
 }

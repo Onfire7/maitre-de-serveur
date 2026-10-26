@@ -14,13 +14,13 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// Spanning Tiers (decisions 105, 106): every Node exports its Pools over
+// Spanning Bins (decisions 105, 106, 127): every Node exports its Pools over
 // NFS to the Fleet's other Nodes only, and mounts theirs soft, so a Node
 // that is off makes its files absent rather than hanging anything. A
-// Spanning Tier's Pool on a Node is mergerfs over its local Drives first,
-// then the remote Pools: new files land locally while there is room.
+// spanning Bin's Pool on a Node is mergerfs over its local Bin folders, then
+// the remote Pools; the Bin's placement decides where new files land.
 
-// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<tier>.
+// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<bin>.
 const RemoteDir = "/var/mnt/remote"
 
 // ExportsFile is the NFS export list this package owns.
@@ -53,11 +53,12 @@ func PeerHosts(peers []*maitrev1.PeerStatus, extra map[string][]string) []string
 
 // WriteExports exports every mounted Pool to the given hosts and reloads
 // the NFS server. No hosts means nothing is exported.
-func WriteExports(ctx context.Context, run Runner, tiers []string, hosts []string) error {
+func WriteExports(ctx context.Context, run Runner, bins []string, hosts []string) error {
 	var b strings.Builder
 	b.WriteString("# Written by maitre: this Node's Pools, for the Fleet's other Nodes only.\n")
-	for i, tier := range tiers {
-		mount := filepath.Join(pool.PoolsDir, tier)
+	sort.Strings(bins)
+	for i, bin := range bins {
+		mount := filepath.Join(pool.PoolsDir, bin)
 		if !mounted(mount) || len(hosts) == 0 {
 			continue
 		}
@@ -84,32 +85,38 @@ func WriteExports(ctx context.Context, run Runner, tiers []string, hosts []strin
 	return err
 }
 
-// RemoteBranches mounts, for each Spanning Tier, the Pools of peers that
-// hold Drives of that Tier, and returns the mount points by Tier. Peers
+// RemoteBranches mounts, for each spanning Bin, the Pools of peers that
+// hold Drives of that Bin, and returns the mount points by Bin. Peers
 // without a reachable address, or whose mount fails, are skipped.
 func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[string]string) (map[string][]string, error) {
-	tiers, err := Tiers(ctx, m.st)
+	bins, err := Bins(ctx, m.st)
 	if err != nil {
 		return nil, err
+	}
+	spanning := map[string]bool{}
+	for _, b := range bins {
+		if b.GetSpanNodes() {
+			spanning[b.GetBinId()] = true
+		}
 	}
 	records, err := store.ListLive(ctx, m.st, KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
 	if err != nil {
 		return nil, err
 	}
-	// Which peers hold Drives of which Spanning Tier.
+	// Which peers hold Drives of which spanning Bin.
 	holders := map[string]map[string]bool{}
 	for _, r := range records {
 		if r.GetNodeId() == m.st.NodeID() {
 			continue
 		}
-		tier := TierOf(r, tiers)
-		for _, t := range tiers {
-			if t.GetTierId() == tier && t.GetPlacement() == "spanning" {
-				if holders[tier] == nil {
-					holders[tier] = map[string]bool{}
-				}
-				holders[tier][r.GetNodeId()] = true
+		for _, id := range BinsOf(r, bins) {
+			if !spanning[id] {
+				continue
 			}
+			if holders[id] == nil {
+				holders[id] = map[string]bool{}
+			}
+			holders[id][r.GetNodeId()] = true
 		}
 	}
 	out := map[string][]string{}

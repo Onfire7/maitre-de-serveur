@@ -71,6 +71,21 @@ message Drive {
   // For a disk not yet adopted: the name it would get (decision 104), the
   // first unused name from the list for this Node's letter.
   string suggested_name = 17;
+  // For an adopted Drive: its Bins (by id), from the Fleet's rules.
+  repeated string bins = 18;
+  // For an adopted Drive: top-level folders on it. Each is a Bin's folder
+  // (bin set), a folder of a Bin that no longer exists (orphan), or files
+  // that were on the Drive before it was adopted (unsorted). Decision 124:
+  // nothing here is ever deleted by the Node; the file manager moves it.
+  repeated DriveFolder folders = 19;
+}
+
+message DriveFolder {
+  string name = 1;
+  // "bin" | "orphan" | "unsorted"
+  string kind = 2;
+  // The Bin id for kind "bin"; the former Bin id for "orphan".
+  string bin_id = 3;
 }
 
 message ListDrivesRequest {}
@@ -124,19 +139,34 @@ message ForgetDriveRequest {
 }
 message ForgetDriveResponse {}
 
-// Tier is the kind "tier" Record body (Fleet-wide). A Drive belongs to the
-// highest-priority Tier whose rules it matches; the Tier "default" matches
-// everything and has the lowest priority.
-message Tier {
-  string tier_id = 1;
+// Bin is a Storage Bin (decisions 121-128, replacing Tiers): a place for
+// one kind of data. It is the kind "bin" Record body (Fleet-wide). A Drive
+// is a member of every Bin whose rule matches it, and each Bin keeps its
+// own folder on each member Drive (<drive>/<bin_id>/); a Node materialises
+// a Bin as a Pool, mergerfs over those folders. An exclusive Bin claims its
+// matching Drives for itself alone. There is no built-in Bin: the user
+// defines each one and marks one as the default for new Service volumes.
+message Bin {
+  string bin_id = 1;
   string name = 2;
-  // "local" or "spanning".
+  // Where new files go among the Pool's branches:
+  //   "local_first"       this Node's Drives while any has room, then peers'
+  //   "most_free"         the Drive with the most free space, wherever it is
+  //   "most_free_percent" the Drive with the highest share of free space
   string placement = 3;
-  // Every listed tag must be on the Drive (auto or user).
+  // Every listed tag must be on the Drive (auto or user). Empty, with no
+  // node_ids: every Drive (not allowed for an exclusive Bin).
   repeated string require_tags = 4;
   // Only Drives on these Nodes; empty means any Node.
   repeated string node_ids = 5;
-  // Higher wins when several Tiers match a Drive.
+  // Among exclusive Bins matching the same Drive, the highest claims it.
   int32 priority = 6;
   int64 created_unix_ms = 7;
+  // One Pool across every Node holding a member Drive, over the network.
+  bool span_nodes = 8;
+  // Member Drives belong to this Bin only.
+  bool exclusive = 9;
+  // New Service volumes land here unless the user picks another Bin. Exactly
+  // one Bin should carry this; the newest write wins otherwise.
+  bool default_for_new = 10;
 }

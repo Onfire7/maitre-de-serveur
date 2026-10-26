@@ -8,10 +8,11 @@ import (
 )
 
 func TestReadsSomething(t *testing.T) {
-	c := metrics.New(t.TempDir(), true)
+	dir := t.TempDir()
+	c := metrics.New(func() string { return dir })
 	time.Sleep(50 * time.Millisecond)
 	m := c.Read()
-	if m.GetMemoryTotalBytes() == 0 || m.GetPoolTotalBytes() == 0 || !m.GetPoolFallback() {
+	if m.GetMemoryTotalBytes() == 0 || m.GetPoolTotalBytes() == 0 || m.GetPoolFallback() {
 		t.Fatalf("unexpected reading %+v", m)
 	}
 	if m.GetCpuPercent() < 0 || m.GetCpuPercent() > 100 {
