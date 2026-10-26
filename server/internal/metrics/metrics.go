@@ -17,7 +17,7 @@ import (
 // Collector keeps the previous CPU and network counters for rates.
 type Collector struct {
 	mu sync.Mutex
-	// PoolDir returns the mount of the Pool to report (the Bin marked
+	// PoolDir returns the mount of the Pool to report (the Space marked
 	// default for new volumes), or "" when the Node has none: then
 	// pool_fallback is set and capacity is zero.
 	PoolDir  func() string

@@ -25,9 +25,9 @@ func runFiles(args []string) error {
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
-	scope := fs.String("scope", "", "bin:<id> or drive:<id>")
+	scope := fs.String("scope", "", "space:<id> or drive:<id>")
 	path := fs.String("path", "/", "path inside the scope")
-	toBin := fs.String("to-bin", "", "mv: destination Bin")
+	toSpace := fs.String("to-space", "", "mv: destination Space")
 	toPath := fs.String("to-path", "", "mv: destination path (default: same)")
 	toNode := fs.String("to-node", "", "mv: destination Node id")
 	toDrive := fs.String("to-drive", "", "mv: destination Drive id")
@@ -51,8 +51,8 @@ func runFiles(args []string) error {
 	sc := &maitrev1.Scope{}
 	if k, v, ok := strings.Cut(*scope, ":"); ok {
 		switch k {
-		case "bin":
-			sc.BinId = v
+		case "space":
+			sc.SpaceId = v
 		case "drive":
 			sc.DriveId = v
 		}
@@ -87,7 +87,7 @@ func runFiles(args []string) error {
 			time.Sleep(500 * time.Millisecond)
 		}
 	case "mv":
-		res, err := c.Move(ctx, &maitrev1.MoveRequest{From: sc, Path: *path, ToBin: *toBin, ToPath: *toPath, ToNodeId: *toNode, ToDriveId: *toDrive})
+		res, err := c.Move(ctx, &maitrev1.MoveRequest{From: sc, Path: *path, ToSpace: *toSpace, ToPath: *toPath, ToNodeId: *toNode, ToDriveId: *toDrive})
 		if err != nil {
 			return err
 		}

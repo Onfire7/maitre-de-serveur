@@ -10,19 +10,19 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/files.proto.
  */
 export const file_maitre_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIpCgVTY29wZRIOCgZiaW5faWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkiPwoOTGlzdERpclJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSItCghMb2NhdGlvbhIPCgdub2RlX2lkGAEgASgJEhAKCGRyaXZlX2lkGAIgASgJIngKBUVudHJ5EgwKBG5hbWUYASABKAkSCwoDZGlyGAIgASgIEhIKCnNpemVfYnl0ZXMYAyABKAQSGAoQbW9kaWZpZWRfdW5peF9tcxgEIAEoAxImCglsb2NhdGlvbnMYBSADKAsyEy5tYWl0cmUudjEuTG9jYXRpb24iNAoPTGlzdERpclJlc3BvbnNlEiEKB2VudHJpZXMYASADKAsyEC5tYWl0cmUudjEuRW50cnkiPQoMVXNhZ2VSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiQgoNVXNhZ2VSZXNwb25zZRINCgVieXRlcxgBIAEoBBINCgVmaWxlcxgCIAEoBBITCgtpbl9wcm9ncmVzcxgDIAEoCCKbAQoLTW92ZVJlcXVlc3QSHgoEZnJvbRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJEg4KBnRvX2JpbhgDIAEoCRIPCgd0b19wYXRoGAQgASgJEhIKCnRvX25vZGVfaWQYBSABKAkSEwoLdG9fZHJpdmVfaWQYBiABKAkSFAoMZnJvbV9ub2RlX2lkGAcgASgJIh4KDE1vdmVSZXNwb25zZRIOCgZqb2JfaWQYASABKAkiywEKA0pvYhIOCgZqb2JfaWQYASABKAkSDQoFc3RhdGUYAiABKAkSDwoHbWVzc2FnZRgDIAEoCRISCgpieXRlc19kb25lGAQgASgEEhMKC2J5dGVzX3RvdGFsGAUgASgEEg8KB2N1cnJlbnQYBiABKAkSFwoPc3RhcnRlZF91bml4X21zGAcgASgDEhgKEGZpbmlzaGVkX3VuaXhfbXMYCCABKAMSJwoHcmVxdWVzdBgJIAEoCzIWLm1haXRyZS52MS5Nb3ZlUmVxdWVzdCIRCg9MaXN0Sm9ic1JlcXVlc3QiMAoQTGlzdEpvYnNSZXNwb25zZRIcCgRqb2JzGAEgAygLMg4ubWFpdHJlLnYxLkpvYiIiChBDYW5jZWxKb2JSZXF1ZXN0Eg4KBmpvYl9pZBgBIAEoCSITChFDYW5jZWxKb2JSZXNwb25zZTLcAgoMRmlsZXNTZXJ2aWNlEkIKB0xpc3REaXISGS5tYWl0cmUudjEuTGlzdERpclJlcXVlc3QaGi5tYWl0cmUudjEuTGlzdERpclJlc3BvbnNlIgASPAoFVXNhZ2USFy5tYWl0cmUudjEuVXNhZ2VSZXF1ZXN0GhgubWFpdHJlLnYxLlVzYWdlUmVzcG9uc2UiABI5CgRNb3ZlEhYubWFpdHJlLnYxLk1vdmVSZXF1ZXN0GhcubWFpdHJlLnYxLk1vdmVSZXNwb25zZSIAEkUKCExpc3RKb2JzEhoubWFpdHJlLnYxLkxpc3RKb2JzUmVxdWVzdBobLm1haXRyZS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgASSAoJQ2FuY2VsSm9iEhsubWFpdHJlLnYxLkNhbmNlbEpvYlJlcXVlc3QaHC5tYWl0cmUudjEuQ2FuY2VsSm9iUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIssBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QiEQoPTGlzdEpvYnNSZXF1ZXN0IjAKEExpc3RKb2JzUmVzcG9uc2USHAoEam9icxgBIAMoCzIOLm1haXRyZS52MS5Kb2IiIgoQQ2FuY2VsSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiEwoRQ2FuY2VsSm9iUmVzcG9uc2Uy3AIKDEZpbGVzU2VydmljZRJCCgdMaXN0RGlyEhkubWFpdHJlLnYxLkxpc3REaXJSZXF1ZXN0GhoubWFpdHJlLnYxLkxpc3REaXJSZXNwb25zZSIAEjwKBVVzYWdlEhcubWFpdHJlLnYxLlVzYWdlUmVxdWVzdBoYLm1haXRyZS52MS5Vc2FnZVJlc3BvbnNlIgASOQoETW92ZRIWLm1haXRyZS52MS5Nb3ZlUmVxdWVzdBoXLm1haXRyZS52MS5Nb3ZlUmVzcG9uc2UiABJFCghMaXN0Sm9icxIaLm1haXRyZS52MS5MaXN0Sm9ic1JlcXVlc3QaGy5tYWl0cmUudjEuTGlzdEpvYnNSZXNwb25zZSIAEkgKCUNhbmNlbEpvYhIbLm1haXRyZS52MS5DYW5jZWxKb2JSZXF1ZXN0GhwubWFpdHJlLnYxLkNhbmNlbEpvYlJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
 
 /**
- * Scope is what a path is relative to: a Bin's Pool on this Node (the
+ * Scope is what a path is relative to: a Space's Pool on this Node (the
  * merged view), or a Drive's root on this Node.
  *
  * @generated from message maitre.v1.Scope
  */
 export type Scope = Message<"maitre.v1.Scope"> & {
   /**
-   * @generated from field: string bin_id = 1;
+   * @generated from field: string space_id = 1;
    */
-  binId: string;
+  spaceId: string;
 
   /**
    * @generated from field: string drive_id = 2;
@@ -63,7 +63,7 @@ export const ListDirRequestSchema: GenMessage<ListDirRequest> = /*@__PURE__*/
 
 /**
  * Location is one copy of an entry: the Node and, when known, the Drive.
- * A copy on a peer's Pool (spanning Bin) names the Node only.
+ * A copy on a peer's Pool (spanning Space) names the Node only.
  *
  * @generated from message maitre.v1.Location
  */
@@ -206,11 +206,11 @@ export type MoveRequest = Message<"maitre.v1.MoveRequest"> & {
   path: string;
 
   /**
-   * Destination Bin; to_path defaults to path.
+   * Destination Space; to_path defaults to path.
    *
-   * @generated from field: string to_bin = 3;
+   * @generated from field: string to_space = 3;
    */
-  toBin: string;
+  toSpace: string;
 
   /**
    * @generated from field: string to_path = 4;
@@ -218,7 +218,7 @@ export type MoveRequest = Message<"maitre.v1.MoveRequest"> & {
   toPath: string;
 
   /**
-   * Optional: a specific Node and/or Drive of that Bin. A Drive belongs to
+   * Optional: a specific Node and/or Drive of that Space. A Drive belongs to
    * a Node; naming a Drive implies its Node.
    *
    * @generated from field: string to_node_id = 5;
@@ -232,7 +232,7 @@ export type MoveRequest = Message<"maitre.v1.MoveRequest"> & {
 
   /**
    * Set by a Node forwarding a move to another Node: the source lives on
-   * this Node's Pool (bin scope only), reached over NFS.
+   * this Node's Pool (space scope only), reached over NFS.
    *
    * @generated from field: string from_node_id = 7;
    */
@@ -386,9 +386,9 @@ export const CancelJobResponseSchema: GenMessage<CancelJobResponse> = /*@__PURE_
 
 /**
  * FilesService is the file manager's back end (decision 122): browse a
- * Bin's Pool as one merged tree or a Drive's root (files that were there
- * before adoption, folders of removed Bins), see which Node and Drive hold
- * each entry and how big it is, and queue moves between Bins, Drives and
+ * Space's Pool as one merged tree or a Drive's root (files that were there
+ * before adoption, folders of removed Spaces), see which Node and Drive hold
+ * each entry and how big it is, and queue moves between Spaces, Drives and
  * Nodes. The Node never deletes user data on its own: a move copies, checks,
  * then removes the source; a failed move leaves the source untouched.
  *

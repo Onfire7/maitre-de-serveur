@@ -116,7 +116,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "bin", "tailscale", "update_policy", "public_settings":
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings":
 		return true
 	}
 	return false
@@ -144,15 +144,15 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 			return nil, connect.NewError(connect.CodeInvalidArgument, "a full (not recovery-only) Trusted Device with a key is required")
 		}
 	}
-	if in.GetKind() == "bin" && !in.GetDeleted() {
-		var b maitrev1.Bin
+	if in.GetKind() == "space" && !in.GetDeleted() {
+		var b maitrev1.Space
 		if err := proto.Unmarshal(in.GetBody(), &b); err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, "bad Bin body")
+			return nil, connect.NewError(connect.CodeInvalidArgument, "bad Space body")
 		}
-		if b.GetBinId() != in.GetId() {
-			return nil, connect.NewError(connect.CodeInvalidArgument, "the Bin's id must match the record id")
+		if b.GetSpaceId() != in.GetId() {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "the Space's id must match the record id")
 		}
-		if err := storage.ValidateBin(&b); err != nil {
+		if err := storage.ValidateSpace(&b); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
 		}
 	}

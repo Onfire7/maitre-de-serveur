@@ -66,9 +66,9 @@ message ServiceSpec {
   string exposure = 6;
   // For "direct": the host name the Service answers at, e.g. photos.example.com.
   string public_host = 19;
-  // Bin for each volume (volume name -> bin id). Empty entries are filled at
-  // install with the Bin marked default_for_new; install fails if none is.
-  map<string, string> volume_bins = 7;
+  // Space for each volume (volume name -> space id). Empty entries are filled at
+  // install with the Space marked default_for_new; install fails if none is.
+  map<string, string> volume_spaces = 7;
   // Reserved for Members (gated access): "" | "admins" | "members".
   string access_policy = 8;
   int64 created_unix_ms = 9;
@@ -146,7 +146,7 @@ message SetPortForwardingResponse {
 message InstallServiceRequest {
   reserved 1 to 4;
   // The complete Service to run. The Node fills node_id, created_unix_ms,
-  // web_host_port and volume_bins; a setting TZ=auto becomes the Node's
+  // web_host_port and volume_spaces; a setting TZ=auto becomes the Node's
   // time zone.
   ServiceSpec spec = 5;
 }

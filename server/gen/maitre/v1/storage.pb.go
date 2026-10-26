@@ -177,10 +177,10 @@ type Drive struct {
 	// For a disk not yet adopted: the name it would get (decision 104), the
 	// first unused name from the list for this Node's letter.
 	SuggestedName string `protobuf:"bytes,17,opt,name=suggested_name,json=suggestedName,proto3" json:"suggested_name,omitempty"`
-	// For an adopted Drive: its Bins (by id), from the Fleet's rules.
-	Bins []string `protobuf:"bytes,18,rep,name=bins,proto3" json:"bins,omitempty"`
-	// For an adopted Drive: top-level folders on it. Each is a Bin's folder
-	// (bin set), a folder of a Bin that no longer exists (orphan), or files
+	// For an adopted Drive: its Spaces (by id), from the Fleet's rules.
+	Spaces []string `protobuf:"bytes,18,rep,name=spaces,proto3" json:"spaces,omitempty"`
+	// For an adopted Drive: top-level folders on it. Each is a Space's folder
+	// (space set), a folder of a Space that no longer exists (orphan), or files
 	// that were on the Drive before it was adopted (unsorted). Decision 124:
 	// nothing here is ever deleted by the Node; the file manager moves it.
 	Folders       []*DriveFolder `protobuf:"bytes,19,rep,name=folders,proto3" json:"folders,omitempty"`
@@ -337,9 +337,9 @@ func (x *Drive) GetSuggestedName() string {
 	return ""
 }
 
-func (x *Drive) GetBins() []string {
+func (x *Drive) GetSpaces() []string {
 	if x != nil {
-		return x.Bins
+		return x.Spaces
 	}
 	return nil
 }
@@ -354,10 +354,10 @@ func (x *Drive) GetFolders() []*DriveFolder {
 type DriveFolder struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// "bin" | "orphan" | "unsorted"
+	// "space" | "orphan" | "unsorted"
 	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
-	// The Bin id for kind "bin"; the former Bin id for "orphan".
-	BinId         string `protobuf:"bytes,3,opt,name=bin_id,json=binId,proto3" json:"bin_id,omitempty"`
+	// The Space id for kind "space"; the former Space id for "orphan".
+	SpaceId       string `protobuf:"bytes,3,opt,name=space_id,json=spaceId,proto3" json:"space_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -406,9 +406,9 @@ func (x *DriveFolder) GetKind() string {
 	return ""
 }
 
-func (x *DriveFolder) GetBinId() string {
+func (x *DriveFolder) GetSpaceId() string {
 	if x != nil {
-		return x.BinId
+		return x.SpaceId
 	}
 	return ""
 }
@@ -1008,17 +1008,17 @@ func (*ForgetDriveResponse) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{14}
 }
 
-// Bin is a Storage Bin (decisions 121-128, replacing Tiers): a place for
-// one kind of data. It is the kind "bin" Record body (Fleet-wide). A Drive
-// is a member of every Bin whose rule matches it, and each Bin keeps its
-// own folder on each member Drive (<drive>/<bin_id>/); a Node materialises
-// a Bin as a Pool, mergerfs over those folders. An exclusive Bin claims its
-// matching Drives for itself alone. There is no built-in Bin: the user
+// Space is a Storage Space (decisions 121-128, replacing Tiers): a place for
+// one kind of data. It is the kind "space" Record body (Fleet-wide). A Drive
+// is a member of every Space whose rule matches it, and each Space keeps its
+// own folder on each member Drive (<drive>/<space_id>/); a Node materialises
+// a Space as a Pool, mergerfs over those folders. An exclusive Space claims its
+// matching Drives for itself alone. There is no built-in Space: the user
 // defines each one and marks one as the default for new Service volumes.
-type Bin struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	BinId string                 `protobuf:"bytes,1,opt,name=bin_id,json=binId,proto3" json:"bin_id,omitempty"`
-	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+type Space struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SpaceId string                 `protobuf:"bytes,1,opt,name=space_id,json=spaceId,proto3" json:"space_id,omitempty"`
+	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Where new files go among the Pool's branches:
 	//
 	//	"local_first"       this Node's Drives while any has room, then peers'
@@ -1026,38 +1026,38 @@ type Bin struct {
 	//	"most_free_percent" the Drive with the highest share of free space
 	Placement string `protobuf:"bytes,3,opt,name=placement,proto3" json:"placement,omitempty"`
 	// Every listed tag must be on the Drive (auto or user). Empty, with no
-	// node_ids: every Drive (not allowed for an exclusive Bin).
+	// node_ids: every Drive (not allowed for an exclusive Space).
 	RequireTags []string `protobuf:"bytes,4,rep,name=require_tags,json=requireTags,proto3" json:"require_tags,omitempty"`
 	// Only Drives on these Nodes; empty means any Node.
 	NodeIds []string `protobuf:"bytes,5,rep,name=node_ids,json=nodeIds,proto3" json:"node_ids,omitempty"`
-	// Among exclusive Bins matching the same Drive, the highest claims it.
+	// Among exclusive Spaces matching the same Drive, the highest claims it.
 	Priority      int32 `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
 	CreatedUnixMs int64 `protobuf:"varint,7,opt,name=created_unix_ms,json=createdUnixMs,proto3" json:"created_unix_ms,omitempty"`
 	// One Pool across every Node holding a member Drive, over the network.
 	SpanNodes bool `protobuf:"varint,8,opt,name=span_nodes,json=spanNodes,proto3" json:"span_nodes,omitempty"`
-	// Member Drives belong to this Bin only.
+	// Member Drives belong to this Space only.
 	Exclusive bool `protobuf:"varint,9,opt,name=exclusive,proto3" json:"exclusive,omitempty"`
-	// New Service volumes land here unless the user picks another Bin. Exactly
-	// one Bin should carry this; the newest write wins otherwise.
+	// New Service volumes land here unless the user picks another Space. Exactly
+	// one Space should carry this; the newest write wins otherwise.
 	DefaultForNew bool `protobuf:"varint,10,opt,name=default_for_new,json=defaultForNew,proto3" json:"default_for_new,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Bin) Reset() {
-	*x = Bin{}
+func (x *Space) Reset() {
+	*x = Space{}
 	mi := &file_maitre_v1_storage_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Bin) String() string {
+func (x *Space) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Bin) ProtoMessage() {}
+func (*Space) ProtoMessage() {}
 
-func (x *Bin) ProtoReflect() protoreflect.Message {
+func (x *Space) ProtoReflect() protoreflect.Message {
 	mi := &file_maitre_v1_storage_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1069,75 +1069,75 @@ func (x *Bin) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Bin.ProtoReflect.Descriptor instead.
-func (*Bin) Descriptor() ([]byte, []int) {
+// Deprecated: Use Space.ProtoReflect.Descriptor instead.
+func (*Space) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_storage_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *Bin) GetBinId() string {
+func (x *Space) GetSpaceId() string {
 	if x != nil {
-		return x.BinId
+		return x.SpaceId
 	}
 	return ""
 }
 
-func (x *Bin) GetName() string {
+func (x *Space) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *Bin) GetPlacement() string {
+func (x *Space) GetPlacement() string {
 	if x != nil {
 		return x.Placement
 	}
 	return ""
 }
 
-func (x *Bin) GetRequireTags() []string {
+func (x *Space) GetRequireTags() []string {
 	if x != nil {
 		return x.RequireTags
 	}
 	return nil
 }
 
-func (x *Bin) GetNodeIds() []string {
+func (x *Space) GetNodeIds() []string {
 	if x != nil {
 		return x.NodeIds
 	}
 	return nil
 }
 
-func (x *Bin) GetPriority() int32 {
+func (x *Space) GetPriority() int32 {
 	if x != nil {
 		return x.Priority
 	}
 	return 0
 }
 
-func (x *Bin) GetCreatedUnixMs() int64 {
+func (x *Space) GetCreatedUnixMs() int64 {
 	if x != nil {
 		return x.CreatedUnixMs
 	}
 	return 0
 }
 
-func (x *Bin) GetSpanNodes() bool {
+func (x *Space) GetSpanNodes() bool {
 	if x != nil {
 		return x.SpanNodes
 	}
 	return false
 }
 
-func (x *Bin) GetExclusive() bool {
+func (x *Space) GetExclusive() bool {
 	if x != nil {
 		return x.Exclusive
 	}
 	return false
 }
 
-func (x *Bin) GetDefaultForNew() bool {
+func (x *Space) GetDefaultForNew() bool {
 	if x != nil {
 		return x.DefaultForNew
 	}
@@ -1162,7 +1162,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x04tags\x18\t \x03(\tR\x04tags\x12\x16\n" +
 	"\x06origin\x18\n" +
 	" \x01(\tR\x06origin\x12\"\n" +
-	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xbb\x04\n" +
+	"\radded_unix_ms\x18\v \x01(\x03R\vaddedUnixMs\"\xbf\x04\n" +
 	"\x05Drive\x12\x16\n" +
 	"\x06device\x18\x01 \x01(\tR\x06device\x12\x19\n" +
 	"\bdrive_id\x18\x02 \x01(\tR\adriveId\x12\x14\n" +
@@ -1186,13 +1186,13 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\tauto_tags\x18\x0f \x03(\tR\bautoTags\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x10 \x01(\x04R\tfreeBytes\x12%\n" +
-	"\x0esuggested_name\x18\x11 \x01(\tR\rsuggestedName\x12\x12\n" +
-	"\x04bins\x18\x12 \x03(\tR\x04bins\x120\n" +
-	"\afolders\x18\x13 \x03(\v2\x16.maitre.v1.DriveFolderR\afolders\"L\n" +
+	"\x0esuggested_name\x18\x11 \x01(\tR\rsuggestedName\x12\x16\n" +
+	"\x06spaces\x18\x12 \x03(\tR\x06spaces\x120\n" +
+	"\afolders\x18\x13 \x03(\v2\x16.maitre.v1.DriveFolderR\afolders\"P\n" +
 	"\vDriveFolder\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x15\n" +
-	"\x06bin_id\x18\x03 \x01(\tR\x05binId\"\x13\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x19\n" +
+	"\bspace_id\x18\x03 \x01(\tR\aspaceId\"\x13\n" +
 	"\x11ListDrivesRequest\">\n" +
 	"\x12ListDrivesResponse\x12(\n" +
 	"\x06drives\x18\x01 \x03(\v2\x10.maitre.v1.DriveR\x06drives\".\n" +
@@ -1225,9 +1225,9 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x12ForgetDriveRequest\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x18\n" +
 	"\aconfirm\x18\x02 \x01(\tR\aconfirm\"\x15\n" +
-	"\x13ForgetDriveResponse\"\xb5\x02\n" +
-	"\x03Bin\x12\x15\n" +
-	"\x06bin_id\x18\x01 \x01(\tR\x05binId\x12\x12\n" +
+	"\x13ForgetDriveResponse\"\xbb\x02\n" +
+	"\x05Space\x12\x19\n" +
+	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tplacement\x18\x03 \x01(\tR\tplacement\x12!\n" +
 	"\frequire_tags\x18\x04 \x03(\tR\vrequireTags\x12\x19\n" +
@@ -1278,7 +1278,7 @@ var file_maitre_v1_storage_proto_goTypes = []any{
 	(*SetDriveTagsResponse)(nil),  // 12: maitre.v1.SetDriveTagsResponse
 	(*ForgetDriveRequest)(nil),    // 13: maitre.v1.ForgetDriveRequest
 	(*ForgetDriveResponse)(nil),   // 14: maitre.v1.ForgetDriveResponse
-	(*Bin)(nil),                   // 15: maitre.v1.Bin
+	(*Space)(nil),                 // 15: maitre.v1.Space
 }
 var file_maitre_v1_storage_proto_depIdxs = []int32{
 	0,  // 0: maitre.v1.Drive.record:type_name -> maitre.v1.DriveRecord

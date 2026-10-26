@@ -21,11 +21,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Scope is what a path is relative to: a Bin's Pool on this Node (the
+// Scope is what a path is relative to: a Space's Pool on this Node (the
 // merged view), or a Drive's root on this Node.
 type Scope struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	BinId         string                 `protobuf:"bytes,1,opt,name=bin_id,json=binId,proto3" json:"bin_id,omitempty"`
+	SpaceId       string                 `protobuf:"bytes,1,opt,name=space_id,json=spaceId,proto3" json:"space_id,omitempty"`
 	DriveId       string                 `protobuf:"bytes,2,opt,name=drive_id,json=driveId,proto3" json:"drive_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -61,9 +61,9 @@ func (*Scope) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_files_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Scope) GetBinId() string {
+func (x *Scope) GetSpaceId() string {
 	if x != nil {
-		return x.BinId
+		return x.SpaceId
 	}
 	return ""
 }
@@ -129,7 +129,7 @@ func (x *ListDirRequest) GetPath() string {
 }
 
 // Location is one copy of an entry: the Node and, when known, the Drive.
-// A copy on a peer's Pool (spanning Bin) names the Node only.
+// A copy on a peer's Pool (spanning Space) names the Node only.
 type Location struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
@@ -419,15 +419,15 @@ type MoveRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	From  *Scope                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
 	Path  string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// Destination Bin; to_path defaults to path.
-	ToBin  string `protobuf:"bytes,3,opt,name=to_bin,json=toBin,proto3" json:"to_bin,omitempty"`
-	ToPath string `protobuf:"bytes,4,opt,name=to_path,json=toPath,proto3" json:"to_path,omitempty"`
-	// Optional: a specific Node and/or Drive of that Bin. A Drive belongs to
+	// Destination Space; to_path defaults to path.
+	ToSpace string `protobuf:"bytes,3,opt,name=to_space,json=toSpace,proto3" json:"to_space,omitempty"`
+	ToPath  string `protobuf:"bytes,4,opt,name=to_path,json=toPath,proto3" json:"to_path,omitempty"`
+	// Optional: a specific Node and/or Drive of that Space. A Drive belongs to
 	// a Node; naming a Drive implies its Node.
 	ToNodeId  string `protobuf:"bytes,5,opt,name=to_node_id,json=toNodeId,proto3" json:"to_node_id,omitempty"`
 	ToDriveId string `protobuf:"bytes,6,opt,name=to_drive_id,json=toDriveId,proto3" json:"to_drive_id,omitempty"`
 	// Set by a Node forwarding a move to another Node: the source lives on
-	// this Node's Pool (bin scope only), reached over NFS.
+	// this Node's Pool (space scope only), reached over NFS.
 	FromNodeId    string `protobuf:"bytes,7,opt,name=from_node_id,json=fromNodeId,proto3" json:"from_node_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -477,9 +477,9 @@ func (x *MoveRequest) GetPath() string {
 	return ""
 }
 
-func (x *MoveRequest) GetToBin() string {
+func (x *MoveRequest) GetToSpace() string {
 	if x != nil {
-		return x.ToBin
+		return x.ToSpace
 	}
 	return ""
 }
@@ -830,9 +830,9 @@ var File_maitre_v1_files_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_files_proto_rawDesc = "" +
 	"\n" +
-	"\x15maitre/v1/files.proto\x12\tmaitre.v1\"9\n" +
-	"\x05Scope\x12\x15\n" +
-	"\x06bin_id\x18\x01 \x01(\tR\x05binId\x12\x19\n" +
+	"\x15maitre/v1/files.proto\x12\tmaitre.v1\"=\n" +
+	"\x05Scope\x12\x19\n" +
+	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x19\n" +
 	"\bdrive_id\x18\x02 \x01(\tR\adriveId\"L\n" +
 	"\x0eListDirRequest\x12&\n" +
 	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x12\n" +
@@ -856,11 +856,11 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\x05bytes\x18\x01 \x01(\x04R\x05bytes\x12\x14\n" +
 	"\x05files\x18\x02 \x01(\x04R\x05files\x12\x1f\n" +
 	"\vin_progress\x18\x03 \x01(\bR\n" +
-	"inProgress\"\xd7\x01\n" +
+	"inProgress\"\xdb\x01\n" +
 	"\vMoveRequest\x12$\n" +
 	"\x04from\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x04from\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\x12\x15\n" +
-	"\x06to_bin\x18\x03 \x01(\tR\x05toBin\x12\x17\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x19\n" +
+	"\bto_space\x18\x03 \x01(\tR\atoSpace\x12\x17\n" +
 	"\ato_path\x18\x04 \x01(\tR\x06toPath\x12\x1c\n" +
 	"\n" +
 	"to_node_id\x18\x05 \x01(\tR\btoNodeId\x12\x1e\n" +

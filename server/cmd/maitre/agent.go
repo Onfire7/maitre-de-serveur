@@ -71,7 +71,7 @@ func runAgent(args []string) error {
 	catalogPath := fs.String("catalog", "/usr/share/maitre/catalog.json", "Catalog index baked into the image")
 	noScreen := fs.Bool("no-screen", false, "do not draw the status page on stdout")
 	unitsDir := fs.String("units", "/etc/containers/systemd", "Quadlet units directory")
-	poolsDir := fs.String("pools", pool.PoolsDir, "directory holding one Pool per Storage Bin")
+	poolsDir := fs.String("pools", pool.PoolsDir, "directory holding one Pool per Storage Space")
 	caddyAdmin := fs.String("caddy", "127.0.0.1:2019", "Caddy admin address; empty disables")
 	advertise := fs.String("advertise", "", "host:port peers should reach this Node at (default: every address, port from --listen)")
 	recoveryPort := fs.Int("recovery-port", recoverymode.Port, "port of the recovery listener while a recovery code is pending")
@@ -223,19 +223,19 @@ func runAgent(args []string) error {
 			log.Warn("peer discovery unavailable", "err", err)
 		}
 	}
-	// The Pool the Console's gauges show is the default Bin's (decision 123).
-	defaultBin := func(ctx context.Context) string {
-		bins, err := storage.Bins(ctx, st)
+	// The Pool the Console's gauges show is the default Space's (decision 123).
+	defaultSpace := func(ctx context.Context) string {
+		spaces, err := storage.Spaces(ctx, st)
 		if err != nil {
 			return ""
 		}
-		if b := storage.DefaultBin(bins); b != nil {
-			return b.GetBinId()
+		if b := storage.DefaultSpace(spaces); b != nil {
+			return b.GetSpaceId()
 		}
 		return ""
 	}
 	svc.Metrics = metrics.New(func() string {
-		id := defaultBin(ctx)
+		id := defaultSpace(ctx)
 		if id == "" {
 			return ""
 		}
@@ -297,7 +297,7 @@ func runAgent(args []string) error {
 		}
 		return dir.Status(name)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultBin: defaultBin, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
@@ -311,9 +311,9 @@ func runAgent(args []string) error {
 			pm.Push(context.WithoutCancel(ctx), recs...)
 		}
 	}
-	// Decision 121: Tiers became Bins. Old records convert once (the former
-	// default Tier becomes the default Bin) and files at a Drive's root move
-	// into that Bin's folder.
+	// Decision 121: Tiers became Spaces. Old records convert once (the former
+	// default Tier becomes the default Space) and files at a Drive's root move
+	// into that Space's folder.
 	if _, errs := stor.MountAll(ctx); len(errs) > 0 {
 		for _, e := range errs {
 			log.Warn("drive", "err", e)
@@ -322,13 +322,13 @@ func runAgent(args []string) error {
 	if converted, err := stor.MigrateTiers(ctx); err != nil {
 		log.Warn("tier migration", "err", err)
 	} else if converted {
-		log.Info("tiers converted to bins")
-		if recs, err := st.List(ctx, storage.KindBin); err == nil {
+		log.Info("tiers converted to spaces")
+		if recs, err := st.List(ctx, storage.KindSpace); err == nil {
 			pm.Push(context.WithoutCancel(ctx), recs...)
 		}
 	}
-	if def := defaultBin(ctx); def != "" {
-		if err := stor.MoveRootFilesIntoBin(ctx, def); err != nil {
+	if def := defaultSpace(ctx); def != "" {
+		if err := stor.MoveRootFilesIntoSpace(ctx, def); err != nil {
 			log.Warn("drive layout", "err", err)
 		}
 	}
@@ -337,15 +337,15 @@ func runAgent(args []string) error {
 		for _, e := range errs {
 			log.Warn("drive", "err", e)
 		}
-		byBin, err := stor.LocalBranches(ctx)
+		bySpace, err := stor.LocalBranches(ctx)
 		if err != nil {
-			log.Warn("bins", "err", err)
+			log.Warn("spaces", "err", err)
 			return
 		}
-		bins, _ := storage.Bins(ctx, st)
+		spaces, _ := storage.Spaces(ctx, st)
 		placement := map[string]string{}
-		for _, b := range bins {
-			placement[b.GetBinId()] = b.GetPlacement()
+		for _, b := range spaces {
+			placement[b.GetSpaceId()] = b.GetPlacement()
 		}
 		// Spanning Tiers (105, 106): peers' Pools after our own Drives. The
 		// default Tier can span too (user, 2026-10-26: "every Drive, across
@@ -363,13 +363,13 @@ func runAgent(args []string) error {
 		if err != nil {
 			log.Warn("remote pools", "err", err)
 		}
-		var binIDs []string
-		for bin, branches := range byBin {
-			binIDs = append(binIDs, bin)
-			storage.MarkBinFolders(branches)
-			all := append(append([]string(nil), branches...), remote[bin]...)
-			if err := pool.Assemble(ctx, bin, all, len(branches), placement[bin]); err != nil {
-				log.Warn("pool", "bin", bin, "err", err)
+		var spaceIDs []string
+		for space, branches := range bySpace {
+			spaceIDs = append(spaceIDs, space)
+			storage.MarkSpaceFolders(branches)
+			all := append(append([]string(nil), branches...), remote[space]...)
+			if err := pool.Assemble(ctx, space, all, len(branches), placement[space]); err != nil {
+				log.Warn("pool", "space", space, "err", err)
 			}
 		}
 		peerSet := map[string]bool{}
@@ -377,7 +377,7 @@ func runAgent(args []string) error {
 			peerSet[id] = true
 		}
 		storage.UnmountStale(ctx, run, peerSet)
-		if err := storage.WriteExports(ctx, run, binIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
+		if err := storage.WriteExports(ctx, run, spaceIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
 			log.Warn("nfs exports", "err", err)
 		}
 	}
@@ -409,11 +409,11 @@ func runAgent(args []string) error {
 		}
 		requestBackup()
 	}
-	// Bin or Drive records arriving from a Console or a peer reshape the Pools.
-	withBins := svc.OnChange
+	// Space or Drive records arriving from a Console or a peer reshape the Pools.
+	withSpaces := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
-		withBins(r)
-		if r.GetKind() == storage.KindBin || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
+		withSpaces(r)
+		if r.GetKind() == storage.KindSpace || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
 			requestAssemble()
 		}
 	}

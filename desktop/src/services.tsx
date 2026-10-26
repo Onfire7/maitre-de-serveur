@@ -37,15 +37,15 @@ interface CatalogIndex {
 
 export function ServicesPanel({
   target,
-  bins = [],
-  defaultBinId = "",
+  spaces = [],
+  defaultSpaceId = "",
   remoteReady = false,
   publicIp = "",
   portMapping = "",
 }: {
   target: Target;
-  bins?: { binId: string; name: string }[];
-  defaultBinId?: string;
+  spaces?: { spaceId: string; name: string }[];
+  defaultSpaceId?: string;
   remoteReady?: boolean;
   publicIp?: string;
   portMapping?: string;
@@ -302,15 +302,15 @@ export function ServicesPanel({
       {installing && (
         <InstallDialog
           entry={installing}
-          bins={bins}
-          defaultBinId={defaultBinId}
+          spaces={spaces}
+          defaultSpaceId={defaultSpaceId}
           remoteReady={remoteReady}
           onCancel={() => setInstalling(null)}
-          onInstall={async (name, settings, volumeBins, exposure, autoUpdate) => {
+          onInstall={async (name, settings, volumeSpaces, exposure, autoUpdate) => {
             try {
               lastWrite.current = Date.now();
               const spec = specFor(installing, name, settings);
-              spec.volumeBins = volumeBins;
+              spec.volumeSpaces = volumeSpaces;
               spec.exposure = exposure;
               spec.autoUpdate = autoUpdate;
               await client.installService({ spec });
@@ -346,25 +346,25 @@ function specFor(e: CatalogEntry, name: string, settings: Record<string, string>
 
 function InstallDialog({
   entry,
-  bins,
-  defaultBinId,
+  spaces,
+  defaultSpaceId,
   remoteReady,
   onCancel,
   onInstall,
 }: {
   entry: CatalogEntry;
-  bins: { binId: string; name: string }[];
-  defaultBinId: string;
+  spaces: { spaceId: string; name: string }[];
+  defaultSpaceId: string;
   remoteReady: boolean;
   onCancel: () => void;
-  onInstall: (name: string, settings: Record<string, string>, volumeBins: Record<string, string>, exposure: string, autoUpdate: boolean) => void;
+  onInstall: (name: string, settings: Record<string, string>, volumeSpaces: Record<string, string>, exposure: string, autoUpdate: boolean) => void;
 }) {
   const [name, setName] = useState(entry.id);
   // Decision 110: at home only by default, so a Service takes no Tailscale
   // hostname until the user asks for it.
   const [exposure, setExposure] = useState("private");
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const [volumeBins, setVolumeBins] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, defaultBinId])));
+  const [volumeSpaces, setVolumeSpaces] = useState<Record<string, string>>(Object.fromEntries(entry.volumes.map((v) => [v.name, defaultSpaceId])));
   const [settings, setSettings] = useState<Record<string, string>>(
     Object.fromEntries((entry.settings ?? []).map((s) => [s.key, s.default ?? ""])),
   );
@@ -400,15 +400,15 @@ function InstallDialog({
             )}
           </label>
         ))}
-        {bins.length === 0 && <p style={{ color: "#b00020", fontSize: 13 }}>No Storage Bin exists yet; create one on the Storage page first.</p>}
-        {bins.length > 1 &&
+        {spaces.length === 0 && <p style={{ color: "#b00020", fontSize: 13 }}>No Storage Space exists yet; create one on the Storage page first.</p>}
+        {spaces.length > 1 &&
           entry.volumes.map((v) => (
             <label key={v.name} style={{ display: "block", marginTop: 8 }}>
               Store {v.name}
               {v.size ? ` (${v.size})` : ""} in{" "}
-              <select value={volumeBins[v.name]} onChange={(e) => setVolumeBins({ ...volumeBins, [v.name]: e.target.value })}>
-                {bins.map((b) => (
-                  <option key={b.binId} value={b.binId}>
+              <select value={volumeSpaces[v.name]} onChange={(e) => setVolumeSpaces({ ...volumeSpaces, [v.name]: e.target.value })}>
+                {spaces.map((b) => (
+                  <option key={b.spaceId} value={b.spaceId}>
                     {b.name}
                   </option>
                 ))}
@@ -432,7 +432,7 @@ function InstallDialog({
         </label>
         {entry.own_login && <p style={{ color: "#555", fontSize: 13 }}>{entry.name} has its own accounts; you will set one up the first time you open it.</p>}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeBins, exposure, autoUpdate)}>
+          <button disabled={!/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/.test(name)} onClick={() => onInstall(name, settings, volumeSpaces, exposure, autoUpdate)}>
             Install
           </button>
           <button onClick={onCancel}>Cancel</button>
@@ -646,7 +646,7 @@ function RemoveDialog({ s, onCancel, onRemove }: { s: ServiceStatus; onCancel: (
             <ul>
               {volumes.map((v) => (
                 <li key={v.name}>
-                  {v.name} in Bin {s.spec?.volumeBins[v.name] ?? "?"}
+                  {v.name} in Space {s.spec?.volumeSpaces[v.name] ?? "?"}
                 </li>
               ))}
             </ul>

@@ -31,8 +31,8 @@ func runPoolUp(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	// Mount this Node's Drives and assemble every Bin's Pool over their
-	// local folders; the agent adds peers' Pools for spanning Bins later.
+	// Mount this Node's Drives and assemble every Space's Pool over their
+	// local folders; the agent adds peers' Pools for spanning Spaces later.
 	id, err := identity.Load(filepath.Join(*state, "node"))
 	if err != nil {
 		fmt.Println("pool-up: no Node identity yet; nothing to assemble")
@@ -51,24 +51,24 @@ func runPoolUp(args []string) error {
 	for _, e := range errs {
 		fmt.Fprintln(os.Stderr, "pool-up:", e)
 	}
-	byBin, err := sm.LocalBranches(ctx)
+	bySpace, err := sm.LocalBranches(ctx)
 	if err != nil {
 		return err
 	}
-	bins, _ := storage.Bins(ctx, db)
+	spaces, _ := storage.Spaces(ctx, db)
 	placement := map[string]string{}
-	for _, b := range bins {
-		placement[b.GetBinId()] = b.GetPlacement()
+	for _, b := range spaces {
+		placement[b.GetSpaceId()] = b.GetPlacement()
 	}
-	if len(byBin) == 0 {
-		fmt.Println("pool-up: the Fleet has no Storage Bins yet")
+	if len(bySpace) == 0 {
+		fmt.Println("pool-up: the Fleet has no Storage Spaces yet")
 	}
-	for bin, branches := range byBin {
-		storage.MarkBinFolders(branches)
-		if err := pool.Assemble(ctx, bin, branches, len(branches), placement[bin]); err != nil {
+	for space, branches := range bySpace {
+		storage.MarkSpaceFolders(branches)
+		if err := pool.Assemble(ctx, space, branches, len(branches), placement[space]); err != nil {
 			fmt.Fprintln(os.Stderr, "pool-up:", err)
 		} else if len(branches) > 0 {
-			fmt.Printf("pool-up: Pool %s over %s\n", bin, strings.Join(branches, ", "))
+			fmt.Printf("pool-up: Pool %s over %s\n", space, strings.Join(branches, ", "))
 		}
 	}
 	return nil

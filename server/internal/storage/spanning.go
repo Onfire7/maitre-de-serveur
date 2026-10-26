@@ -14,13 +14,13 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// Spanning Bins (decisions 105, 106, 127): every Node exports its Pools over
+// Spanning Spaces (decisions 105, 106, 127): every Node exports its Pools over
 // NFS to the Fleet's other Nodes only, and mounts theirs soft, so a Node
 // that is off makes its files absent rather than hanging anything. A
-// spanning Bin's Pool on a Node is mergerfs over its local Bin folders, then
-// the remote Pools; the Bin's placement decides where new files land.
+// spanning Space's Pool on a Node is mergerfs over its local Space folders, then
+// the remote Pools; the Space's placement decides where new files land.
 
-// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<bin>.
+// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<space>.
 const RemoteDir = "/var/mnt/remote"
 
 // ExportsFile is the NFS export list this package owns.
@@ -53,12 +53,12 @@ func PeerHosts(peers []*maitrev1.PeerStatus, extra map[string][]string) []string
 
 // WriteExports exports every mounted Pool to the given hosts and reloads
 // the NFS server. No hosts means nothing is exported.
-func WriteExports(ctx context.Context, run Runner, bins []string, hosts []string) error {
+func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []string) error {
 	var b strings.Builder
 	b.WriteString("# Written by maitre: this Node's Pools, for the Fleet's other Nodes only.\n")
-	sort.Strings(bins)
-	for i, bin := range bins {
-		mount := filepath.Join(pool.PoolsDir, bin)
+	sort.Strings(spaces)
+	for i, space := range spaces {
+		mount := filepath.Join(pool.PoolsDir, space)
 		if !mounted(mount) || len(hosts) == 0 {
 			continue
 		}
@@ -85,31 +85,31 @@ func WriteExports(ctx context.Context, run Runner, bins []string, hosts []string
 	return err
 }
 
-// RemoteBranches mounts, for each spanning Bin, the Pools of peers that
-// hold Drives of that Bin, and returns the mount points by Bin. Peers
+// RemoteBranches mounts, for each spanning Space, the Pools of peers that
+// hold Drives of that Space, and returns the mount points by Space. Peers
 // without a reachable address, or whose mount fails, are skipped.
 func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[string]string) (map[string][]string, error) {
-	bins, err := Bins(ctx, m.st)
+	spaces, err := Spaces(ctx, m.st)
 	if err != nil {
 		return nil, err
 	}
 	spanning := map[string]bool{}
-	for _, b := range bins {
+	for _, b := range spaces {
 		if b.GetSpanNodes() {
-			spanning[b.GetBinId()] = true
+			spanning[b.GetSpaceId()] = true
 		}
 	}
 	records, err := store.ListLive(ctx, m.st, KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
 	if err != nil {
 		return nil, err
 	}
-	// Which peers hold Drives of which spanning Bin.
+	// Which peers hold Drives of which spanning Space.
 	holders := map[string]map[string]bool{}
 	for _, r := range records {
 		if r.GetNodeId() == m.st.NodeID() {
 			continue
 		}
-		for _, id := range BinsOf(r, bins) {
+		for _, id := range SpacesOf(r, spaces) {
 			if !spanning[id] {
 				continue
 			}
@@ -142,21 +142,21 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 	return out, nil
 }
 
-// MountRemotePool mounts a peer's Pool of one Bin (exported to this Node)
-// at RemoteDir/<node>/<bin>, soft with short timeouts, and returns the
+// MountRemotePool mounts a peer's Pool of one Space (exported to this Node)
+// at RemoteDir/<node>/<space>, soft with short timeouts, and returns the
 // directory; already mounted is fine. host is the peer's IP.
-func MountRemotePool(ctx context.Context, run Runner, host, nodeID, bin string) (string, error) {
+func MountRemotePool(ctx context.Context, run Runner, host, nodeID, space string) (string, error) {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
-	dir := filepath.Join(RemoteDir, nodeID, bin)
+	dir := filepath.Join(RemoteDir, nodeID, space)
 	if mounted(dir) {
 		return dir, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	src := fmt.Sprintf("%s:%s", host, filepath.Join(pool.PoolsDir, bin))
+	src := fmt.Sprintf("%s:%s", host, filepath.Join(pool.PoolsDir, space))
 	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev", src, dir); err != nil {
 		return "", err
 	}

@@ -105,7 +105,7 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 		}
 	}
 	suggested := m.SuggestName(ctx)
-	bins, _ := Bins(ctx, m.st)
+	spaces, _ := Spaces(ctx, m.st)
 	var drives []*maitrev1.Drive
 	for _, d := range parsed.Blockdevices {
 		if d.Type != "disk" || strings.HasPrefix(d.Name, "zram") || strings.HasPrefix(d.Name, "loop") || strings.HasPrefix(d.Name, "ram") {
@@ -148,9 +148,9 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 				dr.Adopted = true
 				dr.MountPath = filepath.Join(m.Mounts, dr.DriveId)
 				dr.FreeBytes = freeBytes(dr.MountPath)
-				dr.Bins = BinsOf(rec, bins)
+				dr.Spaces = SpacesOf(rec, spaces)
 				if mounted(dr.MountPath) {
-					dr.Folders = Folders(dr.MountPath, bins, dr.Bins)
+					dr.Folders = Folders(dr.MountPath, spaces, dr.Spaces)
 				}
 			} else if !dr.System {
 				dr.SuggestedName = suggested

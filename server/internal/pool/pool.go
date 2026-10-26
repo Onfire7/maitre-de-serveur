@@ -44,12 +44,12 @@ func mounted(dir string) bool {
 // no branches on this Node gets no Pool here. local says how many leading
 // branches are this Node's own Drives: files are created on those first
 // (decision 106); the rest are peers' Pools over NFS.
-// Assemble mounts (or re-shapes in place) the Pool of one Bin over its
-// branches: this Node's Bin folders first, then peers' Pools. placement is
-// the Bin's: local_first (first branch with room), most_free (most free
+// Assemble mounts (or re-shapes in place) the Pool of one Space over its
+// branches: this Node's Space folders first, then peers' Pools. placement is
+// the Space's: local_first (first branch with room), most_free (most free
 // space), most_free_percent. Idempotent; an empty branch list unmounts.
-func Assemble(ctx context.Context, bin string, branches []string, local int, placement string) error {
-	mount := filepath.Join(PoolsDir, bin)
+func Assemble(ctx context.Context, space string, branches []string, local int, placement string) error {
+	mount := filepath.Join(PoolsDir, space)
 	if len(branches) == 0 {
 		if mounted(mount) {
 			_ = exec.CommandContext(ctx, "umount", "-l", mount).Run()
@@ -63,19 +63,19 @@ func Assemble(ctx context.Context, bin string, branches []string, local int, pla
 	if mounted(mount) {
 		ctl := filepath.Join(mount, ".mergerfs")
 		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), ctl).CombinedOutput(); err != nil {
-			return fmt.Errorf("update %s branches: %v: %s", bin, err, out)
+			return fmt.Errorf("update %s branches: %v: %s", space, err, out)
 		}
 		_ = exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.category.create", "-v", create, ctl).Run()
 		return nil
 	}
-	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-" + bin
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=maitre-" + space
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), mount).CombinedOutput(); err != nil {
-		return fmt.Errorf("mergerfs %s: %v: %s", bin, err, out)
+		return fmt.Errorf("mergerfs %s: %v: %s", space, err, out)
 	}
 	return nil
 }
 
-// CreatePolicy maps a Bin's placement to mergerfs's create policy. With
+// CreatePolicy maps a Space's placement to mergerfs's create policy. With
 // remote branches present, local_first is "ff" (first branch with room,
 // local branches come first); on local branches alone it is "mfs".
 func CreatePolicy(placement string, hasRemote bool) string {

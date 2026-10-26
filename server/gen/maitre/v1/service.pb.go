@@ -326,9 +326,9 @@ type ServiceSpec struct {
 	Exposure string `protobuf:"bytes,6,opt,name=exposure,proto3" json:"exposure,omitempty"`
 	// For "direct": the host name the Service answers at, e.g. photos.example.com.
 	PublicHost string `protobuf:"bytes,19,opt,name=public_host,json=publicHost,proto3" json:"public_host,omitempty"`
-	// Bin for each volume (volume name -> bin id). Empty entries are filled at
-	// install with the Bin marked default_for_new; install fails if none is.
-	VolumeBins map[string]string `protobuf:"bytes,7,rep,name=volume_bins,json=volumeBins,proto3" json:"volume_bins,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Space for each volume (volume name -> space id). Empty entries are filled at
+	// install with the Space marked default_for_new; install fails if none is.
+	VolumeSpaces map[string]string `protobuf:"bytes,7,rep,name=volume_spaces,json=volumeSpaces,proto3" json:"volume_spaces,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Reserved for Members (gated access): "" | "admins" | "members".
 	AccessPolicy  string `protobuf:"bytes,8,opt,name=access_policy,json=accessPolicy,proto3" json:"access_policy,omitempty"`
 	CreatedUnixMs int64  `protobuf:"varint,9,opt,name=created_unix_ms,json=createdUnixMs,proto3" json:"created_unix_ms,omitempty"`
@@ -438,9 +438,9 @@ func (x *ServiceSpec) GetPublicHost() string {
 	return ""
 }
 
-func (x *ServiceSpec) GetVolumeBins() map[string]string {
+func (x *ServiceSpec) GetVolumeSpaces() map[string]string {
 	if x != nil {
-		return x.VolumeBins
+		return x.VolumeSpaces
 	}
 	return nil
 }
@@ -807,7 +807,7 @@ func (x *SetPortForwardingResponse) GetService() *ServiceStatus {
 type InstallServiceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The complete Service to run. The Node fills node_id, created_unix_ms,
-	// web_host_port and volume_bins; a setting TZ=auto becomes the Node's
+	// web_host_port and volume_spaces; a setting TZ=auto becomes the Node's
 	// time zone.
 	Spec          *ServiceSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1295,7 +1295,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\rServiceVolume\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\tR\x04size\"\xfd\x06\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\"\x85\a\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -1305,9 +1305,8 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\bsettings\x18\x05 \x03(\v2$.maitre.v1.ServiceSpec.SettingsEntryR\bsettings\x12\x1a\n" +
 	"\bexposure\x18\x06 \x01(\tR\bexposure\x12\x1f\n" +
 	"\vpublic_host\x18\x13 \x01(\tR\n" +
-	"publicHost\x12G\n" +
-	"\vvolume_bins\x18\a \x03(\v2&.maitre.v1.ServiceSpec.VolumeBinsEntryR\n" +
-	"volumeBins\x12#\n" +
+	"publicHost\x12M\n" +
+	"\rvolume_spaces\x18\a \x03(\v2(.maitre.v1.ServiceSpec.VolumeSpacesEntryR\fvolumeSpaces\x12#\n" +
 	"\raccess_policy\x18\b \x01(\tR\faccessPolicy\x12&\n" +
 	"\x0fcreated_unix_ms\x18\t \x01(\x03R\rcreatedUnixMs\x12\"\n" +
 	"\rweb_host_port\x18\n" +
@@ -1327,8 +1326,8 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\rforward_ports\x18\x15 \x01(\bR\fforwardPorts\x1a;\n" +
 	"\rSettingsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
-	"\x0fVolumeBinsEntry\x12\x10\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
+	"\x11VolumeSpacesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe2\x03\n" +
 	"\rServiceStatus\x12*\n" +
@@ -1439,11 +1438,11 @@ var file_maitre_v1_service_proto_goTypes = []any{
 	(*GetServiceLogsRequest)(nil),     // 18: maitre.v1.GetServiceLogsRequest
 	(*GetServiceLogsResponse)(nil),    // 19: maitre.v1.GetServiceLogsResponse
 	nil,                               // 20: maitre.v1.ServiceSpec.SettingsEntry
-	nil,                               // 21: maitre.v1.ServiceSpec.VolumeBinsEntry
+	nil,                               // 21: maitre.v1.ServiceSpec.VolumeSpacesEntry
 }
 var file_maitre_v1_service_proto_depIdxs = []int32{
 	20, // 0: maitre.v1.ServiceSpec.settings:type_name -> maitre.v1.ServiceSpec.SettingsEntry
-	21, // 1: maitre.v1.ServiceSpec.volume_bins:type_name -> maitre.v1.ServiceSpec.VolumeBinsEntry
+	21, // 1: maitre.v1.ServiceSpec.volume_spaces:type_name -> maitre.v1.ServiceSpec.VolumeSpacesEntry
 	4,  // 2: maitre.v1.ServiceSpec.volumes:type_name -> maitre.v1.ServiceVolume
 	5,  // 3: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
 	0,  // 4: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State

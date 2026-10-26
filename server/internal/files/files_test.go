@@ -14,16 +14,16 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// A Node with one Drive serving two Bins; the Pools are plain directories
-// here (no mergerfs), so locations are empty for Bin scopes.
+// A Node with one Drive serving two Spaces; the Pools are plain directories
+// here (no mergerfs), so locations are empty for Space scopes.
 func setup(t *testing.T) (*Manager, context.Context, string) {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
 	st, _ := store.Open(filepath.Join(dir, "fleet.db"), "node-a")
 	t.Cleanup(func() { st.Close() })
-	for _, b := range []*maitrev1.Bin{{BinId: "general", Name: "General", Placement: "local_first", DefaultForNew: true}, {BinId: "media", Name: "Media", Placement: "most_free"}} {
-		st.Put(ctx, storage.KindBin, b.BinId, b, true)
+	for _, b := range []*maitrev1.Space{{SpaceId: "general", Name: "General", Placement: "local_first", DefaultForNew: true}, {SpaceId: "media", Name: "Media", Placement: "most_free"}} {
+		st.Put(ctx, storage.KindSpace, b.SpaceId, b, true)
 	}
 	st.Put(ctx, storage.KindDrive, "d1", &maitrev1.DriveRecord{DriveId: "d1", NodeId: "node-a", Name: "Apollo", Origin: "adopted"}, false)
 	m := New(st, slog.Default(), "node-a")
@@ -70,7 +70,7 @@ func TestListAndUsage(t *testing.T) {
 	}
 }
 
-func TestMoveIntoBin(t *testing.T) {
+func TestMoveIntoSpace(t *testing.T) {
 	if _, err := exec.LookPath("rsync"); err != nil {
 		t.Skip("no rsync")
 	}
@@ -78,8 +78,8 @@ func TestMoveIntoBin(t *testing.T) {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go m.Run(runCtx)
-	// Unsorted Movies on the Drive go into the Media Bin, on that Drive.
-	j, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "Movies", ToBin: "media", ToDriveId: "d1"})
+	// Unsorted Movies on the Drive go into the Media Space, on that Drive.
+	j, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "Movies", ToSpace: "media", ToDriveId: "d1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,13 +102,13 @@ func TestMoveIntoBin(t *testing.T) {
 		t.Fatal("source still there")
 	}
 	// Refusals.
-	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "/", ToBin: "media"}); err == nil {
+	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "/", ToSpace: "media"}); err == nil {
 		t.Fatal("moved the top")
 	}
-	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToBin: "nope"}); err == nil {
-		t.Fatal("unknown bin accepted")
+	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToSpace: "nope"}); err == nil {
+		t.Fatal("unknown space accepted")
 	}
-	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToBin: "media", ToNodeId: "node-b"}); err == nil {
+	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToSpace: "media", ToNodeId: "node-b"}); err == nil {
 		t.Fatal("drive-scope move to another Node accepted")
 	}
 }

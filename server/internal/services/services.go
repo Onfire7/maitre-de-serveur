@@ -59,11 +59,11 @@ type Config struct {
 	Forward func(name string) string
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
-	// PoolsDir holds one Pool per Bin: volumes live at PoolsDir/<bin>/<service>/<volume>.
+	// PoolsDir holds one Pool per Space: volumes live at PoolsDir/<space>/<service>/<volume>.
 	PoolsDir string
-	// DefaultBin returns the id of the Bin new volumes land in, or "" when
+	// DefaultSpace returns the id of the Space new volumes land in, or "" when
 	// the Fleet has none marked (install then fails with a clear message).
-	DefaultBin func(ctx context.Context) string
+	DefaultSpace func(ctx context.Context) string
 	// HostPortBase..HostPortBase+9999 are loopback ports the agent assigns to
 	// Services' web ports for Caddy and health checks.
 	HostPortBase int
@@ -149,21 +149,21 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	spec.NodeId = m.store.NodeID()
 	spec.CreatedUnixMs = time.Now().UnixMilli()
-	// Volume Bins come from the Console (decision 107); missing ones take
-	// the Bin marked default for new volumes (decision 123: no built-in one).
-	if spec.VolumeBins == nil {
-		spec.VolumeBins = map[string]string{}
+	// Volume Spaces come from the Console (decision 107); missing ones take
+	// the Space marked default for new volumes (decision 123: no built-in one).
+	if spec.VolumeSpaces == nil {
+		spec.VolumeSpaces = map[string]string{}
 	}
 	for _, v := range spec.GetVolumes() {
-		if spec.VolumeBins[v.GetName()] == "" {
+		if spec.VolumeSpaces[v.GetName()] == "" {
 			def := ""
-			if m.cfg.DefaultBin != nil {
-				def = m.cfg.DefaultBin(ctx)
+			if m.cfg.DefaultSpace != nil {
+				def = m.cfg.DefaultSpace(ctx)
 			}
 			if def == "" {
-				return nil, fmt.Errorf("no Storage Bin is marked as the default for new volumes; create one first")
+				return nil, fmt.Errorf("no Storage Space is marked as the default for new volumes; create one first")
 			}
-			spec.VolumeBins[v.GetName()] = def
+			spec.VolumeSpaces[v.GetName()] = def
 		}
 	}
 	spec.WebHostPort = 0
@@ -194,16 +194,16 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	vols := map[string]string{}
 	for _, v := range spec.GetVolumes() {
-		// Each volume lives on the Pool of its Bin: <pools>/<bin>/<service>/<volume>.
-		bin := spec.GetVolumeBins()[v.GetName()]
-		if bin == "" {
-			return fmt.Errorf("volume %s has no Bin", v.GetName())
+		// Each volume lives on the Pool of its Space: <pools>/<space>/<service>/<volume>.
+		space := spec.GetVolumeSpaces()[v.GetName()]
+		if space == "" {
+			return fmt.Errorf("volume %s has no Space", v.GetName())
 		}
-		base := filepath.Join(m.cfg.PoolsDir, bin)
+		base := filepath.Join(m.cfg.PoolsDir, space)
 		if m.cfg.PoolsDir == "" {
-			base = filepath.Join(os.TempDir(), "maitre-pools", bin) // dev mode
+			base = filepath.Join(os.TempDir(), "maitre-pools", space) // dev mode
 		} else if _, err := os.Stat(base); err != nil {
-			return fmt.Errorf("volume %s wants Bin %q, which has no Pool on this Node", v.GetName(), bin)
+			return fmt.Errorf("volume %s wants Space %q, which has no Pool on this Node", v.GetName(), space)
 		}
 		dir := filepath.Join(base, spec.GetName(), v.GetName())
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -340,9 +340,9 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 			return nil, err
 		}
 		if req.GetDeleteData() && m.cfg.PoolsDir != "" {
-			// Every volume, on whichever Bin's Pool it lives.
+			// Every volume, on whichever Space's Pool it lives.
 			for _, v := range spec.GetVolumes() {
-				base := filepath.Join(m.cfg.PoolsDir, spec.GetVolumeBins()[v.GetName()])
+				base := filepath.Join(m.cfg.PoolsDir, spec.GetVolumeSpaces()[v.GetName()])
 				if err := os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName())); err != nil {
 					return nil, err
 				}

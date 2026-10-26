@@ -71,10 +71,10 @@ message Drive {
   // For a disk not yet adopted: the name it would get (decision 104), the
   // first unused name from the list for this Node's letter.
   string suggested_name = 17;
-  // For an adopted Drive: its Bins (by id), from the Fleet's rules.
-  repeated string bins = 18;
-  // For an adopted Drive: top-level folders on it. Each is a Bin's folder
-  // (bin set), a folder of a Bin that no longer exists (orphan), or files
+  // For an adopted Drive: its Spaces (by id), from the Fleet's rules.
+  repeated string spaces = 18;
+  // For an adopted Drive: top-level folders on it. Each is a Space's folder
+  // (space set), a folder of a Space that no longer exists (orphan), or files
   // that were on the Drive before it was adopted (unsorted). Decision 124:
   // nothing here is ever deleted by the Node; the file manager moves it.
   repeated DriveFolder folders = 19;
@@ -82,10 +82,10 @@ message Drive {
 
 message DriveFolder {
   string name = 1;
-  // "bin" | "orphan" | "unsorted"
+  // "space" | "orphan" | "unsorted"
   string kind = 2;
-  // The Bin id for kind "bin"; the former Bin id for "orphan".
-  string bin_id = 3;
+  // The Space id for kind "space"; the former Space id for "orphan".
+  string space_id = 3;
 }
 
 message ListDrivesRequest {}
@@ -139,15 +139,15 @@ message ForgetDriveRequest {
 }
 message ForgetDriveResponse {}
 
-// Bin is a Storage Bin (decisions 121-128, replacing Tiers): a place for
-// one kind of data. It is the kind "bin" Record body (Fleet-wide). A Drive
-// is a member of every Bin whose rule matches it, and each Bin keeps its
-// own folder on each member Drive (<drive>/<bin_id>/); a Node materialises
-// a Bin as a Pool, mergerfs over those folders. An exclusive Bin claims its
-// matching Drives for itself alone. There is no built-in Bin: the user
+// Space is a Storage Space (decisions 121-128, replacing Tiers): a place for
+// one kind of data. It is the kind "space" Record body (Fleet-wide). A Drive
+// is a member of every Space whose rule matches it, and each Space keeps its
+// own folder on each member Drive (<drive>/<space_id>/); a Node materialises
+// a Space as a Pool, mergerfs over those folders. An exclusive Space claims its
+// matching Drives for itself alone. There is no built-in Space: the user
 // defines each one and marks one as the default for new Service volumes.
-message Bin {
-  string bin_id = 1;
+message Space {
+  string space_id = 1;
   string name = 2;
   // Where new files go among the Pool's branches:
   //   "local_first"       this Node's Drives while any has room, then peers'
@@ -155,18 +155,18 @@ message Bin {
   //   "most_free_percent" the Drive with the highest share of free space
   string placement = 3;
   // Every listed tag must be on the Drive (auto or user). Empty, with no
-  // node_ids: every Drive (not allowed for an exclusive Bin).
+  // node_ids: every Drive (not allowed for an exclusive Space).
   repeated string require_tags = 4;
   // Only Drives on these Nodes; empty means any Node.
   repeated string node_ids = 5;
-  // Among exclusive Bins matching the same Drive, the highest claims it.
+  // Among exclusive Spaces matching the same Drive, the highest claims it.
   int32 priority = 6;
   int64 created_unix_ms = 7;
   // One Pool across every Node holding a member Drive, over the network.
   bool span_nodes = 8;
-  // Member Drives belong to this Bin only.
+  // Member Drives belong to this Space only.
   bool exclusive = 9;
-  // New Service volumes land here unless the user picks another Bin. Exactly
-  // one Bin should carry this; the newest write wins otherwise.
+  // New Service volumes land here unless the user picks another Space. Exactly
+  // one Space should carry this; the newest write wins otherwise.
   bool default_for_new = 10;
 }

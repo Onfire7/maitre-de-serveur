@@ -1,6 +1,6 @@
 // Package files is the file manager's back end (decision 122): browse a
-// Bin's Pool as one tree or a Drive's root, say where each entry lives and
-// how big it is, and move things between Bins, Drives and Nodes. Moves
+// Space's Pool as one tree or a Drive's root, say where each entry lives and
+// how big it is, and move things between Spaces, Drives and Nodes. Moves
 // copy with rsync, then remove the source; a failed move leaves the source
 // untouched and says what was left at the destination.
 package files
@@ -51,8 +51,8 @@ type Manager struct {
 	run    storage.Runner
 	self   string
 	Mounts string // Drives: Mounts/<drive_id>
-	Pools  string // Pools: Pools/<bin_id>
-	Remote string // peers' Pools: Remote/<node_id>/<bin_id>
+	Pools  string // Pools: Pools/<space_id>
+	Remote string // peers' Pools: Remote/<node_id>/<space_id>
 	// PeerAddr returns an address of a peer Node ("" if unknown), and
 	// PeerHTTP the mTLS client to call it with; nil on a single-Node setup.
 	PeerAddr func(nodeID string) string
@@ -122,13 +122,13 @@ func rel(p string) (string, error) {
 // base resolves a scope to its directory on this Node.
 func (m *Manager) base(ctx context.Context, sc *maitrev1.Scope) (string, error) {
 	switch {
-	case sc.GetBinId() != "" && sc.GetDriveId() == "":
-		dir := filepath.Join(m.Pools, sc.GetBinId())
+	case sc.GetSpaceId() != "" && sc.GetDriveId() == "":
+		dir := filepath.Join(m.Pools, sc.GetSpaceId())
 		if !isMounted(dir) {
-			return "", fmt.Errorf("Bin %s has no Pool on this Node", sc.GetBinId())
+			return "", fmt.Errorf("Space %s has no Pool on this Node", sc.GetSpaceId())
 		}
 		return dir, nil
-	case sc.GetDriveId() != "" && sc.GetBinId() == "":
+	case sc.GetDriveId() != "" && sc.GetSpaceId() == "":
 		var rec maitrev1.DriveRecord
 		if _, err := m.st.Get(ctx, storage.KindDrive, sc.GetDriveId(), &rec); err != nil || rec.GetNodeId() != m.self {
 			return "", fmt.Errorf("Drive %s is not on this Node", sc.GetDriveId())
@@ -139,7 +139,7 @@ func (m *Manager) base(ctx context.Context, sc *maitrev1.Scope) (string, error) 
 		}
 		return dir, nil
 	}
-	return "", errors.New("scope needs exactly one of bin_id or drive_id")
+	return "", errors.New("scope needs exactly one of space_id or drive_id")
 }
 
 // ListDir lists one directory of a scope.
@@ -173,7 +173,7 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 		if !e.IsDir() {
 			en.SizeBytes = uint64(info.Size())
 		}
-		if sc.GetBinId() != "" {
+		if sc.GetSpaceId() != "" {
 			en.Locations = m.locations(filepath.Join(dir, name))
 		} else {
 			en.Locations = []*maitrev1.Location{{NodeId: m.self, DriveId: sc.GetDriveId()}}
@@ -271,8 +271,8 @@ func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev
 	if req.GetPath() == "" || req.GetPath() == "/" {
 		return nil, errors.New("pick a file or folder, not the top")
 	}
-	if req.GetToBin() == "" {
-		return nil, errors.New("a destination Bin is required")
+	if req.GetToSpace() == "" {
+		return nil, errors.New("a destination Space is required")
 	}
 	if req.GetToPath() == "" {
 		req.ToPath = req.GetPath()
@@ -280,18 +280,18 @@ func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev
 	if _, err := rel(req.GetToPath()); err != nil {
 		return nil, err
 	}
-	bins, err := storage.Bins(ctx, m.st)
+	spaces, err := storage.Spaces(ctx, m.st)
 	if err != nil {
 		return nil, err
 	}
-	var dest *maitrev1.Bin
-	for _, b := range bins {
-		if b.GetBinId() == req.GetToBin() {
+	var dest *maitrev1.Space
+	for _, b := range spaces {
+		if b.GetSpaceId() == req.GetToSpace() {
 			dest = b
 		}
 	}
 	if dest == nil {
-		return nil, fmt.Errorf("no Bin %s", req.GetToBin())
+		return nil, fmt.Errorf("no Space %s", req.GetToSpace())
 	}
 	if req.GetToDriveId() != "" {
 		var rec maitrev1.DriveRecord
@@ -299,11 +299,11 @@ func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev
 			return nil, fmt.Errorf("no Drive %s", req.GetToDriveId())
 		}
 		member := false
-		for _, id := range storage.BinsOf(&rec, bins) {
-			member = member || id == req.GetToBin()
+		for _, id := range storage.SpacesOf(&rec, spaces) {
+			member = member || id == req.GetToSpace()
 		}
 		if !member {
-			return nil, fmt.Errorf("Drive %s does not serve Bin %s", rec.GetName(), dest.GetName())
+			return nil, fmt.Errorf("Drive %s does not serve Space %s", rec.GetName(), dest.GetName())
 		}
 		req.ToNodeId = rec.GetNodeId()
 	}
@@ -312,11 +312,11 @@ func (m *Manager) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev
 		if _, err := m.base(ctx, req.GetFrom()); err != nil {
 			return nil, err
 		}
-	} else if req.GetFrom().GetBinId() == "" {
-		return nil, errors.New("a move from another Node must come from a Bin")
+	} else if req.GetFrom().GetSpaceId() == "" {
+		return nil, errors.New("a move from another Node must come from a Space")
 	}
 	if req.GetToNodeId() != "" && req.GetToNodeId() != m.self && req.GetFrom().GetDriveId() != "" {
-		return nil, errors.New("files on a Drive move to a Bin on this Node first; then anywhere")
+		return nil, errors.New("files on a Drive move to a Space on this Node first; then anywhere")
 	}
 	m.mu.Lock()
 	m.seq++
@@ -429,7 +429,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		if host == "" {
 			return fmt.Errorf("no address for Node %s", req.GetFromNodeId())
 		}
-		dir, err := storage.MountRemotePool(ctx, m.run, host, req.GetFromNodeId(), req.GetFrom().GetBinId())
+		dir, err := storage.MountRemotePool(ctx, m.run, host, req.GetFromNodeId(), req.GetFrom().GetSpaceId())
 		if err != nil {
 			return fmt.Errorf("reach the source Pool: %w", err)
 		}
@@ -448,14 +448,14 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	// Destination.
 	var dstBase string
 	if req.GetToDriveId() != "" {
-		dstBase = filepath.Join(m.Mounts, req.GetToDriveId(), req.GetToBin())
+		dstBase = filepath.Join(m.Mounts, req.GetToDriveId(), req.GetToSpace())
 		if !isMounted(filepath.Join(m.Mounts, req.GetToDriveId())) {
 			return errors.New("the destination Drive is not mounted")
 		}
 	} else {
-		dstBase = filepath.Join(m.Pools, req.GetToBin())
+		dstBase = filepath.Join(m.Pools, req.GetToSpace())
 		if !isMounted(dstBase) {
-			return fmt.Errorf("Bin %s has no Pool on this Node", req.GetToBin())
+			return fmt.Errorf("Space %s has no Pool on this Node", req.GetToSpace())
 		}
 	}
 	dst := filepath.Join(dstBase, req.GetToPath())
@@ -593,7 +593,7 @@ func (m *Manager) forward(ctx context.Context, j *job, req *maitrev1.MoveRequest
 		return err
 	}
 	c := maitrev1connect.NewFilesServiceClient(connect.NewClient(connecthttp.NewTransport(m.PeerHTTP(), "https://"+addr)))
-	fwd := &maitrev1.MoveRequest{From: req.GetFrom(), Path: req.GetPath(), ToBin: req.GetToBin(), ToPath: req.GetToPath(), ToNodeId: req.GetToNodeId(), ToDriveId: req.GetToDriveId(), FromNodeId: m.self}
+	fwd := &maitrev1.MoveRequest{From: req.GetFrom(), Path: req.GetPath(), ToSpace: req.GetToSpace(), ToPath: req.GetToPath(), ToNodeId: req.GetToNodeId(), ToDriveId: req.GetToDriveId(), FromNodeId: m.self}
 	res, err := c.Move(ctx, fwd)
 	if err != nil {
 		return fmt.Errorf("ask %s: %w", req.GetToNodeId(), err)
