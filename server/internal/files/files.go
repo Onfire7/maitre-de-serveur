@@ -160,7 +160,9 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	var out []*maitrev1.Entry
 	for _, e := range entries {
 		name := e.Name()
-		if name == ".mergerfs" || name == ".maitre-bin" || name == ".maitre-layout" {
+		if strings.HasPrefix(name, ".") || (r == "" && name == "lost+found") {
+			// Maître's own markers, the Node's config backup, and the
+			// filesystem's lost+found are not the user's files.
 			continue
 		}
 		info, err := e.Info()
@@ -506,7 +508,7 @@ func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool) 
 	if dir {
 		s, d = src+"/", dst+"/"
 	}
-	run := func(extra ...string) error {
+	run := func(verify bool, extra ...string) error {
 		args := append([]string{"-a", "--info=progress2", "--no-inc-recursive"}, extra...)
 		args = append(args, s, d)
 		cmd := exec.CommandContext(ctx, m.Rsync, args...)
@@ -527,7 +529,9 @@ func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool) 
 			if mm := progressRe.FindStringSubmatch(line); mm != nil {
 				n, _ := strconv.ParseUint(strings.ReplaceAll(mm[1], ",", ""), 10, 64)
 				j.mu.Lock()
-				j.pb.BytesDone = n
+				if !verify {
+					j.pb.BytesDone = n
+				}
 				j.mu.Unlock()
 			} else if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "sending") && !strings.HasPrefix(t, "sent ") && !strings.HasPrefix(t, "total ") {
 				j.mu.Lock()
@@ -543,11 +547,18 @@ func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool) 
 		}
 		return nil
 	}
-	if err := run(); err != nil {
+	if err := run(false); err != nil {
 		return err
 	}
-	// Second pass with checksums: confirms every byte arrived.
-	return run("-c")
+	// Second pass with checksums: confirms every byte arrived. It transfers
+	// nothing, so it does not touch the byte count.
+	if err := run(true, "-c"); err != nil {
+		return err
+	}
+	j.mu.Lock()
+	j.pb.BytesDone, j.pb.Current = j.pb.BytesTotal, ""
+	j.mu.Unlock()
+	return nil
 }
 
 // scanLinesOrCR splits on \n or \r: rsync redraws progress with \r.
