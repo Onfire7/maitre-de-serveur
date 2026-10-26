@@ -83,6 +83,7 @@ func runService(args []string) error {
 	addr := fs.String("addr", fmt.Sprintf("127.0.0.1:%d", port), "Node address")
 	wait := fs.Duration("wait", 0, "install: wait up to this long for the Service to be running and healthy")
 	setFlags := fs.String("set", "", "install: settings as key=value,key=value")
+	deleteData := fs.Bool("delete-data", false, "remove: also delete the Service's volumes")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -188,7 +189,7 @@ func runService(args []string) error {
 			"start": maitrev1.ControlServiceRequest_ACTION_START, "stop": maitrev1.ControlServiceRequest_ACTION_STOP,
 			"restart": maitrev1.ControlServiceRequest_ACTION_RESTART, "remove": maitrev1.ControlServiceRequest_ACTION_REMOVE,
 		}
-		res, err := c.ControlService(ctx, &maitrev1.ControlServiceRequest{Name: fs.Arg(1), Action: actions[fs.Arg(0)]})
+		res, err := c.ControlService(ctx, &maitrev1.ControlServiceRequest{Name: fs.Arg(1), Action: actions[fs.Arg(0)], DeleteData: *deleteData && fs.Arg(0) == "remove"})
 		if err != nil {
 			return err
 		}
