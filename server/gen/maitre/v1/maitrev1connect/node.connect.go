@@ -178,9 +178,9 @@ type NodeServiceClient interface {
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
 	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
-	// metrics sample and Service statuses. Kept in memory only, never stored;
-	// every Node sends it to every peer every few seconds and when a Service
-	// changes state.
+	// metrics sample and, when one changed or every five minutes, its Service
+	// statuses (a message without them keeps the ones heard before). Kept in
+	// memory only, never stored; every Node sends it to every peer every 5 s.
 	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
 }
 
@@ -230,9 +230,9 @@ type NodeServiceHandler interface {
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
 	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
-	// metrics sample and Service statuses. Kept in memory only, never stored;
-	// every Node sends it to every peer every few seconds and when a Service
-	// changes state.
+	// metrics sample and, when one changed or every five minutes, its Service
+	// statuses (a message without them keeps the ones heard before). Kept in
+	// memory only, never stored; every Node sends it to every peer every 5 s.
 	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
 }
 

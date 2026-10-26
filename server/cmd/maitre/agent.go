@@ -306,10 +306,11 @@ func runAgent(args []string) error {
 		}
 		return list
 	}
-	// ADR 0006: gossip this Node's metrics and Service statuses to every
-	// peer: every 5 s, and within 2 s of a Service changing state.
+	// ADR 0006: gossip to every peer. Metrics go every 5 s; Service
+	// statuses ride along only when one changed (checked every 2 s) or
+	// every 5 minutes, so a quiet Fleet sends almost nothing but samples.
 	go func() {
-		var lastSent time.Time
+		var lastMetrics, lastServices time.Time
 		var lastKey string
 		t := time.NewTicker(2 * time.Second)
 		defer t.Stop()
@@ -321,10 +322,19 @@ func runAgent(args []string) error {
 			}
 			own := svc.OwnStatus(ctx)
 			key := statusKey(own.GetServices())
-			if key != lastKey || time.Since(lastSent) >= 5*time.Second {
-				pm.Gossip(context.WithoutCancel(ctx), own)
-				lastSent, lastKey = time.Now(), key
+			services := key != lastKey || time.Since(lastServices) >= 5*time.Minute
+			metrics := time.Since(lastMetrics) >= 5*time.Second
+			if !services && !metrics {
+				continue
 			}
+			if !services {
+				own.Services, own.ServicesUnixMs = nil, 0
+			}
+			pm.Gossip(context.WithoutCancel(ctx), own)
+			if services {
+				lastServices, lastKey = time.Now(), key
+			}
+			lastMetrics = time.Now()
 		}
 	}()
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.

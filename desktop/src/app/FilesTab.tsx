@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +33,7 @@ export interface FileScope {
 }
 
 const scopeKey = (s: FileScope) => `${s.nodeId}:${s.spaceId ?? ""}:${s.driveId ?? ""}`;
+const sameScope = (a: FileScope, b: FileScope & { group?: string }) => (b.group === "fleet" ? a.spaceId === b.spaceId && !a.driveId : scopeKey(a) === scopeKey(b));
 
 export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undefined; state: ConsoleState; initial?: FileScope }) {
   const qc = useQueryClient();
@@ -41,17 +42,29 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const drives = snap?.drives ?? [];
   // Every place that can be browsed: a Space's Pool on each Node that has a
   // Drive of it (or spans), and each Drive's root.
+  // A spanning Space is one place, the Fleet's: its merged Pool is the same
+  // from any Node that has it, so it is listed once under the Fleet and read
+  // through the anchor when the anchor has it, else the first Node that does.
+  // Other Spaces and every Drive root belong to one Node.
   const scopes = useMemo(() => {
-    const out: (FileScope & { label: string; kind: "space" | "drive"; color?: string })[] = [];
+    const out: (FileScope & { group: string; label: string; kind: "space" | "drive"; color?: string })[] = [];
+    const reachable = (id: string) => nodeWord(snap?.status.get(id), Date.now()) !== "Unreachable";
+    const has = (n: { nodeId: string }, s: { spaceId: string }) => drives.filter((d) => d.nodeId === n.nodeId).some((d) => spacesOf(d, spaces).includes(s.spaceId));
+    spaces.forEach((s, i) => {
+      if (!s.spanNodes) return;
+      const holders = nodes.filter((n) => has(n, s));
+      const via = holders.find((n) => n.nodeId === snap?.anchor.nodeId && reachable(n.nodeId)) ?? holders.find((n) => reachable(n.nodeId)) ?? holders[0] ?? (snap ? nodes.find((n) => n.nodeId === snap.anchor.nodeId) : undefined);
+      if (via) out.push({ group: "fleet", nodeId: via.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: spaceColor(i) });
+    });
     for (const n of nodes) {
       const mine = drives.filter((d) => d.nodeId === n.nodeId);
       spaces.forEach((s, i) => {
-        if (s.spanNodes || mine.some((d) => spacesOf(d, spaces).includes(s.spaceId))) out.push({ nodeId: n.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: spaceColor(i) });
+        if (!s.spanNodes && has(n, s)) out.push({ group: n.nodeId, nodeId: n.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: spaceColor(i) });
       });
-      for (const d of [...mine].sort((a, b) => a.name.localeCompare(b.name))) out.push({ nodeId: n.nodeId, driveId: d.driveId, label: d.name, kind: "drive" });
+      for (const d of [...mine].sort((a, b) => a.name.localeCompare(b.name))) out.push({ group: n.nodeId, nodeId: n.nodeId, driveId: d.driveId, label: d.name, kind: "drive" });
     }
     return out;
-  }, [nodes, spaces, drives]);
+  }, [nodes, spaces, drives, snap]);
   const [scope, setScope] = useState<FileScope | undefined>(initial);
   const [path, setPath] = useState(initial?.path ?? "");
   useEffect(() => {
@@ -79,7 +92,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const nodeName = (id: string) => nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   const driveName = (nid: string, did: string) => drives.find((d) => d.nodeId === nid && d.driveId === did)?.name ?? did;
   const crumbs = path.split("/").filter(Boolean);
-  const current = scope ? scopes.find((s) => scopeKey(s) === scopeKey(scope)) : undefined;
+  const current = scope ? scopes.find((s) => sameScope(scope, s)) : undefined;
   const go = (p: string) => {
     setPath(p);
   };
@@ -87,14 +100,14 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   return (
     <div className="grid h-full grid-cols-[220px_1fr] gap-6">
       <aside className="space-y-4 overflow-y-auto pr-2">
-        {nodes.map((n) => (
-          <div key={n.nodeId}>
+        {[{ id: "fleet", letter: "", name: state.fleet?.name ?? "Fleet" }, ...nodes.map((n) => ({ id: n.nodeId, letter: n.letter, name: n.name }))].map((n) => (
+          <div key={n.id}>
             <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-              <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{n.letter}</span> {n.name}
+              {n.id === "fleet" ? <Boxes className="size-4" /> : <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{n.letter}</span>} {n.name}
             </div>
             <ul className="space-y-0.5">
               {scopes
-                .filter((s) => s.nodeId === n.nodeId)
+                .filter((s) => s.group === n.id)
                 .map((s) => (
                   <li key={scopeKey(s)}>
                     <button
@@ -102,7 +115,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                         setScope(s);
                         setPath("");
                       }}
-                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", scope && scopeKey(s) === scopeKey(scope) && "bg-accent")}
+                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", scope && sameScope(scope, s) && "bg-accent")}
                     >
                       {s.kind === "space" ? <Layers className="size-4 shrink-0" style={{ color: s.color }} /> : <HardDrive className="size-4 shrink-0 text-muted-foreground" />}
                       <span className="truncate">{s.label}</span>
@@ -110,7 +123,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                     </button>
                   </li>
                 ))}
-              {scopes.filter((s) => s.nodeId === n.nodeId).length === 0 && <li className="px-2 text-xs text-muted-foreground">nothing to browse</li>}
+              {scopes.filter((s) => s.group === n.id).length === 0 && <li className="px-2 text-xs text-muted-foreground">{n.id === "fleet" ? "no Space spans Nodes" : "nothing to browse"}</li>}
             </ul>
           </div>
         ))}
@@ -124,7 +137,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
               <button className="flex items-center gap-1.5 rounded px-1 font-medium hover:bg-accent" onClick={() => go("")}>
                 {current.kind === "space" ? <Layers className="size-4" style={{ color: current.color }} /> : <HardDrive className="size-4 text-muted-foreground" />}
                 {current.label}
-                <span className="text-xs font-normal text-muted-foreground">on {nodeName(current.nodeId)}</span>
+                <span className="text-xs font-normal text-muted-foreground">{current.group === "fleet" ? `spans Nodes · via ${nodeName(current.nodeId)}` : `on ${nodeName(current.nodeId)}`}</span>
               </button>
             )}
             {crumbs.map((c, i) => (

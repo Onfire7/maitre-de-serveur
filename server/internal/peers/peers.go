@@ -250,13 +250,17 @@ func (m *Manager) Gossip(ctx context.Context, st *maitrev1.FleetNodeStatus) {
 
 // Received keeps a peer's gossiped status and counts it as having been
 // heard from: a Node that talks to us is reachable, whether or not our
-// own calls to it succeed.
+// own calls to it succeed. A message without Service statuses (a plain
+// metrics sample) keeps the statuses heard before.
 func (m *Manager) Received(st *maitrev1.FleetNodeStatus) {
 	if st == nil || st.GetNodeId() == "" {
 		return
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if prev := m.heard[st.GetNodeId()]; prev != nil && st.GetServicesUnixMs() == 0 {
+		st.Services, st.ServicesUnixMs = prev.GetServices(), prev.GetServicesUnixMs()
+	}
 	m.heard[st.GetNodeId()] = st
 	if p, ok := m.peers[st.GetNodeId()]; ok {
 		p.online, p.lastSeen = true, time.Now()

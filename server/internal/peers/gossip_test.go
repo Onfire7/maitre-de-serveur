@@ -27,6 +27,13 @@ func TestReceivedMarksPeerHeard(t *testing.T) {
 	if !p.online || p.lastSeen.Before(before) {
 		t.Fatal("a peer that gossips to us is online and just seen")
 	}
+	// Service statuses travel only on change or every 5 minutes; a plain
+	// metrics sample keeps the statuses heard before.
+	m.Received(&maitrev1.FleetNodeStatus{NodeId: "b", Services: []*maitrev1.ServiceStatus{{Spec: &maitrev1.ServiceSpec{Name: "uptime"}}}, ServicesUnixMs: 7, MetricsUnixMs: 50})
+	m.Received(&maitrev1.FleetNodeStatus{NodeId: "b", MetricsUnixMs: 60})
+	if got := m.Last("b"); got.GetMetricsUnixMs() != 60 || got.GetServicesUnixMs() != 7 || len(got.GetServices()) != 1 {
+		t.Fatalf("metrics-only sample must keep the last services: %v", got)
+	}
 	// A Node we do not know yet is kept too; Refresh will add the peer.
 	m.Received(&maitrev1.FleetNodeStatus{NodeId: "z"})
 	if m.Last("z") == nil {
