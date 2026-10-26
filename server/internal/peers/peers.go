@@ -128,6 +128,10 @@ func (m *Manager) Discovered(id, addr string) {
 	}
 }
 
+// HTTPClient is the mTLS client this Node uses to reach peers; other
+// packages (the file manager) reuse it for their own peer calls.
+func (m *Manager) HTTPClient() *http.Client { return m.http }
+
 // Addresses returns every address known per peer, best first.
 func (m *Manager) Addresses() map[string][]string {
 	m.mu.Lock()

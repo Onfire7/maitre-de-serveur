@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// FilesService is the file manager's back end (decision 122): browse a
+// Bin's Pool as one merged tree or a Drive's root (files that were there
+// before adoption, folders of removed Bins), see which Node and Drive hold
+// each entry and how big it is, and queue moves between Bins, Drives and
+// Nodes. The Node never deletes user data on its own: a move copies, checks,
+// then removes the source; a failed move leaves the source untouched.
+service FilesService {
+  rpc ListDir(ListDirRequest) returns (ListDirResponse) {}
+  // Size of a directory tree; computed in the background and cached, so the
+  // first answer may say in_progress.
+  rpc Usage(UsageRequest) returns (UsageResponse) {}
+  rpc Move(MoveRequest) returns (MoveResponse) {}
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
+  rpc CancelJob(CancelJobRequest) returns (CancelJobResponse) {}
+}
+
+// Scope is what a path is relative to: a Bin's Pool on this Node (the
+// merged view), or a Drive's root on this Node.
+message Scope {
+  string bin_id = 1;
+  string drive_id = 2;
+}
+
+message ListDirRequest {
+  Scope scope = 1;
+  // Relative, "/" or "" for the top.
+  string path = 2;
+}
+
+// Location is one copy of an entry: the Node and, when known, the Drive.
+// A copy on a peer's Pool (spanning Bin) names the Node only.
+message Location {
+  string node_id = 1;
+  string drive_id = 2;
+}
+
+message Entry {
+  string name = 1;
+  bool dir = 2;
+  // Files only; directories use Usage.
+  uint64 size_bytes = 3;
+  int64 modified_unix_ms = 4;
+  repeated Location locations = 5;
+}
+
+message ListDirResponse {
+  repeated Entry entries = 1;
+}
+
+message UsageRequest {
+  Scope scope = 1;
+  string path = 2;
+}
+
+message UsageResponse {
+  uint64 bytes = 1;
+  uint64 files = 2;
+  bool in_progress = 3;
+}
+
+message MoveRequest {
+  Scope from = 1;
+  string path = 2;
+  // Destination Bin; to_path defaults to path.
+  string to_bin = 3;
+  string to_path = 4;
+  // Optional: a specific Node and/or Drive of that Bin. A Drive belongs to
+  // a Node; naming a Drive implies its Node.
+  string to_node_id = 5;
+  string to_drive_id = 6;
+  // Set by a Node forwarding a move to another Node: the source lives on
+  // this Node's Pool (bin scope only), reached over NFS.
+  string from_node_id = 7;
+}
+
+message MoveResponse {
+  string job_id = 1;
+}
+
+message Job {
+  string job_id = 1;
+  // queued | running | done | failed | cancelled
+  string state = 2;
+  string message = 3;
+  uint64 bytes_done = 4;
+  uint64 bytes_total = 5;
+  // The entry being copied right now.
+  string current = 6;
+  int64 started_unix_ms = 7;
+  int64 finished_unix_ms = 8;
+  MoveRequest request = 9;
+}
+
+message ListJobsRequest {}
+
+message ListJobsResponse {
+  repeated Job jobs = 1;
+}
+
+message CancelJobRequest {
+  string job_id = 1;
+}
+
+message CancelJobResponse {}

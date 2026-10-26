@@ -30,6 +30,8 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
@@ -539,6 +541,17 @@ func runAgent(args []string) error {
 	maitrev1connect.RegisterNodeServiceHandler(rpc, svc)
 	maitrev1connect.RegisterServiceServiceHandler(rpc, ssvc)
 	maitrev1connect.RegisterStorageServiceHandler(rpc, ssvc2)
+	// Decision 122: the file manager's back end.
+	fm := files.New(st, log, id.Fingerprint())
+	fm.PeerAddr = func(nodeID string) string {
+		if as := pm.Addresses()[nodeID]; len(as) > 0 {
+			return as[0]
+		}
+		return ""
+	}
+	fm.PeerHTTP = pm.HTTPClient
+	go fm.Run(ctx)
+	maitrev1connect.RegisterFilesServiceHandler(rpc, filesservice.New(fm))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 

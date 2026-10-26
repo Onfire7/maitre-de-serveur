@@ -129,15 +129,9 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 			if h, _, err := net.SplitHostPort(host); err == nil {
 				host = h
 			}
-			dir := filepath.Join(RemoteDir, nodeID, tier)
-			if !mounted(dir) {
-				if err := os.MkdirAll(dir, 0o755); err != nil {
-					continue
-				}
-				src := fmt.Sprintf("%s:%s", host, filepath.Join(pool.PoolsDir, tier))
-				if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev", src, dir); err != nil {
-					continue
-				}
+			dir, err := MountRemotePool(ctx, run, host, nodeID, tier)
+			if err != nil {
+				continue
 			}
 			out[tier] = append(out[tier], dir)
 		}
@@ -146,6 +140,27 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 		sort.Strings(out[tier])
 	}
 	return out, nil
+}
+
+// MountRemotePool mounts a peer's Pool of one Bin (exported to this Node)
+// at RemoteDir/<node>/<bin>, soft with short timeouts, and returns the
+// directory; already mounted is fine. host is the peer's IP.
+func MountRemotePool(ctx context.Context, run Runner, host, nodeID, bin string) (string, error) {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	dir := filepath.Join(RemoteDir, nodeID, bin)
+	if mounted(dir) {
+		return dir, nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	src := fmt.Sprintf("%s:%s", host, filepath.Join(pool.PoolsDir, bin))
+	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev", src, dir); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 // UnmountStale lazily unmounts remote Pools of peers no longer in the Fleet.
