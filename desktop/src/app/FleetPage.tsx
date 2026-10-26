@@ -91,6 +91,30 @@ function Overview({ snap, device, notices, state, onPromote }: { snap: FleetSnap
           "Reaching the Fleet…"
         )}
       </p>
+      {snap && (snap.nodes.length === 0 || snap.spaces.length === 0 || snap.specs.length === 0) && (
+        <section>
+          <h2 className="mb-2 text-base font-semibold">Getting started</h2>
+          <ol className="space-y-1.5">
+            {(
+              [
+                [snap.nodes.length > 0, "Set up a Node", "A machine booted from the Installer, on the Nodes tab.", "nodes"],
+                [snap.spaces.length > 0, "Create a Storage Space", "Where Service data goes: pick the Drives, on the Storage tab.", "storage"],
+                [snap.specs.length > 0, "Install a Service", "From the Catalog, with Add a Service in the sidebar.", undefined],
+              ] as [boolean, string, string, FleetTab | undefined][]
+            ).map(([done, title, detail, tab]) => (
+              <li key={title}>
+                <button disabled={done} onClick={() => (tab ? go({ name: "fleet", tab }) : go({ name: "catalog" }))} className={cn("flex w-full items-start gap-3 rounded-lg border p-3 text-left", done ? "opacity-60" : "hover:bg-accent/50")}>
+                  <span className={cn("mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px]", done && "border-status-online bg-status-online text-black")}>{done ? "✓" : ""}</span>
+                  <span>
+                    <span className={cn("block text-sm font-medium", done && "line-through")}>{title}</span>
+                    <span className="block text-xs text-muted-foreground">{detail}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       <section>
         <h2 className="mb-2 text-base font-semibold">Needs your attention</h2>
         {notices.length === 0 ? (

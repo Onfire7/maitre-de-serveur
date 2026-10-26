@@ -15,7 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { HoldButton } from "@/components/hold-button";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
@@ -191,9 +192,15 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={() => removing && tryPut(removing, true)}>
-              Remove
-            </AlertDialogAction>
+            <HoldButton
+              variant="destructive"
+              onConfirm={() => {
+                if (removing) tryPut(removing, true);
+                setRemoving(null);
+              }}
+            >
+              Hold to remove
+            </HoldButton>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { HoldButton } from "@/components/hold-button";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatUptime } from "@/lib/format";
 import { NodeService, UpdateStatus_State, type ImageDeployment, type UpdateStatus } from "@/gen/maitre/v1/node_pb";
@@ -205,7 +206,14 @@ export function NodeDetails({ node, target, snap, unreachable }: { node: Node; t
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => client && run(() => client.rollback({ reboot: true }), { kind: "rollback", reboot: true })}>Roll back and restart</AlertDialogAction>
+            <HoldButton
+              onConfirm={() => {
+                setRollbackOpen(false);
+                if (client) run(() => client.rollback({ reboot: true }), { kind: "rollback", reboot: true });
+              }}
+            >
+              Hold to roll back and restart
+            </HoldButton>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

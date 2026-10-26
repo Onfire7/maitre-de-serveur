@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { HoldButton } from "@/components/hold-button";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord, STALE_MS } from "@/fleet/useFleet";
 import { node as nodeClient, targetFor } from "@/fleet/actions";
@@ -247,9 +248,20 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
           )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={confirm === "remove" && typed.trim() !== node.name} onClick={() => (confirm === "reboot" ? reboot() : remove())} className={confirm === "remove" ? "bg-destructive text-white hover:bg-destructive/90" : ""}>
-              {confirm === "reboot" ? "Restart" : "Remove"}
-            </AlertDialogAction>
+            {confirm === "reboot" ? (
+              <HoldButton
+                onConfirm={() => {
+                  setConfirm(null);
+                  reboot();
+                }}
+              >
+                Hold to restart
+              </HoldButton>
+            ) : (
+              <AlertDialogAction disabled={typed.trim() !== node.name} onClick={() => remove()} className="bg-destructive text-white hover:bg-destructive/90">
+                Remove
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
