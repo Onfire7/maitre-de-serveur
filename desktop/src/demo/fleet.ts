@@ -79,6 +79,8 @@ interface FileNode {
   /** Drive ids that hold a copy (Pool scope) or the one Drive (Drive scope). */
   drives: string[];
   nodeId: string;
+  /** Copies on other Nodes (a folder of a spanning Space exists on each). */
+  also?: { nodeId: string; drives: string[] }[];
   children?: FileNode[];
 }
 
@@ -525,7 +527,7 @@ export class DemoFleet {
     const f = (name: string, size: number, drives: string[], nodeId: string, daysAgo = 10): FileNode => ({ name, dir: false, size, modified: t - daysAgo * 86400_000, drives, nodeId });
     const d = (name: string, children: FileNode[], drives: string[], nodeId: string): FileNode => ({ name, dir: true, size: 0, modified: t - 3 * 86400_000, drives, nodeId, children });
     this.files.set("space:media", [
-      d("Movies", [f("Arrival (2016).mkv", 8.2 * GiB, ["sda"], NODE_A), f("Dune (2021).mkv", 14.1 * GiB, ["sdb"], NODE_A), f("Paddington 2 (2017).mkv", 6.4 * GiB, ["sda"], NODE_B)], ["sda", "sdb"], NODE_A),
+      { name: "Movies", dir: true, size: 0, modified: t - 3 * 86400_000, drives: ["sda", "sdb"], nodeId: NODE_A, children: [f("Arrival (2016).mkv", 8.2 * GiB, ["sda"], NODE_A), f("Dune (2021).mkv", 14.1 * GiB, ["sdb"], NODE_A), f("Paddington 2 (2017).mkv", 6.4 * GiB, ["sda"], NODE_B)], also: [{ nodeId: NODE_B, drives: ["sda"] }] },
       d("Shows", [d("Severance", [f("S01E01.mkv", 2.1 * GiB, ["sda"], NODE_B), f("S01E02.mkv", 2.0 * GiB, ["sda"], NODE_B)], ["sda"], NODE_B)], ["sda"], NODE_B),
       d("Music", [f("library.db", 42e6, ["sdb"], NODE_A)], ["sdb"], NODE_A),
     ]);
@@ -560,7 +562,7 @@ export class DemoFleet {
   listDir(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string): Entry[] {
     const dir = this.walk(this.tree(scope, nodeId), path);
     if (!dir) throw new Error(`no such folder: ${path || "/"}`);
-    return dir.map((n) => ({ name: n.name, dir: n.dir, sizeBytes: BigInt(Math.round(n.size)), modifiedUnixMs: BigInt(n.modified), locations: n.drives.map((d) => ({ nodeId: n.nodeId, driveId: d })) })) as Entry[];
+    return dir.map((n) => ({ name: n.name, dir: n.dir, sizeBytes: BigInt(Math.round(n.size)), modifiedUnixMs: BigInt(n.modified), locations: [...n.drives.map((d) => ({ nodeId: n.nodeId, driveId: d })), ...(n.also ?? []).flatMap((a) => a.drives.map((d) => ({ nodeId: a.nodeId, driveId: d })))] })) as Entry[];
   }
 
   usage(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string): { bytes: bigint; files: bigint } {

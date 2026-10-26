@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatBytes, ago } from "@/lib/format";
 import { FilesService, type Entry, type Job } from "@/gen/maitre/v1/files_pb";
@@ -225,7 +226,7 @@ function Row({ e, client, scope, path, selected, onSelect, onOpen, nodeName, dri
     refetchInterval: (q) => (q.state.data?.inProgress ? 1500 : false),
     queryFn: () => client.usage({ scope: { spaceId: scope.spaceId ?? "", driveId: scope.driveId ?? "" }, path: [path, e.name].filter(Boolean).join("/") }),
   });
-  const where = Array.from(new Set(e.locations.map((l) => (l.driveId ? `${nodeName(l.nodeId)} · ${driveName(l.nodeId, l.driveId)}` : nodeName(l.nodeId)))));
+  const where = whereOf(e, nodeName, driveName);
   return (
     <tr className={cn("border-b last:border-0 hover:bg-accent/40", selected && "bg-accent/60")}>
       <td className="px-3 py-1.5">
@@ -253,8 +254,64 @@ function Row({ e, client, scope, path, selected, onSelect, onOpen, nodeName, dri
         )}
       </td>
       <td className="px-2 py-1.5 text-xs text-muted-foreground">{e.modifiedUnixMs > 0n ? ago(Number(e.modifiedUnixMs)) : ""}</td>
-      <td className="px-3 py-1.5 text-xs text-muted-foreground">{where.join(", ")}</td>
+      <td className="max-w-64 px-3 py-1.5 text-xs text-muted-foreground">
+        {where.length > 0 && (
+          <Tooltip open={new URLSearchParams(window.location.search).get("where") === e.name ? true : undefined}>
+            <TooltipTrigger asChild>
+              <span className="block cursor-default truncate">{where.length === 1 ? where[0].drives.join(", ") || where[0].node : where.map((w) => `${w.node}: ${w.drives.join(", ") || "its Pool"}`).join(" • ")}</span>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-h-80 max-w-md overflow-y-auto p-0">
+              <WhereBreakdown where={where} />
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </td>
     </tr>
+  );
+}
+
+interface Where {
+  node: string;
+  drives: string[];
+}
+
+/** An entry's copies grouped by Node, Nodes in name order, Drives in name order. */
+function whereOf(e: Entry, nodeName: (id: string) => string, driveName: (n: string, d: string) => string): Where[] {
+  const byNode = new Map<string, Set<string>>();
+  for (const l of e.locations) {
+    const set = byNode.get(l.nodeId) ?? new Set<string>();
+    if (l.driveId) set.add(driveName(l.nodeId, l.driveId));
+    byNode.set(l.nodeId, set);
+  }
+  return [...byNode.entries()].map(([id, drives]) => ({ node: nodeName(id), drives: [...drives].sort((a, b) => a.localeCompare(b)) })).sort((a, b) => a.node.localeCompare(b.node));
+}
+
+/**
+ * The tooltip's breakdown: one row per Node with its Drives as chips that
+ * wrap, the whole thing scrolling past about ten Nodes. Built to stay
+ * readable at ten Nodes with forty-two Drives each.
+ */
+function WhereBreakdown({ where }: { where: Where[] }) {
+  const total = where.reduce((n, w) => n + Math.max(1, w.drives.length), 0);
+  return (
+    <div className="text-xs">
+      <div className="border-b border-background/20 px-3 py-1.5 font-medium">
+        {total} {total === 1 ? "copy" : "copies"} on {where.length} {where.length === 1 ? "Node" : "Nodes"}
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 py-2">
+        {where.map((w) => (
+          <div key={w.node} className="contents">
+            <dt className="whitespace-nowrap font-medium">
+              {w.node}
+              <span className="ml-1 opacity-70">{w.drives.length || ""}</span>
+            </dt>
+            <dd className="flex flex-wrap gap-1">
+              {w.drives.length === 0 ? <span className="opacity-70">its Pool</span> : w.drives.map((d) => <span key={d} className="rounded bg-background/20 px-1.5 leading-5">{d}</span>)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
