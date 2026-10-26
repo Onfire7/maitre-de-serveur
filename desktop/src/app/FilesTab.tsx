@@ -260,7 +260,7 @@ function Row({ e, client, scope, path, selected, onSelect, onOpen, nodeName, dri
             <TooltipTrigger asChild>
               <span className="block cursor-default truncate">{where.length === 1 ? where[0].drives.join(", ") || where[0].node : where.map((w) => `${w.node}: ${w.drives.join(", ") || "its Pool"}`).join(" • ")}</span>
             </TooltipTrigger>
-            <TooltipContent side="left" className="max-h-80 max-w-md overflow-y-auto p-0">
+            <TooltipContent side="left" className="max-w-[90vw] p-0">
               <WhereBreakdown where={where} />
             </TooltipContent>
           </Tooltip>
@@ -288,29 +288,44 @@ function whereOf(e: Entry, nodeName: (id: string) => string, driveName: (n: stri
 
 /**
  * The tooltip's breakdown: one row per Node with its Drives as chips that
- * wrap, the whole thing scrolling past about ten Nodes. Built to stay
- * readable at ten Nodes with forty-two Drives each.
+ * wrap, a line between the Nodes and their Drives. When it would grow too
+ * tall it adds columns instead: Nodes are packed into columns of about
+ * sixteen lines each, so ten Nodes with forty-two Drives each read as a
+ * few columns side by side rather than a scroll.
  */
 function WhereBreakdown({ where }: { where: Where[] }) {
   const total = where.reduce((n, w) => n + Math.max(1, w.drives.length), 0);
+  const lines = (w: Where) => Math.max(1, Math.ceil(w.drives.length / 6));
+  const columns: Where[][] = [[]];
+  let used = 0;
+  for (const w of where) {
+    if (used > 0 && used + lines(w) > 16) {
+      columns.push([]);
+      used = 0;
+    }
+    columns[columns.length - 1].push(w);
+    used += lines(w);
+  }
   return (
     <div className="text-xs">
-      <div className="border-b border-background/20 px-3 py-1.5 font-medium">
+      <div className="border-b border-primary-foreground/30 px-3 py-1.5 font-medium">
         {total} {total === 1 ? "copy" : "copies"} on {where.length} {where.length === 1 ? "Node" : "Nodes"}
       </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 py-2">
-        {where.map((w) => (
-          <div key={w.node} className="contents">
-            <dt className="whitespace-nowrap font-medium">
-              {w.node}
-              <span className="ml-1 opacity-70">{w.drives.length || ""}</span>
-            </dt>
-            <dd className="flex flex-wrap gap-1">
-              {w.drives.length === 0 ? <span className="opacity-70">its Pool</span> : w.drives.map((d) => <span key={d} className="rounded bg-background/20 px-1.5 leading-5">{d}</span>)}
-            </dd>
-          </div>
+      <div className="flex divide-x divide-primary-foreground/30">
+        {columns.map((col, ci) => (
+          <dl key={ci} className="grid max-w-72 grid-cols-[auto_1fr] py-1">
+            {col.map((w) => (
+              <div key={w.node} className="contents">
+                <dt className="whitespace-nowrap border-r border-primary-foreground/40 py-0.5 pl-3 pr-2 font-medium">
+                  {w.node}
+                  <span className="ml-1 opacity-70">{w.drives.length || ""}</span>
+                </dt>
+                <dd className="flex flex-wrap gap-1 py-0.5 pl-2 pr-3">{w.drives.length === 0 ? <span className="opacity-70">its Pool</span> : w.drives.map((d) => <span key={d} className="rounded bg-background/20 px-1.5 leading-5">{d}</span>)}</dd>
+              </div>
+            ))}
+          </dl>
         ))}
-      </dl>
+      </div>
     </div>
   );
 }

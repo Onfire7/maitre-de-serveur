@@ -528,6 +528,7 @@ export class DemoFleet {
     const d = (name: string, children: FileNode[], drives: string[], nodeId: string): FileNode => ({ name, dir: true, size: 0, modified: t - 3 * 86400_000, drives, nodeId, children });
     this.files.set("space:media", [
       { name: "Movies", dir: true, size: 0, modified: t - 3 * 86400_000, drives: ["sda", "sdb"], nodeId: NODE_A, children: [f("Arrival (2016).mkv", 8.2 * GiB, ["sda"], NODE_A), f("Dune (2021).mkv", 14.1 * GiB, ["sdb"], NODE_A), f("Paddington 2 (2017).mkv", 6.4 * GiB, ["sda"], NODE_B)], also: [{ nodeId: NODE_B, drives: ["sda"] }] },
+      { name: "Photos", dir: true, size: 0, modified: t - 9 * 86400_000, drives: ["sda", "sdb", "sdc", "sdd", "sde", "sdf", "sdg", "sdh", "sdi", "sdj", "sdk", "sdl"], nodeId: NODE_A, children: [f("2019.zip", 2.2 * GiB, ["sda"], NODE_A, 400)], also: [{ nodeId: NODE_B, drives: ["sda", "sdb", "sdc", "sdd", "sde", "sdf", "sdg", "sdh"] }] },
       d("Shows", [d("Severance", [f("S01E01.mkv", 2.1 * GiB, ["sda"], NODE_B), f("S01E02.mkv", 2.0 * GiB, ["sda"], NODE_B)], ["sda"], NODE_B)], ["sda"], NODE_B),
       d("Music", [f("library.db", 42e6, ["sdb"], NODE_A)], ["sdb"], NODE_A),
     ]);
