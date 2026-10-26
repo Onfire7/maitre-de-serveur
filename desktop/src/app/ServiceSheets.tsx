@@ -283,7 +283,7 @@ export function StorageSheet({ service, snap, open, onClose }: { service: FleetS
           </p>
         </div>
         <SheetFooter>
-          <Button variant="outline" onClick={() => (onClose(), go({ name: "fleet", tab: "files" }))}>
+          <Button variant="outline" onClick={() => (onClose(), go({ name: "fleet", tab: "files", files: { nodeId: service.spec.nodeId, spaceId: Object.values(service.spec.volumeSpaces)[0], path: service.spec.name } }))}>
             Open in Files
           </Button>
         </SheetFooter>

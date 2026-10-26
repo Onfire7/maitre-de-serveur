@@ -16,7 +16,7 @@ export const FLEET_TAB_LABEL: Record<FleetTab, string> = {
 export type Route =
   | { name: "service"; service: string }
   | { name: "catalog" }
-  | { name: "fleet"; tab: FleetTab; nodeId?: string }
+  | { name: "fleet"; tab: FleetTab; nodeId?: string; files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string } }
   | { name: "add-node"; addr: string; installerId: string }
   | { name: "code" };
 

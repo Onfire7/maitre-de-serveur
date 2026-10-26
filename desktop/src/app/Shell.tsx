@@ -181,7 +181,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
               {route.name === "catalog" && <CatalogPage snap={snap} onInstall={install} />}
-              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
+              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
               {route.name === "add-node" && addFound && (
                 <div className="legacy h-full overflow-y-auto p-6">
                   <AddNode

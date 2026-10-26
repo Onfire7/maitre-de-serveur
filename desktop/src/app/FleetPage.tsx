@@ -2,7 +2,7 @@
 // not yet redesigned embed the existing panels; step 4 migrates them.
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CircleAlert, Info, FolderOpen } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import type { ConsoleState, DeviceInfo, Found } from "@/state";
@@ -12,11 +12,13 @@ import { StorageTab } from "./StorageTab";
 import { UpdatesTab } from "./UpdatesTab";
 import { DevicesTab } from "./DevicesTab";
 import { RemoteTab } from "./RemoteTab";
+import { FilesTab } from "./FilesTab";
 import type { Notice } from "./notices";
 
 export function FleetPage({
   tab,
   nodeId,
+  files,
   snap,
   state,
   device,
@@ -28,6 +30,7 @@ export function FleetPage({
 }: {
   tab: FleetTab;
   nodeId?: string;
+  files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string };
   snap: FleetSnapshot | undefined;
   state: ConsoleState;
   device: DeviceInfo;
@@ -60,11 +63,11 @@ export function FleetPage({
           </TabsList>
         </Tabs>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-6 [&_section]:mb-6">
+      <div className={cn("min-h-0 flex-1 overflow-y-auto p-6", tab !== "files" && "[&_section]:mb-6")}>
         {tab === "overview" && <Overview snap={snap} device={device} notices={notices} state={state} onPromote={onPromote} />}
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}
-        {tab === "files" && <FilesTab snap={snap} />}
+        {tab === "files" && <FilesTab snap={snap} state={state} initial={files} />}
         {tab === "devices" && <DevicesTab snap={snap} device={device} found={found} onPromote={onPromote} scoped={scoped} />}
         {tab === "updates" && <UpdatesTab snap={snap} state={state} />}
         {tab === "remote" && <RemoteTab snap={snap} state={state} />}
@@ -108,28 +111,6 @@ function Overview({ snap, device, notices, state, onPromote }: { snap: FleetSnap
           </ul>
         )}
       </section>
-    </div>
-  );
-}
-
-function FilesTab({ snap }: { snap: FleetSnapshot | undefined }) {
-  return (
-    <div className="max-w-2xl space-y-4">
-      <p className="text-sm text-muted-foreground">Browse and move files between Storage Spaces and Drives. The file manager arrives with the Storage screens (build order step 5); the places it will open are already here.</p>
-      <ul className="divide-y rounded-lg border">
-        {(snap?.spaces ?? []).map((s) => (
-          <li key={s.spaceId} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <FolderOpen className="size-4 text-muted-foreground" /> <span className="font-medium">{s.name}</span>
-            <span className="text-xs text-muted-foreground">Space{s.spanNodes ? " · spans Nodes" : ""}</span>
-          </li>
-        ))}
-        {(snap?.drives ?? []).map((d) => (
-          <li key={d.driveId + d.nodeId} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <FolderOpen className="size-4 text-muted-foreground" /> <span className="font-medium">{d.name}</span>
-            <span className="text-xs text-muted-foreground">Drive on {snap?.nodes.find((n) => n.nodeId === d.nodeId)?.name ?? "a Node"}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

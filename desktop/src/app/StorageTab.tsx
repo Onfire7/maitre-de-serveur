@@ -27,6 +27,7 @@ import { nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
+import { useRoute } from "./routes";
 
 const PLACEMENTS: Record<string, string> = { local_first: "local Drives first", most_free: "most free space", most_free_percent: "highest free share" };
 
@@ -397,6 +398,7 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onPreview, on
 
 function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: string; name: string; target: Target | undefined; unreachable: boolean; spaces: Space[] }) {
   const qc = useQueryClient();
+  const { go } = useRoute();
   const client = useMemo(() => (target ? createClient(StorageService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
   const q = useQuery({
     queryKey: ["drives", nodeId, target?.addr],
@@ -441,7 +443,17 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: str
                   {d.adopted && d.freeBytes > 0n && ` · ${formatBytes(d.freeBytes)} free`}
                   {[...d.autoTags, ...(d.record?.tags ?? [])].length > 0 && ` · ${[...d.autoTags, ...(d.record?.tags ?? [])].join(", ")}`}
                 </div>
-                {d.folders.some((f) => f.kind !== "space") && <div className="text-xs text-status-attention">{d.folders.filter((f) => f.kind !== "space").map((f) => `${f.name} (${f.kind === "orphan" ? "removed Space" : "unsorted"})`).join(", ")}</div>}
+                {d.folders.some((f) => f.kind !== "space") && (
+                  <div className="flex flex-wrap gap-1 pt-0.5 text-xs">
+                    {d.folders
+                      .filter((f) => f.kind !== "space")
+                      .map((f) => (
+                        <button key={f.name} className="rounded-full border border-status-attention/60 bg-status-attention/10 px-2 py-0.5 hover:bg-status-attention/20" title="Open in Files" onClick={() => go({ name: "fleet", tab: "files", files: { nodeId, driveId: d.driveId, path: f.name } })}>
+                          {f.name} · {f.kind === "orphan" ? "removed Space" : "unsorted"}
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
               <div className="flex gap-1">
                 {!d.adopted && d.fstype && (
