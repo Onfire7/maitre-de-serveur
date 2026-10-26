@@ -12,6 +12,7 @@ func TestTierOf(t *testing.T) {
 		{TierId: "media", RequireTags: []string{"hdd", "media"}, Priority: 10},
 		{TierId: "fast", RequireTags: []string{"ssd"}, Priority: 20},
 		{TierId: "node-b-only", RequireTags: []string{"ssd"}, NodeIds: []string{"b"}, Priority: 30},
+		{TierId: "empty-rule", Priority: 100},
 	}
 	cases := []struct {
 		d    *maitrev1.DriveRecord

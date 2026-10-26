@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
@@ -204,6 +205,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.record()
 		m.units = m.src.Units()
 		cmds := []tea.Cmd{tick()}
+		// The console's size is read again each tick: the kernel changes
+		// the VT geometry after boot and a service does not get SIGWINCH.
+		// A WindowSizeMsg also repaints every line, which rubs out
+		// anything the kernel or systemd printed over the screen.
+		if w, h, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 && h > 0 {
+			cmds = append(cmds, func() tea.Msg { return tea.WindowSizeMsg{Width: w, Height: h} })
+		}
 		if m.page == pageContainers {
 			cmds = append(cmds, m.fetchContainers())
 		}

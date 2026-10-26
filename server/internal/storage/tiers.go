@@ -49,6 +49,12 @@ func TierOf(d *maitrev1.DriveRecord, tiers []*maitrev1.Tier) string {
 		if t.GetTierId() == DefaultTier {
 			continue
 		}
+		// A Tier with no required tags and no Nodes selects nothing: an
+		// empty rule once swept every Drive, built-in ones included, into
+		// a new Tier and left the default Pool on the OS partition.
+		if len(t.GetRequireTags()) == 0 && len(t.GetNodeIds()) == 0 {
+			continue
+		}
 		ok := true
 		for _, need := range t.GetRequireTags() {
 			if !have[need] {

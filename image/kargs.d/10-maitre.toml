@@ -1,5 +1,6 @@
 # Kernel arguments bootc applies on install and on every update.
-# loglevel=4: warnings and worse on the monitor, so the Node's status text
+# loglevel=4: warnings and worse on the monitor, so the Node's status screen
 # (decision 72) is readable instead of buried in audit and driver chatter.
-# Everything still goes to the journal.
-kargs = ["loglevel=4"]
+# systemd.show_status=false: unit start/stop lines stay out of the screen
+# too; the journal has everything.
+kargs = ["loglevel=4", "systemd.show_status=false"]

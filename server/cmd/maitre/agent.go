@@ -221,7 +221,11 @@ func runAgent(args []string) error {
 			log.Warn("peer discovery unavailable", "err", err)
 		}
 	}
-	svc.Metrics = metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir)).Read
+	collector := metrics.New(*poolDir, *poolDir == pool.FallbackDir || !isMountpoint(*poolDir))
+	if *poolDir == pool.DefaultPool {
+		collector.Fallback = pool.IsFallback
+	}
+	svc.Metrics = collector.Read
 	svc.Updates = update.New(nil, log)
 	// Milestone 6: record what this Node runs, for the staged rollout, and
 	// let the rollout runner act on the Fleet's policy every hour.
@@ -337,8 +341,29 @@ func runAgent(args []string) error {
 			log.Warn("nfs exports", "err", err)
 		}
 	}
+	// Assembly mounts peers' Pools over NFS (up to 20 s each) and must not
+	// run inside a PutRecord: a Console creating a spanning Tier timed out
+	// waiting. Requests coalesce and run one at a time in the background.
+	assembleNow := make(chan struct{}, 1)
+	requestAssemble := func() {
+		select {
+		case assembleNow <- struct{}{}:
+		default:
+		}
+	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-assembleNow:
+			}
+			time.Sleep(time.Second)
+			assemblePools()
+		}
+	}()
 	stor.OnChange = func() {
-		assemblePools()
+		requestAssemble()
 		if recs, err := st.List(ctx, storage.KindDrive); err == nil {
 			pm.Push(context.WithoutCancel(ctx), recs...)
 		}
@@ -349,13 +374,13 @@ func runAgent(args []string) error {
 	svc.OnChange = func(r *maitrev1.Record) {
 		withTiers(r)
 		if r.GetKind() == storage.KindTier || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
-			assemblePools()
+			requestAssemble()
 		}
 	}
 	withPools := pm.OnApplied
 	pm.OnApplied = func() {
 		withPools()
-		assemblePools()
+		requestAssemble()
 	}
 	assemblePools()
 	ssvc2 := storageservice.New(stor)

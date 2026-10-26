@@ -16,8 +16,11 @@ import (
 
 // Collector keeps the previous CPU and network counters for rates.
 type Collector struct {
-	mu       sync.Mutex
-	poolDir  string
+	mu      sync.Mutex
+	poolDir string
+	// Fallback reports whether the Pool is a directory on the OS partition
+	// right now; nil means the value given to New.
+	Fallback func() bool
 	fallback bool
 	lastAt   time.Time
 	cpuBusy  uint64
@@ -38,6 +41,9 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 	defer c.mu.Unlock()
 	now := time.Now()
 	m := &maitrev1.NodeMetrics{PoolFallback: c.fallback}
+	if c.Fallback != nil {
+		m.PoolFallback = c.Fallback()
+	}
 
 	busy, total := cpuCounters()
 	if c.cpuTotal > 0 && total > c.cpuTotal {

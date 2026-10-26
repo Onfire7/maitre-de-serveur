@@ -112,7 +112,8 @@ export function TiersPanel({ state }: { state: ConsoleState }) {
           <input type="checkbox" checked={spanning} onChange={(e) => setSpanning(e.target.checked)} /> spans Nodes
         </label>
         <button
-          disabled={!name.trim()}
+          disabled={!name.trim() || tags.split(/[,\s]+/).filter(Boolean).length === 0}
+          title={tags.split(/[,\s]+/).filter(Boolean).length === 0 ? "A Tier needs at least one required tag; otherwise it would claim nothing (or everything)." : ""}
           onClick={() => {
             const id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             put(create(TierSchema, { tierId: id, name: name.trim(), placement: spanning ? "spanning" : "local", requireTags: tags.split(/[,\s]+/).filter(Boolean), priority: tiers.length, createdUnixMs: BigInt(Date.now()) }))
