@@ -39,6 +39,13 @@ func proxyRoute(r Route) map[string]any {
 // Config builds the Caddy JSON for the LAN routes and the public (own
 // domain) routes.
 func Config(routes []Route, public ...Route) []byte {
+	return ConfigWithEmail("", routes, public...)
+}
+
+// ConfigWithEmail is Config with an optional account email for the
+// certificate authority (decision 114): Let's Encrypt sends expiry and
+// policy notices there. Empty means no email.
+func ConfigWithEmail(acmeEmail string, routes []Route, public ...Route) []byte {
 	sort.Slice(routes, func(i, j int) bool { return routes[i].Host < routes[j].Host })
 	sort.Slice(public, func(i, j int) bool { return public[i].Host < public[j].Host })
 	var rs []map[string]any
@@ -94,7 +101,7 @@ func Config(routes []Route, public ...Route) []byte {
 			"automation": map[string]any{
 				"policies": []map[string]any{{
 					"subjects": hosts,
-					"issuers":  []map[string]any{{"module": "acme"}},
+					"issuers":  []map[string]any{issuer(acmeEmail)},
 				}},
 			},
 		}
@@ -105,6 +112,14 @@ func Config(routes []Route, public ...Route) []byte {
 	}
 	b, _ := json.Marshal(cfg)
 	return b
+}
+
+func issuer(email string) map[string]any {
+	is := map[string]any{"module": "acme"}
+	if email != "" {
+		is["email"] = email
+	}
+	return is
 }
 
 // Load pushes a config to the admin API, replacing the running one.

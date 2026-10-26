@@ -28,6 +28,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
@@ -38,6 +39,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peers"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/portmap"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/remote"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
@@ -259,13 +261,20 @@ func runAgent(args []string) error {
 	dir := direct.New(log)
 	go dir.Run(ctx)
 	svc.PublicIP = dir.PublicIP
+	// Decision 115: UPnP port forwarding, only for what Services asked for.
+	pmap := portmap.New(log, func() string {
+		ip, _ := depot.LANAddress()
+		return ip
+	})
+	go pmap.Run(ctx)
+	svc.PortMapping = pmap.Router
 	exposureStatus := func(name string) (string, string) {
 		if u, s := rem.Status(name); u != "" || s != "" {
 			return u, s
 		}
 		return dir.Status(name)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: exposureStatus}, st, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolDir: *poolDir, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	// Drives (Milestone 4): changes reassemble the Pool in place and sync.
 	stor := storage.New(st, nil)
@@ -349,7 +358,16 @@ func runAgent(args []string) error {
 		}
 		var routes, public []caddy.Route
 		var names []string
+		var wants []portmap.Mapping
 		for _, sp := range specs {
+			if sp.GetForwardPorts() && !sp.GetInfrastructure() {
+				for _, hp := range sp.GetHostPorts() {
+					if mp, ok := portmap.Parse(hp); ok {
+						mp.Owner = sp.GetName()
+						wants = append(wants, mp)
+					}
+				}
+			}
 			if sp.GetWebHostPort() == 0 {
 				continue
 			}
@@ -361,8 +379,16 @@ func runAgent(args []string) error {
 				public = append(public, caddy.Route{Host: sp.GetPublicHost(), Upstream: upstream})
 			}
 		}
+		if len(public) > 0 {
+			// Caddy must be reachable from the internet for the ACME
+			// challenge and the Service itself.
+			wants = append(wants, portmap.Mapping{Port: 80, Proto: "tcp", Owner: direct.ForwardOwner}, portmap.Mapping{Port: 443, Proto: "tcp", Owner: direct.ForwardOwner})
+		}
+		pmap.Reconcile(wants)
 		if *caddyAdmin != "" {
-			if err := caddy.Load(ctx, *caddyAdmin, caddy.Config(routes, public...)); err != nil {
+			var ps maitrev1.PublicSettings
+			_, _ = st.Get(ctx, "public_settings", "fleet", &ps)
+			if err := caddy.Load(ctx, *caddyAdmin, caddy.ConfigWithEmail(ps.GetAcmeEmail(), routes, public...)); err != nil {
 				log.Warn("caddy config not applied", "err", err)
 			}
 		}
@@ -391,6 +417,20 @@ func runAgent(args []string) error {
 	ssvc.OnChange = publish
 	mgr.OnExposure = publish
 	publish()
+	// Decision 114: the Fleet-wide public settings (ACME email) reach Caddy
+	// whether a Console wrote them here or a peer synced them.
+	withPublic := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withPublic(r)
+		if r.GetKind() == "public_settings" {
+			publish()
+		}
+	}
+	withPublicApplied := pm.OnApplied
+	pm.OnApplied = func() {
+		withPublicApplied()
+		publish()
+	}
 	// Milestone 6: Services that opted in check for a newer image daily,
 	// an hour after boot and every 24 hours after that.
 	go func() {

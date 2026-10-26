@@ -203,6 +203,9 @@ message NodeInfo {
   bool dev_mode = 6;
   // The other Nodes of the Fleet as this Node sees them (Milestone 3).
   repeated PeerStatus peers = 7;
+  // Decision 115: the UPnP router this Node can ask for port forwarding
+  // ("router: <name>"), "no UPnP router found", or empty before the first look.
+  string port_mapping = 10;
   // This Node on the Fleet's Tailscale network (Milestone 5); unset when
   // Tailscale is not configured.
   TailscaleStatus tailscale = 8;

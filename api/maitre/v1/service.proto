@@ -23,6 +23,9 @@ service ServiceService {
   // the Console's tunnel), "remote" (the Fleet's tailnet), "public"
   // (the internet through Tailscale Funnel). Milestone 5.
   rpc SetExposure(SetExposureRequest) returns (SetExposureResponse) {}
+  // Decision 115: ask the router to forward a Service's host_ports from the
+  // internet (UPnP), or stop doing so.
+  rpc SetPortForwarding(SetPortForwardingRequest) returns (SetPortForwardingResponse) {}
 }
 
 message GetCatalogRequest {}
@@ -85,6 +88,12 @@ message ServiceSpec {
   // HTTP path probed for health; empty means the web path.
   string health_http = 15;
   repeated ServiceVolume volumes = 16;
+  // Ports the app owns on the Node itself, "25565/tcp" style (from the
+  // Catalog entry's host_ports).
+  repeated string host_ports = 20;
+  // Decision 115: the user asked the Node to have the router forward
+  // host_ports from the internet (UPnP). Off unless explicitly enabled.
+  bool forward_ports = 21;
 }
 
 message ServiceStatus {
@@ -111,6 +120,26 @@ message ServiceStatus {
   string remote_url = 8;
   // The tailnet node's state or problem, for the Console.
   string remote_state = 9;
+  // Decision 115: the router port forwarding this Service depends on
+  // (its own host_ports, or 80/443 for a "direct" Service); empty when none.
+  string forward_state = 10;
+}
+
+// Decision 114: Fleet-wide settings for Services published at the user's
+// own domain. Record kind "public_settings", id "fleet".
+message PublicSettings {
+  // Optional email given to the certificate authority (Let's Encrypt) for
+  // expiry and policy notices. Empty means none.
+  string acme_email = 1;
+}
+
+message SetPortForwardingRequest {
+  string name = 1;
+  bool enabled = 2;
+}
+
+message SetPortForwardingResponse {
+  ServiceStatus service = 1;
 }
 
 message InstallServiceRequest {

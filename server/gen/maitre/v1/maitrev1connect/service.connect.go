@@ -40,6 +40,9 @@ const (
 	ServiceServiceGetServiceLogsProcedure = "/maitre.v1.ServiceService/GetServiceLogs"
 	// ServiceServiceSetExposureProcedure is the procedure name of the ServiceService's SetExposure RPC.
 	ServiceServiceSetExposureProcedure = "/maitre.v1.ServiceService/SetExposure"
+	// ServiceServiceSetPortForwardingProcedure is the procedure name of the ServiceService's
+	// SetPortForwarding RPC.
+	ServiceServiceSetPortForwardingProcedure = "/maitre.v1.ServiceService/SetPortForwarding"
 )
 
 var (
@@ -85,6 +88,13 @@ var (
 			Procedure:  ServiceServiceSetExposureProcedure,
 		}
 	})
+	serviceServiceSetPortForwardingSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("SetPortForwarding"),
+			Procedure:  ServiceServiceSetPortForwardingProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -103,6 +113,9 @@ type ServiceServiceClient interface {
 	// the Console's tunnel), "remote" (the Fleet's tailnet), "public"
 	// (the internet through Tailscale Funnel). Milestone 5.
 	SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error)
+	// Decision 115: ask the router to forward a Service's host_ports from the
+	// internet (UPnP), or stop doing so.
+	SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -127,6 +140,9 @@ type ServiceServiceHandler interface {
 	// the Console's tunnel), "remote" (the Fleet's tailnet), "public"
 	// (the internet through Tailscale Funnel). Milestone 5.
 	SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error)
+	// Decision 115: ask the router to forward a Service's host_ports from the
+	// internet (UPnP), or stop doing so.
+	SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -140,6 +156,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceListServicesSpec(), Handler: adapter.listServices},
 		connect.Method{Spec: serviceServiceGetServiceLogsSpec(), Handler: adapter.getServiceLogs},
 		connect.Method{Spec: serviceServiceSetExposureSpec(), Handler: adapter.setExposure},
+		connect.Method{Spec: serviceServiceSetPortForwardingSpec(), Handler: adapter.setPortForwarding},
 	)
 }
 
@@ -168,6 +185,10 @@ func (UnimplementedServiceServiceHandler) GetServiceLogs(context.Context, *v1.Ge
 
 func (UnimplementedServiceServiceHandler) SetExposure(context.Context, *v1.SetExposureRequest) (*v1.SetExposureResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetExposure is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) SetPortForwarding(context.Context, *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetPortForwarding is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -217,6 +238,14 @@ func (c *serviceServiceClient) GetServiceLogs(ctx context.Context, req *v1.GetSe
 func (c *serviceServiceClient) SetExposure(ctx context.Context, req *v1.SetExposureRequest) (*v1.SetExposureResponse, error) {
 	var res v1.SetExposureResponse
 	if err := c.client.CallUnary(ctx, serviceServiceSetExposureSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) SetPortForwarding(ctx context.Context, req *v1.SetPortForwardingRequest) (*v1.SetPortForwardingResponse, error) {
+	var res v1.SetPortForwardingResponse
+	if err := c.client.CallUnary(ctx, serviceServiceSetPortForwardingSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -290,6 +319,18 @@ func (h serviceServiceHandler) setExposure(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.SetExposure(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) setPortForwarding(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetPortForwardingRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetPortForwarding(ctx, &req)
 	if err != nil {
 		return err
 	}

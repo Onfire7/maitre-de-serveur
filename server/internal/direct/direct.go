@@ -24,6 +24,10 @@ import (
 // Exposure is the ServiceSpec.exposure value this package serves.
 const Exposure = "direct"
 
+// ForwardOwner names the router port mappings (80 and 443) that every
+// "direct" Service on a Node shares (decision 115).
+const ForwardOwner = "https"
+
 // Services that report the caller's public address, tried in order. Plain
 // text bodies, HTTPS, no account.
 var ipServices = []string{"https://api.ipify.org", "https://checkip.amazonaws.com", "https://icanhazip.com"}

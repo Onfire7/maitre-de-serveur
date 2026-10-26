@@ -120,6 +120,16 @@ func (s *Service) SetExposure(ctx context.Context, req *maitrev1.SetExposureRequ
 	return &maitrev1.SetExposureResponse{Service: st}, nil
 }
 
+// SetPortForwarding implements ServiceService (decision 115).
+func (s *Service) SetPortForwarding(ctx context.Context, req *maitrev1.SetPortForwardingRequest) (*maitrev1.SetPortForwardingResponse, error) {
+	st, err := s.mgr.SetPortForwarding(ctx, req.GetName(), req.GetEnabled())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	s.changed()
+	return &maitrev1.SetPortForwardingResponse{Service: st}, nil
+}
+
 // GetServiceLogs implements ServiceService.
 func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLogsRequest) (*maitrev1.GetServiceLogsResponse, error) {
 	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetLines())

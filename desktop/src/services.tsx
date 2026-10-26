@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
-import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action, ServiceSpecSchema, type ServiceStatus } from "./gen/maitre/v1/service_pb";
-import { create } from "@bufbuild/protobuf";
+import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action, ServiceSpecSchema, PublicSettingsSchema, type ServiceStatus } from "./gen/maitre/v1/service_pb";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { transportFor, type Target } from "./transport";
 import { NodeService } from "./gen/maitre/v1/node_pb";
 // Decision 78: the Catalog lives with the Console. This index is generated
@@ -23,6 +23,7 @@ interface CatalogEntry {
   own_login: boolean;
   infrastructure: boolean;
   host_ports?: string[];
+  port_forward?: boolean;
   web?: { port: number; path: string };
   volumes: { name: string; path: string; size?: string }[];
   settings?: { key: string; label: string; type: string; default?: string }[];
@@ -34,16 +35,30 @@ interface CatalogIndex {
   entries: CatalogEntry[];
 }
 
-export function ServicesPanel({ target, tiers = [], remoteReady = false, publicIp = "" }: { target: Target; tiers?: { tierId: string; name: string }[]; remoteReady?: boolean; publicIp?: string }) {
+export function ServicesPanel({
+  target,
+  tiers = [],
+  remoteReady = false,
+  publicIp = "",
+  portMapping = "",
+}: {
+  target: Target;
+  tiers?: { tierId: string; name: string }[];
+  remoteReady?: boolean;
+  publicIp?: string;
+  portMapping?: string;
+}) {
   const client = useMemo(() => createClient(ServiceService, transportFor(target)), [target.addr, target.fingerprint]);
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const catalog = bundledCatalog as CatalogIndex;
+  const catalogById = useMemo(() => new Map(catalog.entries.map((e) => [e.id, e])), [catalog]);
   const [error, setError] = useState("");
   const [installing, setInstalling] = useState<CatalogEntry | null>(null);
   const [open, setOpen] = useState<{ name: string; url: string } | null>(null);
   const [logsFor, setLogsFor] = useState<{ name: string; lines: string[] } | null>(null);
   const [removing, setRemoving] = useState<ServiceStatus | null>(null);
   const [exposing, setExposing] = useState<ServiceStatus | null>(null);
+  const [forwarding, setForwarding] = useState<ServiceStatus | null>(null);
   // Milestone 3: a Service record whose version moved while this Console
   // did not write it was changed from another device (or Node); say so.
   const [notice, setNotice] = useState("");
@@ -142,6 +157,12 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false, publicI
                     )}
                   </div>
                 )}
+                {s.forwardState && (
+                  <div style={{ fontSize: 13, color: "#555" }}>
+                    {s.spec?.forwardPorts && <span style={{ color: "#b00020" }}>Internet: </span>}
+                    {s.forwardState}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", gap: 4 }}>
                 {s.url && s.state === ServiceStatus_State.RUNNING && <button onClick={() => openService(s.spec!.name)}>Open</button>}
@@ -171,6 +192,9 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false, publicI
                   </button>
                 )}
                 {s.spec?.webPort !== 0 && <button onClick={() => setExposing(s)}>Exposure…</button>}
+                {(s.spec?.hostPorts.length ?? 0) > 0 && !s.spec?.infrastructure && catalogById.get(s.spec?.catalogId ?? "")?.port_forward && (
+                  <button onClick={() => setForwarding(s)}>{s.spec?.forwardPorts ? "Internet: on…" : "Internet…"}</button>
+                )}
                 <button onClick={() => setRemoving(s)}>Remove</button>
               </div>
             </li>
@@ -212,6 +236,8 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false, publicI
           s={exposing}
           remoteReady={remoteReady}
           publicIp={publicIp}
+          portMapping={portMapping}
+          target={target}
           nodeAddr={target.addr.replace(/:\d+$/, "")}
           onCancel={() => setExposing(null)}
           onSet={async (exposure, publicHost) => {
@@ -219,6 +245,24 @@ export function ServicesPanel({ target, tiers = [], remoteReady = false, publicI
             try {
               lastWrite.current = Date.now();
               await client.setExposure({ name: exposing.spec!.name, exposure, publicHost });
+              await refresh();
+            } catch (e) {
+              setError(String(e));
+            }
+          }}
+        />
+      )}
+      {forwarding && (
+        <PortForwardDialog
+          s={forwarding}
+          portMapping={portMapping}
+          nodeAddr={target.addr.replace(/:\d+$/, "")}
+          onCancel={() => setForwarding(null)}
+          onSet={async (enabled) => {
+            setForwarding(null);
+            try {
+              lastWrite.current = Date.now();
+              await client.setPortForwarding({ name: forwarding.spec!.name, enabled });
               await refresh();
             } catch (e) {
               setError(String(e));
@@ -278,6 +322,7 @@ function specFor(e: CatalogEntry, name: string, settings: Record<string, string>
     exposure: e.exposure,
     quadlet: e.quadlet,
     infrastructure: e.infrastructure,
+    hostPorts: e.host_ports ?? [],
     webPort: e.web?.port ?? 0,
     webPath: e.web?.path ?? "",
     healthHttp: e.health?.http ?? "",
@@ -385,6 +430,8 @@ function ExposureDialog({
   s,
   remoteReady,
   publicIp,
+  portMapping,
+  target,
   nodeAddr,
   onCancel,
   onSet,
@@ -392,6 +439,8 @@ function ExposureDialog({
   s: ServiceStatus;
   remoteReady: boolean;
   publicIp: string;
+  portMapping: string;
+  target: Target;
   nodeAddr: string;
   onCancel: () => void;
   onSet: (exposure: string, publicHost: string) => void;
@@ -399,6 +448,37 @@ function ExposureDialog({
   const [choice, setChoice] = useState(s.spec?.exposure || "private");
   const [host, setHost] = useState(s.spec?.publicHost || "");
   const [ack, setAck] = useState(false);
+  // Decision 114: one optional email for the whole Fleet, given to Let's
+  // Encrypt for expiry and policy notices. Lives in a Fleet-wide record.
+  const [email, setEmail] = useState("");
+  const [emailSaved, setEmailSaved] = useState("");
+  const [emailError, setEmailError] = useState("");
+  useEffect(() => {
+    (async () => {
+      try {
+        const recs = (await createClient(NodeService, transportFor(target)).listRecords({ kind: "public_settings" })).records.filter((r) => !r.deleted);
+        if (recs[0]) {
+          const e = fromBinary(PublicSettingsSchema, recs[0].body).acmeEmail;
+          setEmail(e);
+          setEmailSaved(e);
+        }
+      } catch {
+        /* no settings yet */
+      }
+    })();
+  }, [target.addr, target.fingerprint]);
+  const emailOk = email.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  async function saveEmail() {
+    try {
+      await createClient(NodeService, transportFor(target)).putRecord({
+        record: { kind: "public_settings", id: "fleet", body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: email.trim() })) },
+      });
+      setEmailSaved(email.trim());
+      setEmailError("");
+    } catch (e) {
+      setEmailError(String(e));
+    }
+  }
   const name = s.spec?.name ?? "";
   const canPublic = !s.spec?.infrastructure;
   const isPublic = choice === "public" || choice === "direct";
@@ -433,11 +513,27 @@ function ExposureDialog({
                 At your domain's DNS, make an <b>A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{publicIp || "this Node's public address (the Node is still looking it up)"}</code>.
               </li>
               <li>
-                On your router, forward ports <b>80</b> and <b>443</b> to this Node at <code>{nodeAddr}</code>.
+                The Node asks your router to send ports <b>80</b> and <b>443</b> to it (UPnP){portMapping.startsWith("router:") ? <> — found <b>{portMapping.slice(8)}</b></> : portMapping ? <> — {portMapping}</> : ""}.
+                If the router will not, forward those two ports to this Node at <code>{nodeAddr}</code> yourself.
+                {s.forwardState && (
+                  <div style={{ color: "#555" }}>Now: {s.forwardState}</div>
+                )}
               </li>
               <li>The Node then gets a certificate from Let's Encrypt on its own and keeps it renewed. The Service's line shows each step as it is reached.</li>
             </ol>
             <p style={{ color: "#555", margin: "8px 0 0 0" }}>If your home address changes, the record has to follow it; the Node says when the two no longer match.</p>
+            <div style={{ marginTop: 8 }}>
+              <label>
+                Email for certificate notices (optional, shared by all your addresses){" "}
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={{ width: 220 }} />
+              </label>{" "}
+              <button disabled={!emailOk || email.trim() === emailSaved} onClick={saveEmail}>
+                Save
+              </button>
+              {!emailOk && <span style={{ color: "#b00020", marginLeft: 6 }}>That is not an email address.</span>}
+              {emailError && <span style={{ color: "#b00020", marginLeft: 6 }}>{emailError}</span>}
+              <div style={{ color: "#555" }}>Let's Encrypt writes there when a certificate is about to expire without renewing, and about policy changes. Nothing else.</div>
+            </div>
           </div>
         )}
         {isPublic && (
@@ -453,6 +549,57 @@ function ExposureDialog({
         )}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
           <button disabled={(isPublic && !ack) || (choice === "direct" && !hostOk)} onClick={() => onSet(choice, choice === "direct" ? h : "")}>
+            Apply
+          </button>
+          <button onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Decision 115: have the router forward a Service's own ports (a game server) from the internet. */
+function PortForwardDialog({
+  s,
+  portMapping,
+  nodeAddr,
+  onCancel,
+  onSet,
+}: {
+  s: ServiceStatus;
+  portMapping: string;
+  nodeAddr: string;
+  onCancel: () => void;
+  onSet: (enabled: boolean) => void;
+}) {
+  const [on, setOn] = useState(!!s.spec?.forwardPorts);
+  const [ack, setAck] = useState(!!s.spec?.forwardPorts);
+  const name = s.spec?.name ?? "";
+  const ports = (s.spec?.hostPorts ?? []).join(", ");
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", padding: 24, borderRadius: 8, width: 520 }}>
+        <h3 style={{ marginTop: 0 }}>Can people on the internet reach {name}?</h3>
+        <p style={{ fontSize: 13 }}>
+          {name} listens on <code>{ports}</code>. On your network it is reachable at <code>{nodeAddr}</code> already. Turning this on asks your router to send those ports from the internet to this Node (UPnP)
+          {portMapping.startsWith("router:") ? <> — found <b>{portMapping.slice(8)}</b></> : portMapping ? <> — {portMapping}</> : ""}.
+        </p>
+        <label style={{ display: "block" }}>
+          <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} /> <b>Reachable from the internet</b> at your public address.
+        </label>
+        {on && (
+          <div style={{ border: "1px solid #b00020", borderRadius: 6, padding: 8, marginTop: 8, fontSize: 13 }}>
+            <p style={{ marginTop: 0 }}>
+              <b>Open to everyone.</b> Anyone who finds your address can connect to {name}. Use its own allow-list or password if it has one, keep it updated, and turn this off when you stop playing.
+            </p>
+            <label>
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I understand.
+            </label>
+          </div>
+        )}
+        {s.forwardState && <p style={{ color: "#555", fontSize: 13 }}>Now: {s.forwardState}</p>}
+        <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+          <button disabled={on && !ack} onClick={() => onSet(on)}>
             Apply
           </button>
           <button onClick={onCancel}>Cancel</button>

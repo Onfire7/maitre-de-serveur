@@ -62,3 +62,13 @@ func TestConfigPublicHostsGetHTTPSAndRedirect(t *testing.T) {
 		t.Fatal("tls app present without public hosts")
 	}
 }
+
+func TestConfigWithEmailGivesItToTheIssuer(t *testing.T) {
+	cfg := caddy.ConfigWithEmail("ops@example.com", []caddy.Route{{Host: "photos.local", Upstream: "127.0.0.1:20001"}}, caddy.Route{Host: "photos.example.com", Upstream: "127.0.0.1:20001"})
+	if !strings.Contains(string(cfg), `"issuers":[{"email":"ops@example.com","module":"acme"}]`) {
+		t.Fatalf("issuer without the email: %s", cfg)
+	}
+	if strings.Contains(string(caddy.Config([]caddy.Route{{Host: "photos.local", Upstream: "127.0.0.1:20001"}}, caddy.Route{Host: "photos.example.com", Upstream: "127.0.0.1:20001"})), `"email"`) {
+		t.Fatal("email present when none was given")
+	}
+}

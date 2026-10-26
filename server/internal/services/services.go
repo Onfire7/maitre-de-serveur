@@ -54,6 +54,9 @@ type Config struct {
 	// Remote reports a Service's tailnet URL and state (Milestone 5); nil
 	// when the Node has no remote exposure.
 	Remote func(name string) (url, state string)
+	// Forward reports the router port forwarding a Service depends on
+	// (decision 115); nil when the Node does no port mapping.
+	Forward func(name string) string
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
 	// PoolDir is the default Tier's Pool; volumes live at PoolDir/<service>/<volume>.
@@ -458,6 +461,30 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.ServiceStatus, error) {
 }
 
 // Status asks systemd about the unit and probes health.
+// SetPortForwarding (decision 115) turns router port forwarding of a
+// Service's host_ports on or off. Only a Service that declares host ports
+// can ask; network infrastructure never does.
+func (m *Manager) SetPortForwarding(ctx context.Context, name string, enabled bool) (*maitrev1.ServiceStatus, error) {
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
+		return nil, ErrNotFound
+	}
+	if enabled && len(spec.GetHostPorts()) == 0 {
+		return nil, fmt.Errorf("%s has no ports to forward", name)
+	}
+	if enabled && spec.GetInfrastructure() {
+		return nil, fmt.Errorf("%s is network infrastructure and stays at home", name)
+	}
+	spec.ForwardPorts = enabled
+	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
+		return nil, err
+	}
+	if m.OnExposure != nil {
+		m.OnExposure()
+	}
+	return m.Status(ctx, &spec)
+}
+
 func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*maitrev1.ServiceStatus, error) {
 	out, err := m.run.Run(ctx, "systemctl", "show", spec.GetName()+".service",
 		"-p", "ActiveState", "-p", "SubState", "-p", "NRestarts", "-p", "Result", "-p", "ExecMainStartTimestamp")
@@ -466,6 +493,13 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 	}
 	props := parseProps(out)
 	st := &maitrev1.ServiceStatus{Spec: spec}
+	if m.cfg.Forward != nil {
+		if spec.GetForwardPorts() {
+			st.ForwardState = m.cfg.Forward(spec.GetName())
+		} else if spec.GetExposure() == direct.Exposure {
+			st.ForwardState = m.cfg.Forward(direct.ForwardOwner)
+		}
+	}
 	switch props["ActiveState"] {
 	case "active":
 		st.State = maitrev1.ServiceStatus_STATE_RUNNING

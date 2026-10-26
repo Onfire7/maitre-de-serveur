@@ -51,6 +51,9 @@ type Service struct {
 	// PublicIP reports the address the internet sees this Node from
 	// (decision 112); nil or "" when unknown.
 	PublicIP func() string
+	// PortMapping describes the UPnP router this Node can ask for port
+	// forwarding (decision 115); nil or "" when unknown.
+	PortMapping func() string
 }
 
 // Peers is what the sync layer offers this service (implemented by
@@ -87,6 +90,9 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 	if s.PublicIP != nil {
 		info.PublicIp = s.PublicIP()
 	}
+	if s.PortMapping != nil {
+		info.PortMapping = s.PortMapping()
+	}
 	return &maitrev1.GetNodeInfoResponse{Node: info}, nil
 }
 
@@ -105,7 +111,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale", "update_policy":
+	case store.KindFleet, store.KindTrustedDevice, "tier", "tailscale", "update_policy", "public_settings":
 		return true
 	}
 	return false

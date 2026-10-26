@@ -81,6 +81,63 @@
       "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nEnvironment=TZ={{ .Settings.TZ }}\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.cache }}:/cache:Z\nVolume={{ .Volumes.media }}:/media:Z\nNetwork={{ .Network }}\n"
     },
     {
+      "id": "minecraft",
+      "name": "Minecraft Server",
+      "summary": "A Minecraft Java Edition server for you and your friends.",
+      "description": "Runs a Minecraft Java Edition server (vanilla by default) that players\non your network can join at this Node's address. Turn on \"Reachable from\nthe internet\" in the Console to let friends elsewhere join too; the Node\nasks your router to forward the game port for you.\n",
+      "icon": "https://raw.githubusercontent.com/itzg/docker-minecraft-server/master/docs/img/minecraft-server-logo.png",
+      "category": "tools",
+      "image": "docker.io/itzg/minecraft-server:2026.10.1-java21@sha256:07ab333a8542208c4c863a78fd3cf3fd1138d5a2e118306e1a316d202f69ab74",
+      "version": "2026.10.1",
+      "exposure": "private",
+      "own_login": false,
+      "infrastructure": false,
+      "host_ports": [
+        "25565/tcp"
+      ],
+      "port_forward": true,
+      "volumes": [
+        {
+          "name": "data",
+          "path": "/data",
+          "size": "medium"
+        }
+      ],
+      "settings": [
+        {
+          "key": "EULA",
+          "label": "I accept the Minecraft End User License Agreement (minecraft.net/eula)",
+          "type": "bool",
+          "default": "false"
+        },
+        {
+          "key": "VERSION",
+          "label": "Minecraft version",
+          "type": "text",
+          "default": "LATEST"
+        },
+        {
+          "key": "MEMORY",
+          "label": "Memory for the server",
+          "type": "text",
+          "default": "2G"
+        },
+        {
+          "key": "MOTD",
+          "label": "Message shown in the server list",
+          "type": "text",
+          "default": "A Maître Server world"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nEnvironment=EULA={{ .Settings.EULA }}\nEnvironment=VERSION={{ .Settings.VERSION }}\nEnvironment=MEMORY={{ .Settings.MEMORY }}\nEnvironment=MOTD={{ .Settings.MOTD }}\nEnvironment=TZ={{ .Settings.TZ }}\nVolume={{ .Volumes.data }}:/data:Z\nNetwork={{ .Network }}\nPublishPort=25565:25565/tcp\n"
+    },
+    {
       "id": "uptime-kuma",
       "name": "Uptime Kuma",
       "summary": "Know when your websites and services go down.",

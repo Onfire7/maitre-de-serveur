@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/service.proto.
  */
 export const file_maitre_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIhMKEUdldENhdGFsb2dSZXF1ZXN0IlEKEkdldENhdGFsb2dSZXNwb25zZRISCgppbmRleF9qc29uGAEgASgMEg4KBnNvdXJjZRgCIAEoCRIXCg9mZXRjaGVkX3VuaXhfbXMYAyABKAMiOQoNU2VydmljZVZvbHVtZRIMCgRuYW1lGAEgASgJEgwKBHBhdGgYAiABKAkSDAoEc2l6ZRgDIAEoCSLTBAoLU2VydmljZVNwZWMSDAoEbmFtZRgBIAEoCRISCgpjYXRhbG9nX2lkGAIgASgJEg0KBWltYWdlGAMgASgJEg8KB25vZGVfaWQYBCABKAkSNgoIc2V0dGluZ3MYBSADKAsyJC5tYWl0cmUudjEuU2VydmljZVNwZWMuU2V0dGluZ3NFbnRyeRIQCghleHBvc3VyZRgGIAEoCRITCgtwdWJsaWNfaG9zdBgTIAEoCRI9Cgx2b2x1bWVfdGllcnMYByADKAsyJy5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lVGllcnNFbnRyeRIVCg1hY2Nlc3NfcG9saWN5GAggASgJEhcKD2NyZWF0ZWRfdW5peF9tcxgJIAEoAxIVCg13ZWJfaG9zdF9wb3J0GAogASgNEhYKDnByZXZpb3VzX2ltYWdlGBEgASgJEhMKC2F1dG9fdXBkYXRlGBIgASgIEg8KB3F1YWRsZXQYCyABKAkSFgoOaW5mcmFzdHJ1Y3R1cmUYDCABKAgSEAoId2ViX3BvcnQYDSABKA0SEAoId2ViX3BhdGgYDiABKAkSEwoLaGVhbHRoX2h0dHAYDyABKAkSKQoHdm9sdW1lcxgQIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlVm9sdW1lGi8KDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARoyChBWb2x1bWVUaWVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi6AIKDVNlcnZpY2VTdGF0dXMSJAoEc3BlYxgBIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlYxItCgVzdGF0ZRgCIAEoDjIeLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzLlN0YXRlEg8KB2hlYWx0aHkYAyABKAgSEAoIcmVzdGFydHMYBCABKA0SDwoHbWVzc2FnZRgFIAEoCRILCgN1cmwYBiABKAkSFwoPc3RhcnRlZF91bml4X21zGAcgASgDEhIKCnJlbW90ZV91cmwYCCABKAkSFAoMcmVtb3RlX3N0YXRlGAkgASgJIn4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfU1RPUFBFRBABEhIKDlNUQVRFX1NUQVJUSU5HEAISEQoNU1RBVEVfUlVOTklORxADEhAKDFNUQVRFX0ZBSUxFRBAEEhIKDlNUQVRFX1JFTU9WSU5HEAUiQwoVSW5zdGFsbFNlcnZpY2VSZXF1ZXN0EiQKBHNwZWMYBSABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWNKBAgBEAUiQwoWSW5zdGFsbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiiAIKFUNvbnRyb2xTZXJ2aWNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEjcKBmFjdGlvbhgCIAEoDjInLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlcXVlc3QuQWN0aW9uEhMKC2RlbGV0ZV9kYXRhGAMgASgIIpIBCgZBY3Rpb24SFgoSQUNUSU9OX1VOU1BFQ0lGSUVEEAASEAoMQUNUSU9OX1NUQVJUEAESDwoLQUNUSU9OX1NUT1AQAhISCg5BQ1RJT05fUkVTVEFSVBADEhEKDUFDVElPTl9SRU1PVkUQBBIRCg1BQ1RJT05fVVBEQVRFEAUSEwoPQUNUSU9OX1JPTExCQUNLEAYiQwoWQ29udHJvbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiFQoTTGlzdFNlcnZpY2VzUmVxdWVzdCJCChRMaXN0U2VydmljZXNSZXNwb25zZRIqCghzZXJ2aWNlcxgBIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIkkKElNldEV4cG9zdXJlUmVxdWVzdBIMCgRuYW1lGAEgASgJEhAKCGV4cG9zdXJlGAIgASgJEhMKC3B1YmxpY19ob3N0GAMgASgJIkAKE1NldEV4cG9zdXJlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIjQKFUdldFNlcnZpY2VMb2dzUmVxdWVzdBIMCgRuYW1lGAEgASgJEg0KBWxpbmVzGAIgASgNIicKFkdldFNlcnZpY2VMb2dzUmVzcG9uc2USDQoFbGluZXMYASADKAkyiwQKDlNlcnZpY2VTZXJ2aWNlEksKCkdldENhdGFsb2cSHC5tYWl0cmUudjEuR2V0Q2F0YWxvZ1JlcXVlc3QaHS5tYWl0cmUudjEuR2V0Q2F0YWxvZ1Jlc3BvbnNlIgASVwoOSW5zdGFsbFNlcnZpY2USIC5tYWl0cmUudjEuSW5zdGFsbFNlcnZpY2VSZXF1ZXN0GiEubWFpdHJlLnYxLkluc3RhbGxTZXJ2aWNlUmVzcG9uc2UiABJXCg5Db250cm9sU2VydmljZRIgLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlcXVlc3QaIS5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXNwb25zZSIAElEKDExpc3RTZXJ2aWNlcxIeLm1haXRyZS52MS5MaXN0U2VydmljZXNSZXF1ZXN0Gh8ubWFpdHJlLnYxLkxpc3RTZXJ2aWNlc1Jlc3BvbnNlIgASVwoOR2V0U2VydmljZUxvZ3MSIC5tYWl0cmUudjEuR2V0U2VydmljZUxvZ3NSZXF1ZXN0GiEubWFpdHJlLnYxLkdldFNlcnZpY2VMb2dzUmVzcG9uc2UiABJOCgtTZXRFeHBvc3VyZRIdLm1haXRyZS52MS5TZXRFeHBvc3VyZVJlcXVlc3QaHi5tYWl0cmUudjEuU2V0RXhwb3N1cmVSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIhMKEUdldENhdGFsb2dSZXF1ZXN0IlEKEkdldENhdGFsb2dSZXNwb25zZRISCgppbmRleF9qc29uGAEgASgMEg4KBnNvdXJjZRgCIAEoCRIXCg9mZXRjaGVkX3VuaXhfbXMYAyABKAMiOQoNU2VydmljZVZvbHVtZRIMCgRuYW1lGAEgASgJEgwKBHBhdGgYAiABKAkSDAoEc2l6ZRgDIAEoCSL+BAoLU2VydmljZVNwZWMSDAoEbmFtZRgBIAEoCRISCgpjYXRhbG9nX2lkGAIgASgJEg0KBWltYWdlGAMgASgJEg8KB25vZGVfaWQYBCABKAkSNgoIc2V0dGluZ3MYBSADKAsyJC5tYWl0cmUudjEuU2VydmljZVNwZWMuU2V0dGluZ3NFbnRyeRIQCghleHBvc3VyZRgGIAEoCRITCgtwdWJsaWNfaG9zdBgTIAEoCRI9Cgx2b2x1bWVfdGllcnMYByADKAsyJy5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lVGllcnNFbnRyeRIVCg1hY2Nlc3NfcG9saWN5GAggASgJEhcKD2NyZWF0ZWRfdW5peF9tcxgJIAEoAxIVCg13ZWJfaG9zdF9wb3J0GAogASgNEhYKDnByZXZpb3VzX2ltYWdlGBEgASgJEhMKC2F1dG9fdXBkYXRlGBIgASgIEg8KB3F1YWRsZXQYCyABKAkSFgoOaW5mcmFzdHJ1Y3R1cmUYDCABKAgSEAoId2ViX3BvcnQYDSABKA0SEAoId2ViX3BhdGgYDiABKAkSEwoLaGVhbHRoX2h0dHAYDyABKAkSKQoHdm9sdW1lcxgQIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlVm9sdW1lEhIKCmhvc3RfcG9ydHMYFCADKAkSFQoNZm9yd2FyZF9wb3J0cxgVIAEoCBovCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaMgoQVm9sdW1lVGllcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIv8CCg1TZXJ2aWNlU3RhdHVzEiQKBHNwZWMYASABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWMSLQoFc3RhdGUYAiABKA4yHi5tYWl0cmUudjEuU2VydmljZVN0YXR1cy5TdGF0ZRIPCgdoZWFsdGh5GAMgASgIEhAKCHJlc3RhcnRzGAQgASgNEg8KB21lc3NhZ2UYBSABKAkSCwoDdXJsGAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxISCgpyZW1vdGVfdXJsGAggASgJEhQKDHJlbW90ZV9zdGF0ZRgJIAEoCRIVCg1mb3J3YXJkX3N0YXRlGAogASgJIn4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfU1RPUFBFRBABEhIKDlNUQVRFX1NUQVJUSU5HEAISEQoNU1RBVEVfUlVOTklORxADEhAKDFNUQVRFX0ZBSUxFRBAEEhIKDlNUQVRFX1JFTU9WSU5HEAUiJAoOUHVibGljU2V0dGluZ3MSEgoKYWNtZV9lbWFpbBgBIAEoCSI5ChhTZXRQb3J0Rm9yd2FyZGluZ1JlcXVlc3QSDAoEbmFtZRgBIAEoCRIPCgdlbmFibGVkGAIgASgIIkYKGVNldFBvcnRGb3J3YXJkaW5nUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIkMKFUluc3RhbGxTZXJ2aWNlUmVxdWVzdBIkCgRzcGVjGAUgASgLMhYubWFpdHJlLnYxLlNlcnZpY2VTcGVjSgQIARAFIkMKFkluc3RhbGxTZXJ2aWNlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIogCChVDb250cm9sU2VydmljZVJlcXVlc3QSDAoEbmFtZRgBIAEoCRI3CgZhY3Rpb24YAiABKA4yJy5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXF1ZXN0LkFjdGlvbhITCgtkZWxldGVfZGF0YRgDIAEoCCKSAQoGQWN0aW9uEhYKEkFDVElPTl9VTlNQRUNJRklFRBAAEhAKDEFDVElPTl9TVEFSVBABEg8KC0FDVElPTl9TVE9QEAISEgoOQUNUSU9OX1JFU1RBUlQQAxIRCg1BQ1RJT05fUkVNT1ZFEAQSEQoNQUNUSU9OX1VQREFURRAFEhMKD0FDVElPTl9ST0xMQkFDSxAGIkMKFkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIhUKE0xpc3RTZXJ2aWNlc1JlcXVlc3QiQgoUTGlzdFNlcnZpY2VzUmVzcG9uc2USKgoIc2VydmljZXMYASADKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyJJChJTZXRFeHBvc3VyZVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghleHBvc3VyZRgCIAEoCRITCgtwdWJsaWNfaG9zdBgDIAEoCSJAChNTZXRFeHBvc3VyZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyI0ChVHZXRTZXJ2aWNlTG9nc1JlcXVlc3QSDAoEbmFtZRgBIAEoCRINCgVsaW5lcxgCIAEoDSInChZHZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlEg0KBWxpbmVzGAEgAygJMu0ECg5TZXJ2aWNlU2VydmljZRJLCgpHZXRDYXRhbG9nEhwubWFpdHJlLnYxLkdldENhdGFsb2dSZXF1ZXN0Gh0ubWFpdHJlLnYxLkdldENhdGFsb2dSZXNwb25zZSIAElcKDkluc3RhbGxTZXJ2aWNlEiAubWFpdHJlLnYxLkluc3RhbGxTZXJ2aWNlUmVxdWVzdBohLm1haXRyZS52MS5JbnN0YWxsU2VydmljZVJlc3BvbnNlIgASVwoOQ29udHJvbFNlcnZpY2USIC5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXF1ZXN0GiEubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2UiABJRCgxMaXN0U2VydmljZXMSHi5tYWl0cmUudjEuTGlzdFNlcnZpY2VzUmVxdWVzdBofLm1haXRyZS52MS5MaXN0U2VydmljZXNSZXNwb25zZSIAElcKDkdldFNlcnZpY2VMb2dzEiAubWFpdHJlLnYxLkdldFNlcnZpY2VMb2dzUmVxdWVzdBohLm1haXRyZS52MS5HZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlIgASTgoLU2V0RXhwb3N1cmUSHS5tYWl0cmUudjEuU2V0RXhwb3N1cmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLlNldEV4cG9zdXJlUmVzcG9uc2UiABJgChFTZXRQb3J0Rm9yd2FyZGluZxIjLm1haXRyZS52MS5TZXRQb3J0Rm9yd2FyZGluZ1JlcXVlc3QaJC5tYWl0cmUudjEuU2V0UG9ydEZvcndhcmRpbmdSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * @generated from message maitre.v1.GetCatalogRequest
@@ -223,6 +223,22 @@ export type ServiceSpec = Message<"maitre.v1.ServiceSpec"> & {
    * @generated from field: repeated maitre.v1.ServiceVolume volumes = 16;
    */
   volumes: ServiceVolume[];
+
+  /**
+   * Ports the app owns on the Node itself, "25565/tcp" style (from the
+   * Catalog entry's host_ports).
+   *
+   * @generated from field: repeated string host_ports = 20;
+   */
+  hostPorts: string[];
+
+  /**
+   * Decision 115: the user asked the Node to have the router forward
+   * host_ports from the internet (UPnP). Off unless explicitly enabled.
+   *
+   * @generated from field: bool forward_ports = 21;
+   */
+  forwardPorts: boolean;
 };
 
 /**
@@ -291,6 +307,14 @@ export type ServiceStatus = Message<"maitre.v1.ServiceStatus"> & {
    * @generated from field: string remote_state = 9;
    */
   remoteState: string;
+
+  /**
+   * Decision 115: the router port forwarding this Service depends on
+   * (its own host_ports, or 80/443 for a "direct" Service); empty when none.
+   *
+   * @generated from field: string forward_state = 10;
+   */
+  forwardState: string;
 };
 
 /**
@@ -342,6 +366,68 @@ export const ServiceStatus_StateSchema: GenEnum<ServiceStatus_State> = /*@__PURE
   enumDesc(file_maitre_v1_service, 4, 0);
 
 /**
+ * Decision 114: Fleet-wide settings for Services published at the user's
+ * own domain. Record kind "public_settings", id "fleet".
+ *
+ * @generated from message maitre.v1.PublicSettings
+ */
+export type PublicSettings = Message<"maitre.v1.PublicSettings"> & {
+  /**
+   * Optional email given to the certificate authority (Let's Encrypt) for
+   * expiry and policy notices. Empty means none.
+   *
+   * @generated from field: string acme_email = 1;
+   */
+  acmeEmail: string;
+};
+
+/**
+ * Describes the message maitre.v1.PublicSettings.
+ * Use `create(PublicSettingsSchema)` to create a new message.
+ */
+export const PublicSettingsSchema: GenMessage<PublicSettings> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 5);
+
+/**
+ * @generated from message maitre.v1.SetPortForwardingRequest
+ */
+export type SetPortForwardingRequest = Message<"maitre.v1.SetPortForwardingRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: bool enabled = 2;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.SetPortForwardingRequest.
+ * Use `create(SetPortForwardingRequestSchema)` to create a new message.
+ */
+export const SetPortForwardingRequestSchema: GenMessage<SetPortForwardingRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 6);
+
+/**
+ * @generated from message maitre.v1.SetPortForwardingResponse
+ */
+export type SetPortForwardingResponse = Message<"maitre.v1.SetPortForwardingResponse"> & {
+  /**
+   * @generated from field: maitre.v1.ServiceStatus service = 1;
+   */
+  service?: ServiceStatus | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.SetPortForwardingResponse.
+ * Use `create(SetPortForwardingResponseSchema)` to create a new message.
+ */
+export const SetPortForwardingResponseSchema: GenMessage<SetPortForwardingResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 7);
+
+/**
  * @generated from message maitre.v1.InstallServiceRequest
  */
 export type InstallServiceRequest = Message<"maitre.v1.InstallServiceRequest"> & {
@@ -360,7 +446,7 @@ export type InstallServiceRequest = Message<"maitre.v1.InstallServiceRequest"> &
  * Use `create(InstallServiceRequestSchema)` to create a new message.
  */
 export const InstallServiceRequestSchema: GenMessage<InstallServiceRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 5);
+  messageDesc(file_maitre_v1_service, 8);
 
 /**
  * @generated from message maitre.v1.InstallServiceResponse
@@ -377,7 +463,7 @@ export type InstallServiceResponse = Message<"maitre.v1.InstallServiceResponse">
  * Use `create(InstallServiceResponseSchema)` to create a new message.
  */
 export const InstallServiceResponseSchema: GenMessage<InstallServiceResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 6);
+  messageDesc(file_maitre_v1_service, 9);
 
 /**
  * @generated from message maitre.v1.ControlServiceRequest
@@ -404,7 +490,7 @@ export type ControlServiceRequest = Message<"maitre.v1.ControlServiceRequest"> &
  * Use `create(ControlServiceRequestSchema)` to create a new message.
  */
 export const ControlServiceRequestSchema: GenMessage<ControlServiceRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 7);
+  messageDesc(file_maitre_v1_service, 10);
 
 /**
  * @generated from enum maitre.v1.ControlServiceRequest.Action
@@ -458,7 +544,7 @@ export enum ControlServiceRequest_Action {
  * Describes the enum maitre.v1.ControlServiceRequest.Action.
  */
 export const ControlServiceRequest_ActionSchema: GenEnum<ControlServiceRequest_Action> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_service, 7, 0);
+  enumDesc(file_maitre_v1_service, 10, 0);
 
 /**
  * @generated from message maitre.v1.ControlServiceResponse
@@ -475,7 +561,7 @@ export type ControlServiceResponse = Message<"maitre.v1.ControlServiceResponse">
  * Use `create(ControlServiceResponseSchema)` to create a new message.
  */
 export const ControlServiceResponseSchema: GenMessage<ControlServiceResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 8);
+  messageDesc(file_maitre_v1_service, 11);
 
 /**
  * @generated from message maitre.v1.ListServicesRequest
@@ -488,7 +574,7 @@ export type ListServicesRequest = Message<"maitre.v1.ListServicesRequest"> & {
  * Use `create(ListServicesRequestSchema)` to create a new message.
  */
 export const ListServicesRequestSchema: GenMessage<ListServicesRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 9);
+  messageDesc(file_maitre_v1_service, 12);
 
 /**
  * @generated from message maitre.v1.ListServicesResponse
@@ -505,7 +591,7 @@ export type ListServicesResponse = Message<"maitre.v1.ListServicesResponse"> & {
  * Use `create(ListServicesResponseSchema)` to create a new message.
  */
 export const ListServicesResponseSchema: GenMessage<ListServicesResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 10);
+  messageDesc(file_maitre_v1_service, 13);
 
 /**
  * @generated from message maitre.v1.SetExposureRequest
@@ -534,7 +620,7 @@ export type SetExposureRequest = Message<"maitre.v1.SetExposureRequest"> & {
  * Use `create(SetExposureRequestSchema)` to create a new message.
  */
 export const SetExposureRequestSchema: GenMessage<SetExposureRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 11);
+  messageDesc(file_maitre_v1_service, 14);
 
 /**
  * @generated from message maitre.v1.SetExposureResponse
@@ -551,7 +637,7 @@ export type SetExposureResponse = Message<"maitre.v1.SetExposureResponse"> & {
  * Use `create(SetExposureResponseSchema)` to create a new message.
  */
 export const SetExposureResponseSchema: GenMessage<SetExposureResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 12);
+  messageDesc(file_maitre_v1_service, 15);
 
 /**
  * @generated from message maitre.v1.GetServiceLogsRequest
@@ -575,7 +661,7 @@ export type GetServiceLogsRequest = Message<"maitre.v1.GetServiceLogsRequest"> &
  * Use `create(GetServiceLogsRequestSchema)` to create a new message.
  */
 export const GetServiceLogsRequestSchema: GenMessage<GetServiceLogsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 13);
+  messageDesc(file_maitre_v1_service, 16);
 
 /**
  * @generated from message maitre.v1.GetServiceLogsResponse
@@ -592,7 +678,7 @@ export type GetServiceLogsResponse = Message<"maitre.v1.GetServiceLogsResponse">
  * Use `create(GetServiceLogsResponseSchema)` to create a new message.
  */
 export const GetServiceLogsResponseSchema: GenMessage<GetServiceLogsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 14);
+  messageDesc(file_maitre_v1_service, 17);
 
 /**
  * ServiceService manages Services on the Node that serves it. Definitions
@@ -664,6 +750,17 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof SetExposureRequestSchema;
     output: typeof SetExposureResponseSchema;
+  },
+  /**
+   * Decision 115: ask the router to forward a Service's host_ports from the
+   * internet (UPnP), or stop doing so.
+   *
+   * @generated from rpc maitre.v1.ServiceService.SetPortForwarding
+   */
+  setPortForwarding: {
+    methodKind: "unary";
+    input: typeof SetPortForwardingRequestSchema;
+    output: typeof SetPortForwardingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_service, 0);

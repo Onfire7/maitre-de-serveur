@@ -18,22 +18,26 @@ import (
 
 // Manifest is one entry's manifest.yaml.
 type Manifest struct {
-	ID             string    `yaml:"id" json:"id"`
-	Name           string    `yaml:"name" json:"name"`
-	Summary        string    `yaml:"summary" json:"summary"`
-	Description    string    `yaml:"description" json:"description"`
-	Icon           string    `yaml:"icon" json:"icon"`
-	Category       string    `yaml:"category" json:"category"`
-	Image          string    `yaml:"image" json:"image"`
-	Version        string    `yaml:"version" json:"version"`
-	Exposure       string    `yaml:"exposure" json:"exposure"`
-	OwnLogin       bool      `yaml:"own_login" json:"own_login"`
-	Infrastructure bool      `yaml:"infrastructure" json:"infrastructure"`
-	HostPorts      []string  `yaml:"host_ports" json:"host_ports,omitempty"`
-	Web            *Web      `yaml:"web" json:"web,omitempty"`
-	Volumes        []Volume  `yaml:"volumes" json:"volumes"`
-	Settings       []Setting `yaml:"settings" json:"settings,omitempty"`
-	Health         *Health   `yaml:"health" json:"health,omitempty"`
+	ID             string   `yaml:"id" json:"id"`
+	Name           string   `yaml:"name" json:"name"`
+	Summary        string   `yaml:"summary" json:"summary"`
+	Description    string   `yaml:"description" json:"description"`
+	Icon           string   `yaml:"icon" json:"icon"`
+	Category       string   `yaml:"category" json:"category"`
+	Image          string   `yaml:"image" json:"image"`
+	Version        string   `yaml:"version" json:"version"`
+	Exposure       string   `yaml:"exposure" json:"exposure"`
+	OwnLogin       bool     `yaml:"own_login" json:"own_login"`
+	Infrastructure bool     `yaml:"infrastructure" json:"infrastructure"`
+	HostPorts      []string `yaml:"host_ports" json:"host_ports,omitempty"`
+	// PortForward (decision 115): the app is meant to be reached from the
+	// internet at its host_ports (a game server), so the Console offers to
+	// have the router forward them. Still off until the user turns it on.
+	PortForward bool      `yaml:"port_forward" json:"port_forward,omitempty"`
+	Web         *Web      `yaml:"web" json:"web,omitempty"`
+	Volumes     []Volume  `yaml:"volumes" json:"volumes"`
+	Settings    []Setting `yaml:"settings" json:"settings,omitempty"`
+	Health      *Health   `yaml:"health" json:"health,omitempty"`
 	// Quadlet is the [Container] template, filled from <id>.container.
 	Quadlet string `yaml:"-" json:"quadlet"`
 }
@@ -113,6 +117,10 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("quadlet template needs a [Container] section")
 	case m.Infrastructure && len(m.HostPorts) == 0:
 		return fmt.Errorf("an infrastructure entry must declare host_ports")
+	case m.PortForward && len(m.HostPorts) == 0:
+		return fmt.Errorf("port_forward needs host_ports")
+	case m.PortForward && m.Infrastructure:
+		return fmt.Errorf("network infrastructure cannot be port forwarded")
 	}
 	for _, p := range m.HostPorts {
 		if !portRe.MatchString(p) {

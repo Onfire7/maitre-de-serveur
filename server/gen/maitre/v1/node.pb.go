@@ -1280,6 +1280,9 @@ type NodeInfo struct {
 	DevMode bool `protobuf:"varint,6,opt,name=dev_mode,json=devMode,proto3" json:"dev_mode,omitempty"`
 	// The other Nodes of the Fleet as this Node sees them (Milestone 3).
 	Peers []*PeerStatus `protobuf:"bytes,7,rep,name=peers,proto3" json:"peers,omitempty"`
+	// Decision 115: the UPnP router this Node can ask for port forwarding
+	// ("router: <name>"), "no UPnP router found", or empty before the first look.
+	PortMapping string `protobuf:"bytes,10,opt,name=port_mapping,json=portMapping,proto3" json:"port_mapping,omitempty"`
 	// This Node on the Fleet's Tailscale network (Milestone 5); unset when
 	// Tailscale is not configured.
 	Tailscale *TailscaleStatus `protobuf:"bytes,8,opt,name=tailscale,proto3" json:"tailscale,omitempty"`
@@ -1367,6 +1370,13 @@ func (x *NodeInfo) GetPeers() []*PeerStatus {
 		return x.Peers
 	}
 	return nil
+}
+
+func (x *NodeInfo) GetPortMapping() string {
+	if x != nil {
+		return x.PortMapping
+	}
+	return ""
 }
 
 func (x *NodeInfo) GetTailscale() *TailscaleStatus {
@@ -1465,7 +1475,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06queued\x18\x02 \x01(\bR\x06queued\"\x14\n" +
 	"\x12GetNodeInfoRequest\">\n" +
 	"\x13GetNodeInfoResponse\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xb2\x02\n" +
+	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xd5\x02\n" +
 	"\bNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -1473,7 +1483,9 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12%\n" +
 	"\x0euptime_seconds\x18\x05 \x01(\x04R\ruptimeSeconds\x12\x19\n" +
 	"\bdev_mode\x18\x06 \x01(\bR\adevMode\x12+\n" +
-	"\x05peers\x18\a \x03(\v2\x15.maitre.v1.PeerStatusR\x05peers\x128\n" +
+	"\x05peers\x18\a \x03(\v2\x15.maitre.v1.PeerStatusR\x05peers\x12!\n" +
+	"\fport_mapping\x18\n" +
+	" \x01(\tR\vportMapping\x128\n" +
 	"\ttailscale\x18\b \x01(\v2\x1a.maitre.v1.TailscaleStatusR\ttailscale\x12\x1b\n" +
 	"\tpublic_ip\x18\t \x01(\tR\bpublicIp2\xd4\x05\n" +
 	"\vNodeService\x12N\n" +
