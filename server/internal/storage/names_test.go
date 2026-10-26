@@ -34,8 +34,8 @@ func TestNextName(t *testing.T) {
 		t.Fatalf("second overflow name %q", got)
 	}
 	for l := byte('A'); l <= 'Z'; l++ {
-		if len(driveNames[l]) != 24 {
-			t.Fatalf("letter %c has %d names, want 24", l, len(driveNames[l]))
+		if len(driveNames[l]) != 29 {
+			t.Fatalf("letter %c has %d names, want 29", l, len(driveNames[l]))
 		}
 		for _, n := range driveNames[l] {
 			if n[0] != l {

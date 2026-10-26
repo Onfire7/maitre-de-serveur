@@ -68,6 +68,8 @@ func main() {
 		err = runProvision(os.Args[2:])
 	case "catalog-index":
 		err = runCatalogIndex(os.Args[2:])
+	case "names-index":
+		err = runNamesIndex(os.Args[2:])
 	case "pool-up":
 		err = runPoolUp(os.Args[2:])
 	case "service":

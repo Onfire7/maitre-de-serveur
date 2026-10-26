@@ -586,11 +586,12 @@ function AddNode({
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const fleetNodes = useTiers(state).nodes;
+  const { nodes: fleetNodes, drives: fleetDrives } = useTiers(state);
   const letter = nextLetter(fleetNodes.map((n) => n.letter));
+  const takenNames = [...state.nodes.map((n) => n.name), ...fleetNodes.map((n) => n.name), ...fleetDrives.map((d) => d.name)];
   const [name, setName] = useState("");
   useEffect(() => {
-    if (!name) setName(randomNodeName(letter, state.nodes.map((n) => n.name)));
+    if (!name) setName(randomNodeName(letter, takenNames));
   }, [letter]);
   const [disk, setDisk] = useState("");
   const [dataPart, setDataPart] = useState(false);
@@ -786,12 +787,12 @@ function AddNode({
             Node name{" "}
             <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: 240 }} />
           </label>{" "}
-          <button type="button" title="Draw another name" onClick={() => setName(randomNodeName(letter, state.nodes.map((n) => n.name)))}>
+          <button type="button" title="Draw another name" onClick={() => setName(randomNodeName(letter, takenNames))}>
             🎲
           </button>
           <span style={{ color: "#555", fontSize: 13 }}>
             {" "}
-            This will be Node {letter || "?"}; its name starts with that letter, like its Drives.{found.machine ? ` The machine calls itself ${found.machine}.` : ""}
+            This will be Node {letter || "?"}; it and its Drives share the {letter || "?"} names.{found.machine ? ` The machine calls itself ${found.machine}.` : ""}
           </span>
           <h4 style={{ marginBottom: 4 }}>Install Maître Server on</h4>
           <p style={{ color: "#b00020", fontSize: 13, marginTop: 0 }}>Everything on the chosen disk will be erased.</p>
@@ -875,8 +876,9 @@ function NodeDetails({
   state: ConsoleState;
   onRenamed: (name: string) => void;
 }) {
-  const { tiers, nodes: fleetNodes } = useTiers(state);
+  const { tiers, nodes: fleetNodes, drives: fleetDrives } = useTiers(state);
   const myLetter = fleetNodes.find((n) => n.nodeId === node.node_id)?.letter || "";
+  const takenNames = [...state.nodes.map((n) => n.name), ...fleetNodes.map((n) => n.name), ...fleetDrives.map((d) => d.name)];
   const [renaming, setRenaming] = useState<string | null>(null);
   const [info, setInfo] = useState<NodeInfo | null>(null);
   const [metrics, setMetrics] = useState<NodeMetrics | null>(null);
@@ -928,7 +930,7 @@ function NodeDetails({
           }}
         >
           <input autoFocus value={renaming} onChange={(e) => setRenaming(e.target.value)} maxLength={40} style={{ fontSize: 18, width: 260 }} />
-          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(myLetter, state.nodes.map((n) => n.name)))}>
+          <button type="button" title="Draw another name" onClick={() => setRenaming(randomNodeName(myLetter, takenNames))}>
             🎲
           </button>
           <button type="submit">Save</button>
