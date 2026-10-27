@@ -492,11 +492,10 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		if m.PeerAddr == nil {
 			return errors.New("no peers")
 		}
-		host := m.PeerAddr(req.GetFromNodeId())
-		if host == "" {
+		if m.PeerAddr(req.GetFromNodeId()) == "" {
 			return fmt.Errorf("no address for Node %s", req.GetFromNodeId())
 		}
-		dir, err := storage.MountRemotePool(ctx, m.run, host, req.GetFromNodeId(), req.GetFrom().GetSpaceId())
+		dir, err := storage.MountRemotePool(ctx, m.run, req.GetFromNodeId(), req.GetFrom().GetSpaceId())
 		if err != nil {
 			return fmt.Errorf("reach the source Pool: %w", err)
 		}

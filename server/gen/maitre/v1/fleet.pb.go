@@ -206,9 +206,12 @@ type Node struct {
 	// One capital letter per Node (decision 104); its Drives get names that
 	// start with it. Chosen by the Node itself: the first letter no other
 	// Node holds.
-	Letter        string `protobuf:"bytes,9,opt,name=letter,proto3" json:"letter,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Letter string `protobuf:"bytes,9,opt,name=letter,proto3" json:"letter,omitempty"`
+	// Self-signed certificate for NFS over TLS (decision 187), made from the
+	// Node's key and never changing; peers put it in their tlshd trust store.
+	NfsCertificatePem string `protobuf:"bytes,10,opt,name=nfs_certificate_pem,json=nfsCertificatePem,proto3" json:"nfs_certificate_pem,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
@@ -300,6 +303,13 @@ func (x *Node) GetBootedUnixMs() int64 {
 func (x *Node) GetLetter() string {
 	if x != nil {
 		return x.Letter
+	}
+	return ""
+}
+
+func (x *Node) GetNfsCertificatePem() string {
+	if x != nil {
+		return x.NfsCertificatePem
 	}
 	return ""
 }
@@ -494,7 +504,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x05Fleet\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\xa5\x02\n" +
+	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\xd5\x02\n" +
 	"\x04Node\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
@@ -504,7 +514,9 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\timage_ref\x18\x06 \x01(\tR\bimageRef\x12!\n" +
 	"\fimage_digest\x18\a \x01(\tR\vimageDigest\x12$\n" +
 	"\x0ebooted_unix_ms\x18\b \x01(\x03R\fbootedUnixMs\x12\x16\n" +
-	"\x06letter\x18\t \x01(\tR\x06letter\"\xb9\x01\n" +
+	"\x06letter\x18\t \x01(\tR\x06letter\x12.\n" +
+	"\x13nfs_certificate_pem\x18\n" +
+	" \x01(\tR\x11nfsCertificatePem\"\xb9\x01\n" +
 	"\fUpdatePolicy\x12\x1c\n" +
 	"\tautomatic\x18\x01 \x01(\bR\tautomatic\x12*\n" +
 	"\x11window_start_hour\x18\x02 \x01(\x05R\x0fwindowStartHour\x12&\n" +

@@ -139,8 +139,22 @@ func runAgent(args []string) error {
 			addrs = append(addrs, net.JoinHostPort(a, fmt.Sprint(listenPort(*listen))))
 		}
 	}
-	if len(addrs) > 0 && !slices.Equal(addrs, self.GetAddresses()) {
-		self.Addresses = addrs
+	// Decision 187: the certificate peers trust for NFS over TLS, published
+	// in our Node record and written where tlshd reads it.
+	nfsCert, err := id.NFSCertificatePEM()
+	if err != nil {
+		return fmt.Errorf("nfs certificate: %w", err)
+	}
+	if key, err := id.PrivateKeyPEM(); err != nil {
+		return fmt.Errorf("nfs key: %w", err)
+	} else if err := storage.WriteTLSIdentity(nfsCert, key); err != nil {
+		log.Warn("nfs tls identity", "err", err)
+	}
+	if (len(addrs) > 0 && !slices.Equal(addrs, self.GetAddresses())) || self.GetNfsCertificatePem() != string(nfsCert) {
+		if len(addrs) > 0 {
+			self.Addresses = addrs
+		}
+		self.NfsCertificatePem = string(nfsCert)
 		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err != nil {
 			log.Warn("own node record", "err", err)
 		}
@@ -431,6 +445,9 @@ func runAgent(args []string) error {
 				best[id] = as[0]
 			}
 		}
+		if err := storage.WriteNFSPeers(ctx, st, best); err != nil {
+			log.Warn("nfs peers", "err", err)
+		}
 		remote, missing, err := stor.RemoteBranches(ctx, run, best)
 		if err != nil {
 			log.Warn("remote pools", "err", err)
@@ -499,7 +516,8 @@ func runAgent(args []string) error {
 	withSpaces := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
 		withSpaces(r)
-		if r.GetKind() == storage.KindSpace || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
+		// A Node record may bring a peer's NFS certificate (decision 187).
+		if r.GetKind() == storage.KindSpace || r.GetKind() == store.KindNode || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
 			requestAssemble()
 		}
 	}

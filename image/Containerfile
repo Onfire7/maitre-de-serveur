@@ -24,7 +24,8 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # fedora-bootc; nss-mdns is what lets the host resolve *.local names;
 # dracut-live builds the netboot installer initramfs (decision 79).
 # acl: setfacl for Spaces' shared folders (decision 182).
-RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl && dnf clean all
+# ktls-utils: tlshd, the TLS handshake for NFS over TLS (decision 187).
+RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).
@@ -52,11 +53,12 @@ COPY image/kargs.d/ /usr/lib/bootc/kargs.d/
 COPY image/greenboot/10-maitre.sh /etc/greenboot/check/required.d/10-maitre.sh
 COPY image/greenboot/red-maitre.sh /etc/greenboot/red.d/10-maitre.sh
 COPY image/logind.conf /usr/lib/systemd/logind.conf.d/10-maitre.conf
+COPY image/tlshd.conf /etc/tlshd/config
 # Nothing should ever suspend a Node, lid or no lid.
 RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 COPY image/maitre-agent.service image/maitre-installer.service image/maitre-pool.service image/var-lib-maitre.mount /usr/lib/systemd/system/
 # Caddy starts with its stock config; the agent replaces it over the admin API.
-RUN systemctl enable maitre-agent.service maitre-installer.service maitre-pool.service var-lib-maitre.mount avahi-daemon.service podman.socket caddy.service greenboot-healthcheck.service \
+RUN systemctl enable maitre-agent.service maitre-installer.service maitre-pool.service var-lib-maitre.mount avahi-daemon.service podman.socket caddy.service greenboot-healthcheck.service tlshd.service \
     && mkdir -p /etc/exports.d
 
 # bootc lint catches image-layout mistakes at build time.

@@ -10,18 +10,21 @@ import (
 	"strings"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// Spanning Spaces (decisions 105, 106, 127): every Node exports its Pools over
-// NFS to the Fleet's other Nodes only, and mounts theirs soft, so a Node
+// Spanning Spaces (decisions 105, 106, 127, 187): every Node exports its Pools
+// over NFS with mutual TLS (nfstls.go) to the Fleet's other Nodes only, and
+// mounts theirs soft, so a Node
 // that is off makes its files absent rather than hanging anything. A
 // spanning Space's Pool on a Node is mergerfs over its local Space folders, then
 // the remote Pools; the Space's placement decides where new files land.
 
-// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<space>.
-const RemoteDir = "/var/mnt/remote"
+// RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<space>;
+// a variable for tests.
+var RemoteDir = "/var/mnt/remote"
 
 // ExportsFile is the NFS export list this package owns; a variable for tests.
 var ExportsFile = "/etc/exports.d/maitre.exports"
@@ -67,7 +70,7 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 		exported++
 		b.WriteString(mount)
 		for _, h := range hosts {
-			fmt.Fprintf(&b, " %s(rw,sync,no_subtree_check,no_root_squash,fsid=%d)", h, 1000+i)
+			fmt.Fprintf(&b, " %s(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=%d)", h, 1000+i)
 		}
 		b.WriteString("\n")
 	}
@@ -136,15 +139,15 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 	out = map[string][]string{}
 	for tier, nodes := range holders {
 		for nodeID := range nodes {
-			host, ok := peerAddr[nodeID]
-			if !ok {
+			if _, ok := peerAddr[nodeID]; !ok {
 				missing = append(missing, fmt.Sprintf("%s %s: no address", nodeID, tier))
 				continue
 			}
-			if h, _, err := net.SplitHostPort(host); err == nil {
-				host = h
+			if !HasNFSCertificate(ctx, m.st, nodeID) {
+				missing = append(missing, fmt.Sprintf("%s %s: runs a Maître Server from before NFS over TLS; update it", nodeID, tier))
+				continue
 			}
-			dir, err := MountRemotePool(ctx, run, host, nodeID, tier)
+			dir, err := MountRemotePool(ctx, run, nodeID, tier)
 			if err != nil {
 				missing = append(missing, fmt.Sprintf("%s %s: %v", nodeID, tier, err))
 				continue
@@ -160,12 +163,10 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 }
 
 // MountRemotePool mounts a peer's Pool of one Space (exported to this Node)
-// at RemoteDir/<node>/<space>, soft with short timeouts, and returns the
-// directory; already mounted is fine. host is the peer's IP.
-func MountRemotePool(ctx context.Context, run Runner, host, nodeID, space string) (string, error) {
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
+// at RemoteDir/<node>/<space>, over mutual TLS, soft with short timeouts,
+// and returns the directory; already mounted is fine. The peer is reached by
+// its NFS name, which WriteNFSPeers maps to its address.
+func MountRemotePool(ctx context.Context, run Runner, nodeID, space string) (string, error) {
 	dir := filepath.Join(RemoteDir, nodeID, space)
 	if mounted(dir) {
 		return dir, nil
@@ -173,8 +174,8 @@ func MountRemotePool(ctx context.Context, run Runner, host, nodeID, space string
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	src := fmt.Sprintf("%s:%s", host, filepath.Join(pool.PoolsDir, space))
-	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev", src, dir); err != nil {
+	src := fmt.Sprintf("%s:%s", identity.NFSName(nodeID), filepath.Join(pool.PoolsDir, space))
+	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,xprtsec=mtls", src, dir); err != nil {
 		return "", err
 	}
 	return dir, nil
