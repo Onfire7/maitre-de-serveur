@@ -53,6 +53,9 @@ type Volume struct {
 	Name string `yaml:"name" json:"name"`
 	Path string `yaml:"path" json:"path"`
 	Size string `yaml:"size" json:"size,omitempty"`
+	// Shared suggests a folder the user picks, used by other Services too
+	// (decision 175).
+	Shared bool `yaml:"shared" json:"shared,omitempty"`
 }
 
 // Setting is asked at install time.
@@ -234,7 +237,7 @@ func SpecFor(e *Manifest, name string, settings map[string]string, exposure stri
 		spec.HealthHttp = e.Health.HTTP
 	}
 	for _, v := range e.Volumes {
-		spec.Volumes = append(spec.Volumes, &maitrev1.ServiceVolume{Name: v.Name, Path: v.Path, Size: v.Size})
+		spec.Volumes = append(spec.Volumes, &maitrev1.ServiceVolume{Name: v.Name, Path: v.Path, Size: v.Size, Shared: v.Shared})
 	}
 	return spec
 }

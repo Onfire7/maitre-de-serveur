@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { isDemo } from "@/demo/flag";
 import { Preview } from "@/files/Preview";
+import { FolderBrowser } from "@/files/FolderBrowser";
 import { unzippable } from "@/files/kinds";
 import { demoUpload, download, pickAndUpload, uploadPaths, type Place } from "@/files/transfers";
 import { cn } from "@/lib/utils";
@@ -368,6 +369,11 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
             const res = await createClient(FilesService, transportFor(t)).listDir({ scope: { spaceId, driveId: "" }, path: p });
             return res.entries.filter((e) => e.dir).map((e) => e.name).sort((a, b) => a.localeCompare(b));
           }}
+          makeFolder={async (nodeId, spaceId, p) => {
+            const t = targetFor(snap, state.nodes, nodeId);
+            if (!t) throw new Error("no address");
+            await createClient(FilesService, transportFor(t)).makeDir({ scope: { spaceId, driveId: "" }, path: p });
+          }}
           onMove={async (req) => {
             for (const name of selected) {
               const rel = [...crumbs, name].join("/");
@@ -546,7 +552,7 @@ function NewFolderDialog({ open, onClose, where, taken, onMake }: { open: boolea
  * destination; a Space that does not span Nodes is browsed on the Node
  * chosen, a spanning one through any Node that has it.
  */
-function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFolders, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; listFolders: (nodeId: string, spaceId: string, path: string) => Promise<string[]>; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
+function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFolders, makeFolder, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; listFolders: (nodeId: string, spaceId: string, path: string) => Promise<string[]>; makeFolder: (nodeId: string, spaceId: string, path: string) => Promise<void>; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
   // Same order as the file manager's list, so each Space keeps its colour.
   const spaces = [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority);
   const drives = snap?.drives ?? [];
@@ -586,12 +592,6 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
   }, [open]);
   // Browse on the chosen Node, else the one the files are on, else any holder.
   const browseNode = toNode || (spaceHolders.some((n) => n.nodeId === scope.nodeId) ? scope.nodeId : spaceHolders[0]?.nodeId) || "";
-  const folders = useQuery({
-    queryKey: ["move-folders", browseNode, toSpace, toPath],
-    enabled: open && !!browseNode && !!toSpace,
-    retry: false,
-    queryFn: () => listFolders(browseNode, toSpace, toPath),
-  });
   const memberDrives = space ? drives.filter((d) => spacesOf(d, spaces).includes(space.spaceId)) : [];
   const driveChoices = memberDrives.filter((d) => d.nodeId === (toNode || scope.nodeId));
   const crumbs = toPath.split("/").filter(Boolean);
@@ -669,47 +669,13 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
           )}
           <div className="space-y-1.5">
             <Label>Folder</Label>
-            <div className="rounded-md border">
-              <nav className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5 text-sm">
-                <button className="rounded px-1 font-medium hover:bg-accent" onClick={() => setToPath("")}>
-                  {spaceName || "Space"}
-                </button>
-                {crumbs.map((c, i) => (
-                  <span key={i} className="flex items-center gap-1">
-                    <ChevronRight className="size-3.5 text-muted-foreground" />
-                    <button className="rounded px-1 hover:bg-accent" onClick={() => setToPath(crumbs.slice(0, i + 1).join("/"))}>
-                      {c}
-                    </button>
-                  </span>
-                ))}
-              </nav>
-              <ul className="max-h-48 overflow-y-auto py-1 text-sm" aria-label="Folders">
-                {crumbs.length > 0 && (
-                  <li>
-                    <button className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-accent" onClick={() => setToPath(crumbs.slice(0, -1).join("/"))}>
-                      <CornerLeftUp className="size-4 text-muted-foreground" /> ..
-                    </button>
-                  </li>
-                )}
-                {folders.error ? (
-                  <li className="px-3 py-1 text-xs text-muted-foreground">{crumbs.length ? "This folder does not exist there yet; it is made by the move." : `Cannot read ${spaceName} on ${nodeName(browseNode)}.`}</li>
-                ) : !folders.data ? (
-                  <li className="px-3 py-1 text-xs text-muted-foreground">Reading…</li>
-                ) : (
-                  folders.data.map((f) => {
-                    const self = names.some((n) => into(n) === [toPath, f].filter(Boolean).join("/"));
-                    return (
-                      <li key={f}>
-                        <button disabled={self} title={self ? "Being moved" : undefined} className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-accent disabled:opacity-40" onClick={() => setToPath([toPath, f].filter(Boolean).join("/"))}>
-                          <Folder className="size-4 text-status-starting" /> {f}
-                        </button>
-                      </li>
-                    );
-                  })
-                )}
-                {folders.data?.length === 0 && <li className="px-3 py-1 text-xs text-muted-foreground">No folders in here.</li>}
-              </ul>
-            </div>
+            <FolderBrowser
+              source={{ key: `${browseNode}:${toSpace}`, list: (p) => listFolders(browseNode, toSpace, p), make: (p) => makeFolder(browseNode, toSpace, p) }}
+              top={spaceName || "Space"}
+              path={toPath}
+              onPath={setToPath}
+              disabled={(p) => (names.some((n) => into(n) === p) ? "Being moved" : undefined)}
+            />
             <p className="text-xs text-muted-foreground">
               Into <span className="font-medium text-foreground">{[spaceName, ...crumbs].join(" / ")}</span>
               {toNode ? ` on ${nodeName(toNode)}` : space?.spanNodes ? ", wherever the Space places it" : ""}

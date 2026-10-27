@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -24,6 +25,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -71,6 +73,8 @@ type Config struct {
 	Suffix string
 	// HTTPClient probes health; nil means a 2-second default.
 	HTTPClient *http.Client
+	// SpaceOwner is a Space's owner id (decision 182), 0 when it has none.
+	SpaceOwner func(ctx context.Context, spaceID string) uint32
 }
 
 // DefaultSuffix is the domain Services are reachable under on the LAN:
@@ -174,6 +178,9 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 			spec.VolumeSpaces[v.GetName()] = def
 		}
 	}
+	if err := checkMounts(spec.GetVolumes(), spec.GetMounts()); err != nil {
+		return nil, err
+	}
 	spec.WebHostPort = 0
 	if spec.GetWebPort() != 0 {
 		spec.WebHostPort = uint32(m.hostPort(ctx, name))
@@ -198,20 +205,75 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	return m.Status(ctx, spec)
 }
 
+// poolDir is the Pool of a Space on this Node.
+func (m *Manager) poolDir(space string) (string, error) {
+	if m.cfg.PoolsDir == "" {
+		return filepath.Join(os.TempDir(), "maitre-pools", space), nil // dev mode
+	}
+	base := filepath.Join(m.cfg.PoolsDir, space)
+	if _, err := os.Stat(base); err != nil {
+		return "", fmt.Errorf("Space %q has no Pool on this Node", space)
+	}
+	return base, nil
+}
+
+// folderIn resolves a picked folder of a Space ("" is its top), refusing
+// ".." and hidden names.
+func folderIn(base, folder string) (string, error) {
+	for _, part := range strings.Split(strings.Trim(strings.TrimSpace(folder), "/"), "/") {
+		if part == ".." || (part != "" && strings.HasPrefix(part, ".")) {
+			return "", fmt.Errorf("%q is not a folder of the Space", folder)
+		}
+	}
+	return filepath.Join(base, filepath.Clean("/"+folder)), nil
+}
+
+func (m *Manager) owner(ctx context.Context, space string) uint32 {
+	if m.cfg.SpaceOwner == nil {
+		return 0
+	}
+	return m.cfg.SpaceOwner(ctx, space)
+}
+
 // apply renders the Quadlet unit, creates volume directories, reloads systemd.
+// A volume has its own folder, <pools>/<space>/<service>/<volume>, or a
+// folder the user picked (170); extra folders (171) mount as well. Picked
+// folders get their Space's owner (173) and mount shared (:z, 172).
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	vols := map[string]string{}
+	extra := Extra{Shared: map[string]bool{}}
+	groups := map[uint32]bool{}
+	share := func(space, dir string) error {
+		id := m.owner(ctx, space)
+		if id != 0 {
+			groups[id] = true
+		}
+		return owner.Share(ctx, dir, id, func(err error) {
+			if err != nil && m.cfg.Log != nil {
+				m.cfg.Log.Warn("shared folder owner", "dir", dir, "err", err)
+			}
+		})
+	}
 	for _, v := range spec.GetVolumes() {
-		// Each volume lives on the Pool of its Space: <pools>/<space>/<service>/<volume>.
 		space := spec.GetVolumeSpaces()[v.GetName()]
 		if space == "" {
 			return fmt.Errorf("volume %s has no Space", v.GetName())
 		}
-		base := filepath.Join(m.cfg.PoolsDir, space)
-		if m.cfg.PoolsDir == "" {
-			base = filepath.Join(os.TempDir(), "maitre-pools", space) // dev mode
-		} else if _, err := os.Stat(base); err != nil {
-			return fmt.Errorf("volume %s wants Space %q, which has no Pool on this Node", v.GetName(), space)
+		base, err := m.poolDir(space)
+		if err != nil {
+			return fmt.Errorf("volume %s: %w", v.GetName(), err)
+		}
+		if folder, ok := spec.GetVolumeFolders()[v.GetName()]; ok {
+			dir, err := folderIn(base, folder)
+			if err != nil {
+				return fmt.Errorf("volume %s: %w", v.GetName(), err)
+			}
+			if err := share(space, dir); err != nil {
+				return err
+			}
+			vols[v.GetName()] = dir
+			extra.Shared[v.GetName()] = true
+			continue
 		}
 		dir := filepath.Join(base, spec.GetName(), v.GetName())
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -219,7 +281,25 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 		}
 		vols[v.GetName()] = dir
 	}
-	unit, err := Render(spec, vols)
+	for _, mt := range spec.GetMounts() {
+		base, err := m.poolDir(mt.GetSpaceId())
+		if err != nil {
+			return fmt.Errorf("folder for %s: %w", mt.GetPath(), err)
+		}
+		dir, err := folderIn(base, mt.GetFolder())
+		if err != nil {
+			return err
+		}
+		if err := share(mt.GetSpaceId(), dir); err != nil {
+			return err
+		}
+		extra.Mounts = append(extra.Mounts, Mount{Host: dir, Path: mt.GetPath(), ReadOnly: mt.GetReadOnly()})
+	}
+	for id := range groups {
+		extra.Groups = append(extra.Groups, id)
+	}
+	sort.Slice(extra.Groups, func(i, j int) bool { return extra.Groups[i] < extra.Groups[j] })
+	unit, err := RenderWith(spec, vols, extra)
 	if err != nil {
 		return err
 	}
@@ -321,6 +401,26 @@ func (m *Manager) logf(format string, args ...any) {
 
 // Render produces the full Quadlet unit for a Service.
 func Render(spec *maitrev1.ServiceSpec, volumes map[string]string) ([]byte, error) {
+	return RenderWith(spec, volumes, Extra{})
+}
+
+// Extra is what a unit gets beyond its Catalog template: which volumes are
+// picked, shared folders (their Volume= lines get :z instead of :Z), extra
+// folders, and the Space groups the container joins (172, 171, 182).
+type Extra struct {
+	Shared map[string]bool
+	Mounts []Mount
+	Groups []uint32
+}
+
+// Mount is an extra folder in a unit.
+type Mount struct {
+	Host, Path string
+	ReadOnly   bool
+}
+
+// RenderWith is Render with picked and extra folders.
+func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Extra) ([]byte, error) {
 	tmpl, err := template.New(spec.GetName()).Option("missingkey=error").Parse(spec.GetQuadlet())
 	if err != nil {
 		return nil, fmt.Errorf("quadlet template: %w", err)
@@ -336,6 +436,13 @@ func Render(spec *maitrev1.ServiceSpec, volumes map[string]string) ([]byte, erro
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, data); err != nil {
 		return nil, fmt.Errorf("quadlet template: %w", err)
+	}
+	if len(extra.Shared) > 0 {
+		hosts := map[string]bool{}
+		for name := range extra.Shared {
+			hosts[volumes[name]] = true
+		}
+		body = *bytes.NewBufferString(shareVolumes(body.String(), hosts))
 	}
 	var out bytes.Buffer
 	fmt.Fprintf(&out, "# Generated by Maître for Service %q (Catalog entry %q). Do not edit.\n", spec.GetName(), spec.GetCatalogId())
@@ -353,10 +460,47 @@ func Render(spec *maitrev1.ServiceSpec, volumes map[string]string) ([]byte, erro
 	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
 		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
 	}
+	for _, mt := range extra.Mounts {
+		opts := "z"
+		if mt.ReadOnly {
+			opts += ",ro"
+		}
+		fmt.Fprintf(&out, "Volume=%s:%s:%s\n", mt.Host, mt.Path, opts)
+	}
+	for _, g := range extra.Groups {
+		fmt.Fprintf(&out, "GroupAdd=%d\n", g)
+	}
 	out.WriteString("Label=dev.maitre.service=" + spec.GetName() + "\n")
 	out.WriteString("\n[Service]\nRestart=on-failure\nRestartSec=5\nTimeoutStartSec=900\n")
 	out.WriteString("\n[Install]\nWantedBy=multi-user.target default.target\n")
 	return out.Bytes(), nil
+}
+
+// shareVolumes turns the private SELinux label (:Z) of Volume= lines whose
+// host folder is in hosts into the shared one (:z), adding it if absent.
+func shareVolumes(body string, hosts map[string]bool) string {
+	lines := strings.Split(body, "\n")
+	for i, l := range lines {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(l), "Volume=")
+		if !ok {
+			continue
+		}
+		parts := strings.SplitN(rest, ":", 3)
+		if len(parts) < 2 || !hosts[parts[0]] {
+			continue
+		}
+		var opts []string
+		if len(parts) == 3 {
+			for _, o := range strings.Split(parts[2], ",") {
+				if o != "Z" && o != "z" && o != "" {
+					opts = append(opts, o)
+				}
+			}
+		}
+		opts = append(opts, "z")
+		lines[i] = "Volume=" + parts[0] + ":" + parts[1] + ":" + strings.Join(opts, ",")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // hostPort picks a stable loopback port for a Service's web port, avoiding
@@ -434,6 +578,9 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		if req.GetDeleteData() && m.cfg.PoolsDir != "" {
 			// Every volume, on whichever Space's Pool it lives.
 			for _, v := range spec.GetVolumes() {
+				if _, picked := spec.GetVolumeFolders()[v.GetName()]; picked {
+					continue // a folder the user picked is never deleted (174)
+				}
 				base := filepath.Join(m.cfg.PoolsDir, spec.GetVolumeSpaces()[v.GetName()])
 				if err := os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName())); err != nil {
 					return nil, err
@@ -503,6 +650,78 @@ func (m *Manager) AutoUpdate(ctx context.Context) {
 
 // SetExposure changes where a Service is reachable. Infrastructure
 // Services never go public (the plan's rule: they bind the Node itself).
+// checkMounts refuses extra folders whose container path is not absolute or
+// is used twice (by a volume or another folder).
+func checkMounts(vols []*maitrev1.ServiceVolume, mounts []*maitrev1.ServiceMount) error {
+	paths := map[string]bool{}
+	for _, v := range vols {
+		paths[v.GetPath()] = true
+	}
+	for _, mt := range mounts {
+		p := mt.GetPath()
+		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, ":\n") || p == "/" {
+			return fmt.Errorf("%q is not a path inside the container", p)
+		}
+		if paths[p] {
+			return fmt.Errorf("%s is already used inside the container", p)
+		}
+		paths[p] = true
+	}
+	return nil
+}
+
+// SetFolders points volumes at picked folders and sets the extra folders
+// (decisions 170, 171, 174), then applies and restarts the Service if it was
+// running. Folders no longer used are left as they are.
+func (m *Manager) SetFolders(ctx context.Context, req *maitrev1.SetFoldersRequest) (*maitrev1.ServiceStatus, error) {
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, req.GetName(), &spec); err != nil {
+		return nil, ErrNotFound
+	}
+	if spec.GetNodeId() != "" && spec.GetNodeId() != m.store.NodeID() {
+		return nil, fmt.Errorf("%s runs on another Node; ask that one", req.GetName())
+	}
+	has := map[string]bool{}
+	for _, v := range spec.GetVolumes() {
+		has[v.GetName()] = true
+	}
+	for name := range req.GetVolumeFolders() {
+		if !has[name] {
+			return nil, fmt.Errorf("%s has no volume %s", req.GetName(), name)
+		}
+	}
+	for name, space := range req.GetVolumeSpaces() {
+		if !has[name] {
+			return nil, fmt.Errorf("%s has no volume %s", req.GetName(), name)
+		}
+		if _, picked := req.GetVolumeFolders()[name]; !picked && space != spec.GetVolumeSpaces()[name] {
+			return nil, fmt.Errorf("volume %s keeps its own folder; move it with MoveVolume to change its Space", name)
+		}
+	}
+	if err := checkMounts(spec.GetVolumes(), req.GetMounts()); err != nil {
+		return nil, err
+	}
+	if spec.VolumeSpaces == nil {
+		spec.VolumeSpaces = map[string]string{}
+	}
+	for name, space := range req.GetVolumeSpaces() {
+		spec.VolumeSpaces[name] = space
+	}
+	spec.VolumeFolders = req.GetVolumeFolders()
+	spec.Mounts = req.GetMounts()
+	if err := m.apply(ctx, &spec); err != nil {
+		return nil, err
+	}
+	if _, err := m.store.Put(ctx, KindService, spec.GetName(), &spec, false); err != nil {
+		return nil, err
+	}
+	// try-restart: only if it was running (a stopped Service stays stopped).
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", spec.GetName()+".service"); err != nil {
+		return nil, err
+	}
+	return m.Status(ctx, &spec)
+}
+
 func (m *Manager) SetExposure(ctx context.Context, name, exposure, publicHost string) (*maitrev1.ServiceStatus, error) {
 	switch exposure {
 	case "private", "remote", "public":

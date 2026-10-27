@@ -45,6 +45,8 @@ const (
 	ServiceServiceSetPortForwardingProcedure = "/maitre.v1.ServiceService/SetPortForwarding"
 	// ServiceServiceMoveVolumeProcedure is the procedure name of the ServiceService's MoveVolume RPC.
 	ServiceServiceMoveVolumeProcedure = "/maitre.v1.ServiceService/MoveVolume"
+	// ServiceServiceSetFoldersProcedure is the procedure name of the ServiceService's SetFolders RPC.
+	ServiceServiceSetFoldersProcedure = "/maitre.v1.ServiceService/SetFolders"
 )
 
 var (
@@ -104,6 +106,13 @@ var (
 			Procedure:  ServiceServiceMoveVolumeProcedure,
 		}
 	})
+	serviceServiceSetFoldersSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("SetFolders"),
+			Procedure:  ServiceServiceSetFoldersProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -130,6 +139,10 @@ type ServiceServiceClient interface {
 	// verify, remove), the spec's volume_spaces is rewritten, and the Service
 	// starts again if it was running. Returns the job id for ListJobs.
 	MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error)
+	// SetFolders points volumes at picked folders and sets the extra folders
+	// (decisions 170, 171, 174): saved, applied, and the Service restarted if
+	// it was running. A folder that is no longer used stays where it is.
+	SetFolders(context.Context, *v1.SetFoldersRequest) (*v1.SetFoldersResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -162,6 +175,10 @@ type ServiceServiceHandler interface {
 	// verify, remove), the spec's volume_spaces is rewritten, and the Service
 	// starts again if it was running. Returns the job id for ListJobs.
 	MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error)
+	// SetFolders points volumes at picked folders and sets the extra folders
+	// (decisions 170, 171, 174): saved, applied, and the Service restarted if
+	// it was running. A folder that is no longer used stays where it is.
+	SetFolders(context.Context, *v1.SetFoldersRequest) (*v1.SetFoldersResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -177,6 +194,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceSetExposureSpec(), Handler: adapter.setExposure},
 		connect.Method{Spec: serviceServiceSetPortForwardingSpec(), Handler: adapter.setPortForwarding},
 		connect.Method{Spec: serviceServiceMoveVolumeSpec(), Handler: adapter.moveVolume},
+		connect.Method{Spec: serviceServiceSetFoldersSpec(), Handler: adapter.setFolders},
 	)
 }
 
@@ -213,6 +231,10 @@ func (UnimplementedServiceServiceHandler) SetPortForwarding(context.Context, *v1
 
 func (UnimplementedServiceServiceHandler) MoveVolume(context.Context, *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.MoveVolume is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) SetFolders(context.Context, *v1.SetFoldersRequest) (*v1.SetFoldersResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetFolders is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -278,6 +300,14 @@ func (c *serviceServiceClient) SetPortForwarding(ctx context.Context, req *v1.Se
 func (c *serviceServiceClient) MoveVolume(ctx context.Context, req *v1.MoveVolumeRequest) (*v1.MoveVolumeResponse, error) {
 	var res v1.MoveVolumeResponse
 	if err := c.client.CallUnary(ctx, serviceServiceMoveVolumeSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) SetFolders(ctx context.Context, req *v1.SetFoldersRequest) (*v1.SetFoldersResponse, error) {
+	var res v1.SetFoldersResponse
+	if err := c.client.CallUnary(ctx, serviceServiceSetFoldersSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -375,6 +405,18 @@ func (h serviceServiceHandler) moveVolume(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.MoveVolume(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) setFolders(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetFoldersRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetFolders(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -169,4 +169,9 @@ message Space {
   // New Service volumes land here unless the user picks another Space. Exactly
   // one Space should carry this; the newest write wins otherwise.
   bool default_for_new = 10;
+  // Decisions 173, 182: the user and group (one id) that own this Space's
+  // shared folders, Fleet-wide, from 61000 up; 0 until a Console assigns
+  // one. Folders are setgid 2775 with a default ACL giving the group rwx;
+  // a container gets this group for every Space it has a picked folder in.
+  uint32 owner_id = 11;
 }

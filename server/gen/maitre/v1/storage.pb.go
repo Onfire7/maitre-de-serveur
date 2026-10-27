@@ -1040,6 +1040,11 @@ type Space struct {
 	// New Service volumes land here unless the user picks another Space. Exactly
 	// one Space should carry this; the newest write wins otherwise.
 	DefaultForNew bool `protobuf:"varint,10,opt,name=default_for_new,json=defaultForNew,proto3" json:"default_for_new,omitempty"`
+	// Decisions 173, 182: the user and group (one id) that own this Space's
+	// shared folders, Fleet-wide, from 61000 up; 0 until a Console assigns
+	// one. Folders are setgid 2775 with a default ACL giving the group rwx;
+	// a container gets this group for every Space it has a picked folder in.
+	OwnerId       uint32 `protobuf:"varint,11,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1144,6 +1149,13 @@ func (x *Space) GetDefaultForNew() bool {
 	return false
 }
 
+func (x *Space) GetOwnerId() uint32 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
 var File_maitre_v1_storage_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_storage_proto_rawDesc = "" +
@@ -1225,7 +1237,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x12ForgetDriveRequest\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x18\n" +
 	"\aconfirm\x18\x02 \x01(\tR\aconfirm\"\x15\n" +
-	"\x13ForgetDriveResponse\"\xbb\x02\n" +
+	"\x13ForgetDriveResponse\"\xd6\x02\n" +
 	"\x05Space\x12\x19\n" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -1238,7 +1250,8 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"span_nodes\x18\b \x01(\bR\tspanNodes\x12\x1c\n" +
 	"\texclusive\x18\t \x01(\bR\texclusive\x12&\n" +
 	"\x0fdefault_for_new\x18\n" +
-	" \x01(\bR\rdefaultForNew2\xf3\x03\n" +
+	" \x01(\bR\rdefaultForNew\x12\x19\n" +
+	"\bowner_id\x18\v \x01(\rR\aownerId2\xf3\x03\n" +
 	"\x0eStorageService\x12K\n" +
 	"\n" +
 	"ListDrives\x12\x1c.maitre.v1.ListDrivesRequest\x1a\x1d.maitre.v1.ListDrivesResponse\"\x00\x12T\n" +

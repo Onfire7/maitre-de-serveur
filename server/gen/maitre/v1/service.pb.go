@@ -76,7 +76,7 @@ func (x ServiceStatus_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ServiceStatus_State.Descriptor instead.
 func (ServiceStatus_State) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{6, 0}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{9, 0}
 }
 
 type ControlServiceRequest_Action int32
@@ -142,7 +142,122 @@ func (x ControlServiceRequest_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ControlServiceRequest_Action.Descriptor instead.
 func (ControlServiceRequest_Action) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{12, 0}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{15, 0}
+}
+
+type SetFoldersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// As ServiceSpec.volume_folders: volume name -> folder in its Space;
+	// a volume left out gets its own folder again. volume_spaces gives the
+	// Space for each named volume (left out: unchanged).
+	VolumeFolders map[string]string `protobuf:"bytes,2,rep,name=volume_folders,json=volumeFolders,proto3" json:"volume_folders,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	VolumeSpaces  map[string]string `protobuf:"bytes,3,rep,name=volume_spaces,json=volumeSpaces,proto3" json:"volume_spaces,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Mounts        []*ServiceMount   `protobuf:"bytes,4,rep,name=mounts,proto3" json:"mounts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetFoldersRequest) Reset() {
+	*x = SetFoldersRequest{}
+	mi := &file_maitre_v1_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFoldersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFoldersRequest) ProtoMessage() {}
+
+func (x *SetFoldersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFoldersRequest.ProtoReflect.Descriptor instead.
+func (*SetFoldersRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SetFoldersRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SetFoldersRequest) GetVolumeFolders() map[string]string {
+	if x != nil {
+		return x.VolumeFolders
+	}
+	return nil
+}
+
+func (x *SetFoldersRequest) GetVolumeSpaces() map[string]string {
+	if x != nil {
+		return x.VolumeSpaces
+	}
+	return nil
+}
+
+func (x *SetFoldersRequest) GetMounts() []*ServiceMount {
+	if x != nil {
+		return x.Mounts
+	}
+	return nil
+}
+
+type SetFoldersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       *ServiceStatus         `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetFoldersResponse) Reset() {
+	*x = SetFoldersResponse{}
+	mi := &file_maitre_v1_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFoldersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFoldersResponse) ProtoMessage() {}
+
+func (x *SetFoldersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFoldersResponse.ProtoReflect.Descriptor instead.
+func (*SetFoldersResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SetFoldersResponse) GetService() *ServiceStatus {
+	if x != nil {
+		return x.Service
+	}
+	return nil
 }
 
 type MoveVolumeRequest struct {
@@ -156,7 +271,7 @@ type MoveVolumeRequest struct {
 
 func (x *MoveVolumeRequest) Reset() {
 	*x = MoveVolumeRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[0]
+	mi := &file_maitre_v1_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +283,7 @@ func (x *MoveVolumeRequest) String() string {
 func (*MoveVolumeRequest) ProtoMessage() {}
 
 func (x *MoveVolumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[0]
+	mi := &file_maitre_v1_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +296,7 @@ func (x *MoveVolumeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveVolumeRequest.ProtoReflect.Descriptor instead.
 func (*MoveVolumeRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{0}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *MoveVolumeRequest) GetName() string {
@@ -214,7 +329,7 @@ type MoveVolumeResponse struct {
 
 func (x *MoveVolumeResponse) Reset() {
 	*x = MoveVolumeResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[1]
+	mi := &file_maitre_v1_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -226,7 +341,7 @@ func (x *MoveVolumeResponse) String() string {
 func (*MoveVolumeResponse) ProtoMessage() {}
 
 func (x *MoveVolumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[1]
+	mi := &file_maitre_v1_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -239,7 +354,7 @@ func (x *MoveVolumeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveVolumeResponse.ProtoReflect.Descriptor instead.
 func (*MoveVolumeResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{1}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MoveVolumeResponse) GetJobId() string {
@@ -257,7 +372,7 @@ type GetCatalogRequest struct {
 
 func (x *GetCatalogRequest) Reset() {
 	*x = GetCatalogRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[2]
+	mi := &file_maitre_v1_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -269,7 +384,7 @@ func (x *GetCatalogRequest) String() string {
 func (*GetCatalogRequest) ProtoMessage() {}
 
 func (x *GetCatalogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[2]
+	mi := &file_maitre_v1_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -282,7 +397,7 @@ func (x *GetCatalogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCatalogRequest.ProtoReflect.Descriptor instead.
 func (*GetCatalogRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{2}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{4}
 }
 
 type GetCatalogResponse struct {
@@ -298,7 +413,7 @@ type GetCatalogResponse struct {
 
 func (x *GetCatalogResponse) Reset() {
 	*x = GetCatalogResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[3]
+	mi := &file_maitre_v1_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -310,7 +425,7 @@ func (x *GetCatalogResponse) String() string {
 func (*GetCatalogResponse) ProtoMessage() {}
 
 func (x *GetCatalogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[3]
+	mi := &file_maitre_v1_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,7 +438,7 @@ func (x *GetCatalogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCatalogResponse.ProtoReflect.Descriptor instead.
 func (*GetCatalogResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetCatalogResponse) GetIndexJson() []byte {
@@ -354,14 +469,18 @@ type ServiceVolume struct {
 	// Mount point inside the container.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// Suggested size, informational.
-	Size          string `protobuf:"bytes,3,opt,name=size,proto3" json:"size,omitempty"`
+	Size string `protobuf:"bytes,3,opt,name=size,proto3" json:"size,omitempty"`
+	// Decision 175: the Catalog suggests pointing this volume at a folder the
+	// user picks (a media library other Services use too) rather than giving
+	// it a folder of its own.
+	Shared        bool `protobuf:"varint,4,opt,name=shared,proto3" json:"shared,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ServiceVolume) Reset() {
 	*x = ServiceVolume{}
-	mi := &file_maitre_v1_service_proto_msgTypes[4]
+	mi := &file_maitre_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +492,7 @@ func (x *ServiceVolume) String() string {
 func (*ServiceVolume) ProtoMessage() {}
 
 func (x *ServiceVolume) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[4]
+	mi := &file_maitre_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +505,7 @@ func (x *ServiceVolume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceVolume.ProtoReflect.Descriptor instead.
 func (*ServiceVolume) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ServiceVolume) GetName() string {
@@ -408,6 +527,85 @@ func (x *ServiceVolume) GetSize() string {
 		return x.Size
 	}
 	return ""
+}
+
+func (x *ServiceVolume) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+// ServiceMount is an extra folder of a Space mounted into a Service
+// (decision 171), e.g. Media/Movies at /media/movies.
+type ServiceMount struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SpaceId string                 `protobuf:"bytes,1,opt,name=space_id,json=spaceId,proto3" json:"space_id,omitempty"`
+	// Folder in the Space, relative; "" is the Space's top.
+	Folder string `protobuf:"bytes,2,opt,name=folder,proto3" json:"folder,omitempty"`
+	// Absolute path inside the container.
+	Path          string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	ReadOnly      bool   `protobuf:"varint,4,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServiceMount) Reset() {
+	*x = ServiceMount{}
+	mi := &file_maitre_v1_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServiceMount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServiceMount) ProtoMessage() {}
+
+func (x *ServiceMount) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServiceMount.ProtoReflect.Descriptor instead.
+func (*ServiceMount) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ServiceMount) GetSpaceId() string {
+	if x != nil {
+		return x.SpaceId
+	}
+	return ""
+}
+
+func (x *ServiceMount) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+func (x *ServiceMount) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ServiceMount) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
 }
 
 // ServiceSpec is the kind "service" Record body: everything the Node needs
@@ -458,14 +656,21 @@ type ServiceSpec struct {
 	HostPorts []string `protobuf:"bytes,20,rep,name=host_ports,json=hostPorts,proto3" json:"host_ports,omitempty"`
 	// Decision 115: the user asked the Node to have the router forward
 	// host_ports from the internet (UPnP). Off unless explicitly enabled.
-	ForwardPorts  bool `protobuf:"varint,21,opt,name=forward_ports,json=forwardPorts,proto3" json:"forward_ports,omitempty"`
+	ForwardPorts bool `protobuf:"varint,21,opt,name=forward_ports,json=forwardPorts,proto3" json:"forward_ports,omitempty"`
+	// Decision 170: volume name -> a folder in its Space (volume_spaces) the
+	// user picked, relative to the Space's top. A volume not listed has its
+	// own folder, <Space>/<service>/<volume>. Picked folders mount with :z,
+	// shared with other containers (172).
+	VolumeFolders map[string]string `protobuf:"bytes,22,rep,name=volume_folders,json=volumeFolders,proto3" json:"volume_folders,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Decision 171: extra folders beyond the Catalog's volumes.
+	Mounts        []*ServiceMount `protobuf:"bytes,23,rep,name=mounts,proto3" json:"mounts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ServiceSpec) Reset() {
 	*x = ServiceSpec{}
-	mi := &file_maitre_v1_service_proto_msgTypes[5]
+	mi := &file_maitre_v1_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -477,7 +682,7 @@ func (x *ServiceSpec) String() string {
 func (*ServiceSpec) ProtoMessage() {}
 
 func (x *ServiceSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[5]
+	mi := &file_maitre_v1_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,7 +695,7 @@ func (x *ServiceSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceSpec.ProtoReflect.Descriptor instead.
 func (*ServiceSpec) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ServiceSpec) GetName() string {
@@ -640,6 +845,20 @@ func (x *ServiceSpec) GetForwardPorts() bool {
 	return false
 }
 
+func (x *ServiceSpec) GetVolumeFolders() map[string]string {
+	if x != nil {
+		return x.VolumeFolders
+	}
+	return nil
+}
+
+func (x *ServiceSpec) GetMounts() []*ServiceMount {
+	if x != nil {
+		return x.Mounts
+	}
+	return nil
+}
+
 type ServiceStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Spec  *ServiceSpec           `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
@@ -666,7 +885,7 @@ type ServiceStatus struct {
 
 func (x *ServiceStatus) Reset() {
 	*x = ServiceStatus{}
-	mi := &file_maitre_v1_service_proto_msgTypes[6]
+	mi := &file_maitre_v1_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +897,7 @@ func (x *ServiceStatus) String() string {
 func (*ServiceStatus) ProtoMessage() {}
 
 func (x *ServiceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[6]
+	mi := &file_maitre_v1_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +910,7 @@ func (x *ServiceStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceStatus.ProtoReflect.Descriptor instead.
 func (*ServiceStatus) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ServiceStatus) GetSpec() *ServiceSpec {
@@ -777,7 +996,7 @@ type PublicSettings struct {
 
 func (x *PublicSettings) Reset() {
 	*x = PublicSettings{}
-	mi := &file_maitre_v1_service_proto_msgTypes[7]
+	mi := &file_maitre_v1_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -789,7 +1008,7 @@ func (x *PublicSettings) String() string {
 func (*PublicSettings) ProtoMessage() {}
 
 func (x *PublicSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[7]
+	mi := &file_maitre_v1_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -802,7 +1021,7 @@ func (x *PublicSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicSettings.ProtoReflect.Descriptor instead.
 func (*PublicSettings) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PublicSettings) GetAcmeEmail() string {
@@ -822,7 +1041,7 @@ type SetPortForwardingRequest struct {
 
 func (x *SetPortForwardingRequest) Reset() {
 	*x = SetPortForwardingRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[8]
+	mi := &file_maitre_v1_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -834,7 +1053,7 @@ func (x *SetPortForwardingRequest) String() string {
 func (*SetPortForwardingRequest) ProtoMessage() {}
 
 func (x *SetPortForwardingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[8]
+	mi := &file_maitre_v1_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -847,7 +1066,7 @@ func (x *SetPortForwardingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPortForwardingRequest.ProtoReflect.Descriptor instead.
 func (*SetPortForwardingRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{8}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SetPortForwardingRequest) GetName() string {
@@ -873,7 +1092,7 @@ type SetPortForwardingResponse struct {
 
 func (x *SetPortForwardingResponse) Reset() {
 	*x = SetPortForwardingResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[9]
+	mi := &file_maitre_v1_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -885,7 +1104,7 @@ func (x *SetPortForwardingResponse) String() string {
 func (*SetPortForwardingResponse) ProtoMessage() {}
 
 func (x *SetPortForwardingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[9]
+	mi := &file_maitre_v1_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -898,7 +1117,7 @@ func (x *SetPortForwardingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPortForwardingResponse.ProtoReflect.Descriptor instead.
 func (*SetPortForwardingResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{9}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SetPortForwardingResponse) GetService() *ServiceStatus {
@@ -920,7 +1139,7 @@ type InstallServiceRequest struct {
 
 func (x *InstallServiceRequest) Reset() {
 	*x = InstallServiceRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[10]
+	mi := &file_maitre_v1_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1151,7 @@ func (x *InstallServiceRequest) String() string {
 func (*InstallServiceRequest) ProtoMessage() {}
 
 func (x *InstallServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[10]
+	mi := &file_maitre_v1_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -945,7 +1164,7 @@ func (x *InstallServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallServiceRequest.ProtoReflect.Descriptor instead.
 func (*InstallServiceRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{10}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *InstallServiceRequest) GetSpec() *ServiceSpec {
@@ -964,7 +1183,7 @@ type InstallServiceResponse struct {
 
 func (x *InstallServiceResponse) Reset() {
 	*x = InstallServiceResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	mi := &file_maitre_v1_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -976,7 +1195,7 @@ func (x *InstallServiceResponse) String() string {
 func (*InstallServiceResponse) ProtoMessage() {}
 
 func (x *InstallServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[11]
+	mi := &file_maitre_v1_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -989,7 +1208,7 @@ func (x *InstallServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallServiceResponse.ProtoReflect.Descriptor instead.
 func (*InstallServiceResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{11}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *InstallServiceResponse) GetService() *ServiceStatus {
@@ -1010,7 +1229,7 @@ type ControlServiceRequest struct {
 
 func (x *ControlServiceRequest) Reset() {
 	*x = ControlServiceRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	mi := &file_maitre_v1_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1022,7 +1241,7 @@ func (x *ControlServiceRequest) String() string {
 func (*ControlServiceRequest) ProtoMessage() {}
 
 func (x *ControlServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[12]
+	mi := &file_maitre_v1_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,7 +1254,7 @@ func (x *ControlServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlServiceRequest.ProtoReflect.Descriptor instead.
 func (*ControlServiceRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{12}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ControlServiceRequest) GetName() string {
@@ -1068,7 +1287,7 @@ type ControlServiceResponse struct {
 
 func (x *ControlServiceResponse) Reset() {
 	*x = ControlServiceResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[13]
+	mi := &file_maitre_v1_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1080,7 +1299,7 @@ func (x *ControlServiceResponse) String() string {
 func (*ControlServiceResponse) ProtoMessage() {}
 
 func (x *ControlServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[13]
+	mi := &file_maitre_v1_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1093,7 +1312,7 @@ func (x *ControlServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlServiceResponse.ProtoReflect.Descriptor instead.
 func (*ControlServiceResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{13}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ControlServiceResponse) GetService() *ServiceStatus {
@@ -1111,7 +1330,7 @@ type ListServicesRequest struct {
 
 func (x *ListServicesRequest) Reset() {
 	*x = ListServicesRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[14]
+	mi := &file_maitre_v1_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1123,7 +1342,7 @@ func (x *ListServicesRequest) String() string {
 func (*ListServicesRequest) ProtoMessage() {}
 
 func (x *ListServicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[14]
+	mi := &file_maitre_v1_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1136,7 +1355,7 @@ func (x *ListServicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServicesRequest.ProtoReflect.Descriptor instead.
 func (*ListServicesRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{14}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{17}
 }
 
 type ListServicesResponse struct {
@@ -1148,7 +1367,7 @@ type ListServicesResponse struct {
 
 func (x *ListServicesResponse) Reset() {
 	*x = ListServicesResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[15]
+	mi := &file_maitre_v1_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1160,7 +1379,7 @@ func (x *ListServicesResponse) String() string {
 func (*ListServicesResponse) ProtoMessage() {}
 
 func (x *ListServicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[15]
+	mi := &file_maitre_v1_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1173,7 +1392,7 @@ func (x *ListServicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServicesResponse.ProtoReflect.Descriptor instead.
 func (*ListServicesResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{15}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListServicesResponse) GetServices() []*ServiceStatus {
@@ -1195,7 +1414,7 @@ type SetExposureRequest struct {
 
 func (x *SetExposureRequest) Reset() {
 	*x = SetExposureRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[16]
+	mi := &file_maitre_v1_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1207,7 +1426,7 @@ func (x *SetExposureRequest) String() string {
 func (*SetExposureRequest) ProtoMessage() {}
 
 func (x *SetExposureRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[16]
+	mi := &file_maitre_v1_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1220,7 +1439,7 @@ func (x *SetExposureRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetExposureRequest.ProtoReflect.Descriptor instead.
 func (*SetExposureRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{16}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SetExposureRequest) GetName() string {
@@ -1253,7 +1472,7 @@ type SetExposureResponse struct {
 
 func (x *SetExposureResponse) Reset() {
 	*x = SetExposureResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[17]
+	mi := &file_maitre_v1_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1265,7 +1484,7 @@ func (x *SetExposureResponse) String() string {
 func (*SetExposureResponse) ProtoMessage() {}
 
 func (x *SetExposureResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[17]
+	mi := &file_maitre_v1_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1278,7 +1497,7 @@ func (x *SetExposureResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetExposureResponse.ProtoReflect.Descriptor instead.
 func (*SetExposureResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{17}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SetExposureResponse) GetService() *ServiceStatus {
@@ -1299,7 +1518,7 @@ type GetServiceLogsRequest struct {
 
 func (x *GetServiceLogsRequest) Reset() {
 	*x = GetServiceLogsRequest{}
-	mi := &file_maitre_v1_service_proto_msgTypes[18]
+	mi := &file_maitre_v1_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1311,7 +1530,7 @@ func (x *GetServiceLogsRequest) String() string {
 func (*GetServiceLogsRequest) ProtoMessage() {}
 
 func (x *GetServiceLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[18]
+	mi := &file_maitre_v1_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1324,7 +1543,7 @@ func (x *GetServiceLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServiceLogsRequest.ProtoReflect.Descriptor instead.
 func (*GetServiceLogsRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{18}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetServiceLogsRequest) GetName() string {
@@ -1350,7 +1569,7 @@ type GetServiceLogsResponse struct {
 
 func (x *GetServiceLogsResponse) Reset() {
 	*x = GetServiceLogsResponse{}
-	mi := &file_maitre_v1_service_proto_msgTypes[19]
+	mi := &file_maitre_v1_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1362,7 +1581,7 @@ func (x *GetServiceLogsResponse) String() string {
 func (*GetServiceLogsResponse) ProtoMessage() {}
 
 func (x *GetServiceLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_service_proto_msgTypes[19]
+	mi := &file_maitre_v1_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1375,7 +1594,7 @@ func (x *GetServiceLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServiceLogsResponse.ProtoReflect.Descriptor instead.
 func (*GetServiceLogsResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_service_proto_rawDescGZIP(), []int{19}
+	return file_maitre_v1_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetServiceLogsResponse) GetLines() []string {
@@ -1389,7 +1608,20 @@ var File_maitre_v1_service_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\x17maitre/v1/service.proto\x12\tmaitre.v1\"Z\n" +
+	"\x17maitre/v1/service.proto\x12\tmaitre.v1\"\x88\x03\n" +
+	"\x11SetFoldersRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12V\n" +
+	"\x0evolume_folders\x18\x02 \x03(\v2/.maitre.v1.SetFoldersRequest.VolumeFoldersEntryR\rvolumeFolders\x12S\n" +
+	"\rvolume_spaces\x18\x03 \x03(\v2..maitre.v1.SetFoldersRequest.VolumeSpacesEntryR\fvolumeSpaces\x12/\n" +
+	"\x06mounts\x18\x04 \x03(\v2\x17.maitre.v1.ServiceMountR\x06mounts\x1a@\n" +
+	"\x12VolumeFoldersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
+	"\x11VolumeSpacesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"H\n" +
+	"\x12SetFoldersResponse\x122\n" +
+	"\aservice\x18\x01 \x01(\v2\x18.maitre.v1.ServiceStatusR\aservice\"Z\n" +
 	"\x11MoveVolumeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x19\n" +
@@ -1401,11 +1633,17 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"index_json\x18\x01 \x01(\fR\tindexJson\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12&\n" +
-	"\x0ffetched_unix_ms\x18\x03 \x01(\x03R\rfetchedUnixMs\"K\n" +
+	"\x0ffetched_unix_ms\x18\x03 \x01(\x03R\rfetchedUnixMs\"c\n" +
 	"\rServiceVolume\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\tR\x04size\"\x85\a\n" +
+	"\x04size\x18\x03 \x01(\tR\x04size\x12\x16\n" +
+	"\x06shared\x18\x04 \x01(\bR\x06shared\"r\n" +
+	"\fServiceMount\x12\x19\n" +
+	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x16\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1b\n" +
+	"\tread_only\x18\x04 \x01(\bR\breadOnly\"\xca\b\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -1433,11 +1671,16 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\avolumes\x18\x10 \x03(\v2\x18.maitre.v1.ServiceVolumeR\avolumes\x12\x1d\n" +
 	"\n" +
 	"host_ports\x18\x14 \x03(\tR\thostPorts\x12#\n" +
-	"\rforward_ports\x18\x15 \x01(\bR\fforwardPorts\x1a;\n" +
+	"\rforward_ports\x18\x15 \x01(\bR\fforwardPorts\x12P\n" +
+	"\x0evolume_folders\x18\x16 \x03(\v2).maitre.v1.ServiceSpec.VolumeFoldersEntryR\rvolumeFolders\x12/\n" +
+	"\x06mounts\x18\x17 \x03(\v2\x17.maitre.v1.ServiceMountR\x06mounts\x1a;\n" +
 	"\rSettingsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
 	"\x11VolumeSpacesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a@\n" +
+	"\x12VolumeFoldersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe2\x03\n" +
 	"\rServiceStatus\x12*\n" +
@@ -1501,7 +1744,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05lines\x18\x02 \x01(\rR\x05lines\".\n" +
 	"\x16GetServiceLogsResponse\x12\x14\n" +
-	"\x05lines\x18\x01 \x03(\tR\x05lines2\xba\x05\n" +
+	"\x05lines\x18\x01 \x03(\tR\x05lines2\x87\x06\n" +
 	"\x0eServiceService\x12K\n" +
 	"\n" +
 	"GetCatalog\x12\x1c.maitre.v1.GetCatalogRequest\x1a\x1d.maitre.v1.GetCatalogResponse\"\x00\x12W\n" +
@@ -1512,7 +1755,9 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\vSetExposure\x12\x1d.maitre.v1.SetExposureRequest\x1a\x1e.maitre.v1.SetExposureResponse\"\x00\x12`\n" +
 	"\x11SetPortForwarding\x12#.maitre.v1.SetPortForwardingRequest\x1a$.maitre.v1.SetPortForwardingResponse\"\x00\x12K\n" +
 	"\n" +
-	"MoveVolume\x12\x1c.maitre.v1.MoveVolumeRequest\x1a\x1d.maitre.v1.MoveVolumeResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"MoveVolume\x12\x1c.maitre.v1.MoveVolumeRequest\x1a\x1d.maitre.v1.MoveVolumeResponse\"\x00\x12K\n" +
+	"\n" +
+	"SetFolders\x12\x1c.maitre.v1.SetFoldersRequest\x1a\x1d.maitre.v1.SetFoldersResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_service_proto_rawDescOnce sync.Once
@@ -1527,67 +1772,81 @@ func file_maitre_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_maitre_v1_service_proto_goTypes = []any{
 	(ServiceStatus_State)(0),          // 0: maitre.v1.ServiceStatus.State
 	(ControlServiceRequest_Action)(0), // 1: maitre.v1.ControlServiceRequest.Action
-	(*MoveVolumeRequest)(nil),         // 2: maitre.v1.MoveVolumeRequest
-	(*MoveVolumeResponse)(nil),        // 3: maitre.v1.MoveVolumeResponse
-	(*GetCatalogRequest)(nil),         // 4: maitre.v1.GetCatalogRequest
-	(*GetCatalogResponse)(nil),        // 5: maitre.v1.GetCatalogResponse
-	(*ServiceVolume)(nil),             // 6: maitre.v1.ServiceVolume
-	(*ServiceSpec)(nil),               // 7: maitre.v1.ServiceSpec
-	(*ServiceStatus)(nil),             // 8: maitre.v1.ServiceStatus
-	(*PublicSettings)(nil),            // 9: maitre.v1.PublicSettings
-	(*SetPortForwardingRequest)(nil),  // 10: maitre.v1.SetPortForwardingRequest
-	(*SetPortForwardingResponse)(nil), // 11: maitre.v1.SetPortForwardingResponse
-	(*InstallServiceRequest)(nil),     // 12: maitre.v1.InstallServiceRequest
-	(*InstallServiceResponse)(nil),    // 13: maitre.v1.InstallServiceResponse
-	(*ControlServiceRequest)(nil),     // 14: maitre.v1.ControlServiceRequest
-	(*ControlServiceResponse)(nil),    // 15: maitre.v1.ControlServiceResponse
-	(*ListServicesRequest)(nil),       // 16: maitre.v1.ListServicesRequest
-	(*ListServicesResponse)(nil),      // 17: maitre.v1.ListServicesResponse
-	(*SetExposureRequest)(nil),        // 18: maitre.v1.SetExposureRequest
-	(*SetExposureResponse)(nil),       // 19: maitre.v1.SetExposureResponse
-	(*GetServiceLogsRequest)(nil),     // 20: maitre.v1.GetServiceLogsRequest
-	(*GetServiceLogsResponse)(nil),    // 21: maitre.v1.GetServiceLogsResponse
-	nil,                               // 22: maitre.v1.ServiceSpec.SettingsEntry
-	nil,                               // 23: maitre.v1.ServiceSpec.VolumeSpacesEntry
+	(*SetFoldersRequest)(nil),         // 2: maitre.v1.SetFoldersRequest
+	(*SetFoldersResponse)(nil),        // 3: maitre.v1.SetFoldersResponse
+	(*MoveVolumeRequest)(nil),         // 4: maitre.v1.MoveVolumeRequest
+	(*MoveVolumeResponse)(nil),        // 5: maitre.v1.MoveVolumeResponse
+	(*GetCatalogRequest)(nil),         // 6: maitre.v1.GetCatalogRequest
+	(*GetCatalogResponse)(nil),        // 7: maitre.v1.GetCatalogResponse
+	(*ServiceVolume)(nil),             // 8: maitre.v1.ServiceVolume
+	(*ServiceMount)(nil),              // 9: maitre.v1.ServiceMount
+	(*ServiceSpec)(nil),               // 10: maitre.v1.ServiceSpec
+	(*ServiceStatus)(nil),             // 11: maitre.v1.ServiceStatus
+	(*PublicSettings)(nil),            // 12: maitre.v1.PublicSettings
+	(*SetPortForwardingRequest)(nil),  // 13: maitre.v1.SetPortForwardingRequest
+	(*SetPortForwardingResponse)(nil), // 14: maitre.v1.SetPortForwardingResponse
+	(*InstallServiceRequest)(nil),     // 15: maitre.v1.InstallServiceRequest
+	(*InstallServiceResponse)(nil),    // 16: maitre.v1.InstallServiceResponse
+	(*ControlServiceRequest)(nil),     // 17: maitre.v1.ControlServiceRequest
+	(*ControlServiceResponse)(nil),    // 18: maitre.v1.ControlServiceResponse
+	(*ListServicesRequest)(nil),       // 19: maitre.v1.ListServicesRequest
+	(*ListServicesResponse)(nil),      // 20: maitre.v1.ListServicesResponse
+	(*SetExposureRequest)(nil),        // 21: maitre.v1.SetExposureRequest
+	(*SetExposureResponse)(nil),       // 22: maitre.v1.SetExposureResponse
+	(*GetServiceLogsRequest)(nil),     // 23: maitre.v1.GetServiceLogsRequest
+	(*GetServiceLogsResponse)(nil),    // 24: maitre.v1.GetServiceLogsResponse
+	nil,                               // 25: maitre.v1.SetFoldersRequest.VolumeFoldersEntry
+	nil,                               // 26: maitre.v1.SetFoldersRequest.VolumeSpacesEntry
+	nil,                               // 27: maitre.v1.ServiceSpec.SettingsEntry
+	nil,                               // 28: maitre.v1.ServiceSpec.VolumeSpacesEntry
+	nil,                               // 29: maitre.v1.ServiceSpec.VolumeFoldersEntry
 }
 var file_maitre_v1_service_proto_depIdxs = []int32{
-	22, // 0: maitre.v1.ServiceSpec.settings:type_name -> maitre.v1.ServiceSpec.SettingsEntry
-	23, // 1: maitre.v1.ServiceSpec.volume_spaces:type_name -> maitre.v1.ServiceSpec.VolumeSpacesEntry
-	6,  // 2: maitre.v1.ServiceSpec.volumes:type_name -> maitre.v1.ServiceVolume
-	7,  // 3: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
-	0,  // 4: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State
-	8,  // 5: maitre.v1.SetPortForwardingResponse.service:type_name -> maitre.v1.ServiceStatus
-	7,  // 6: maitre.v1.InstallServiceRequest.spec:type_name -> maitre.v1.ServiceSpec
-	8,  // 7: maitre.v1.InstallServiceResponse.service:type_name -> maitre.v1.ServiceStatus
-	1,  // 8: maitre.v1.ControlServiceRequest.action:type_name -> maitre.v1.ControlServiceRequest.Action
-	8,  // 9: maitre.v1.ControlServiceResponse.service:type_name -> maitre.v1.ServiceStatus
-	8,  // 10: maitre.v1.ListServicesResponse.services:type_name -> maitre.v1.ServiceStatus
-	8,  // 11: maitre.v1.SetExposureResponse.service:type_name -> maitre.v1.ServiceStatus
-	4,  // 12: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
-	12, // 13: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
-	14, // 14: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
-	16, // 15: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
-	20, // 16: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
-	18, // 17: maitre.v1.ServiceService.SetExposure:input_type -> maitre.v1.SetExposureRequest
-	10, // 18: maitre.v1.ServiceService.SetPortForwarding:input_type -> maitre.v1.SetPortForwardingRequest
-	2,  // 19: maitre.v1.ServiceService.MoveVolume:input_type -> maitre.v1.MoveVolumeRequest
-	5,  // 20: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
-	13, // 21: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
-	15, // 22: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
-	17, // 23: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
-	21, // 24: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
-	19, // 25: maitre.v1.ServiceService.SetExposure:output_type -> maitre.v1.SetExposureResponse
-	11, // 26: maitre.v1.ServiceService.SetPortForwarding:output_type -> maitre.v1.SetPortForwardingResponse
-	3,  // 27: maitre.v1.ServiceService.MoveVolume:output_type -> maitre.v1.MoveVolumeResponse
-	20, // [20:28] is the sub-list for method output_type
-	12, // [12:20] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	25, // 0: maitre.v1.SetFoldersRequest.volume_folders:type_name -> maitre.v1.SetFoldersRequest.VolumeFoldersEntry
+	26, // 1: maitre.v1.SetFoldersRequest.volume_spaces:type_name -> maitre.v1.SetFoldersRequest.VolumeSpacesEntry
+	9,  // 2: maitre.v1.SetFoldersRequest.mounts:type_name -> maitre.v1.ServiceMount
+	11, // 3: maitre.v1.SetFoldersResponse.service:type_name -> maitre.v1.ServiceStatus
+	27, // 4: maitre.v1.ServiceSpec.settings:type_name -> maitre.v1.ServiceSpec.SettingsEntry
+	28, // 5: maitre.v1.ServiceSpec.volume_spaces:type_name -> maitre.v1.ServiceSpec.VolumeSpacesEntry
+	8,  // 6: maitre.v1.ServiceSpec.volumes:type_name -> maitre.v1.ServiceVolume
+	29, // 7: maitre.v1.ServiceSpec.volume_folders:type_name -> maitre.v1.ServiceSpec.VolumeFoldersEntry
+	9,  // 8: maitre.v1.ServiceSpec.mounts:type_name -> maitre.v1.ServiceMount
+	10, // 9: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
+	0,  // 10: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State
+	11, // 11: maitre.v1.SetPortForwardingResponse.service:type_name -> maitre.v1.ServiceStatus
+	10, // 12: maitre.v1.InstallServiceRequest.spec:type_name -> maitre.v1.ServiceSpec
+	11, // 13: maitre.v1.InstallServiceResponse.service:type_name -> maitre.v1.ServiceStatus
+	1,  // 14: maitre.v1.ControlServiceRequest.action:type_name -> maitre.v1.ControlServiceRequest.Action
+	11, // 15: maitre.v1.ControlServiceResponse.service:type_name -> maitre.v1.ServiceStatus
+	11, // 16: maitre.v1.ListServicesResponse.services:type_name -> maitre.v1.ServiceStatus
+	11, // 17: maitre.v1.SetExposureResponse.service:type_name -> maitre.v1.ServiceStatus
+	6,  // 18: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
+	15, // 19: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
+	17, // 20: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
+	19, // 21: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
+	23, // 22: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
+	21, // 23: maitre.v1.ServiceService.SetExposure:input_type -> maitre.v1.SetExposureRequest
+	13, // 24: maitre.v1.ServiceService.SetPortForwarding:input_type -> maitre.v1.SetPortForwardingRequest
+	4,  // 25: maitre.v1.ServiceService.MoveVolume:input_type -> maitre.v1.MoveVolumeRequest
+	2,  // 26: maitre.v1.ServiceService.SetFolders:input_type -> maitre.v1.SetFoldersRequest
+	7,  // 27: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
+	16, // 28: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
+	18, // 29: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
+	20, // 30: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
+	24, // 31: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
+	22, // 32: maitre.v1.ServiceService.SetExposure:output_type -> maitre.v1.SetExposureResponse
+	14, // 33: maitre.v1.ServiceService.SetPortForwarding:output_type -> maitre.v1.SetPortForwardingResponse
+	5,  // 34: maitre.v1.ServiceService.MoveVolume:output_type -> maitre.v1.MoveVolumeResponse
+	3,  // 35: maitre.v1.ServiceService.SetFolders:output_type -> maitre.v1.SetFoldersResponse
+	27, // [27:36] is the sub-list for method output_type
+	18, // [18:27] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_service_proto_init() }
@@ -1601,7 +1860,7 @@ func file_maitre_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_service_proto_rawDesc), len(file_maitre_v1_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

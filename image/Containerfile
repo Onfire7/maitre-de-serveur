@@ -23,7 +23,8 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # anything else is a container. podman, nfs-utils and avahi already ship in
 # fedora-bootc; nss-mdns is what lets the host resolve *.local names;
 # dracut-live builds the netboot installer initramfs (decision 79).
-RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync && dnf clean all
+# acl: setfacl for Spaces' shared folders (decision 182).
+RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).

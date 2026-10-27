@@ -2,7 +2,7 @@
 // (build order step 2). Data comes through the anchor Node (useFleet);
 // per-Service calls go straight to the owning Node.
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
+import { assignOwners } from "@/fleet/owners";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -55,6 +56,14 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   }, []);
   const services = useFleetServices(snap, now);
   useIntroduce(state.nodes, (nodes) => save({ ...state, nodes }));
+  // Decision 182: Spaces made before owners existed get one, once.
+  const owning = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = (snap?.spaces ?? []).filter((sp) => !sp.ownerId && !owning.current.has(sp.spaceId));
+    if (!snap || missing.length === 0) return;
+    missing.forEach((sp) => owning.current.add(sp.spaceId));
+    assignOwners({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, snap.spaces).catch(() => missing.forEach((sp) => owning.current.delete(sp.spaceId)));
+  }, [snap?.spaces]);
 
   const discover = useQuery({ queryKey: ["discover"], queryFn: () => api.discover(), refetchInterval: 2000, retry: false });
   const found: Found[] = discover.data ?? [];

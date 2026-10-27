@@ -31,6 +31,24 @@ service ServiceService {
   // verify, remove), the spec's volume_spaces is rewritten, and the Service
   // starts again if it was running. Returns the job id for ListJobs.
   rpc MoveVolume(MoveVolumeRequest) returns (MoveVolumeResponse) {}
+  // SetFolders points volumes at picked folders and sets the extra folders
+  // (decisions 170, 171, 174): saved, applied, and the Service restarted if
+  // it was running. A folder that is no longer used stays where it is.
+  rpc SetFolders(SetFoldersRequest) returns (SetFoldersResponse) {}
+}
+
+message SetFoldersRequest {
+  string name = 1;
+  // As ServiceSpec.volume_folders: volume name -> folder in its Space;
+  // a volume left out gets its own folder again. volume_spaces gives the
+  // Space for each named volume (left out: unchanged).
+  map<string, string> volume_folders = 2;
+  map<string, string> volume_spaces = 3;
+  repeated ServiceMount mounts = 4;
+}
+
+message SetFoldersResponse {
+  ServiceStatus service = 1;
 }
 
 message MoveVolumeRequest {
@@ -60,6 +78,21 @@ message ServiceVolume {
   string path = 2;
   // Suggested size, informational.
   string size = 3;
+  // Decision 175: the Catalog suggests pointing this volume at a folder the
+  // user picks (a media library other Services use too) rather than giving
+  // it a folder of its own.
+  bool shared = 4;
+}
+
+// ServiceMount is an extra folder of a Space mounted into a Service
+// (decision 171), e.g. Media/Movies at /media/movies.
+message ServiceMount {
+  string space_id = 1;
+  // Folder in the Space, relative; "" is the Space's top.
+  string folder = 2;
+  // Absolute path inside the container.
+  string path = 3;
+  bool read_only = 4;
 }
 
 // ServiceSpec is the kind "service" Record body: everything the Node needs
@@ -110,6 +143,13 @@ message ServiceSpec {
   // Decision 115: the user asked the Node to have the router forward
   // host_ports from the internet (UPnP). Off unless explicitly enabled.
   bool forward_ports = 21;
+  // Decision 170: volume name -> a folder in its Space (volume_spaces) the
+  // user picked, relative to the Space's top. A volume not listed has its
+  // own folder, <Space>/<service>/<volume>. Picked folders mount with :z,
+  // shared with other containers (172).
+  map<string, string> volume_folders = 22;
+  // Decision 171: extra folders beyond the Catalog's volumes.
+  repeated ServiceMount mounts = 23;
 }
 
 message ServiceStatus {

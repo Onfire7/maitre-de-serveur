@@ -21,7 +21,7 @@ export interface CatalogEntry {
   host_ports?: string[];
   port_forward?: boolean;
   web?: { port: number; path: string };
-  volumes: { name: string; path: string; size?: string }[];
+  volumes: { name: string; path: string; size?: string; shared?: boolean }[];
   settings?: { key: string; label: string; type: string; default?: string }[];
   health?: { http?: string };
   quadlet: string;
@@ -44,6 +44,6 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     webPort: e.web?.port ?? 0,
     webPath: e.web?.path ?? "",
     healthHttp: e.health?.http ?? "",
-    volumes: e.volumes.map((v) => ({ name: v.name, path: v.path, size: v.size ?? "" })),
+    volumes: e.volumes.map((v) => ({ name: v.name, path: v.path, size: v.size ?? "", shared: !!v.shared })),
   });
 }

@@ -318,7 +318,16 @@ func runAgent(args []string) error {
 		}
 		return dir.Status(name)
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
+	spaceOwner := func(ctx context.Context, id string) uint32 {
+		spaces, _ := storage.Spaces(ctx, st)
+		for _, sp := range spaces {
+			if sp.GetSpaceId() == id {
+				return sp.GetOwnerId()
+			}
+		}
+		return 0
+	}
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	svc.Services = func(ctx context.Context) []*maitrev1.ServiceStatus {
 		list, err := mgr.List(ctx)

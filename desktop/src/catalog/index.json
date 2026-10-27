@@ -64,7 +64,8 @@
         {
           "name": "media",
           "path": "/media",
-          "size": "large"
+          "size": "large",
+          "shared": true
         }
       ],
       "settings": [

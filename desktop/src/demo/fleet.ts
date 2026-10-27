@@ -125,7 +125,7 @@ function idle(image: string, digest: string): UpdateStatus {
   } as UpdateStatus;
 }
 
-const catalogEntries = (bundledCatalog as { entries: { id: string; name: string; image: string; quadlet: string; exposure?: string; infrastructure?: boolean; host_ports?: string[]; web?: { port: number; path?: string }; health?: { http?: string }; volumes?: { name: string; path: string; size?: string }[] }[] }).entries;
+const catalogEntries = (bundledCatalog as { entries: { id: string; name: string; image: string; quadlet: string; exposure?: string; infrastructure?: boolean; host_ports?: string[]; web?: { port: number; path?: string }; health?: { http?: string }; volumes?: { name: string; path: string; size?: string; shared?: boolean }[] }[] }).entries;
 
 type SpecInit = Exclude<MessageInitShape<typeof ServiceSpecSchema>, ServiceSpec>;
 
@@ -148,7 +148,9 @@ function specFromCatalog(id: string, name: string, nodeId: string, webHostPort: 
     webPort: e.web?.port ?? 0,
     webPath: e.web?.path ?? "/",
     healthHttp: e.health?.http ?? "",
-    volumes: (e.volumes ?? []).map((v) => ({ name: v.name, path: v.path, size: v.size ?? "" })),
+    volumes: (e.volumes ?? []).map((v) => ({ name: v.name, path: v.path, size: v.size ?? "", shared: !!v.shared })),
+    // Shared volumes point at the top of their Space (decision 175).
+    volumeFolders: Object.fromEntries((e.volumes ?? []).filter((v) => v.shared).map((v) => [v.name, ""])),
     hostPorts: e.host_ports ?? [],
     ...extra,
   } as SpecInit);
@@ -216,8 +218,8 @@ export class DemoFleet {
       },
     ];
     this.spaces = [
-      create(SpaceSchema, { spaceId: "general", name: "General", placement: "local_first", requireTags: [], nodeIds: [], priority: 0, createdUnixMs: BigInt(t - 30 * 86400_000), spanNodes: false, exclusive: false, defaultForNew: true }),
-      create(SpaceSchema, { spaceId: "media", name: "Media", placement: "most_free", requireTags: ["hdd"], nodeIds: [], priority: 10, createdUnixMs: BigInt(t - 20 * 86400_000), spanNodes: true, exclusive: true, defaultForNew: false }),
+      create(SpaceSchema, { spaceId: "general", name: "General", placement: "local_first", requireTags: [], nodeIds: [], priority: 0, createdUnixMs: BigInt(t - 30 * 86400_000), spanNodes: false, exclusive: false, defaultForNew: true, ownerId: 61000 }),
+      create(SpaceSchema, { spaceId: "media", name: "Media", placement: "most_free", requireTags: ["hdd"], nodeIds: [], priority: 10, createdUnixMs: BigInt(t - 20 * 86400_000), spanNodes: true, exclusive: true, defaultForNew: false, ownerId: 61001 }),
     ];
     const drive = (nodeId: string, id: string, name: string, model: string, size: number, free: number, { record: recOpts, ...opts }: Partial<DemoDrive> = {}): DemoDrive => ({
       nodeId,

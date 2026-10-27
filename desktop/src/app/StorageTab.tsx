@@ -28,6 +28,7 @@ import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
+import { nextOwnerId } from "@/fleet/owners";
 import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 
@@ -55,6 +56,8 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
 
   async function put(s: Space, del = false) {
     if (!snap) throw new Error("no Node of the Fleet can be reached");
+    // Decision 182: every Space the Console writes has an owner.
+    if (!s.ownerId && !del) s = create(SpaceSchema, { ...s, ownerId: nextOwnerId(spaces) });
     await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "space", id: s.spaceId, body: toBinary(SpaceSchema, s), deleted: del } });
     await qc.invalidateQueries({ queryKey: ["fleet"] });
   }

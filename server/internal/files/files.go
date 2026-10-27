@@ -85,6 +85,10 @@ type job struct {
 	done func(error)
 	// run does the work of a job that is not a move (Zip, Unzip).
 	run func(ctx context.Context, j *job) error
+	// keepOwner: a Service's own volume moving (MoveThen) keeps the owner
+	// its container gave it; file manager moves take the destination
+	// Space's owner (decision 173).
+	keepOwner bool
 }
 
 // New builds a Manager. self is this Node's id.
@@ -215,7 +219,9 @@ func (m *Manager) MakeDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	if name := filepath.Base(r); strings.HasPrefix(name, ".") {
 		return fmt.Errorf("%q: folder names cannot start with a dot", name)
 	}
-	if err := os.Mkdir(filepath.Join(base, r), 0o775); err != nil {
+	if err := os.Mkdir(filepath.Join(base, r), 0o775); err == nil {
+		m.own(filepath.Join(base, r))
+	} else {
 		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("%s %w", r, ErrExists)
 		}
@@ -362,7 +368,7 @@ func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done 
 	if req.GetToNodeId() != "" && req.GetToNodeId() != m.self && req.GetFrom().GetDriveId() != "" {
 		return nil, errors.New("files on a Drive move to a Space on this Node first; then anywhere")
 	}
-	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done}), nil
+	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done, keepOwner: done != nil}), nil
 }
 
 // enqueue gives j an id and queues it behind the other jobs.
@@ -526,7 +532,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	if strings.HasPrefix(dst+"/", src+"/") {
 		return errors.New("cannot move a folder into itself")
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := m.mkdirs(dstBase, filepath.Dir(req.GetToPath())); err != nil {
 		return err
 	}
 	bytes, _ := walk(src)
@@ -557,6 +563,9 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	// for Drive-to-Drive within one Drive; everything else copies.
 	if err := m.rsync(ctx, j, src, dst, info.IsDir()); err != nil {
 		return err
+	}
+	if !j.keepOwner && req.GetFrom().GetSpaceId() != req.GetToSpace() {
+		m.ownTree(dst)
 	}
 	// Copied and checked (rsync -c on the second pass); remove the source.
 	// Through a Pool, removal takes every branch's copy.

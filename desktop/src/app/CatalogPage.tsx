@@ -1,6 +1,6 @@
 // The Catalog as a card grid (decision 139) with the install sheet (151).
 // Step 3 fills the sheet's Options disclosure; here it asks name and Node.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { create } from "@bufbuild/protobuf";
+import { ServiceMountSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEditor";
+import { folderSource, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
 import { specFor, type CatalogEntry, type CatalogIndex } from "@/services";
@@ -79,7 +82,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
   const defaultSpace = spaces.find((s) => s.defaultForNew);
   const [name, setName] = useState("");
   const [nodeId, setNodeId] = useState("");
-  const [volumeSpaces, setVolumeSpaces] = useState<Record<string, string>>({});
+  const [folders, setFolders] = useState<Folders | null>(null);
   const [exposure, setExposure] = useState("private");
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [forward, setForward] = useState(false);
@@ -92,7 +95,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
   const reset = () => {
     setName("");
     setNodeId("");
-    setVolumeSpaces({});
+    setFolders(null);
     setExposure("private");
     setAutoUpdate(true);
     setForward(false);
@@ -100,6 +103,12 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
     setError("");
   };
   const settingValue = (key: string, def: string) => settings[key] ?? def;
+  // Only Spaces the chosen Node has (176); folders start from the Catalog's
+  // hints (175) and follow a change of Node.
+  const here = spacesOn(snap, effNode);
+  const fallback = here.find((s) => s.defaultForNew)?.spaceId ?? defaultSpace?.spaceId ?? "";
+  const eff = folders ?? (entry ? defaultFolders(entry.volumes, here, fallback) : { volumeSpaces: {}, volumeFolders: {}, mounts: [] });
+  useEffect(() => setFolders(null), [entry?.id, effNode]);
   return (
     <Sheet
       open={!!entry}
@@ -142,42 +151,14 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                   </RadioGroup>
                 </div>
               )}
-              {entry.volumes.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label>Storage</Label>
-                  {spaces.length === 0 ? (
-                    <p className="text-sm text-destructive">No Storage Space exists yet; create one on the Storage page first.</p>
-                  ) : spaces.length === 1 ? (
-                    <p className="text-sm text-muted-foreground">
-                      {entry.volumes.length === 1 ? "Its data goes" : `Its ${entry.volumes.length} volumes go`} in <b className="text-foreground">{spaces[0].name}</b>.
-                    </p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {entry.volumes.map((v) => (
-                        <div key={v.name} className="flex items-center gap-2 text-sm">
-                          <span className="w-28 shrink-0 truncate text-muted-foreground">
-                            {v.name}
-                            {v.size ? ` (${v.size})` : ""}
-                          </span>
-                          <Select value={volumeSpaces[v.name] ?? defaultSpace?.spaceId ?? ""} onValueChange={(val) => setVolumeSpaces({ ...volumeSpaces, [v.name]: val })}>
-                            <SelectTrigger size="sm" className="flex-1">
-                              <SelectValue placeholder="Space" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {spaces.map((s) => (
-                                <SelectItem key={s.spaceId} value={s.spaceId}>
-                                  {s.name}
-                                  {s.defaultForNew ? " (default)" : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label>Storage</Label>
+                {spaces.length === 0 ? (
+                  <p className="text-sm text-destructive">No Storage Space exists yet; create one on the Storage page first.</p>
+                ) : (
+                  <FoldersEditor volumes={entry.volumes} spaces={here} value={eff} onChange={setFolders} source={(sp) => folderSource(snap, effNode, sp)} serviceName={effName} />
+                )}
+              </div>
               <details className="group rounded-lg border" open={!!entry.settings?.length}>
                 <summary className="flex cursor-pointer items-center gap-1 px-3 py-2 text-sm font-medium">
                   <ChevronRight className="size-4 transition-transform group-open:rotate-90" /> Options
@@ -245,7 +226,9 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                     spec.exposure = entry.web && !entry.infrastructure ? exposure : "private";
                     spec.autoUpdate = autoUpdate;
                     spec.forwardPorts = !!entry.port_forward && forward;
-                    spec.volumeSpaces = Object.fromEntries(entry.volumes.map((v) => [v.name, volumeSpaces[v.name] ?? defaultSpace?.spaceId ?? ""]));
+                    spec.volumeSpaces = Object.fromEntries(entry.volumes.map((v) => [v.name, eff.volumeSpaces[v.name] || fallback]));
+                    spec.volumeFolders = eff.volumeFolders;
+                    spec.mounts = eff.mounts.map((m) => create(ServiceMountSchema, m));
                     await onInstall(entry, spec, effNode);
                     onClose();
                     reset();

@@ -84,3 +84,7 @@ Nothing.
   (`Job.kind`, `Job.summary`). In `files/http.go` and `files/archive.go`.
   Older Nodes have none of it: previews fail with a 404 and Zip/Unzip say
   the Node needs updating.
+- **Service folders (`SetFolders`, `volume_folders`, `mounts`) and Space owners
+  (`Space.owner_id`).** Decisions 170-176, 182. In `services.apply`,
+  `services.SetFolders`, `internal/owner`, `files/owner.go`. Needs `acl` in
+  the image.

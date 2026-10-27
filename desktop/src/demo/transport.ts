@@ -161,6 +161,23 @@ const handlers: Record<string, Handler> = {
     f.rebuildRecords();
     return { service: f.status(s) };
   },
+  "ServiceService/SetFolders": (f, n, i, addr) => {
+    needNode(n, addr);
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
+    const folders = (i.volumeFolders as Record<string, string>) ?? {};
+    const mounts = (i.mounts as { spaceId: string; folder: string; path: string; readOnly: boolean }[]) ?? [];
+    const used = new Set(s.spec.volumes.map((v) => v.path));
+    for (const m of mounts) {
+      if (!m.path?.startsWith("/") || used.has(m.path)) throw fail(Code.InvalidArgument, `${m.path || "a folder"}: not a free path inside the container`);
+      used.add(m.path);
+    }
+    s.spec.volumeSpaces = { ...s.spec.volumeSpaces, ...((i.volumeSpaces as Record<string, string>) ?? {}) };
+    s.spec.volumeFolders = folders;
+    s.spec.mounts = mounts.map((m) => ({ ...m, $typeName: "maitre.v1.ServiceMount" })) as never;
+    f.rebuildRecords();
+    return { service: f.status(s) };
+  },
   "ServiceService/SetPortForwarding": (f, n, i, addr) => {
     needNode(n, addr);
     const s = f.services.find((x) => x.spec.name === i.name);
