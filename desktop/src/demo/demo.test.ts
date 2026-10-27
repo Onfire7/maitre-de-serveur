@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createClient } from "@connectrpc/connect";
-import { fromBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { NodeSchema } from "@/gen/maitre/v1/fleet_pb";
-import { DemoFleet, NODE_A, NODE_B } from "./fleet";
+import { InstallerService, Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
+import { nodeDown, nodeWord, provisioningLine } from "@/fleet/useFleet";
+import { notices } from "@/app/notices";
+import { DemoFleet, INSTALLER_ID, NODE_A, NODE_B } from "./fleet";
 import { createDemoTransport } from "./transport";
 
 let fleet: DemoFleet;
@@ -90,6 +93,31 @@ describe("demo Fleet", () => {
     await expect(at(A).node.renameNode({ name: "basalt" })).rejects.toThrow(/already exists/);
     await expect(at(A).services.controlService({ name: "nope", action: ControlServiceRequest_Action.STOP })).rejects.toThrow(/no Service/);
     await expect(at("10.0.0.99:7443").node.getNodeInfo({})).rejects.toThrow(/nothing answers/);
+  });
+});
+
+describe("a Node being installed", () => {
+  it("is Provisioning in every Console, from the anchor, until it talks", async () => {
+    const ins = fleet.installer;
+    await createClient(InstallerService, createDemoTransport(ins.addr, fleet)).provision({ nodeName: "Cedar", targetDisk: "/dev/nvme0n1" });
+    // The Console that started it puts the record through a sponsor.
+    const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: INSTALLER_ID, name: "Cedar", addresses: [ins.addr], provisionedUnixMs: BigInt(fleet.now) }));
+    await at(A).node.putRecord({ record: { kind: "node", id: INSTALLER_ID, body } });
+    for (let i = 0; i < 10; i++) fleet.tick(fleet.now + 1000);
+
+    // Another Console reads Basalt as its anchor.
+    const st = (await at(B).node.getFleetStatus({})).nodes.find((n) => n.nodeId === INSTALLER_ID);
+    expect(st?.provisioning?.phase).toBe(Provisioning_Phase.INSTALLING);
+    expect(nodeWord(st, fleet.now)).toBe("Provisioning");
+    expect(nodeDown("Provisioning")).toBe(true);
+    expect(provisioningLine(st)).toMatch(/^20% · /);
+  });
+
+  it("raises a notice when the install failed, not an unreachable one", () => {
+    const st = { nodeId: "c", reachable: false, provisioning: { phase: Provisioning_Phase.FAILED, message: "disk too small" } } as never;
+    const snap = { nodes: [{ nodeId: "c", name: "Cedar" }], status: new Map([["c", st]]), spaces: [{ defaultForNew: true }] } as never;
+    expect(notices(snap, [], null).map((n) => n.title)).toEqual(["Cedar's install failed"]);
+    expect(notices(snap, [], null)[0].detail).toBe("install failed: disk too small");
   });
 });
 

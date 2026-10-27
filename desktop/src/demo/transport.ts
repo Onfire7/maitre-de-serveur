@@ -79,7 +79,10 @@ const handlers: Record<string, Handler> = {
       updateStaged: !!p.update.staged && !p.update.rollbackQueued,
       lastRollback: p.update.lastRollback,
     });
-    return { nodeId: me.nodeId, nodes: [entry(me), ...f.nodes.filter((p) => p !== me).map(entry)] };
+    // The Installer's Node once its record is in: still being installed,
+    // reported from the Installer as a real Node does.
+    const installing = f.installer.provisioning && !f.nodes.some((p) => p.nodeId === f.installer.id) && f.records.some((r) => r.kind === "node" && r.id === f.installer.id && !r.deleted) ? [{ nodeId: f.installer.id, reachable: false, provisioning: installerProvisioning(f) }] : [];
+    return { nodeId: me.nodeId, nodes: [entry(me), ...f.nodes.filter((p) => p !== me).map(entry), ...installing] };
   },
   "NodeService/GetUpdateStatus": (_f, n, _i, addr) => ({ status: needNode(n, addr).update }),
   "NodeService/UpdateImage": (f, n, i, addr) => {
@@ -232,7 +235,6 @@ const handlers: Record<string, Handler> = {
   "InstallerService/GetInstallerStatus": (f, _n, _i, addr) => {
     const ins = f.installer;
     if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
-    const phase = ins.provisioning ? (ins.progress < 0.7 ? Provisioning_Phase.INSTALLING : ins.progress < 1 ? Provisioning_Phase.CONFIGURING : Provisioning_Phase.REBOOTING) : Provisioning_Phase.IDLE;
     return {
       status: {
         installerId: ins.id,
@@ -243,7 +245,7 @@ const handlers: Record<string, Handler> = {
           { path: "/dev/nvme0n1", model: "WD Blue SN580 1TB", sizeBytes: 1000n * 1000n ** 3n, removable: false, isInstallerMedia: false },
           { path: "/dev/sda", model: "SanDisk Ultra USB", sizeBytes: 32n * 1000n ** 3n, removable: true, isInstallerMedia: true },
         ],
-        provisioning: { phase, message: ins.log.at(-1) ?? "", percent: Math.round(ins.progress * 100) },
+        provisioning: installerProvisioning(f),
         machineName: ins.machine,
         image: "ghcr.io/onfire7/maitre-server:stable",
         source: "ghcr.io",
@@ -264,6 +266,12 @@ const handlers: Record<string, Handler> = {
   // RecoveryService
   "RecoveryService/Authorize": () => ({ nodeOnly: false }),
 };
+
+function installerProvisioning(f: DemoFleet) {
+  const ins = f.installer;
+  const phase = ins.provisioning ? (ins.progress < 0.7 ? Provisioning_Phase.INSTALLING : ins.progress < 1 ? Provisioning_Phase.CONFIGURING : Provisioning_Phase.REBOOTING) : Provisioning_Phase.IDLE;
+  return { phase, message: ins.log.at(-1) ?? "", percent: Math.round(ins.progress * 100) };
+}
 
 /** A Transport answering as the demo machine at `addr`. */
 export function createDemoTransport(addr: string, fleet: DemoFleet = demoFleet()): Transport {

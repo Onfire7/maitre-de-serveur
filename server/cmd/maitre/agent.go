@@ -213,6 +213,7 @@ func runAgent(args []string) error {
 		requestBackup()
 	}
 	go pm.Run(ctx)
+	go pm.WatchInstalls(ctx)
 	if !*noMDNS {
 		err := mdns.Browse(ctx, mdns.TypeNode, func(peerID, fleetID, addr string, port uint16) {
 			if fleetID == fleet.GetFleetId() && peerID != id.Fingerprint() {

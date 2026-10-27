@@ -1,7 +1,7 @@
 // Standing conditions (decision 150): a badge on the Fleet entry and a list
 // on the Fleet Overview. Transient events are toasts, not notices.
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord } from "@/fleet/useFleet";
+import { nodeWord, provisioningLine } from "@/fleet/useFleet";
 import type { Found } from "@/state";
 import type { FleetTab } from "./routes";
 
@@ -24,7 +24,8 @@ export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: 
   for (const f of found.filter((f) => f.kind === "device")) out.push({ id: `device:${f.id}`, title: `${f.name || "A device"} is asking to join`, detail: "Approve it only if the code on its screen matches.", tab: "devices", severity: "info" });
   for (const n of snap.nodes) {
     const st = snap.status.get(n.nodeId);
-    if (nodeWord(st, now) === "Unreachable") out.push({ id: `unreachable:${n.nodeId}`, title: `${n.name} is unreachable`, detail: "Its Services are unavailable until it is back.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    if (st?.provisioning?.phase === 5) out.push({ id: `install-failed:${n.nodeId}`, title: `${n.name}'s install failed`, detail: provisioningLine(st), tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    else if (nodeWord(st, now) === "Unreachable") out.push({ id: `unreachable:${n.nodeId}`, title: `${n.name} is unreachable`, detail: "Its Services are unavailable until it is back.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.updateState === 3) out.push({ id: `update-failed:${n.nodeId}`, title: `${n.name}'s update failed`, detail: st.updateMessage || "See the Node's details.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.lastRollback) out.push({ id: `rolled-back:${n.nodeId}`, title: `${n.name} rolled back its last update`, detail: st.lastRollback, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.updateStaged) out.push({ id: `staged:${n.nodeId}`, title: `${n.name} has an update staged`, detail: "Restart it to run the new version.", tab: "nodes", nodeId: n.nodeId, severity: "info" });

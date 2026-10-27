@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { HoldButton } from "@/components/hold-button";
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord, STALE_MS } from "@/fleet/useFleet";
+import { nodeDown, nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { node as nodeClient, targetFor } from "@/fleet/actions";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import type { Node } from "@/gen/maitre/v1/fleet_pb";
@@ -160,7 +160,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-base font-semibold">{node.name}</span>
-            <button className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40" title="Rename" aria-label={`Rename ${node.name}`} disabled={!t || word === "Unreachable"} onClick={() => setRenaming(node.name)}>
+            <button className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40" title="Rename" aria-label={`Rename ${node.name}`} disabled={!t || nodeDown(word)} onClick={() => setRenaming(node.name)}>
               <Pencil className="size-3.5" />
             </button>
             <span className="rounded bg-muted px-1.5 text-xs font-medium text-muted-foreground">{node.letter}</span>
@@ -169,11 +169,12 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
           <div className="truncate text-xs text-muted-foreground">
             {node.addresses[0]}
             {st && word === "Unreachable" && st.lastSeenUnixMs > 0n && ` · last seen ${ago(Number(st.lastSeenUnixMs), now)}`}
+            {word === "Provisioning" && ` · ${provisioningLine(st)}`}
             {services.length > 0 ? ` · runs ${services.join(", ")}` : " · runs nothing yet"}
           </div>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setConfirm("reboot")} disabled={!t || word === "Unreachable"}>
+          <Button size="sm" variant="ghost" onClick={() => setConfirm("reboot")} disabled={!t || nodeDown(word)}>
             <RefreshCw /> Restart
           </Button>
           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirm("remove")}>
@@ -191,7 +192,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
       )}
       {open && (
         <div className="border-t p-4">
-          <NodeDetails node={node} target={t} snap={snap} unreachable={word === "Unreachable"} />
+          <NodeDetails node={node} target={t} snap={snap} unreachable={nodeDown(word)} />
         </div>
       )}
 

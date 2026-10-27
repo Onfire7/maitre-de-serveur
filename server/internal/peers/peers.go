@@ -39,6 +39,9 @@ type peer struct {
 	online   bool
 	lastSeen time.Time
 	client   maitrev1connect.NodeServiceClient
+	// When the Node record was made; a recent record never heard from is
+	// a Node still being installed.
+	provisioned time.Time
 }
 
 // Manager tracks the Fleet's other Nodes and keeps the databases in sync.
@@ -55,12 +58,15 @@ type Manager struct {
 	http  *http.Client
 	// heard is the last status each peer gossiped (ADR 0006), memory only.
 	heard map[string]*maitrev1.FleetNodeStatus
+	// installs is what each Node still being installed reported through
+	// its Installer, memory only.
+	installs map[string]*maitrev1.Provisioning
 }
 
 // New builds a Manager; list is the trust list shared with the listener.
 func New(st *store.Store, id *identity.Identity, list *trust.List, log *slog.Logger) *Manager {
 	cfg := mtls.ClientConfig(id, list)
-	m := &Manager{st: st, id: id, list: list, log: log, peers: map[string]*peer{}, heard: map[string]*maitrev1.FleetNodeStatus{}}
+	m := &Manager{st: st, id: id, list: list, log: log, peers: map[string]*peer{}, heard: map[string]*maitrev1.FleetNodeStatus{}, installs: map[string]*maitrev1.Provisioning{}}
 	m.http = &http.Client{Transport: &http2.Transport{
 		TLSClientConfig: cfg,
 		DialTLSContext: func(ctx context.Context, network, addr string, c *tls.Config) (net.Conn, error) {
@@ -92,6 +98,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 			m.peers[p.id] = p
 		}
 		p.name = n.GetName()
+		p.provisioned = time.UnixMilli(n.GetProvisionedUnixMs())
 		for _, a := range n.GetAddresses() {
 			p.addAddr(a, false)
 		}
@@ -307,6 +314,86 @@ func (m *Manager) Forward(ctx context.Context, owner string, rec *maitrev1.Recor
 	}
 	m.log.Info("write queued for offline owner", "owner", owner, "kind", rec.GetKind(), "id", rec.GetId())
 	return nil, true, nil
+}
+
+// InstallWindow is how long after its record is made a Node never heard
+// from is taken to be still installing.
+var InstallWindow = time.Hour
+
+// WatchInstallsEvery is how often the Installers of Nodes still being
+// installed are asked for their progress.
+var WatchInstallsEvery = 5 * time.Second
+
+// WatchInstalls asks the Installer of every Node still being installed for
+// its progress until ctx ends, so any Node can tell a Console a peer is
+// Provisioning. Such a Node has a record made within InstallWindow and has
+// never gossiped; its Installer listens on the Node port at the address
+// the Console put in the record, with the key that becomes the node_id.
+func (m *Manager) WatchInstalls(ctx context.Context) {
+	t := time.NewTicker(WatchInstallsEvery)
+	defer t.Stop()
+	for {
+		m.pollInstalls(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (m *Manager) pollInstalls(ctx context.Context) {
+	type target struct {
+		id    string
+		addrs []string
+	}
+	var targets []target
+	m.mu.Lock()
+	for id, p := range m.peers {
+		if m.heard[id] != nil || time.Since(p.provisioned) > InstallWindow {
+			delete(m.installs, id)
+			continue
+		}
+		targets = append(targets, target{id, append([]string(nil), p.addrs...)})
+	}
+	for id := range m.installs {
+		if m.peers[id] == nil {
+			delete(m.installs, id)
+		}
+	}
+	m.mu.Unlock()
+	for _, tg := range targets {
+		for _, a := range tg.addrs {
+			c := maitrev1connect.NewInstallerServiceClient(connect.NewClient(connecthttp.NewTransport(m.http, "https://"+a)))
+			cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			res, err := c.GetInstallerStatus(cctx, &maitrev1.GetInstallerStatusRequest{})
+			cancel()
+			if err != nil {
+				continue
+			}
+			// The TLS handshake pinned the key to the trust list, which
+			// holds this Node's; check the Installer says the same.
+			if res.GetStatus().GetInstallerId() != tg.id || res.GetStatus().GetProvisioning() == nil {
+				continue
+			}
+			m.mu.Lock()
+			if m.heard[tg.id] == nil {
+				m.installs[tg.id] = res.GetStatus().GetProvisioning()
+			}
+			m.mu.Unlock()
+			break
+		}
+	}
+}
+
+// Installing returns what the Installer of a Node still being installed
+// last reported, or nil. A Node rebooting into its new system stops
+// answering as an Installer; its last report (Rebooting) is kept until the
+// Node gossips or InstallWindow passes.
+func (m *Manager) Installing(id string) *maitrev1.Provisioning {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installs[id]
 }
 
 // Run reconciles with every peer periodically until ctx ends.

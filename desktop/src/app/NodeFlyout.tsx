@@ -8,7 +8,7 @@ import { ArrowUpCircle, Cpu, HardDrive, MemoryStick, Thermometer, ArrowRight } f
 import { cn } from "@/lib/utils";
 import { formatBytes, ago } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord, STALE_MS } from "@/fleet/useFleet";
+import { nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { spacesOf } from "@/spaces";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { spaceColor } from "./StorageTab";
@@ -67,6 +67,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
           <div className="text-xs">
             <StatusWord word={word} />
             {word === "Unreachable" && st && st.lastSeenUnixMs > 0n && <span className="text-muted-foreground"> · last heard {ago(Number(st.lastSeenUnixMs), now)}</span>}
+            {word === "Provisioning" && <span className="text-muted-foreground"> · {provisioningLine(st)}</span>}
             {word === "Updating" && st?.updateMessage && <span className="text-muted-foreground"> · {st.updateMessage}</span>}
           </div>
         </div>

@@ -25,7 +25,7 @@ import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord } from "@/fleet/useFleet";
+import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
@@ -208,7 +208,7 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Drives</h2>
         {nodes.map((n) => (
-          <NodeDrives key={n.nodeId} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeWord(snap?.status.get(n.nodeId), Date.now()) === "Unreachable"} spaces={spaces} />
+          <NodeDrives key={n.nodeId} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()))} spaces={spaces} />
         ))}
       </section>
 
@@ -263,7 +263,7 @@ function useSpaceUsed(snap: FleetSnapshot | undefined, state: ConsoleState, spac
   const asks: { spaceId: string; nodeId: string }[] = [];
   for (const s of spaces) {
     const holders = nodes.filter((n) => drives.some((d) => d.nodeId === n.nodeId && spacesOf(d, spaces).includes(s.spaceId)));
-    const up = holders.filter((n) => nodeWord(snap?.status.get(n.nodeId), Date.now()) !== "Unreachable");
+    const up = holders.filter((n) => !nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now())));
     if (s.spanNodes) {
       const via = up.find((n) => n.nodeId === snap?.anchor.nodeId) ?? up[0];
       if (via) asks.push({ spaceId: s.spaceId, nodeId: via.nodeId });

@@ -61,6 +61,9 @@ export function Sidebar({
   provisioning?: { name: string; percent: number };
 }) {
   const { route, go } = useRoute();
+  // The install this Console started: its Node's row says Provisioning
+  // even when the anchor is too old to report installs itself.
+  const mine = provisioning ? nodes.find((n) => n.name === provisioning.name) : undefined;
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [fly, setFly] = useState<{
@@ -327,7 +330,7 @@ export function Sidebar({
                 onMouseLeave={scheduleClose}
                 onMouseEnter={keepOpen}
               >
-                {nodes.map((n) => (
+                {nodes.map((n) => (n === mine && n.word === "Unreachable" ? { ...n, word: "Provisioning" as const } : n)).map((n) => (
                   <li key={n.nodeId}>
                     <NodeRow
                       node={n}
@@ -343,7 +346,7 @@ export function Sidebar({
                     />
                   </li>
                 ))}
-                {provisioning && (
+                {provisioning && !mine && (
                   <li
                     className={cn(
                       "flex items-center gap-2 py-1 pr-1.5 text-sm text-muted-foreground",

@@ -8,12 +8,26 @@ survives.
 
 ## Open
 
-- **Gossip a Node's own Provisioning state.** While a new Node installs, the
-  sidebar shows it as Provisioning from the Installer's progress only on
-  the Console that started it. Other Consoles see nothing until the Node
-  record arrives. Nice to have: the sponsor Node gossips "provisioning:
-  name, percent" from the Installer status it can read.
+Nothing.
+
 ## Built
+
+- **Every Console sees a Node being installed.** Built without gossip or a
+  new RPC: the Console that starts an install already puts the new Node's
+  record through a sponsor, and now writes the Installer's address into it
+  (the Installer listens on the Node port, and its key becomes the
+  node_id). Every Node that holds a record made within the last hour from
+  a Node it never heard from asks that address's `GetInstallerStatus`
+  every 5 s and reports it as `FleetNodeStatus.provisioning`, so the anchor
+  answers for the install itself. The Console says Provisioning with the
+  percent and step, or "install failed" as a notice. In
+  `peers.Manager.WatchInstalls` and `nodeservice.GetFleetStatus`. The Node
+  row of the Console that started it says Provisioning even when the
+  anchor is too old to report it.
+- **`GetFleetStatus` passes peers' update state on.** It copied only
+  metrics and Services from a peer's gossip, so the anchor never said
+  Updating or Attention for another Node; it now copies the update fields
+  too.
 
 - **Drive fill in the gossip.** `NodeMetrics.drives` (`DriveUsage`:
   drive id, total, used) lists every mounted Drive the Node owns, read with

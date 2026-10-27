@@ -11,7 +11,8 @@ import (
 // fakePeers is the sync layer as GetFleetStatus sees it: two peers, one of
 // which has gossiped.
 type fakePeers struct {
-	heard map[string]*maitrev1.FleetNodeStatus
+	heard    map[string]*maitrev1.FleetNodeStatus
+	installs map[string]*maitrev1.Provisioning
 }
 
 func (f *fakePeers) Forward(context.Context, string, *maitrev1.Record) (*maitrev1.Record, bool, error) {
@@ -26,6 +27,9 @@ func (f *fakePeers) Status(context.Context) []*maitrev1.PeerStatus {
 }
 func (f *fakePeers) Received(st *maitrev1.FleetNodeStatus)    { f.heard[st.GetNodeId()] = st }
 func (f *fakePeers) Last(id string) *maitrev1.FleetNodeStatus { return f.heard[id] }
+func (f *fakePeers) Installing(id string) *maitrev1.Provisioning {
+	return f.installs[id]
+}
 
 func TestGetFleetStatusMergesGossip(t *testing.T) {
 	id, err := identity.Generate()
@@ -33,7 +37,10 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(id, Info{Name: "Alder"}, nil)
-	peers := &fakePeers{heard: map[string]*maitrev1.FleetNodeStatus{}}
+	// Cedar is still being installed.
+	peers := &fakePeers{heard: map[string]*maitrev1.FleetNodeStatus{}, installs: map[string]*maitrev1.Provisioning{
+		"c": {Phase: maitrev1.Provisioning_PHASE_INSTALLING, Percent: 40},
+	}}
 	s.Peers = peers
 	s.Metrics = func() *maitrev1.NodeMetrics { return &maitrev1.NodeMetrics{CpuPercent: 12} }
 	s.Services = func(context.Context) []*maitrev1.ServiceStatus {
@@ -44,6 +51,7 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	if _, err := s.PushStatus(context.Background(), &maitrev1.PushStatusRequest{Status: &maitrev1.FleetNodeStatus{
 		NodeId: "b", Metrics: &maitrev1.NodeMetrics{CpuPercent: 60}, MetricsUnixMs: 900,
 		Services: []*maitrev1.ServiceStatus{{Spec: &maitrev1.ServiceSpec{Name: "uptime"}, State: maitrev1.ServiceStatus_STATE_STARTING}}, ServicesUnixMs: 800,
+		UpdateState: maitrev1.UpdateStatus_STATE_UPDATING, UpdateMessage: "pulling", UpdateProgress: 0.5, UpdateStaged: true, LastRollback: "health check failed",
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -67,9 +75,15 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	if !b.GetReachable() || b.GetLastSeenUnixMs() != 1000 || b.GetMetrics().GetCpuPercent() != 60 || b.GetMetricsUnixMs() != 900 || len(b.GetServices()) != 1 || b.GetServices()[0].GetSpec().GetName() != "uptime" {
 		t.Fatalf("Basalt's gossip not merged: %v", b)
 	}
+	if b.GetUpdateState() != maitrev1.UpdateStatus_STATE_UPDATING || b.GetUpdateMessage() != "pulling" || b.GetUpdateProgress() != 0.5 || !b.GetUpdateStaged() || b.GetLastRollback() != "health check failed" || b.GetProvisioning() != nil {
+		t.Fatalf("Basalt's update state not merged: %v", b)
+	}
 	c := byID["c"]
 	if c.GetReachable() || c.GetMetrics() != nil || len(c.GetServices()) != 0 || c.GetLastSeenUnixMs() != 500 {
 		t.Fatalf("Cedar should be unreachable with nothing heard: %v", c)
+	}
+	if c.GetProvisioning().GetPercent() != 40 {
+		t.Fatalf("Cedar's install progress not reported: %v", c)
 	}
 }
 

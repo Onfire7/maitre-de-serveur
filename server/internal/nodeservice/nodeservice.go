@@ -79,6 +79,9 @@ type Peers interface {
 	// Received keeps a peer's gossiped status; Last returns it (ADR 0006).
 	Received(st *maitrev1.FleetNodeStatus)
 	Last(id string) *maitrev1.FleetNodeStatus
+	// Installing is what a Node still being installed last reported
+	// through its Installer, or nil.
+	Installing(id string) *maitrev1.Provisioning
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -323,8 +326,9 @@ func (s *Service) cachedUpdate(ctx context.Context) *maitrev1.UpdateStatus {
 }
 
 // GetFleetStatus implements NodeService (ADR 0006): this Node's own status,
-// then every peer with its reachability as seen from here and the last
-// metrics and Services it gossiped.
+// then every peer with its reachability as seen from here, the last
+// metrics, Services and update state it gossiped, and, for a Node still
+// being installed, what its Installer reports.
 func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatusRequest) (*maitrev1.GetFleetStatusResponse, error) {
 	self := s.OwnStatus(ctx)
 	out := &maitrev1.GetFleetStatusResponse{NodeId: self.NodeId, Nodes: []*maitrev1.FleetNodeStatus{self}}
@@ -334,7 +338,10 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 			if last := s.Peers.Last(p.GetNodeId()); last != nil {
 				st.Metrics, st.MetricsUnixMs = last.GetMetrics(), last.GetMetricsUnixMs()
 				st.Services, st.ServicesUnixMs = last.GetServices(), last.GetServicesUnixMs()
+				st.UpdateState, st.UpdateMessage, st.UpdateProgress = last.GetUpdateState(), last.GetUpdateMessage(), last.GetUpdateProgress()
+				st.UpdateStaged, st.LastRollback = last.GetUpdateStaged(), last.GetLastRollback()
 			}
+			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)
 		}
 	}

@@ -158,7 +158,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
       setStarted(true);
       onProgress({ name: restore ? (status?.backups.find((b) => b.nodeId === restore)?.nodeName ?? name) : name, percent: 0, message: "starting" });
       if (!restore && sponsor) {
-        const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: fp, name: name.trim(), publicKeyPem: pem, provisionedUnixMs: BigInt(Date.now()) }));
+        const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: fp, name: name.trim(), publicKeyPem: pem, addresses: [addr], provisionedUnixMs: BigInt(Date.now()) }));
         await createClient(NodeService, transportFor(sponsor)).putRecord({ record: { kind: "node", id: fp, body } });
       }
     } catch (e) {

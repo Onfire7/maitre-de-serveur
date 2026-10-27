@@ -165,12 +165,32 @@ export interface FleetService {
   nodeUnreachable: boolean;
 }
 
-export function nodeWord(n: FleetNodeStatus | undefined, now: number): "Healthy" | "Unreachable" | "Updating" | "Attention" {
+export type NodeWord = "Healthy" | "Unreachable" | "Provisioning" | "Updating" | "Attention";
+
+export function nodeWord(n: FleetNodeStatus | undefined, now: number): NodeWord {
+  // A Node still being installed is reported by the anchor from its
+  // Installer until it first talks.
+  if (n?.provisioning && !n.reachable) return "Provisioning";
   if (!n || !n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) return "Unreachable";
   // UpdateStatus.State: 2 updating, 3 failed, 4 rebooting.
   if (n.updateState === 2 || n.updateState === 4) return "Updating";
   if (n.updateState === 3 || n.lastRollback || n.metrics?.poolFallback) return "Attention";
   return "Healthy";
+}
+
+/** The Node cannot be called: unreachable, or not installed yet. */
+export function nodeDown(word: NodeWord) {
+  return word === "Unreachable" || word === "Provisioning";
+}
+
+/** What a Node still being installed is doing, e.g. "40% · writing the disk". */
+export function provisioningLine(n: FleetNodeStatus | undefined): string {
+  const p = n?.provisioning;
+  if (!p) return "";
+  // Provisioning.Phase: 4 rebooting, 5 failed.
+  if (p.phase === 5) return `install failed${p.message ? `: ${p.message}` : ""}`;
+  if (p.phase === 4) return "restarting into Maître Server";
+  return [`${p.percent}%`, p.message].filter(Boolean).join(" · ");
 }
 
 export function serviceWord(s: ServiceStatus | undefined): FleetService["word"] {
@@ -195,7 +215,7 @@ export function useFleetServices(snap: FleetSnapshot | undefined, now = Date.now
         const node = snap.nodes.find((n) => n.nodeId === spec.nodeId);
         const nodeStatus = snap.status.get(spec.nodeId);
         const status = nodeStatus?.services.find((s) => s.spec?.name === spec.name);
-        const unreachable = nodeWord(nodeStatus, now) === "Unreachable";
+        const unreachable = nodeDown(nodeWord(nodeStatus, now));
         return { spec, status, node, nodeStatus, word: unreachable ? "Stopped" : serviceWord(status), nodeUnreachable: unreachable } as FleetService;
       })
       .sort((a, b) => a.spec.name.localeCompare(b.spec.name));

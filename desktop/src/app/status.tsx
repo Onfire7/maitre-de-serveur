@@ -3,7 +3,7 @@
 import { Box, Server } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import type { FleetService } from "@/fleet/useFleet";
+import type { FleetService, NodeWord } from "@/fleet/useFleet";
 import bundledCatalog from "@/catalog/index.json";
 import type { CatalogIndex } from "@/services";
 
@@ -11,7 +11,7 @@ const catalog = bundledCatalog as CatalogIndex;
 export const catalogById = new Map(catalog.entries.map((e) => [e.id, e]));
 
 export type ServiceWord = FleetService["word"];
-export type NodeWord = "Healthy" | "Unreachable" | "Provisioning" | "Updating" | "Attention";
+export type { NodeWord };
 
 const ring: Record<ServiceWord | NodeWord, string> = {
   Online: "border-transparent",

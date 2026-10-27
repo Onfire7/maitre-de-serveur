@@ -275,8 +275,15 @@ type FleetNodeStatus struct {
 	UpdateProgress float64            `protobuf:"fixed64,10,opt,name=update_progress,json=updateProgress,proto3" json:"update_progress,omitempty"`
 	UpdateStaged   bool               `protobuf:"varint,11,opt,name=update_staged,json=updateStaged,proto3" json:"update_staged,omitempty"`
 	LastRollback   string             `protobuf:"bytes,12,opt,name=last_rollback,json=lastRollback,proto3" json:"last_rollback,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Set while the Node is still being installed: the answering Node has its
+	// record but never heard from it, so it asks the Installer at the
+	// record's addresses (the Installer's key is the new node_id) and reports
+	// what it said. Cleared once the Node talks, or an hour after its record
+	// was made. Lets every Console show Provisioning, not only the one that
+	// started the install.
+	Provisioning  *Provisioning `protobuf:"bytes,13,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FleetNodeStatus) Reset() {
@@ -391,6 +398,13 @@ func (x *FleetNodeStatus) GetLastRollback() string {
 		return x.LastRollback
 	}
 	return ""
+}
+
+func (x *FleetNodeStatus) GetProvisioning() *Provisioning {
+	if x != nil {
+		return x.Provisioning
+	}
+	return nil
 }
 
 type PushRecordsRequest struct {
@@ -1869,14 +1883,14 @@ var File_maitre_v1_node_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\x1a\x17maitre/v1/service.proto\x1a\x19maitre/v1/tailscale.proto\"G\n" +
+	"\x14maitre/v1/node.proto\x12\tmaitre.v1\x1a\x15maitre/v1/fleet.proto\x1a\x19maitre/v1/installer.proto\x1a\x17maitre/v1/service.proto\x1a\x19maitre/v1/tailscale.proto\"G\n" +
 	"\x11PushStatusRequest\x122\n" +
 	"\x06status\x18\x01 \x01(\v2\x1a.maitre.v1.FleetNodeStatusR\x06status\"\x14\n" +
 	"\x12PushStatusResponse\"\x17\n" +
 	"\x15GetFleetStatusRequest\"c\n" +
 	"\x16GetFleetStatusResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\x89\x04\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xc6\x04\n" +
 	"\x0fFleetNodeStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
 	"\treachable\x18\x02 \x01(\bR\treachable\x12)\n" +
@@ -1890,7 +1904,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x0fupdate_progress\x18\n" +
 	" \x01(\x01R\x0eupdateProgress\x12#\n" +
 	"\rupdate_staged\x18\v \x01(\bR\fupdateStaged\x12#\n" +
-	"\rlast_rollback\x18\f \x01(\tR\flastRollback\"A\n" +
+	"\rlast_rollback\x18\f \x01(\tR\flastRollback\x12;\n" +
+	"\fprovisioning\x18\r \x01(\v2\x17.maitre.v1.ProvisioningR\fprovisioning\"A\n" +
 	"\x12PushRecordsRequest\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.maitre.v1.RecordR\arecords\"/\n" +
 	"\x13PushRecordsResponse\x12\x18\n" +
@@ -2057,9 +2072,10 @@ var file_maitre_v1_node_proto_goTypes = []any{
 	(*GetNodeInfoResponse)(nil),     // 30: maitre.v1.GetNodeInfoResponse
 	(*NodeInfo)(nil),                // 31: maitre.v1.NodeInfo
 	(*ServiceStatus)(nil),           // 32: maitre.v1.ServiceStatus
-	(*Record)(nil),                  // 33: maitre.v1.Record
-	(*Node)(nil),                    // 34: maitre.v1.Node
-	(*TailscaleStatus)(nil),         // 35: maitre.v1.TailscaleStatus
+	(*Provisioning)(nil),            // 33: maitre.v1.Provisioning
+	(*Record)(nil),                  // 34: maitre.v1.Record
+	(*Node)(nil),                    // 35: maitre.v1.Node
+	(*TailscaleStatus)(nil),         // 36: maitre.v1.TailscaleStatus
 }
 var file_maitre_v1_node_proto_depIdxs = []int32{
 	5,  // 0: maitre.v1.PushStatusRequest.status:type_name -> maitre.v1.FleetNodeStatus
@@ -2067,50 +2083,51 @@ var file_maitre_v1_node_proto_depIdxs = []int32{
 	23, // 2: maitre.v1.FleetNodeStatus.metrics:type_name -> maitre.v1.NodeMetrics
 	32, // 3: maitre.v1.FleetNodeStatus.services:type_name -> maitre.v1.ServiceStatus
 	0,  // 4: maitre.v1.FleetNodeStatus.update_state:type_name -> maitre.v1.UpdateStatus.State
-	33, // 5: maitre.v1.PushRecordsRequest.records:type_name -> maitre.v1.Record
-	12, // 6: maitre.v1.GetUpdateStatusResponse.status:type_name -> maitre.v1.UpdateStatus
-	11, // 7: maitre.v1.UpdateStatus.booted:type_name -> maitre.v1.ImageDeployment
-	11, // 8: maitre.v1.UpdateStatus.staged:type_name -> maitre.v1.ImageDeployment
-	11, // 9: maitre.v1.UpdateStatus.rollback:type_name -> maitre.v1.ImageDeployment
-	0,  // 10: maitre.v1.UpdateStatus.state:type_name -> maitre.v1.UpdateStatus.State
-	34, // 11: maitre.v1.RenameNodeResponse.node:type_name -> maitre.v1.Node
-	23, // 12: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
-	24, // 13: maitre.v1.NodeMetrics.drives:type_name -> maitre.v1.DriveUsage
-	33, // 14: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
-	33, // 15: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
-	33, // 16: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
-	31, // 17: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
-	8,  // 18: maitre.v1.NodeInfo.peers:type_name -> maitre.v1.PeerStatus
-	35, // 19: maitre.v1.NodeInfo.tailscale:type_name -> maitre.v1.TailscaleStatus
-	29, // 20: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
-	25, // 21: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
-	27, // 22: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
-	21, // 23: maitre.v1.NodeService.GetNodeMetrics:input_type -> maitre.v1.GetNodeMetricsRequest
-	9,  // 24: maitre.v1.NodeService.GetUpdateStatus:input_type -> maitre.v1.GetUpdateStatusRequest
-	13, // 25: maitre.v1.NodeService.UpdateImage:input_type -> maitre.v1.UpdateImageRequest
-	15, // 26: maitre.v1.NodeService.Rollback:input_type -> maitre.v1.RollbackRequest
-	19, // 27: maitre.v1.NodeService.Reboot:input_type -> maitre.v1.RebootRequest
-	17, // 28: maitre.v1.NodeService.RenameNode:input_type -> maitre.v1.RenameNodeRequest
-	6,  // 29: maitre.v1.NodeService.PushRecords:input_type -> maitre.v1.PushRecordsRequest
-	3,  // 30: maitre.v1.NodeService.GetFleetStatus:input_type -> maitre.v1.GetFleetStatusRequest
-	1,  // 31: maitre.v1.NodeService.PushStatus:input_type -> maitre.v1.PushStatusRequest
-	30, // 32: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
-	26, // 33: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
-	28, // 34: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
-	22, // 35: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
-	10, // 36: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
-	14, // 37: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
-	16, // 38: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
-	20, // 39: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
-	18, // 40: maitre.v1.NodeService.RenameNode:output_type -> maitre.v1.RenameNodeResponse
-	7,  // 41: maitre.v1.NodeService.PushRecords:output_type -> maitre.v1.PushRecordsResponse
-	4,  // 42: maitre.v1.NodeService.GetFleetStatus:output_type -> maitre.v1.GetFleetStatusResponse
-	2,  // 43: maitre.v1.NodeService.PushStatus:output_type -> maitre.v1.PushStatusResponse
-	32, // [32:44] is the sub-list for method output_type
-	20, // [20:32] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	33, // 5: maitre.v1.FleetNodeStatus.provisioning:type_name -> maitre.v1.Provisioning
+	34, // 6: maitre.v1.PushRecordsRequest.records:type_name -> maitre.v1.Record
+	12, // 7: maitre.v1.GetUpdateStatusResponse.status:type_name -> maitre.v1.UpdateStatus
+	11, // 8: maitre.v1.UpdateStatus.booted:type_name -> maitre.v1.ImageDeployment
+	11, // 9: maitre.v1.UpdateStatus.staged:type_name -> maitre.v1.ImageDeployment
+	11, // 10: maitre.v1.UpdateStatus.rollback:type_name -> maitre.v1.ImageDeployment
+	0,  // 11: maitre.v1.UpdateStatus.state:type_name -> maitre.v1.UpdateStatus.State
+	35, // 12: maitre.v1.RenameNodeResponse.node:type_name -> maitre.v1.Node
+	23, // 13: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
+	24, // 14: maitre.v1.NodeMetrics.drives:type_name -> maitre.v1.DriveUsage
+	34, // 15: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
+	34, // 16: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
+	34, // 17: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
+	31, // 18: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
+	8,  // 19: maitre.v1.NodeInfo.peers:type_name -> maitre.v1.PeerStatus
+	36, // 20: maitre.v1.NodeInfo.tailscale:type_name -> maitre.v1.TailscaleStatus
+	29, // 21: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
+	25, // 22: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
+	27, // 23: maitre.v1.NodeService.PutRecord:input_type -> maitre.v1.PutRecordRequest
+	21, // 24: maitre.v1.NodeService.GetNodeMetrics:input_type -> maitre.v1.GetNodeMetricsRequest
+	9,  // 25: maitre.v1.NodeService.GetUpdateStatus:input_type -> maitre.v1.GetUpdateStatusRequest
+	13, // 26: maitre.v1.NodeService.UpdateImage:input_type -> maitre.v1.UpdateImageRequest
+	15, // 27: maitre.v1.NodeService.Rollback:input_type -> maitre.v1.RollbackRequest
+	19, // 28: maitre.v1.NodeService.Reboot:input_type -> maitre.v1.RebootRequest
+	17, // 29: maitre.v1.NodeService.RenameNode:input_type -> maitre.v1.RenameNodeRequest
+	6,  // 30: maitre.v1.NodeService.PushRecords:input_type -> maitre.v1.PushRecordsRequest
+	3,  // 31: maitre.v1.NodeService.GetFleetStatus:input_type -> maitre.v1.GetFleetStatusRequest
+	1,  // 32: maitre.v1.NodeService.PushStatus:input_type -> maitre.v1.PushStatusRequest
+	30, // 33: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
+	26, // 34: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
+	28, // 35: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
+	22, // 36: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
+	10, // 37: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
+	14, // 38: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
+	16, // 39: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
+	20, // 40: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
+	18, // 41: maitre.v1.NodeService.RenameNode:output_type -> maitre.v1.RenameNodeResponse
+	7,  // 42: maitre.v1.NodeService.PushRecords:output_type -> maitre.v1.PushRecordsResponse
+	4,  // 43: maitre.v1.NodeService.GetFleetStatus:output_type -> maitre.v1.GetFleetStatusResponse
+	2,  // 44: maitre.v1.NodeService.PushStatus:output_type -> maitre.v1.PushStatusResponse
+	33, // [33:45] is the sub-list for method output_type
+	21, // [21:33] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_node_proto_init() }
@@ -2119,6 +2136,7 @@ func file_maitre_v1_node_proto_init() {
 		return
 	}
 	file_maitre_v1_fleet_proto_init()
+	file_maitre_v1_installer_proto_init()
 	file_maitre_v1_service_proto_init()
 	file_maitre_v1_tailscale_proto_init()
 	type x struct{}

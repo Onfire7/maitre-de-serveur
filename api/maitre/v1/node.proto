@@ -3,6 +3,7 @@ syntax = "proto3";
 package maitre.v1;
 
 import "maitre/v1/fleet.proto";
+import "maitre/v1/installer.proto";
 import "maitre/v1/service.proto";
 import "maitre/v1/tailscale.proto";
 
@@ -95,6 +96,13 @@ message FleetNodeStatus {
   double update_progress = 10;
   bool update_staged = 11;
   string last_rollback = 12;
+  // Set while the Node is still being installed: the answering Node has its
+  // record but never heard from it, so it asks the Installer at the
+  // record's addresses (the Installer's key is the new node_id) and reports
+  // what it said. Cleared once the Node talks, or an hour after its record
+  // was made. Lets every Console show Provisioning, not only the one that
+  // started the install.
+  Provisioning provisioning = 13;
 }
 
 message PushRecordsRequest {

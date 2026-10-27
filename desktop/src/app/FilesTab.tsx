@@ -20,7 +20,7 @@ import { formatBytes, ago } from "@/lib/format";
 import { FilesService, type Entry, type Job } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord } from "@/fleet/useFleet";
+import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
@@ -49,7 +49,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   // Other Spaces and every Drive root belong to one Node.
   const scopes = useMemo(() => {
     const out: (FileScope & { group: string; label: string; kind: "space" | "drive"; color?: string })[] = [];
-    const reachable = (id: string) => nodeWord(snap?.status.get(id), Date.now()) !== "Unreachable";
+    const reachable = (id: string) => !nodeDown(nodeWord(snap?.status.get(id), Date.now()));
     const has = (n: { nodeId: string }, s: { spaceId: string }) => drives.filter((d) => d.nodeId === n.nodeId).some((d) => spacesOf(d, spaces).includes(s.spaceId));
     spaces.forEach((s, i) => {
       if (!s.spanNodes) return;
@@ -81,7 +81,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const [moving, setMoving] = useState(false);
   const target = scope ? targetFor(snap, state.nodes, scope.nodeId) : undefined;
   const client = useMemo(() => (target ? createClient(FilesService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
-  const unreachable = scope ? nodeWord(snap?.status.get(scope.nodeId), Date.now()) === "Unreachable" : false;
+  const unreachable = scope ? nodeDown(nodeWord(snap?.status.get(scope.nodeId), Date.now())) : false;
   const list = useQuery({
     queryKey: ["files", scope && scopeKey(scope), path, target?.addr],
     enabled: !!client && !!scope && !unreachable,
