@@ -87,6 +87,8 @@ type Peers interface {
 	// Installing is what a Node still being installed last reported
 	// through its Installer, or nil.
 	Installing(id string) *maitrev1.Provisioning
+	// Gaps is what this Node found out of sync with its peers (decision 168).
+	Gaps() []*maitrev1.SyncGap
 }
 
 var _ maitrev1connect.NodeServiceHandler = (*Service)(nil)
@@ -315,6 +317,9 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 		self.UpdateStaged, self.LastRollback = st.GetStaged() != nil && !st.GetRollbackQueued(), st.GetLastRollback()
 		self.UpdateAvailable = st.GetAvailable() != ""
 	}
+	if s.Peers != nil {
+		self.SyncGaps = s.Peers.Gaps()
+	}
 	return self
 }
 
@@ -360,6 +365,7 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.UpdateState, st.UpdateMessage, st.UpdateProgress = last.GetUpdateState(), last.GetUpdateMessage(), last.GetUpdateProgress()
 				st.UpdateStaged, st.LastRollback = last.GetUpdateStaged(), last.GetLastRollback()
 				st.UpdateAvailable = last.GetUpdateAvailable()
+				st.SyncGaps = last.GetSyncGaps()
 			}
 			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)

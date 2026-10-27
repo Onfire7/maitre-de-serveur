@@ -27,6 +27,9 @@ func (f *fakePeers) Status(context.Context) []*maitrev1.PeerStatus {
 }
 func (f *fakePeers) Received(st *maitrev1.FleetNodeStatus)    { f.heard[st.GetNodeId()] = st }
 func (f *fakePeers) Last(id string) *maitrev1.FleetNodeStatus { return f.heard[id] }
+func (f *fakePeers) Gaps() []*maitrev1.SyncGap {
+	return []*maitrev1.SyncGap{{NodeId: "b", AheadNodeId: "self", Count: 1, Records: []string{"service jellyfin"}}}
+}
 func (f *fakePeers) Installing(id string) *maitrev1.Provisioning {
 	return f.installs[id]
 }
@@ -77,6 +80,9 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	}
 	if b.GetUpdateState() != maitrev1.UpdateStatus_STATE_UPDATING || b.GetUpdateMessage() != "pulling" || b.GetUpdateProgress() != 0.5 || !b.GetUpdateStaged() || b.GetLastRollback() != "health check failed" || !b.GetUpdateAvailable() || b.GetProvisioning() != nil {
 		t.Fatalf("Basalt's update state not merged: %v", b)
+	}
+	if len(self.GetSyncGaps()) != 1 || self.GetSyncGaps()[0].GetRecords()[0] != "service jellyfin" {
+		t.Fatalf("own sync gaps not reported: %v", self.GetSyncGaps())
 	}
 	if self.GetVersion() != "5803c23" || b.GetVersion() != "95c3d8a" || len(b.GetProblems()) != 1 {
 		t.Fatalf("versions and problems not reported: self %v, Basalt %v", self, b)

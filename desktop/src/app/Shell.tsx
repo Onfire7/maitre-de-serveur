@@ -18,7 +18,7 @@ import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { TrustedDeviceSchema } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
-import { useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
+import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
@@ -42,6 +42,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const { route, go } = useRoute();
   const fleet = useFleet(state.nodes);
   const snap = fleet.data;
+  // Decision 169: the anchor holds older copies than another Node. Say so
+  // and offer to read through that Node; never switch on our own.
+  const behind = snap ? syncGaps(snap).find((g) => g.nodeId === snap.anchor.nodeId && !nodeDown(nodeWord(snap.status.get(g.aheadNodeId), Date.now()))) : undefined;
+  const nameOf = (id: string) => snap?.nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   // A coarse clock for staleness words, so derived lists keep their identity between renders.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -175,6 +179,16 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         </AnimatePresence>
         <main className="flex min-w-0 flex-1 flex-col">
           {fleet.error && state.nodes.length > 0 && <div className="shrink-0 bg-status-attention/90 px-4 py-1 text-center text-xs text-black">No Node answers. {String((fleet.error as Error).message ?? fleet.error)}</div>}
+          {behind && (
+            <div className="flex shrink-0 items-center justify-center gap-3 bg-status-attention/90 px-4 py-1 text-xs text-black">
+              <span>
+                You are reading the Fleet through {nameOf(behind.nodeId)}, which is behind {nameOf(behind.aheadNodeId)} on {gapLine(behind)}. What you see may be out of date.
+              </span>
+              <button className="rounded border border-black/40 px-2 py-0.5 font-medium hover:bg-black/10" onClick={() => fleet.readThrough(behind.aheadNodeId)}>
+                Read through {nameOf(behind.aheadNodeId)}
+              </button>
+            </div>
+          )}
           <div className="relative min-h-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={routeKey(route)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="absolute inset-0">

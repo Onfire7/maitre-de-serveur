@@ -1,7 +1,7 @@
 // Standing conditions (decision 150): a badge on the Fleet entry and a list
 // on the Fleet Overview. Transient events are toasts, not notices.
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord, provisioningLine } from "@/fleet/useFleet";
+import { gapLine, nodeWord, provisioningLine, syncGaps } from "@/fleet/useFleet";
 import type { Found } from "@/state";
 import type { FleetTab } from "./routes";
 
@@ -32,6 +32,9 @@ export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: 
     else if (st?.problems.length) out.push({ id: `problems:${n.nodeId}`, title: `${n.name} needs attention`, detail: `${n.name} ${st.problems[0]}`, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.metrics?.poolFallback) out.push({ id: `fallback:${n.nodeId}`, title: `${n.name} has no Pool for the default Space`, detail: "Service data is landing on its system disk.", tab: "storage", nodeId: n.nodeId, severity: "attention" });
   }
+  // Decision 168: a Node holding older copies than another.
+  const name = (id: string) => snap.nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
+  for (const g of syncGaps(snap)) out.push({ id: `out-of-sync:${g.nodeId}:${g.aheadNodeId}`, title: `${name(g.nodeId)} is out of sync`, detail: `It is behind ${name(g.aheadNodeId)} on ${gapLine(g)}. Updating it usually fixes this.`, tab: "nodes", nodeId: g.nodeId, severity: "attention" });
   if (scope) out.push({ id: "scope", title: `Trusted by ${scope.nodeName} only`, detail: `Enter a recovery code from another Node before ${new Date(scope.until).toLocaleString()} to be trusted everywhere.`, tab: "devices", severity: "attention" });
   return out;
 }

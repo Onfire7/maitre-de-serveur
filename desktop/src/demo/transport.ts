@@ -81,6 +81,7 @@ const handlers: Record<string, Handler> = {
       updateAvailable: !!p.update.available,
       version: "0.9.3",
       problems: p === me ? [] : (p.problems ?? []),
+      syncGaps: p === me ? f.syncGaps : [],
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.

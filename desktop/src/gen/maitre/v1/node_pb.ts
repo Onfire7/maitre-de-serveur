@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/node.proto.
  */
 export const file_maitre_v1_node: GenFile = /*@__PURE__*/
-  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIj8KEVB1c2hTdGF0dXNSZXF1ZXN0EioKBnN0YXR1cxgBIAEoCzIaLm1haXRyZS52MS5GbGVldE5vZGVTdGF0dXMiFAoSUHVzaFN0YXR1c1Jlc3BvbnNlIhcKFUdldEZsZWV0U3RhdHVzUmVxdWVzdCJUChZHZXRGbGVldFN0YXR1c1Jlc3BvbnNlEg8KB25vZGVfaWQYASABKAkSKQoFbm9kZXMYAiADKAsyGi5tYWl0cmUudjEuRmxlZXROb2RlU3RhdHVzItgDCg9GbGVldE5vZGVTdGF0dXMSDwoHbm9kZV9pZBgBIAEoCRIRCglyZWFjaGFibGUYAiABKAgSGQoRbGFzdF9zZWVuX3VuaXhfbXMYAyABKAMSJwoHbWV0cmljcxgEIAEoCzIWLm1haXRyZS52MS5Ob2RlTWV0cmljcxIXCg9tZXRyaWNzX3VuaXhfbXMYBSABKAMSKgoIc2VydmljZXMYBiADKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cxIYChBzZXJ2aWNlc191bml4X21zGAcgASgDEjMKDHVwZGF0ZV9zdGF0ZRgIIAEoDjIdLm1haXRyZS52MS5VcGRhdGVTdGF0dXMuU3RhdGUSFgoOdXBkYXRlX21lc3NhZ2UYCSABKAkSFwoPdXBkYXRlX3Byb2dyZXNzGAogASgBEhUKDXVwZGF0ZV9zdGFnZWQYCyABKAgSFQoNbGFzdF9yb2xsYmFjaxgMIAEoCRItCgxwcm92aXNpb25pbmcYDSABKAsyFy5tYWl0cmUudjEuUHJvdmlzaW9uaW5nEg8KB3ZlcnNpb24YDiABKAkSEAoIcHJvYmxlbXMYDyADKAkSGAoQdXBkYXRlX2F2YWlsYWJsZRgQIAEoCCI4ChJQdXNoUmVjb3Jkc1JlcXVlc3QSIgoHcmVjb3JkcxgBIAMoCzIRLm1haXRyZS52MS5SZWNvcmQiJgoTUHVzaFJlY29yZHNSZXNwb25zZRIPCgdhcHBsaWVkGAEgASgNIpoBCgpQZWVyU3RhdHVzEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJEg4KBm9ubGluZRgEIAEoCBIZChFsYXN0X3NlZW5fdW5peF9tcxgFIAEoAxIOCgZxdWV1ZWQYBiABKA0SDwoHdmVyc2lvbhgHIAEoCRIQCghwcm9ibGVtcxgIIAMoCSIYChZHZXRVcGRhdGVTdGF0dXNSZXF1ZXN0IkIKF0dldFVwZGF0ZVN0YXR1c1Jlc3BvbnNlEicKBnN0YXR1cxgBIAEoCzIXLm1haXRyZS52MS5VcGRhdGVTdGF0dXMiVAoPSW1hZ2VEZXBsb3ltZW50Eg0KBWltYWdlGAEgASgJEg4KBmRpZ2VzdBgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhEKCXRpbWVzdGFtcBgEIAEoCSLHAwoMVXBkYXRlU3RhdHVzEioKBmJvb3RlZBgBIAEoCzIaLm1haXRyZS52MS5JbWFnZURlcGxveW1lbnQSKgoGc3RhZ2VkGAIgASgLMhoubWFpdHJlLnYxLkltYWdlRGVwbG95bWVudBIsCghyb2xsYmFjaxgDIAEoCzIaLm1haXRyZS52MS5JbWFnZURlcGxveW1lbnQSFwoPcm9sbGJhY2tfcXVldWVkGAQgASgIEiwKBXN0YXRlGAUgASgOMh0ubWFpdHJlLnYxLlVwZGF0ZVN0YXR1cy5TdGF0ZRIPCgdtZXNzYWdlGAYgASgJEhAKCHByb2dyZXNzGAcgASgBEg4KBnRhcmdldBgIIAEoCRIRCglzdXBwb3J0ZWQYCSABKAgSFQoNbGFzdF9yb2xsYmFjaxgKIAEoCRIPCgdyb2xsb3V0GAsgASgJEhEKCWF2YWlsYWJsZRgMIAEoCSJpCgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEg4KClNUQVRFX0lETEUQARISCg5TVEFURV9VUERBVElORxACEhAKDFNUQVRFX0ZBSUxFRBADEhMKD1NUQVRFX1JFQk9PVElORxAEIk4KElVwZGF0ZUltYWdlUmVxdWVzdBINCgVpbWFnZRgBIAEoCRIOCgZyZWJvb3QYAiABKAgSGQoRaW5zZWN1cmVfcmVnaXN0cnkYAyABKAgiFQoTVXBkYXRlSW1hZ2VSZXNwb25zZSIhCg9Sb2xsYmFja1JlcXVlc3QSDgoGcmVib290GAEgASgIIhIKEFJvbGxiYWNrUmVzcG9uc2UiIQoRUmVuYW1lTm9kZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSIzChJSZW5hbWVOb2RlUmVzcG9uc2USHQoEbm9kZRgBIAEoCzIPLm1haXRyZS52MS5Ob2RlIg8KDVJlYm9vdFJlcXVlc3QiEAoOUmVib290UmVzcG9uc2UiFwoVR2V0Tm9kZU1ldHJpY3NSZXF1ZXN0IkEKFkdldE5vZGVNZXRyaWNzUmVzcG9uc2USJwoHbWV0cmljcxgBIAEoCzIWLm1haXRyZS52MS5Ob2RlTWV0cmljcyKuAgoLTm9kZU1ldHJpY3MSEwoLY3B1X3BlcmNlbnQYASABKAESGgoSbWVtb3J5X3RvdGFsX2J5dGVzGAIgASgEEhkKEW1lbW9yeV91c2VkX2J5dGVzGAMgASgEEhgKEHBvb2xfdG90YWxfYnl0ZXMYBCABKAQSFwoPcG9vbF91c2VkX2J5dGVzGAUgASgEEhUKDXBvb2xfZmFsbGJhY2sYBiABKAgSHAoUbmV0X3J4X2J5dGVzX3Blcl9zZWMYByABKAESHAoUbmV0X3R4X2J5dGVzX3Blcl9zZWMYCCABKAESFQoNdGVtcGVyYXR1cmVfYxgJIAEoARIPCgdsb2FkXzFtGAogASgBEiUKBmRyaXZlcxgLIAMoCzIVLm1haXRyZS52MS5Ecml2ZVVzYWdlIkcKCkRyaXZlVXNhZ2USEAoIZHJpdmVfaWQYASABKAkSEwoLdG90YWxfYnl0ZXMYAiABKAQSEgoKdXNlZF9ieXRlcxgDIAEoBCIiChJMaXN0UmVjb3Jkc1JlcXVlc3QSDAoEa2luZBgBIAEoCSI5ChNMaXN0UmVjb3Jkc1Jlc3BvbnNlEiIKB3JlY29yZHMYASADKAsyES5tYWl0cmUudjEuUmVjb3JkIjUKEFB1dFJlY29yZFJlcXVlc3QSIQoGcmVjb3JkGAEgASgLMhEubWFpdHJlLnYxLlJlY29yZCJGChFQdXRSZWNvcmRSZXNwb25zZRIhCgZyZWNvcmQYASABKAsyES5tYWl0cmUudjEuUmVjb3JkEg4KBnF1ZXVlZBgCIAEoCCIUChJHZXROb2RlSW5mb1JlcXVlc3QiOAoTR2V0Tm9kZUluZm9SZXNwb25zZRIhCgRub2RlGAEgASgLMhMubWFpdHJlLnYxLk5vZGVJbmZvIvQBCghOb2RlSW5mbxIPCgdub2RlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIZmxlZXRfaWQYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgFIAEoBBIQCghkZXZfbW9kZRgGIAEoCBIkCgVwZWVycxgHIAMoCzIVLm1haXRyZS52MS5QZWVyU3RhdHVzEhQKDHBvcnRfbWFwcGluZxgKIAEoCRItCgl0YWlsc2NhbGUYCCABKAsyGi5tYWl0cmUudjEuVGFpbHNjYWxlU3RhdHVzEhEKCXB1YmxpY19pcBgJIAEoCTLHBwoLTm9kZVNlcnZpY2USTgoLR2V0Tm9kZUluZm8SHS5tYWl0cmUudjEuR2V0Tm9kZUluZm9SZXF1ZXN0Gh4ubWFpdHJlLnYxLkdldE5vZGVJbmZvUmVzcG9uc2UiABJOCgtMaXN0UmVjb3JkcxIdLm1haXRyZS52MS5MaXN0UmVjb3Jkc1JlcXVlc3QaHi5tYWl0cmUudjEuTGlzdFJlY29yZHNSZXNwb25zZSIAEkgKCVB1dFJlY29yZBIbLm1haXRyZS52MS5QdXRSZWNvcmRSZXF1ZXN0GhwubWFpdHJlLnYxLlB1dFJlY29yZFJlc3BvbnNlIgASVwoOR2V0Tm9kZU1ldHJpY3MSIC5tYWl0cmUudjEuR2V0Tm9kZU1ldHJpY3NSZXF1ZXN0GiEubWFpdHJlLnYxLkdldE5vZGVNZXRyaWNzUmVzcG9uc2UiABJaCg9HZXRVcGRhdGVTdGF0dXMSIS5tYWl0cmUudjEuR2V0VXBkYXRlU3RhdHVzUmVxdWVzdBoiLm1haXRyZS52MS5HZXRVcGRhdGVTdGF0dXNSZXNwb25zZSIAEk4KC1VwZGF0ZUltYWdlEh0ubWFpdHJlLnYxLlVwZGF0ZUltYWdlUmVxdWVzdBoeLm1haXRyZS52MS5VcGRhdGVJbWFnZVJlc3BvbnNlIgASRQoIUm9sbGJhY2sSGi5tYWl0cmUudjEuUm9sbGJhY2tSZXF1ZXN0GhsubWFpdHJlLnYxLlJvbGxiYWNrUmVzcG9uc2UiABI/CgZSZWJvb3QSGC5tYWl0cmUudjEuUmVib290UmVxdWVzdBoZLm1haXRyZS52MS5SZWJvb3RSZXNwb25zZSIAEksKClJlbmFtZU5vZGUSHC5tYWl0cmUudjEuUmVuYW1lTm9kZVJlcXVlc3QaHS5tYWl0cmUudjEuUmVuYW1lTm9kZVJlc3BvbnNlIgASTgoLUHVzaFJlY29yZHMSHS5tYWl0cmUudjEuUHVzaFJlY29yZHNSZXF1ZXN0Gh4ubWFpdHJlLnYxLlB1c2hSZWNvcmRzUmVzcG9uc2UiABJXCg5HZXRGbGVldFN0YXR1cxIgLm1haXRyZS52MS5HZXRGbGVldFN0YXR1c1JlcXVlc3QaIS5tYWl0cmUudjEuR2V0RmxlZXRTdGF0dXNSZXNwb25zZSIAEksKClB1c2hTdGF0dXMSHC5tYWl0cmUudjEuUHVzaFN0YXR1c1JlcXVlc3QaHS5tYWl0cmUudjEuUHVzaFN0YXR1c1Jlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM", [file_maitre_v1_fleet, file_maitre_v1_installer, file_maitre_v1_service, file_maitre_v1_tailscale]);
+  fileDesc("ChRtYWl0cmUvdjEvbm9kZS5wcm90bxIJbWFpdHJlLnYxIj8KEVB1c2hTdGF0dXNSZXF1ZXN0EioKBnN0YXR1cxgBIAEoCzIaLm1haXRyZS52MS5GbGVldE5vZGVTdGF0dXMiFAoSUHVzaFN0YXR1c1Jlc3BvbnNlIhcKFUdldEZsZWV0U3RhdHVzUmVxdWVzdCJUChZHZXRGbGVldFN0YXR1c1Jlc3BvbnNlEg8KB25vZGVfaWQYASABKAkSKQoFbm9kZXMYAiADKAsyGi5tYWl0cmUudjEuRmxlZXROb2RlU3RhdHVzIv8DCg9GbGVldE5vZGVTdGF0dXMSDwoHbm9kZV9pZBgBIAEoCRIRCglyZWFjaGFibGUYAiABKAgSGQoRbGFzdF9zZWVuX3VuaXhfbXMYAyABKAMSJwoHbWV0cmljcxgEIAEoCzIWLm1haXRyZS52MS5Ob2RlTWV0cmljcxIXCg9tZXRyaWNzX3VuaXhfbXMYBSABKAMSKgoIc2VydmljZXMYBiADKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cxIYChBzZXJ2aWNlc191bml4X21zGAcgASgDEjMKDHVwZGF0ZV9zdGF0ZRgIIAEoDjIdLm1haXRyZS52MS5VcGRhdGVTdGF0dXMuU3RhdGUSFgoOdXBkYXRlX21lc3NhZ2UYCSABKAkSFwoPdXBkYXRlX3Byb2dyZXNzGAogASgBEhUKDXVwZGF0ZV9zdGFnZWQYCyABKAgSFQoNbGFzdF9yb2xsYmFjaxgMIAEoCRItCgxwcm92aXNpb25pbmcYDSABKAsyFy5tYWl0cmUudjEuUHJvdmlzaW9uaW5nEg8KB3ZlcnNpb24YDiABKAkSEAoIcHJvYmxlbXMYDyADKAkSGAoQdXBkYXRlX2F2YWlsYWJsZRgQIAEoCBIlCglzeW5jX2dhcHMYESADKAsyEi5tYWl0cmUudjEuU3luY0dhcCJRCgdTeW5jR2FwEg8KB25vZGVfaWQYASABKAkSFQoNYWhlYWRfbm9kZV9pZBgCIAEoCRINCgVjb3VudBgDIAEoDRIPCgdyZWNvcmRzGAQgAygJIjgKElB1c2hSZWNvcmRzUmVxdWVzdBIiCgdyZWNvcmRzGAEgAygLMhEubWFpdHJlLnYxLlJlY29yZCImChNQdXNoUmVjb3Jkc1Jlc3BvbnNlEg8KB2FwcGxpZWQYASABKA0imgEKClBlZXJTdGF0dXMSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSDgoGb25saW5lGAQgASgIEhkKEWxhc3Rfc2Vlbl91bml4X21zGAUgASgDEg4KBnF1ZXVlZBgGIAEoDRIPCgd2ZXJzaW9uGAcgASgJEhAKCHByb2JsZW1zGAggAygJIhgKFkdldFVwZGF0ZVN0YXR1c1JlcXVlc3QiQgoXR2V0VXBkYXRlU3RhdHVzUmVzcG9uc2USJwoGc3RhdHVzGAEgASgLMhcubWFpdHJlLnYxLlVwZGF0ZVN0YXR1cyJUCg9JbWFnZURlcGxveW1lbnQSDQoFaW1hZ2UYASABKAkSDgoGZGlnZXN0GAIgASgJEg8KB3ZlcnNpb24YAyABKAkSEQoJdGltZXN0YW1wGAQgASgJIscDCgxVcGRhdGVTdGF0dXMSKgoGYm9vdGVkGAEgASgLMhoubWFpdHJlLnYxLkltYWdlRGVwbG95bWVudBIqCgZzdGFnZWQYAiABKAsyGi5tYWl0cmUudjEuSW1hZ2VEZXBsb3ltZW50EiwKCHJvbGxiYWNrGAMgASgLMhoubWFpdHJlLnYxLkltYWdlRGVwbG95bWVudBIXCg9yb2xsYmFja19xdWV1ZWQYBCABKAgSLAoFc3RhdGUYBSABKA4yHS5tYWl0cmUudjEuVXBkYXRlU3RhdHVzLlN0YXRlEg8KB21lc3NhZ2UYBiABKAkSEAoIcHJvZ3Jlc3MYByABKAESDgoGdGFyZ2V0GAggASgJEhEKCXN1cHBvcnRlZBgJIAEoCBIVCg1sYXN0X3JvbGxiYWNrGAogASgJEg8KB3JvbGxvdXQYCyABKAkSEQoJYXZhaWxhYmxlGAwgASgJImkKBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASDgoKU1RBVEVfSURMRRABEhIKDlNUQVRFX1VQREFUSU5HEAISEAoMU1RBVEVfRkFJTEVEEAMSEwoPU1RBVEVfUkVCT09USU5HEAQiTgoSVXBkYXRlSW1hZ2VSZXF1ZXN0Eg0KBWltYWdlGAEgASgJEg4KBnJlYm9vdBgCIAEoCBIZChFpbnNlY3VyZV9yZWdpc3RyeRgDIAEoCCIVChNVcGRhdGVJbWFnZVJlc3BvbnNlIiEKD1JvbGxiYWNrUmVxdWVzdBIOCgZyZWJvb3QYASABKAgiEgoQUm9sbGJhY2tSZXNwb25zZSIhChFSZW5hbWVOb2RlUmVxdWVzdBIMCgRuYW1lGAEgASgJIjMKElJlbmFtZU5vZGVSZXNwb25zZRIdCgRub2RlGAEgASgLMg8ubWFpdHJlLnYxLk5vZGUiDwoNUmVib290UmVxdWVzdCIQCg5SZWJvb3RSZXNwb25zZSIXChVHZXROb2RlTWV0cmljc1JlcXVlc3QiQQoWR2V0Tm9kZU1ldHJpY3NSZXNwb25zZRInCgdtZXRyaWNzGAEgASgLMhYubWFpdHJlLnYxLk5vZGVNZXRyaWNzIq4CCgtOb2RlTWV0cmljcxITCgtjcHVfcGVyY2VudBgBIAEoARIaChJtZW1vcnlfdG90YWxfYnl0ZXMYAiABKAQSGQoRbWVtb3J5X3VzZWRfYnl0ZXMYAyABKAQSGAoQcG9vbF90b3RhbF9ieXRlcxgEIAEoBBIXCg9wb29sX3VzZWRfYnl0ZXMYBSABKAQSFQoNcG9vbF9mYWxsYmFjaxgGIAEoCBIcChRuZXRfcnhfYnl0ZXNfcGVyX3NlYxgHIAEoARIcChRuZXRfdHhfYnl0ZXNfcGVyX3NlYxgIIAEoARIVCg10ZW1wZXJhdHVyZV9jGAkgASgBEg8KB2xvYWRfMW0YCiABKAESJQoGZHJpdmVzGAsgAygLMhUubWFpdHJlLnYxLkRyaXZlVXNhZ2UiRwoKRHJpdmVVc2FnZRIQCghkcml2ZV9pZBgBIAEoCRITCgt0b3RhbF9ieXRlcxgCIAEoBBISCgp1c2VkX2J5dGVzGAMgASgEIiIKEkxpc3RSZWNvcmRzUmVxdWVzdBIMCgRraW5kGAEgASgJIjkKE0xpc3RSZWNvcmRzUmVzcG9uc2USIgoHcmVjb3JkcxgBIAMoCzIRLm1haXRyZS52MS5SZWNvcmQiNQoQUHV0UmVjb3JkUmVxdWVzdBIhCgZyZWNvcmQYASABKAsyES5tYWl0cmUudjEuUmVjb3JkIkYKEVB1dFJlY29yZFJlc3BvbnNlEiEKBnJlY29yZBgBIAEoCzIRLm1haXRyZS52MS5SZWNvcmQSDgoGcXVldWVkGAIgASgIIhQKEkdldE5vZGVJbmZvUmVxdWVzdCI4ChNHZXROb2RlSW5mb1Jlc3BvbnNlEiEKBG5vZGUYASABKAsyEy5tYWl0cmUudjEuTm9kZUluZm8i9AEKCE5vZGVJbmZvEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIQCghmbGVldF9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDnVwdGltZV9zZWNvbmRzGAUgASgEEhAKCGRldl9tb2RlGAYgASgIEiQKBXBlZXJzGAcgAygLMhUubWFpdHJlLnYxLlBlZXJTdGF0dXMSFAoMcG9ydF9tYXBwaW5nGAogASgJEi0KCXRhaWxzY2FsZRgIIAEoCzIaLm1haXRyZS52MS5UYWlsc2NhbGVTdGF0dXMSEQoJcHVibGljX2lwGAkgASgJMscHCgtOb2RlU2VydmljZRJOCgtHZXROb2RlSW5mbxIdLm1haXRyZS52MS5HZXROb2RlSW5mb1JlcXVlc3QaHi5tYWl0cmUudjEuR2V0Tm9kZUluZm9SZXNwb25zZSIAEk4KC0xpc3RSZWNvcmRzEh0ubWFpdHJlLnYxLkxpc3RSZWNvcmRzUmVxdWVzdBoeLm1haXRyZS52MS5MaXN0UmVjb3Jkc1Jlc3BvbnNlIgASSAoJUHV0UmVjb3JkEhsubWFpdHJlLnYxLlB1dFJlY29yZFJlcXVlc3QaHC5tYWl0cmUudjEuUHV0UmVjb3JkUmVzcG9uc2UiABJXCg5HZXROb2RlTWV0cmljcxIgLm1haXRyZS52MS5HZXROb2RlTWV0cmljc1JlcXVlc3QaIS5tYWl0cmUudjEuR2V0Tm9kZU1ldHJpY3NSZXNwb25zZSIAEloKD0dldFVwZGF0ZVN0YXR1cxIhLm1haXRyZS52MS5HZXRVcGRhdGVTdGF0dXNSZXF1ZXN0GiIubWFpdHJlLnYxLkdldFVwZGF0ZVN0YXR1c1Jlc3BvbnNlIgASTgoLVXBkYXRlSW1hZ2USHS5tYWl0cmUudjEuVXBkYXRlSW1hZ2VSZXF1ZXN0Gh4ubWFpdHJlLnYxLlVwZGF0ZUltYWdlUmVzcG9uc2UiABJFCghSb2xsYmFjaxIaLm1haXRyZS52MS5Sb2xsYmFja1JlcXVlc3QaGy5tYWl0cmUudjEuUm9sbGJhY2tSZXNwb25zZSIAEj8KBlJlYm9vdBIYLm1haXRyZS52MS5SZWJvb3RSZXF1ZXN0GhkubWFpdHJlLnYxLlJlYm9vdFJlc3BvbnNlIgASSwoKUmVuYW1lTm9kZRIcLm1haXRyZS52MS5SZW5hbWVOb2RlUmVxdWVzdBodLm1haXRyZS52MS5SZW5hbWVOb2RlUmVzcG9uc2UiABJOCgtQdXNoUmVjb3JkcxIdLm1haXRyZS52MS5QdXNoUmVjb3Jkc1JlcXVlc3QaHi5tYWl0cmUudjEuUHVzaFJlY29yZHNSZXNwb25zZSIAElcKDkdldEZsZWV0U3RhdHVzEiAubWFpdHJlLnYxLkdldEZsZWV0U3RhdHVzUmVxdWVzdBohLm1haXRyZS52MS5HZXRGbGVldFN0YXR1c1Jlc3BvbnNlIgASSwoKUHVzaFN0YXR1cxIcLm1haXRyZS52MS5QdXNoU3RhdHVzUmVxdWVzdBodLm1haXRyZS52MS5QdXNoU3RhdHVzUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw", [file_maitre_v1_fleet, file_maitre_v1_installer, file_maitre_v1_service, file_maitre_v1_tailscale]);
 
 /**
  * @generated from message maitre.v1.PushStatusRequest
@@ -204,6 +204,16 @@ export type FleetNodeStatus = Message<"maitre.v1.FleetNodeStatus"> & {
    * @generated from field: bool update_available = 16;
    */
   updateAvailable: boolean;
+
+  /**
+   * Out-of-sync copies this Node found in its last two syncs with each peer
+   * (decision 168), in either direction: records it could not take from a
+   * peer, and its own records a peer still lacks. Gossiped, so the anchor
+   * reports what every Node sees.
+   *
+   * @generated from field: repeated maitre.v1.SyncGap sync_gaps = 17;
+   */
+  syncGaps: SyncGap[];
 };
 
 /**
@@ -212,6 +222,46 @@ export type FleetNodeStatus = Message<"maitre.v1.FleetNodeStatus"> & {
  */
 export const FleetNodeStatusSchema: GenMessage<FleetNodeStatus> = /*@__PURE__*/
   messageDesc(file_maitre_v1_node, 4);
+
+/**
+ * SyncGap is one Node holding older copies of records than another, found
+ * by comparing the two databases during sync and still there one sync
+ * later (decision 168).
+ *
+ * @generated from message maitre.v1.SyncGap
+ */
+export type SyncGap = Message<"maitre.v1.SyncGap"> & {
+  /**
+   * The Node that is behind, and the one whose copies are newer.
+   *
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string ahead_node_id = 2;
+   */
+  aheadNodeId: string;
+
+  /**
+   * How many records differ, and the first few as "kind id".
+   *
+   * @generated from field: uint32 count = 3;
+   */
+  count: number;
+
+  /**
+   * @generated from field: repeated string records = 4;
+   */
+  records: string[];
+};
+
+/**
+ * Describes the message maitre.v1.SyncGap.
+ * Use `create(SyncGapSchema)` to create a new message.
+ */
+export const SyncGapSchema: GenMessage<SyncGap> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_node, 5);
 
 /**
  * @generated from message maitre.v1.PushRecordsRequest
@@ -228,7 +278,7 @@ export type PushRecordsRequest = Message<"maitre.v1.PushRecordsRequest"> & {
  * Use `create(PushRecordsRequestSchema)` to create a new message.
  */
 export const PushRecordsRequestSchema: GenMessage<PushRecordsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 5);
+  messageDesc(file_maitre_v1_node, 6);
 
 /**
  * @generated from message maitre.v1.PushRecordsResponse
@@ -247,7 +297,7 @@ export type PushRecordsResponse = Message<"maitre.v1.PushRecordsResponse"> & {
  * Use `create(PushRecordsResponseSchema)` to create a new message.
  */
 export const PushRecordsResponseSchema: GenMessage<PushRecordsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 6);
+  messageDesc(file_maitre_v1_node, 7);
 
 /**
  * PeerStatus is what this Node knows about another Node of the Fleet.
@@ -311,7 +361,7 @@ export type PeerStatus = Message<"maitre.v1.PeerStatus"> & {
  * Use `create(PeerStatusSchema)` to create a new message.
  */
 export const PeerStatusSchema: GenMessage<PeerStatus> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 7);
+  messageDesc(file_maitre_v1_node, 8);
 
 /**
  * @generated from message maitre.v1.GetUpdateStatusRequest
@@ -324,7 +374,7 @@ export type GetUpdateStatusRequest = Message<"maitre.v1.GetUpdateStatusRequest">
  * Use `create(GetUpdateStatusRequestSchema)` to create a new message.
  */
 export const GetUpdateStatusRequestSchema: GenMessage<GetUpdateStatusRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 8);
+  messageDesc(file_maitre_v1_node, 9);
 
 /**
  * @generated from message maitre.v1.GetUpdateStatusResponse
@@ -341,7 +391,7 @@ export type GetUpdateStatusResponse = Message<"maitre.v1.GetUpdateStatusResponse
  * Use `create(GetUpdateStatusResponseSchema)` to create a new message.
  */
 export const GetUpdateStatusResponseSchema: GenMessage<GetUpdateStatusResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 9);
+  messageDesc(file_maitre_v1_node, 10);
 
 /**
  * ImageDeployment is one bootc deployment as the Console shows it.
@@ -383,7 +433,7 @@ export type ImageDeployment = Message<"maitre.v1.ImageDeployment"> & {
  * Use `create(ImageDeploymentSchema)` to create a new message.
  */
 export const ImageDeploymentSchema: GenMessage<ImageDeployment> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 10);
+  messageDesc(file_maitre_v1_node, 11);
 
 /**
  * @generated from message maitre.v1.UpdateStatus
@@ -479,7 +529,7 @@ export type UpdateStatus = Message<"maitre.v1.UpdateStatus"> & {
  * Use `create(UpdateStatusSchema)` to create a new message.
  */
 export const UpdateStatusSchema: GenMessage<UpdateStatus> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 11);
+  messageDesc(file_maitre_v1_node, 12);
 
 /**
  * @generated from enum maitre.v1.UpdateStatus.State
@@ -523,7 +573,7 @@ export enum UpdateStatus_State {
  * Describes the enum maitre.v1.UpdateStatus.State.
  */
 export const UpdateStatus_StateSchema: GenEnum<UpdateStatus_State> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_node, 11, 0);
+  enumDesc(file_maitre_v1_node, 12, 0);
 
 /**
  * @generated from message maitre.v1.UpdateImageRequest
@@ -557,7 +607,7 @@ export type UpdateImageRequest = Message<"maitre.v1.UpdateImageRequest"> & {
  * Use `create(UpdateImageRequestSchema)` to create a new message.
  */
 export const UpdateImageRequestSchema: GenMessage<UpdateImageRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 12);
+  messageDesc(file_maitre_v1_node, 13);
 
 /**
  * @generated from message maitre.v1.UpdateImageResponse
@@ -570,7 +620,7 @@ export type UpdateImageResponse = Message<"maitre.v1.UpdateImageResponse"> & {
  * Use `create(UpdateImageResponseSchema)` to create a new message.
  */
 export const UpdateImageResponseSchema: GenMessage<UpdateImageResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 13);
+  messageDesc(file_maitre_v1_node, 14);
 
 /**
  * @generated from message maitre.v1.RollbackRequest
@@ -587,7 +637,7 @@ export type RollbackRequest = Message<"maitre.v1.RollbackRequest"> & {
  * Use `create(RollbackRequestSchema)` to create a new message.
  */
 export const RollbackRequestSchema: GenMessage<RollbackRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 14);
+  messageDesc(file_maitre_v1_node, 15);
 
 /**
  * @generated from message maitre.v1.RollbackResponse
@@ -600,7 +650,7 @@ export type RollbackResponse = Message<"maitre.v1.RollbackResponse"> & {
  * Use `create(RollbackResponseSchema)` to create a new message.
  */
 export const RollbackResponseSchema: GenMessage<RollbackResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 15);
+  messageDesc(file_maitre_v1_node, 16);
 
 /**
  * @generated from message maitre.v1.RenameNodeRequest
@@ -617,7 +667,7 @@ export type RenameNodeRequest = Message<"maitre.v1.RenameNodeRequest"> & {
  * Use `create(RenameNodeRequestSchema)` to create a new message.
  */
 export const RenameNodeRequestSchema: GenMessage<RenameNodeRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 16);
+  messageDesc(file_maitre_v1_node, 17);
 
 /**
  * @generated from message maitre.v1.RenameNodeResponse
@@ -634,7 +684,7 @@ export type RenameNodeResponse = Message<"maitre.v1.RenameNodeResponse"> & {
  * Use `create(RenameNodeResponseSchema)` to create a new message.
  */
 export const RenameNodeResponseSchema: GenMessage<RenameNodeResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 17);
+  messageDesc(file_maitre_v1_node, 18);
 
 /**
  * @generated from message maitre.v1.RebootRequest
@@ -647,7 +697,7 @@ export type RebootRequest = Message<"maitre.v1.RebootRequest"> & {
  * Use `create(RebootRequestSchema)` to create a new message.
  */
 export const RebootRequestSchema: GenMessage<RebootRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 18);
+  messageDesc(file_maitre_v1_node, 19);
 
 /**
  * @generated from message maitre.v1.RebootResponse
@@ -660,7 +710,7 @@ export type RebootResponse = Message<"maitre.v1.RebootResponse"> & {
  * Use `create(RebootResponseSchema)` to create a new message.
  */
 export const RebootResponseSchema: GenMessage<RebootResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 19);
+  messageDesc(file_maitre_v1_node, 20);
 
 /**
  * @generated from message maitre.v1.GetNodeMetricsRequest
@@ -673,7 +723,7 @@ export type GetNodeMetricsRequest = Message<"maitre.v1.GetNodeMetricsRequest"> &
  * Use `create(GetNodeMetricsRequestSchema)` to create a new message.
  */
 export const GetNodeMetricsRequestSchema: GenMessage<GetNodeMetricsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 20);
+  messageDesc(file_maitre_v1_node, 21);
 
 /**
  * @generated from message maitre.v1.GetNodeMetricsResponse
@@ -690,7 +740,7 @@ export type GetNodeMetricsResponse = Message<"maitre.v1.GetNodeMetricsResponse">
  * Use `create(GetNodeMetricsResponseSchema)` to create a new message.
  */
 export const GetNodeMetricsResponseSchema: GenMessage<GetNodeMetricsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 21);
+  messageDesc(file_maitre_v1_node, 22);
 
 /**
  * NodeMetrics is a point-in-time reading; history stays on the Node.
@@ -772,7 +822,7 @@ export type NodeMetrics = Message<"maitre.v1.NodeMetrics"> & {
  * Use `create(NodeMetricsSchema)` to create a new message.
  */
 export const NodeMetricsSchema: GenMessage<NodeMetrics> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 22);
+  messageDesc(file_maitre_v1_node, 23);
 
 /**
  * DriveUsage is one Drive's capacity, by its drive_id.
@@ -801,7 +851,7 @@ export type DriveUsage = Message<"maitre.v1.DriveUsage"> & {
  * Use `create(DriveUsageSchema)` to create a new message.
  */
 export const DriveUsageSchema: GenMessage<DriveUsage> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 23);
+  messageDesc(file_maitre_v1_node, 24);
 
 /**
  * @generated from message maitre.v1.ListRecordsRequest
@@ -820,7 +870,7 @@ export type ListRecordsRequest = Message<"maitre.v1.ListRecordsRequest"> & {
  * Use `create(ListRecordsRequestSchema)` to create a new message.
  */
 export const ListRecordsRequestSchema: GenMessage<ListRecordsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 24);
+  messageDesc(file_maitre_v1_node, 25);
 
 /**
  * @generated from message maitre.v1.ListRecordsResponse
@@ -837,7 +887,7 @@ export type ListRecordsResponse = Message<"maitre.v1.ListRecordsResponse"> & {
  * Use `create(ListRecordsResponseSchema)` to create a new message.
  */
 export const ListRecordsResponseSchema: GenMessage<ListRecordsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 25);
+  messageDesc(file_maitre_v1_node, 26);
 
 /**
  * @generated from message maitre.v1.PutRecordRequest
@@ -854,7 +904,7 @@ export type PutRecordRequest = Message<"maitre.v1.PutRecordRequest"> & {
  * Use `create(PutRecordRequestSchema)` to create a new message.
  */
 export const PutRecordRequestSchema: GenMessage<PutRecordRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 26);
+  messageDesc(file_maitre_v1_node, 27);
 
 /**
  * @generated from message maitre.v1.PutRecordResponse
@@ -878,7 +928,7 @@ export type PutRecordResponse = Message<"maitre.v1.PutRecordResponse"> & {
  * Use `create(PutRecordResponseSchema)` to create a new message.
  */
 export const PutRecordResponseSchema: GenMessage<PutRecordResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 27);
+  messageDesc(file_maitre_v1_node, 28);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoRequest
@@ -891,7 +941,7 @@ export type GetNodeInfoRequest = Message<"maitre.v1.GetNodeInfoRequest"> & {
  * Use `create(GetNodeInfoRequestSchema)` to create a new message.
  */
 export const GetNodeInfoRequestSchema: GenMessage<GetNodeInfoRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 28);
+  messageDesc(file_maitre_v1_node, 29);
 
 /**
  * @generated from message maitre.v1.GetNodeInfoResponse
@@ -908,7 +958,7 @@ export type GetNodeInfoResponse = Message<"maitre.v1.GetNodeInfoResponse"> & {
  * Use `create(GetNodeInfoResponseSchema)` to create a new message.
  */
 export const GetNodeInfoResponseSchema: GenMessage<GetNodeInfoResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 29);
+  messageDesc(file_maitre_v1_node, 30);
 
 /**
  * @generated from message maitre.v1.NodeInfo
@@ -993,7 +1043,7 @@ export type NodeInfo = Message<"maitre.v1.NodeInfo"> & {
  * Use `create(NodeInfoSchema)` to create a new message.
  */
 export const NodeInfoSchema: GenMessage<NodeInfo> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_node, 30);
+  messageDesc(file_maitre_v1_node, 31);
 
 /**
  * NodeService is served by every Node (and by the agent in dev mode).

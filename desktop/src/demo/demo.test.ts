@@ -6,7 +6,7 @@ import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action } fro
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { NodeSchema } from "@/gen/maitre/v1/fleet_pb";
 import { InstallerService, Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
-import { nodeDown, nodeWord, provisioningLine } from "@/fleet/useFleet";
+import { gapLine, nodeDown, nodeWord, provisioningLine, syncGaps } from "@/fleet/useFleet";
 import { notices } from "@/app/notices";
 import { DemoFleet, INSTALLER_ID, NODE_A, NODE_B } from "./fleet";
 import { createDemoTransport } from "./transport";
@@ -103,6 +103,21 @@ describe("ADR 0007", () => {
     expect(st?.reachable).toBe(true);
     expect(nodeWord(st, fleet.now)).toBe("Attention");
     expect(nodeDown(nodeWord(st, fleet.now))).toBe(false);
+  });
+});
+
+describe("decision 168", () => {
+  it("reports an out-of-sync Node once, from whichever side saw it", async () => {
+    const g = { nodeId: NODE_B, aheadNodeId: NODE_A, count: 2, records: ["service jellyfin", "service uptime-kuma"] };
+    fleet.setSyncGaps([g]);
+    const res = await at(A).node.getFleetStatus({});
+    const snap = { anchor: { nodeId: NODE_A, addr: A }, nodes: [{ nodeId: NODE_A, name: "Alder" }, { nodeId: NODE_B, name: "Basalt" }], status: new Map(res.nodes.map((n) => [n.nodeId, n])), spaces: [{ defaultForNew: true }] } as never;
+    const gaps = syncGaps(snap);
+    expect(gaps).toHaveLength(1);
+    expect(gapLine(gaps[0])).toBe("2 records (service jellyfin, service uptime-kuma)");
+    const n = notices(snap, [], null).find((x) => x.id.startsWith("out-of-sync"));
+    expect(n?.title).toBe("Basalt is out of sync");
+    expect(n?.detail).toContain("behind Alder on 2 records");
   });
 });
 

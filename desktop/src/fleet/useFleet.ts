@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { create, fromBinary } from "@bufbuild/protobuf";
-import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
+import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus, type SyncGap } from "@/gen/maitre/v1/node_pb";
 import { NodeSchema, FleetSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
@@ -151,7 +151,41 @@ export function useFleet(known: KnownNode[]) {
   });
 
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ["fleet"] }), [qc]);
-  return { ...query, refresh };
+  /** Read the Fleet through this Node from now on (decision 169). */
+  const readThrough = useCallback(
+    (nodeId: string) => {
+      const c = candidates().find((n) => n.nodeId === nodeId);
+      if (!c || c.addresses.length === 0) return;
+      last.current = { nodeId, addr: c.addresses[0] };
+      failed.current.clear();
+      void refresh();
+    },
+    [candidates, refresh],
+  );
+  return { ...query, refresh, readThrough };
+}
+
+/**
+ * Every out-of-sync pair any Node reported (decision 168): each Node gossips
+ * the gaps it found in both directions, so the same gap can come from both
+ * sides; the larger count wins.
+ */
+export function syncGaps(snap: FleetSnapshot | undefined): SyncGap[] {
+  const byPair = new Map<string, SyncGap>();
+  for (const st of snap?.status.values() ?? []) {
+    for (const g of st.syncGaps ?? []) {
+      const key = `${g.nodeId}>${g.aheadNodeId}`;
+      const prev = byPair.get(key);
+      if (!prev || g.count > prev.count) byPair.set(key, g);
+    }
+  }
+  return [...byPair.values()];
+}
+
+/** "2 records (service jellyfin, service uptime-kuma)". */
+export function gapLine(g: SyncGap): string {
+  const more = g.count > g.records.length ? ", …" : "";
+  return `${g.count} ${g.count === 1 ? "record" : "records"} (${g.records.join(", ")}${more})`;
 }
 
 /** One Service as the sidebar sees it: Fleet record plus the running Node's last status. */

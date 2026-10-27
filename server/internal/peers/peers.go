@@ -47,6 +47,12 @@ type peer struct {
 	// calls it last answered with an error, by call name (ADR 0007).
 	version  string
 	problems map[string]string
+	// Records whose copies differ after a sync (decision 168), as
+	// "kind id": the ones we could not take from the peer and the ones of
+	// ours it still lacks. *Seen is the last sync's set; *Gap what was in
+	// both the last two, which is what gets reported.
+	weLackSeen, theyLackSeen map[string]bool
+	weLackGap, theyLackGap   []string
 }
 
 // Manager tracks the Fleet's other Nodes and keeps the databases in sync.
@@ -565,12 +571,23 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		return err
 	}
 	var missing []*maitrev1.Record
+	oursIdx := map[string]*maitrev1.Record{}
 	for _, r := range ours {
+		oursIdx[r.GetKind()+"\x00"+r.GetId()] = r
 		t, ok := index[r.GetKind()+"\x00"+r.GetId()]
 		if !ok || !proto.Equal(t, r) && newer(r, t) {
 			missing = append(missing, r)
 		}
 	}
+	// What we still lack of theirs after applying it all (decision 168).
+	var weLack []*maitrev1.Record
+	for _, t := range theirs {
+		o, ok := oursIdx[t.GetKind()+"\x00"+t.GetId()]
+		if !ok || !proto.Equal(o, t) && newer(t, o) {
+			weLack = append(weLack, t)
+		}
+	}
+	m.noteGaps(id, weLack, missing)
 	if len(missing) > 0 {
 		_ = m.call(ctx, id, "PushRecords", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 			_, err := c.PushRecords(ctx, &maitrev1.PushRecordsRequest{Records: missing})
@@ -603,6 +620,67 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		m.OnApplied()
 	}
 	return nil
+}
+
+// noteGaps keeps what differs after this sync with a peer and reports what
+// also differed after the last one (decision 168): a copy that is simply on
+// its way is gone by the next sync, one that cannot be taken stays.
+func (m *Manager) noteGaps(id string, weLack, theyLack []*maitrev1.Record) {
+	keys := func(recs []*maitrev1.Record) map[string]bool {
+		out := map[string]bool{}
+		for _, r := range recs {
+			out[r.GetKind()+" "+r.GetId()] = true
+		}
+		return out
+	}
+	both := func(prev, now map[string]bool) []string {
+		var out []string
+		for k := range now {
+			if prev[k] {
+				out = append(out, k)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	we, they := keys(weLack), keys(theyLack)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.peers[id]
+	if !ok {
+		return
+	}
+	p.weLackGap, p.theyLackGap = both(p.weLackSeen, we), both(p.theyLackSeen, they)
+	p.weLackSeen, p.theyLackSeen = we, they
+}
+
+// GapRecordsShown is how many differing records a SyncGap names.
+const GapRecordsShown = 5
+
+// Gaps reports the out-of-sync copies this Node found with each peer
+// (decision 168), in both directions.
+func (m *Manager) Gaps() []*maitrev1.SyncGap {
+	self := m.id.Fingerprint()
+	gap := func(behind, ahead string, recs []string) *maitrev1.SyncGap {
+		g := &maitrev1.SyncGap{NodeId: behind, AheadNodeId: ahead, Count: uint32(len(recs))}
+		g.Records = append(g.Records, recs[:min(len(recs), GapRecordsShown)]...)
+		return g
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []*maitrev1.SyncGap
+	for _, p := range m.peers {
+		if len(p.weLackGap) > 0 {
+			out = append(out, gap(self, p.id, p.weLackGap))
+		}
+		if len(p.theyLackGap) > 0 {
+			out = append(out, gap(p.id, self, p.theyLackGap))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].GetNodeId()+out[i].GetAheadNodeId() < out[j].GetNodeId()+out[j].GetAheadNodeId()
+	})
+	return out
 }
 
 // newer mirrors store.Apply's rule: same owner, higher version; or another

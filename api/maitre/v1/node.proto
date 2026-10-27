@@ -119,6 +119,23 @@ message FleetNodeStatus {
   // The registry has a newer image for the Node's reference than it runs
   // or has staged (UpdateStatus.available).
   bool update_available = 16;
+  // Out-of-sync copies this Node found in its last two syncs with each peer
+  // (decision 168), in either direction: records it could not take from a
+  // peer, and its own records a peer still lacks. Gossiped, so the anchor
+  // reports what every Node sees.
+  repeated SyncGap sync_gaps = 17;
+}
+
+// SyncGap is one Node holding older copies of records than another, found
+// by comparing the two databases during sync and still there one sync
+// later (decision 168).
+message SyncGap {
+  // The Node that is behind, and the one whose copies are newer.
+  string node_id = 1;
+  string ahead_node_id = 2;
+  // How many records differ, and the first few as "kind id".
+  uint32 count = 3;
+  repeated string records = 4;
 }
 
 message PushRecordsRequest {

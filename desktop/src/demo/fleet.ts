@@ -361,6 +361,14 @@ export class DemoFleet {
   // --- script -------------------------------------------------------------
 
   /** Switch a Node off or on, as if the plug was pulled. */
+  /** Out-of-sync copies the Nodes report (decision 168), e.g. after an old Node refused a tombstone. */
+  syncGaps: { nodeId: string; aheadNodeId: string; count: number; records: string[] }[] = [];
+
+  setSyncGaps(gaps: { nodeId: string; aheadNodeId: string; count: number; records: string[] }[]) {
+    this.syncGaps = gaps;
+    this.changed();
+  }
+
   /** Calls the other Node gets errors from, e.g. an older version (ADR 0007). */
   setProblems(nodeId: string, problems: string[]) {
     this.node(nodeId).problems = problems;
