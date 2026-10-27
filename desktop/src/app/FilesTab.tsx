@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Upload, Download, FileArchive, PackageOpen, ChevronDown } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { isDemo } from "@/demo/flag";
 import { Preview } from "@/files/Preview";
 import { FolderBrowser } from "@/files/FolderBrowser";
+import { HoldButton } from "@/components/hold-button";
 import { unzippable } from "@/files/kinds";
 import { demoUpload, download, pickAndUpload, uploadPaths, type Place } from "@/files/transfers";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,8 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moving, setMoving] = useState(!!moveFixture);
   const [newFolder, setNewFolder] = useState(false);
+  // Decision 186: names about to be deleted, waiting for the hold.
+  const [deleting, setDeleting] = useState<string[] | null>(null);
   // The file being previewed and whether it fills the window (179).
   // `?preview=<name>` opens one of `?path=` on load (screenshot fixture).
   const [preview, setPreview] = useState<string | null>(() => new URLSearchParams(window.location.search).get("preview"));
@@ -145,6 +148,18 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
       qc.invalidateQueries({ queryKey: ["jobs"] });
     } catch (e) {
       toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${nodeName(scope!.nodeId)} runs an older Maître Server; update it to unzip here.` : String((e as Error).message ?? e));
+    }
+  }
+  async function remove(names: string[]) {
+    if (!client || !wire) return;
+    try {
+      await client.delete({ scope: wire, folder: path, names });
+      toast.success(names.length === 1 ? `Deleting ${names[0]}` : `Deleting ${names.length} items`);
+      setSelected(new Set());
+      if (preview && names.includes(preview)) setPreview(null);
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+    } catch (e) {
+      toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${nodeName(scope!.nodeId)} runs an older Maître Server; update it to delete here.` : String((e as Error).message ?? e));
     }
   }
   // Files dropped on the window from the desktop upload into the open
@@ -241,6 +256,9 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                   <PackageOpen /> Unzip
                 </Button>
               )}
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={!canWrite} onClick={() => setDeleting([...selected])}>
+                <Trash2 /> Delete
+              </Button>
               <Button size="sm" onClick={() => setMoving(true)}>
                 <MoveRight /> Move…
               </Button>
@@ -329,6 +347,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
             onClose={() => (setPreview(null), setFull(false))}
             onDownload={() => download(place, path, [shown])}
             onUnzip={() => unzip(shown.name)}
+            onDelete={canWrite ? () => setDeleting([shown.name]) : undefined}
           />
         )}
         </div>
@@ -336,6 +355,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
         <Jobs snap={snap} state={state} nodeName={nodeName} />
       </div>
 
+      <DeleteDialog names={deleting} entries={entries} where={[current?.label ?? "", ...crumbs].join(" / ")} onClose={() => setDeleting(null)} onDelete={(names) => (setDeleting(null), remove(names))} />
       {scope && client && (
         <NewFolderDialog
           open={newFolder}
@@ -498,6 +518,49 @@ function WhereBreakdown({ where }: { where: Where[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Decision 186: deleting is for good, so it lists what goes and needs a hold. */
+function DeleteDialog({ names, entries, where, onClose, onDelete }: { names: string[] | null; entries: Entry[]; where: string; onClose: () => void; onDelete: (names: string[]) => void }) {
+  const items = entries.filter((e) => names?.includes(e.name));
+  const files = items.filter((e) => !e.dir);
+  const bytes = files.reduce((n, e) => n + e.sizeBytes, 0n);
+  const folders = items.length - files.length;
+  return (
+    <Dialog open={!!names} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete {items.length === 1 ? items[0].name : `${items.length} items`}?</DialogTitle>
+          <DialogDescription>
+            From {where}, on every Drive that holds a copy. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border p-2 text-sm">
+          {items.slice(0, 50).map((e) => (
+            <li key={e.name} className="flex items-center gap-2">
+              {e.dir ? <Folder className="size-4 shrink-0 text-status-starting" /> : <File className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="truncate">{e.name}</span>
+              {!e.dir && <span className="ml-auto text-xs text-muted-foreground tabular-nums">{formatBytes(e.sizeBytes)}</span>}
+            </li>
+          ))}
+          {items.length > 50 && <li className="text-xs text-muted-foreground">and {items.length - 50} more</li>}
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          {files.length > 0 && `${files.length} ${files.length === 1 ? "file" : "files"}, ${formatBytes(bytes)}`}
+          {files.length > 0 && folders > 0 && " and "}
+          {folders > 0 && `${folders} ${folders === 1 ? "folder" : "folders"} with everything in ${folders === 1 ? "it" : "them"}`}.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <HoldButton variant="destructive" onConfirm={() => names && onDelete(names)}>
+            Hold to delete
+          </HoldButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

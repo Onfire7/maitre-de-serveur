@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/files.proto.
  */
 export const file_maitre_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIuoBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QSDAoEa2luZBgKIAEoCRIPCgdzdW1tYXJ5GAsgASgJIhEKD0xpc3RKb2JzUmVxdWVzdCIwChBMaXN0Sm9ic1Jlc3BvbnNlEhwKBGpvYnMYASADKAsyDi5tYWl0cmUudjEuSm9iIiIKEENhbmNlbEpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJIhMKEUNhbmNlbEpvYlJlc3BvbnNlIj8KDk1ha2VEaXJSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiEQoPTWFrZURpclJlc3BvbnNlIloKClppcFJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDgoGZm9sZGVyGAIgASgJEg0KBW5hbWVzGAMgAygJEgwKBG5hbWUYBCABKAkiKwoLWmlwUmVzcG9uc2USDgoGam9iX2lkGAEgASgJEgwKBG5hbWUYAiABKAkiPQoMVW56aXBSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiLwoNVW56aXBSZXNwb25zZRIOCgZqb2JfaWQYASABKAkSDgoGZm9sZGVyGAIgASgJMpYECgxGaWxlc1NlcnZpY2USQgoHTGlzdERpchIZLm1haXRyZS52MS5MaXN0RGlyUmVxdWVzdBoaLm1haXRyZS52MS5MaXN0RGlyUmVzcG9uc2UiABI8CgVVc2FnZRIXLm1haXRyZS52MS5Vc2FnZVJlcXVlc3QaGC5tYWl0cmUudjEuVXNhZ2VSZXNwb25zZSIAEjkKBE1vdmUSFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QaFy5tYWl0cmUudjEuTW92ZVJlc3BvbnNlIgASRQoITGlzdEpvYnMSGi5tYWl0cmUudjEuTGlzdEpvYnNSZXF1ZXN0GhsubWFpdHJlLnYxLkxpc3RKb2JzUmVzcG9uc2UiABJICglDYW5jZWxKb2ISGy5tYWl0cmUudjEuQ2FuY2VsSm9iUmVxdWVzdBocLm1haXRyZS52MS5DYW5jZWxKb2JSZXNwb25zZSIAEkIKB01ha2VEaXISGS5tYWl0cmUudjEuTWFrZURpclJlcXVlc3QaGi5tYWl0cmUudjEuTWFrZURpclJlc3BvbnNlIgASNgoDWmlwEhUubWFpdHJlLnYxLlppcFJlcXVlc3QaFi5tYWl0cmUudjEuWmlwUmVzcG9uc2UiABI8CgVVbnppcBIXLm1haXRyZS52MS5VbnppcFJlcXVlc3QaGC5tYWl0cmUudjEuVW56aXBSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIuoBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QSDAoEa2luZBgKIAEoCRIPCgdzdW1tYXJ5GAsgASgJIhEKD0xpc3RKb2JzUmVxdWVzdCIwChBMaXN0Sm9ic1Jlc3BvbnNlEhwKBGpvYnMYASADKAsyDi5tYWl0cmUudjEuSm9iIiIKEENhbmNlbEpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJIhMKEUNhbmNlbEpvYlJlc3BvbnNlIj8KDk1ha2VEaXJSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiEQoPTWFrZURpclJlc3BvbnNlIloKClppcFJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDgoGZm9sZGVyGAIgASgJEg0KBW5hbWVzGAMgAygJEgwKBG5hbWUYBCABKAkiKwoLWmlwUmVzcG9uc2USDgoGam9iX2lkGAEgASgJEgwKBG5hbWUYAiABKAkiPQoMVW56aXBSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiLwoNVW56aXBSZXNwb25zZRIOCgZqb2JfaWQYASABKAkSDgoGZm9sZGVyGAIgASgJIk8KDURlbGV0ZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDgoGZm9sZGVyGAIgASgJEg0KBW5hbWVzGAMgAygJIiAKDkRlbGV0ZVJlc3BvbnNlEg4KBmpvYl9pZBgBIAEoCTLXBAoMRmlsZXNTZXJ2aWNlEkIKB0xpc3REaXISGS5tYWl0cmUudjEuTGlzdERpclJlcXVlc3QaGi5tYWl0cmUudjEuTGlzdERpclJlc3BvbnNlIgASPAoFVXNhZ2USFy5tYWl0cmUudjEuVXNhZ2VSZXF1ZXN0GhgubWFpdHJlLnYxLlVzYWdlUmVzcG9uc2UiABI5CgRNb3ZlEhYubWFpdHJlLnYxLk1vdmVSZXF1ZXN0GhcubWFpdHJlLnYxLk1vdmVSZXNwb25zZSIAEkUKCExpc3RKb2JzEhoubWFpdHJlLnYxLkxpc3RKb2JzUmVxdWVzdBobLm1haXRyZS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgASSAoJQ2FuY2VsSm9iEhsubWFpdHJlLnYxLkNhbmNlbEpvYlJlcXVlc3QaHC5tYWl0cmUudjEuQ2FuY2VsSm9iUmVzcG9uc2UiABJCCgdNYWtlRGlyEhkubWFpdHJlLnYxLk1ha2VEaXJSZXF1ZXN0GhoubWFpdHJlLnYxLk1ha2VEaXJSZXNwb25zZSIAEjYKA1ppcBIVLm1haXRyZS52MS5aaXBSZXF1ZXN0GhYubWFpdHJlLnYxLlppcFJlc3BvbnNlIgASPAoFVW56aXASFy5tYWl0cmUudjEuVW56aXBSZXF1ZXN0GhgubWFpdHJlLnYxLlVuemlwUmVzcG9uc2UiABI/CgZEZWxldGUSGC5tYWl0cmUudjEuRGVsZXRlUmVxdWVzdBoZLm1haXRyZS52MS5EZWxldGVSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * Scope is what a path is relative to: a Space's Pool on this Node (the
@@ -544,6 +544,52 @@ export const UnzipResponseSchema: GenMessage<UnzipResponse> = /*@__PURE__*/
   messageDesc(file_maitre_v1_files, 19);
 
 /**
+ * @generated from message maitre.v1.DeleteRequest
+ */
+export type DeleteRequest = Message<"maitre.v1.DeleteRequest"> & {
+  /**
+   * @generated from field: maitre.v1.Scope scope = 1;
+   */
+  scope?: Scope | undefined;
+
+  /**
+   * The folder the items are in ("" for the top) and their names.
+   *
+   * @generated from field: string folder = 2;
+   */
+  folder: string;
+
+  /**
+   * @generated from field: repeated string names = 3;
+   */
+  names: string[];
+};
+
+/**
+ * Describes the message maitre.v1.DeleteRequest.
+ * Use `create(DeleteRequestSchema)` to create a new message.
+ */
+export const DeleteRequestSchema: GenMessage<DeleteRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 20);
+
+/**
+ * @generated from message maitre.v1.DeleteResponse
+ */
+export type DeleteResponse = Message<"maitre.v1.DeleteResponse"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message maitre.v1.DeleteResponse.
+ * Use `create(DeleteResponseSchema)` to create a new message.
+ */
+export const DeleteResponseSchema: GenMessage<DeleteResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 21);
+
+/**
  * FilesService is the file manager's back end (decision 122): browse a
  * Space's Pool as one merged tree or a Drive's root (files that were there
  * before adoption, folders of removed Spaces), see which Node and Drive hold
@@ -628,6 +674,18 @@ export const FilesService: GenService<{
     methodKind: "unary";
     input: typeof UnzipRequestSchema;
     output: typeof UnzipResponseSchema;
+  },
+  /**
+   * Delete items of one folder for good, as a job (decision 186). Refused
+   * for folders a Service uses (its own volumes, picked folders, extra
+   * folders) or anything holding one, and for a Drive's Space folders.
+   *
+   * @generated from rpc maitre.v1.FilesService.Delete
+   */
+  delete: {
+    methodKind: "unary";
+    input: typeof DeleteRequestSchema;
+    output: typeof DeleteResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_files, 0);

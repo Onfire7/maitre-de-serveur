@@ -77,3 +77,11 @@ func (s *Service) Unzip(ctx context.Context, req *maitrev1.UnzipRequest) (*maitr
 	}
 	return &maitrev1.UnzipResponse{JobId: j.GetJobId(), Folder: folder}, nil
 }
+
+func (s *Service) Delete(ctx context.Context, req *maitrev1.DeleteRequest) (*maitrev1.DeleteResponse, error) {
+	j, err := s.m.Delete(ctx, req)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
+	}
+	return &maitrev1.DeleteResponse{JobId: j.GetJobId()}, nil
+}

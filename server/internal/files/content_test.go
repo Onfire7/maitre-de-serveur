@@ -161,3 +161,51 @@ func TestZipAndUnzip(t *testing.T) {
 		t.Fatal("unzipped a text file")
 	}
 }
+
+func TestDelete(t *testing.T) {
+	m, ctx, dir := setup(t)
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go m.Run(runCtx)
+	// Jellyfin uses Media/Movies (picked) and its own General/jellyfin/config.
+	m.st.Put(ctx, "service", "jellyfin", &maitrev1.ServiceSpec{Name: "jellyfin", Volumes: []*maitrev1.ServiceVolume{{Name: "config"}, {Name: "media"}}, VolumeSpaces: map[string]string{"config": "general", "media": "media"}, VolumeFolders: map[string]string{"media": "Library/Movies"}}, false)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Library/Movies"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Old/a"), 0o755)
+	os.WriteFile(filepath.Join(dir, "pools/media/Old/a/f.bin"), make([]byte, 300), 0o644)
+	os.WriteFile(filepath.Join(dir, "pools/media/Library/Movies/x.mkv"), []byte("x"), 0o644)
+	media := &maitrev1.Scope{SpaceId: "media"}
+	for _, c := range []struct {
+		scope  *maitrev1.Scope
+		folder string
+		name   string
+	}{
+		{media, "", "Library"},                                // holds a picked folder
+		{media, "Library", "Movies"},                          // is one
+		{&maitrev1.Scope{SpaceId: "general"}, "", "jellyfin"}, // holds its own volume
+		{&maitrev1.Scope{DriveId: "d1"}, "", "media"},         // a Drive's Space folder
+		{media, "", "nope"},
+	} {
+		if _, err := m.Delete(ctx, &maitrev1.DeleteRequest{Scope: c.scope, Folder: c.folder, Names: []string{c.name}}); err == nil {
+			t.Fatalf("deleted %s/%s", c.folder, c.name)
+		}
+	}
+	// Inside a used folder, and anything else, is fine.
+	j, err := m.Delete(ctx, &maitrev1.DeleteRequest{Scope: media, Names: []string{"Old"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j := waitJob(t, m, j.GetJobId()); j.GetState() != "done" || j.GetBytesDone() != 300 || j.GetKind() != "delete" {
+		t.Fatalf("job %v", j)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pools/media/Old")); !os.IsNotExist(err) {
+		t.Fatal("not deleted")
+	}
+	j, err = m.Delete(ctx, &maitrev1.DeleteRequest{Scope: media, Folder: "Library/Movies", Names: []string{"x.mkv"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitJob(t, m, j.GetJobId())
+	if _, err := os.Stat(filepath.Join(dir, "pools/media/Library/Movies")); err != nil {
+		t.Fatal("the used folder itself went")
+	}
+}

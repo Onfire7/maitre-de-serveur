@@ -262,6 +262,23 @@ const handlers: Record<string, Handler> = {
     const folder = f.freeName(scope, me.nodeId, parts.join("/"), stem, "");
     return { jobId: f.archiveJob("unzip", scope, me.nodeId, parts.join("/"), [file], folder), folder };
   },
+  "FilesService/Delete": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    const names = (i.names as string[]) ?? [];
+    if (names.length === 0) throw fail(Code.InvalidArgument, "pick something to delete");
+    const folder = (i.folder as string) ?? "";
+    const scope = (i.scope as { spaceId?: string; driveId?: string }) ?? {};
+    // Like the agent: a folder a Service uses stays.
+    for (const n of names) {
+      const p = [folder, n].filter(Boolean).join("/");
+      for (const s of f.services) {
+        const used = s.spec.volumes.map((v) => (v.name in s.spec.volumeFolders ? { space: s.spec.volumeSpaces[v.name], dir: s.spec.volumeFolders[v.name] } : { space: s.spec.volumeSpaces[v.name], dir: `${s.spec.name}/${v.name}` }));
+        const hit = used.find((u) => u.space === scope.spaceId && (u.dir === p || u.dir.startsWith(p + "/")));
+        if (hit) throw fail(Code.FailedPrecondition, `${s.spec.name} uses ${[scope.spaceId, hit.dir].filter(Boolean).join("/")}; change its folders first`);
+      }
+    }
+    return { jobId: f.deleteJob(scope, me.nodeId, folder, names) };
+  },
   "FilesService/Move": (f, n, i, addr) => ({ jobId: f.move(i as never, needNode(n, addr).nodeId) }),
   "FilesService/ListJobs": (f, n, _i, addr) => {
     const me = needNode(n, addr);

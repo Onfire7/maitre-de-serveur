@@ -40,6 +40,8 @@ const (
 	FilesServiceZipProcedure = "/maitre.v1.FilesService/Zip"
 	// FilesServiceUnzipProcedure is the procedure name of the FilesService's Unzip RPC.
 	FilesServiceUnzipProcedure = "/maitre.v1.FilesService/Unzip"
+	// FilesServiceDeleteProcedure is the procedure name of the FilesService's Delete RPC.
+	FilesServiceDeleteProcedure = "/maitre.v1.FilesService/Delete"
 )
 
 var (
@@ -99,6 +101,13 @@ var (
 			Procedure:  FilesServiceUnzipProcedure,
 		}
 	})
+	filesServiceDeleteSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_files_proto.Services().ByName("FilesService").Methods().ByName("Delete"),
+			Procedure:  FilesServiceDeleteProcedure,
+		}
+	})
 )
 
 // FilesServiceClient is a client for the maitre.v1.FilesService service.
@@ -118,6 +127,10 @@ type FilesServiceClient interface {
 	Zip(context.Context, *v1.ZipRequest) (*v1.ZipResponse, error)
 	// Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
 	Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error)
+	// Delete items of one folder for good, as a job (decision 186). Refused
+	// for folders a Service uses (its own volumes, picked folders, extra
+	// folders) or anything holding one, and for a Drive's Space folders.
+	Delete(context.Context, *v1.DeleteRequest) (*v1.DeleteResponse, error)
 }
 
 // NewFilesServiceClient constructs a client for the maitre.v1.FilesService service. Multiple
@@ -143,6 +156,10 @@ type FilesServiceHandler interface {
 	Zip(context.Context, *v1.ZipRequest) (*v1.ZipResponse, error)
 	// Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
 	Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error)
+	// Delete items of one folder for good, as a job (decision 186). Refused
+	// for folders a Service uses (its own volumes, picked folders, extra
+	// folders) or anything holding one, and for a Drive's Space folders.
+	Delete(context.Context, *v1.DeleteRequest) (*v1.DeleteResponse, error)
 }
 
 // RegisterFilesServiceHandler registers svc as the maitre.v1.FilesService implementation on server.
@@ -157,6 +174,7 @@ func RegisterFilesServiceHandler(server *connect.Server, svc FilesServiceHandler
 		connect.Method{Spec: filesServiceMakeDirSpec(), Handler: adapter.makeDir},
 		connect.Method{Spec: filesServiceZipSpec(), Handler: adapter.zip},
 		connect.Method{Spec: filesServiceUnzipSpec(), Handler: adapter.unzip},
+		connect.Method{Spec: filesServiceDeleteSpec(), Handler: adapter.delete},
 	)
 }
 
@@ -193,6 +211,10 @@ func (UnimplementedFilesServiceHandler) Zip(context.Context, *v1.ZipRequest) (*v
 
 func (UnimplementedFilesServiceHandler) Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.Unzip is not implemented")
+}
+
+func (UnimplementedFilesServiceHandler) Delete(context.Context, *v1.DeleteRequest) (*v1.DeleteResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.Delete is not implemented")
 }
 
 type filesServiceClient struct {
@@ -258,6 +280,14 @@ func (c *filesServiceClient) Zip(ctx context.Context, req *v1.ZipRequest) (*v1.Z
 func (c *filesServiceClient) Unzip(ctx context.Context, req *v1.UnzipRequest) (*v1.UnzipResponse, error) {
 	var res v1.UnzipResponse
 	if err := c.client.CallUnary(ctx, filesServiceUnzipSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *filesServiceClient) Delete(ctx context.Context, req *v1.DeleteRequest) (*v1.DeleteResponse, error) {
+	var res v1.DeleteResponse
+	if err := c.client.CallUnary(ctx, filesServiceDeleteSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -355,6 +385,18 @@ func (h filesServiceHandler) unzip(ctx context.Context, _ connect.Spec, stream c
 		return err
 	}
 	res, err := h.svc.Unzip(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h filesServiceHandler) delete(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.DeleteRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Delete(ctx, &req)
 	if err != nil {
 		return err
 	}

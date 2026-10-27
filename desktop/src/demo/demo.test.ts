@@ -89,6 +89,15 @@ describe("demo Fleet", () => {
     expect(after.entries.map((e) => e.name)).not.toContain("family-reunion.mp4");
   });
 
+  it("deletes as a job, but never a folder a Service uses", async () => {
+    await expect(at(A).files.delete({ scope: { spaceId: "general" }, names: ["jellyfin"] })).rejects.toThrow(/jellyfin uses general\/jellyfin\/config/);
+    const { jobId } = await at(A).files.delete({ scope: { spaceId: "media" }, folder: "Documents", names: ["notes.txt"] });
+    for (let i = 0; i < 5; i++) fleet.tick(fleet.now + 1000);
+    expect((await at(A).files.listJobs({})).jobs.find((j) => j.jobId === jobId)?.kind).toBe("delete");
+    const docs = await at(A).files.listDir({ scope: { spaceId: "media" }, path: "Documents" });
+    expect(docs.entries.map((e) => e.name)).not.toContain("notes.txt");
+  });
+
   it("refuses what the agent would refuse", async () => {
     await expect(at(A).node.renameNode({ name: "basalt" })).rejects.toThrow(/already exists/);
     await expect(at(A).services.controlService({ name: "nope", action: ControlServiceRequest_Action.STOP })).rejects.toThrow(/no Service/);

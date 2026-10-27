@@ -56,3 +56,14 @@ func (m *Manager) ownTree(path string) {
 		m.log.Warn("owner", "path", path, "err", err)
 	}
 }
+
+// isSpace reports whether id names a Space of the Fleet.
+func (m *Manager) isSpace(ctx context.Context, id string) bool {
+	spaces, _ := storage.Spaces(ctx, m.st)
+	for _, s := range spaces {
+		if s.GetSpaceId() == id {
+			return true
+		}
+	}
+	return false
+}

@@ -78,5 +78,11 @@ describe("Console on the demo Fleet", () => {
     fireEvent.click(within(main).getByRole("checkbox", { name: "Select notes.txt" }));
     fireEvent.click(within(main).getByRole("button", { name: /Zip/ }));
     expect(await screen.findByText("Zipping into notes.txt.zip")).toBeTruthy();
+    // Delete asks first, listing what goes, and needs a hold.
+    fireEvent.click(within(main).getByRole("checkbox", { name: "Select lake.jpg" }));
+    fireEvent.click(within(main).getByRole("button", { name: /Delete/ }));
+    const del = await screen.findByRole("dialog", { name: "Delete lake.jpg?" });
+    expect(within(del).getByText(/cannot be undone/)).toBeTruthy();
+    expect(within(del).getByRole("button", { name: /Hold to delete/ })).toBeTruthy();
   });
 });

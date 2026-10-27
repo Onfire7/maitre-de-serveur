@@ -647,6 +647,22 @@ export class DemoFleet {
     return job.jobId;
   }
 
+  /** Delete as a quick job: the entries go when it is done. */
+  deleteJob(scope: { spaceId?: string; driveId?: string }, nodeId: string, folder: string, names: string[]): string {
+    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "", bytesDone: 0n, bytesTotal: 1000n, current: folder, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, kind: "delete", summary: `Delete ${names.length === 1 ? names[0] : `${names.length} items`}`, request: { from: scope, path: folder } as MoveRequest, nodeId };
+    job.onDone = () => {
+      const dir = this.walk(this.tree(scope, nodeId), folder);
+      if (!dir) return;
+      for (const n of names) {
+        const i = dir.findIndex((e) => e.name === n);
+        if (i >= 0) dir.splice(i, 1);
+      }
+    };
+    this.jobs.push(job);
+    this.changed();
+    return job.jobId;
+  }
+
   freeName(scope: { spaceId?: string; driveId?: string }, nodeId: string, folder: string, stem: string, ext: string) {
     const dir = this.walk(this.tree(scope, nodeId), folder) ?? [];
     let name = stem + ext;

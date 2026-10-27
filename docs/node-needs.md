@@ -88,3 +88,4 @@ Nothing.
   (`Space.owner_id`).** Decisions 170-176, 182. In `services.apply`,
   `services.SetFolders`, `internal/owner`, `files/owner.go`. Needs `acl` in
   the image.
+- **`FilesService.Delete` (decision 186).** In `files/delete.go`. Older Nodes say they need updating.

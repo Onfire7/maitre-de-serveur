@@ -3,7 +3,7 @@
 // files. What the web view cannot show says so and offers Download.
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, FileArchive, FileQuestion, Maximize2, Minimize2, PackageOpen, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileArchive, FileQuestion, Maximize2, Minimize2, PackageOpen, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBytes, ago } from "@/lib/format";
@@ -17,7 +17,7 @@ const PdfView = lazy(() => import("./viewers/PdfView"));
 const DocxView = lazy(() => import("./viewers/DocxView"));
 const SheetView = lazy(() => import("./viewers/SheetView"));
 
-export function Preview({ entry, file, index, count, full, onFull, onPrev, onNext, onClose, onDownload, onUnzip }: { entry: Entry; file: FileRef; index: number; count: number; full: boolean; onFull: (f: boolean) => void; onPrev: () => void; onNext: () => void; onClose: () => void; onDownload: () => void; onUnzip: () => void }) {
+export function Preview({ entry, file, index, count, full, onFull, onPrev, onNext, onClose, onDownload, onUnzip, onDelete }: { entry: Entry; file: FileRef; index: number; count: number; full: boolean; onFull: (f: boolean) => void; onPrev: () => void; onNext: () => void; onClose: () => void; onDownload: () => void; onUnzip: () => void; onDelete?: () => void }) {
   const kind = kindOf(entry.name);
   const url = useQuery({
     queryKey: ["content-url", file.target.addr, file.spaceId, file.driveId, file.path],
@@ -60,6 +60,11 @@ export function Preview({ entry, file, index, count, full, onFull, onPrev, onNex
         <Button size="icon" variant="ghost" className="size-8" onClick={onDownload} title="Download" aria-label="Download">
           <Download />
         </Button>
+        {onDelete && (
+          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:text-destructive" onClick={onDelete} title="Delete" aria-label="Delete">
+            <Trash2 />
+          </Button>
+        )}
         <Button size="icon" variant="ghost" className="size-8" onClick={() => onFull(!full)} title={full ? "Leave full screen" : "Full screen"} aria-label={full ? "Leave full screen" : "Full screen"}>
           {full ? <Minimize2 /> : <Maximize2 />}
         </Button>

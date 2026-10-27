@@ -26,6 +26,10 @@ service FilesService {
   rpc Zip(ZipRequest) returns (ZipResponse) {}
   // Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
   rpc Unzip(UnzipRequest) returns (UnzipResponse) {}
+  // Delete items of one folder for good, as a job (decision 186). Refused
+  // for folders a Service uses (its own volumes, picked folders, extra
+  // folders) or anything holding one, and for a Drive's Space folders.
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
 }
 
 // File contents are not RPCs: GET and PUT /maitre/files/content on the same
@@ -160,4 +164,15 @@ message UnzipResponse {
   string job_id = 1;
   // The folder it unpacks into, beside the archive.
   string folder = 2;
+}
+
+message DeleteRequest {
+  Scope scope = 1;
+  // The folder the items are in ("" for the top) and their names.
+  string folder = 2;
+  repeated string names = 3;
+}
+
+message DeleteResponse {
+  string job_id = 1;
 }

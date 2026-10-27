@@ -1163,6 +1163,111 @@ func (x *UnzipResponse) GetFolder() string {
 	return ""
 }
 
+type DeleteRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Scope *Scope                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The folder the items are in ("" for the top) and their names.
+	Folder        string   `protobuf:"bytes,2,opt,name=folder,proto3" json:"folder,omitempty"`
+	Names         []string `protobuf:"bytes,3,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRequest) Reset() {
+	*x = DeleteRequest{}
+	mi := &file_maitre_v1_files_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRequest) ProtoMessage() {}
+
+func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *DeleteRequest) GetScope() *Scope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *DeleteRequest) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+func (x *DeleteRequest) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+type DeleteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteResponse) Reset() {
+	*x = DeleteResponse{}
+	mi := &file_maitre_v1_files_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteResponse) ProtoMessage() {}
+
+func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteResponse.ProtoReflect.Descriptor instead.
+func (*DeleteResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *DeleteResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
 var File_maitre_v1_files_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_files_proto_rawDesc = "" +
@@ -1245,7 +1350,13 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\x04path\x18\x02 \x01(\tR\x04path\">\n" +
 	"\rUnzipResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
-	"\x06folder\x18\x02 \x01(\tR\x06folder2\x96\x04\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder\"e\n" +
+	"\rDeleteRequest\x12&\n" +
+	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x16\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder\x12\x14\n" +
+	"\x05names\x18\x03 \x03(\tR\x05names\"'\n" +
+	"\x0eDeleteResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId2\xd7\x04\n" +
 	"\fFilesService\x12B\n" +
 	"\aListDir\x12\x19.maitre.v1.ListDirRequest\x1a\x1a.maitre.v1.ListDirResponse\"\x00\x12<\n" +
 	"\x05Usage\x12\x17.maitre.v1.UsageRequest\x1a\x18.maitre.v1.UsageResponse\"\x00\x129\n" +
@@ -1254,7 +1365,8 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\tCancelJob\x12\x1b.maitre.v1.CancelJobRequest\x1a\x1c.maitre.v1.CancelJobResponse\"\x00\x12B\n" +
 	"\aMakeDir\x12\x19.maitre.v1.MakeDirRequest\x1a\x1a.maitre.v1.MakeDirResponse\"\x00\x126\n" +
 	"\x03Zip\x12\x15.maitre.v1.ZipRequest\x1a\x16.maitre.v1.ZipResponse\"\x00\x12<\n" +
-	"\x05Unzip\x12\x17.maitre.v1.UnzipRequest\x1a\x18.maitre.v1.UnzipResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\x05Unzip\x12\x17.maitre.v1.UnzipRequest\x1a\x18.maitre.v1.UnzipResponse\"\x00\x12?\n" +
+	"\x06Delete\x12\x18.maitre.v1.DeleteRequest\x1a\x19.maitre.v1.DeleteResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_files_proto_rawDescOnce sync.Once
@@ -1268,7 +1380,7 @@ func file_maitre_v1_files_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_files_proto_rawDescData
 }
 
-var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_maitre_v1_files_proto_goTypes = []any{
 	(*Scope)(nil),             // 0: maitre.v1.Scope
 	(*ListDirRequest)(nil),    // 1: maitre.v1.ListDirRequest
@@ -1290,6 +1402,8 @@ var file_maitre_v1_files_proto_goTypes = []any{
 	(*ZipResponse)(nil),       // 17: maitre.v1.ZipResponse
 	(*UnzipRequest)(nil),      // 18: maitre.v1.UnzipRequest
 	(*UnzipResponse)(nil),     // 19: maitre.v1.UnzipResponse
+	(*DeleteRequest)(nil),     // 20: maitre.v1.DeleteRequest
+	(*DeleteResponse)(nil),    // 21: maitre.v1.DeleteResponse
 }
 var file_maitre_v1_files_proto_depIdxs = []int32{
 	0,  // 0: maitre.v1.ListDirRequest.scope:type_name -> maitre.v1.Scope
@@ -1302,27 +1416,30 @@ var file_maitre_v1_files_proto_depIdxs = []int32{
 	0,  // 7: maitre.v1.MakeDirRequest.scope:type_name -> maitre.v1.Scope
 	0,  // 8: maitre.v1.ZipRequest.scope:type_name -> maitre.v1.Scope
 	0,  // 9: maitre.v1.UnzipRequest.scope:type_name -> maitre.v1.Scope
-	1,  // 10: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
-	5,  // 11: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
-	7,  // 12: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
-	10, // 13: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
-	12, // 14: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
-	14, // 15: maitre.v1.FilesService.MakeDir:input_type -> maitre.v1.MakeDirRequest
-	16, // 16: maitre.v1.FilesService.Zip:input_type -> maitre.v1.ZipRequest
-	18, // 17: maitre.v1.FilesService.Unzip:input_type -> maitre.v1.UnzipRequest
-	4,  // 18: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
-	6,  // 19: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
-	8,  // 20: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
-	11, // 21: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
-	13, // 22: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
-	15, // 23: maitre.v1.FilesService.MakeDir:output_type -> maitre.v1.MakeDirResponse
-	17, // 24: maitre.v1.FilesService.Zip:output_type -> maitre.v1.ZipResponse
-	19, // 25: maitre.v1.FilesService.Unzip:output_type -> maitre.v1.UnzipResponse
-	18, // [18:26] is the sub-list for method output_type
-	10, // [10:18] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	0,  // 10: maitre.v1.DeleteRequest.scope:type_name -> maitre.v1.Scope
+	1,  // 11: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
+	5,  // 12: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
+	7,  // 13: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
+	10, // 14: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
+	12, // 15: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
+	14, // 16: maitre.v1.FilesService.MakeDir:input_type -> maitre.v1.MakeDirRequest
+	16, // 17: maitre.v1.FilesService.Zip:input_type -> maitre.v1.ZipRequest
+	18, // 18: maitre.v1.FilesService.Unzip:input_type -> maitre.v1.UnzipRequest
+	20, // 19: maitre.v1.FilesService.Delete:input_type -> maitre.v1.DeleteRequest
+	4,  // 20: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
+	6,  // 21: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
+	8,  // 22: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
+	11, // 23: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
+	13, // 24: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
+	15, // 25: maitre.v1.FilesService.MakeDir:output_type -> maitre.v1.MakeDirResponse
+	17, // 26: maitre.v1.FilesService.Zip:output_type -> maitre.v1.ZipResponse
+	19, // 27: maitre.v1.FilesService.Unzip:output_type -> maitre.v1.UnzipResponse
+	21, // 28: maitre.v1.FilesService.Delete:output_type -> maitre.v1.DeleteResponse
+	20, // [20:29] is the sub-list for method output_type
+	11, // [11:20] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_files_proto_init() }
@@ -1336,7 +1453,7 @@ func file_maitre_v1_files_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_files_proto_rawDesc), len(file_maitre_v1_files_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
