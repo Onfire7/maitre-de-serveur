@@ -119,6 +119,16 @@ echo "boot-test: node OK (installed from USB-equivalent media, rebooted, answere
 # 5. Milestone 2: install a Service from the Catalog and reach it by name
 #    through the Node's Caddy (plain HTTP on the LAN, decision 71).
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" catalog
+# Decision 123: a Fleet has no Storage Space until one is created, and a
+# Service needs one marked default. Create it the way first run does (every
+# Drive, local first), then wait for its Pool to be assembled.
+"$MAITRE" space --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --id general --name General --default create
+for i in $(seq 1 30); do
+  "$MAITRE" metrics --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" | grep -q "fallback=false" && break
+  sleep 2
+done
+"$MAITRE" metrics --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" | grep -q "fallback=false" || { echo "boot-test: the General Space's Pool never came up"; exit 1; }
+"$MAITRE" space --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" list
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --wait 10m install uptime-kuma
 for i in $(seq 1 30); do
   # Follow the app's own redirects (Uptime Kuma sends first visitors to /setup).

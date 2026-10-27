@@ -4,9 +4,9 @@
 package metrics
 
 import (
-	"sort"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"

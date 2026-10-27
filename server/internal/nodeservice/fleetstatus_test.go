@@ -24,7 +24,7 @@ func (f *fakePeers) Status(context.Context) []*maitrev1.PeerStatus {
 		{NodeId: "c", Name: "Cedar", Online: false, LastSeenUnixMs: 500},
 	}
 }
-func (f *fakePeers) Received(st *maitrev1.FleetNodeStatus) { f.heard[st.GetNodeId()] = st }
+func (f *fakePeers) Received(st *maitrev1.FleetNodeStatus)    { f.heard[st.GetNodeId()] = st }
 func (f *fakePeers) Last(id string) *maitrev1.FleetNodeStatus { return f.heard[id] }
 
 func TestGetFleetStatusMergesGossip(t *testing.T) {
