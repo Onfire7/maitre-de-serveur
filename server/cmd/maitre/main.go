@@ -72,6 +72,8 @@ func main() {
 		err = runNamesIndex(os.Args[2:])
 	case "files":
 		err = runFiles(os.Args[2:])
+	case "space":
+		err = runSpace(os.Args[2:])
 	case "pool-up":
 		err = runPoolUp(os.Args[2:])
 	case "service":
