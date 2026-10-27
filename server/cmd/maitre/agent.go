@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -400,6 +401,9 @@ func runAgent(args []string) error {
 			log.Warn("drive layout", "err", err)
 		}
 	}
+	var lastMissing string
+	var retryAssemble atomic.Bool
+	var requestAssemble func()
 	assemblePools := func() {
 		_, errs := stor.MountAll(ctx)
 		for _, e := range errs {
@@ -427,9 +431,23 @@ func runAgent(args []string) error {
 				best[id] = as[0]
 			}
 		}
-		remote, err := stor.RemoteBranches(ctx, run, best)
+		remote, missing, err := stor.RemoteBranches(ctx, run, best)
 		if err != nil {
 			log.Warn("remote pools", "err", err)
+		}
+		// A peer that is off, still booting or not exporting yet is mounted
+		// on a later try; nothing else would retry until a record changed.
+		if why := strings.Join(missing, "; "); why != lastMissing {
+			lastMissing = why
+			if why != "" {
+				log.Warn("remote pools not mounted, retrying each minute", "missing", why)
+			}
+		}
+		if len(missing) > 0 && retryAssemble.CompareAndSwap(false, true) {
+			time.AfterFunc(time.Minute, func() {
+				retryAssemble.Store(false)
+				requestAssemble()
+			})
 		}
 		var spaceIDs []string
 		for space, branches := range bySpace {
@@ -453,7 +471,7 @@ func runAgent(args []string) error {
 	// run inside a PutRecord: a Console creating a spanning Tier timed out
 	// waiting. Requests coalesce and run one at a time in the background.
 	assembleNow := make(chan struct{}, 1)
-	requestAssemble := func() {
+	requestAssemble = func() {
 		select {
 		case assembleNow <- struct{}{}:
 		default:

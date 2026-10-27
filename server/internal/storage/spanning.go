@@ -23,8 +23,8 @@ import (
 // RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<space>.
 const RemoteDir = "/var/mnt/remote"
 
-// ExportsFile is the NFS export list this package owns.
-const ExportsFile = "/etc/exports.d/maitre.exports"
+// ExportsFile is the NFS export list this package owns; a variable for tests.
+var ExportsFile = "/etc/exports.d/maitre.exports"
 
 // PeerHosts returns the IP addresses (no ports) of peers, from their
 // addresses as the sync layer knows them.
@@ -51,17 +51,20 @@ func PeerHosts(peers []*maitrev1.PeerStatus, extra map[string][]string) []string
 	return out
 }
 
-// WriteExports exports every mounted Pool to the given hosts and reloads
-// the NFS server. No hosts means nothing is exported.
+// WriteExports exports every mounted Pool to the given hosts and makes sure
+// the NFS server runs while anything is exported. No hosts means nothing is
+// exported.
 func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []string) error {
 	var b strings.Builder
 	b.WriteString("# Written by maitre: this Node's Pools, for the Fleet's other Nodes only.\n")
 	sort.Strings(spaces)
+	exported := 0
 	for i, space := range spaces {
 		mount := filepath.Join(pool.PoolsDir, space)
 		if !mounted(mount) || len(hosts) == 0 {
 			continue
 		}
+		exported++
 		b.WriteString(mount)
 		for _, h := range hosts {
 			fmt.Fprintf(&b, " %s(rw,sync,no_subtree_check,no_root_squash,fsid=%d)", h, 1000+i)
@@ -72,14 +75,24 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 		return err
 	}
 	cur, _ := os.ReadFile(ExportsFile)
-	if string(cur) == b.String() {
+	changed := string(cur) != b.String()
+	if changed {
+		if err := os.WriteFile(ExportsFile, []byte(b.String()), 0o644); err != nil {
+			return err
+		}
+	}
+	if exported == 0 && !changed {
 		return nil
 	}
-	if err := os.WriteFile(ExportsFile, []byte(b.String()), 0o644); err != nil {
-		return err
-	}
+	// The image does not enable the NFS server; the agent starts it, on
+	// every call and not only when the list changed: after a reboot (every
+	// update) the list is unchanged, and nothing else would start it, so
+	// peers could not mount this Node's Pools (2026-10-27).
 	if _, err := run.Run(ctx, "systemctl", "start", "--no-block", "nfs-server.service"); err != nil {
 		return err
+	}
+	if !changed {
+		return nil
 	}
 	_, err := run.Run(ctx, "exportfs", "-ra")
 	return err
@@ -87,11 +100,12 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 
 // RemoteBranches mounts, for each spanning Space, the Pools of peers that
 // hold Drives of that Space, and returns the mount points by Space. Peers
-// without a reachable address, or whose mount fails, are skipped.
-func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[string]string) (map[string][]string, error) {
+// without an address, or whose mount fails, are skipped and listed in
+// missing ("<node> <space>: why"), so the caller can try again later.
+func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[string]string) (out map[string][]string, missing []string, err error) {
 	spaces, err := Spaces(ctx, m.st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	spanning := map[string]bool{}
 	for _, b := range spaces {
@@ -101,7 +115,7 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 	}
 	records, err := store.ListLive(ctx, m.st, KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Which peers hold Drives of which spanning Space.
 	holders := map[string]map[string]bool{}
@@ -119,11 +133,12 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 			holders[id][r.GetNodeId()] = true
 		}
 	}
-	out := map[string][]string{}
+	out = map[string][]string{}
 	for tier, nodes := range holders {
 		for nodeID := range nodes {
 			host, ok := peerAddr[nodeID]
 			if !ok {
+				missing = append(missing, fmt.Sprintf("%s %s: no address", nodeID, tier))
 				continue
 			}
 			if h, _, err := net.SplitHostPort(host); err == nil {
@@ -131,6 +146,7 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 			}
 			dir, err := MountRemotePool(ctx, run, host, nodeID, tier)
 			if err != nil {
+				missing = append(missing, fmt.Sprintf("%s %s: %v", nodeID, tier, err))
 				continue
 			}
 			out[tier] = append(out[tier], dir)
@@ -139,7 +155,8 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 	for tier := range out {
 		sort.Strings(out[tier])
 	}
-	return out, nil
+	sort.Strings(missing)
+	return out, missing, nil
 }
 
 // MountRemotePool mounts a peer's Pool of one Space (exported to this Node)
