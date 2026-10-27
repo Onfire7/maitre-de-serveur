@@ -234,7 +234,7 @@ func runAgent(args []string) error {
 		}
 		return ""
 	}
-	svc.Metrics = metrics.New(func() string {
+	collector := metrics.New(func() string {
 		id := defaultSpace(ctx)
 		if id == "" {
 			return ""
@@ -244,7 +244,25 @@ func runAgent(args []string) error {
 			return ""
 		}
 		return dir
-	}).Read
+	})
+	// Every mounted Drive this Node owns, for the per-Drive fill gauges.
+	collector.Drives = func() map[string]string {
+		out := map[string]string{}
+		recs, err := store.ListLive(ctx, st, storage.KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
+		if err != nil {
+			return out
+		}
+		for _, d := range recs {
+			if d.GetNodeId() != id.Fingerprint() {
+				continue
+			}
+			if dir := filepath.Join(pool.DrivesDir, d.GetDriveId()); isMountpoint(dir) {
+				out[d.GetDriveId()] = dir
+			}
+		}
+		return out
+	}
+	svc.Metrics = collector.Read
 	svc.Updates = update.New(nil, log)
 	// Milestone 6: record what this Node runs, for the staged rollout, and
 	// let the rollout runner act on the Fleet's policy every hour.

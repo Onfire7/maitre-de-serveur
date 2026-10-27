@@ -62,14 +62,14 @@ const handlers: Record<string, Handler> = {
     if (ownerNode && !ownerNode.reachable) return { record: { ...r, ownerNodeId: owner }, queued: true };
     return { record: f.putRecord(r), queued: false };
   },
-  "NodeService/GetNodeMetrics": (_f, n, _i, addr) => ({ metrics: needNode(n, addr).metrics }),
+  "NodeService/GetNodeMetrics": (f, n, _i, addr) => ({ metrics: f.metricsOf(needNode(n, addr)) }),
   "NodeService/GetFleetStatus": (f, n, _i, addr) => {
     const me = needNode(n, addr);
     const entry = (p: DemoNode) => ({
       nodeId: p.nodeId,
       reachable: p === me || (p.reachable && f.now - p.lastSeenUnixMs < 60_000),
       lastSeenUnixMs: BigInt(p.lastSeenUnixMs),
-      metrics: p.metrics,
+      metrics: f.metricsOf(p),
       metricsUnixMs: BigInt(p.metricsUnixMs),
       services: f.servicesOn(p.nodeId),
       servicesUnixMs: BigInt(f.services.filter((s) => s.spec.nodeId === p.nodeId).reduce((m, s) => Math.max(m, s.statusUnixMs), 0)),

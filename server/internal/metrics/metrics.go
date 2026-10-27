@@ -4,6 +4,7 @@
 package metrics
 
 import (
+	"sort"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,7 +21,10 @@ type Collector struct {
 	// PoolDir returns the mount of the Pool to report (the Space marked
 	// default for new volumes), or "" when the Node has none: then
 	// pool_fallback is set and capacity is zero.
-	PoolDir  func() string
+	PoolDir func() string
+	// Drives returns this Node's mounted Drives, drive id to mount path;
+	// nil means none are reported.
+	Drives   func() map[string]string
 	lastAt   time.Time
 	cpuBusy  uint64
 	cpuTotal uint64
@@ -62,6 +66,14 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 	}
 	m.TemperatureC = temperature()
 	m.Load_1M = load()
+	if c.Drives != nil {
+		for id, dir := range c.Drives() {
+			if total, used := disk(dir); total > 0 {
+				m.Drives = append(m.Drives, &maitrev1.DriveUsage{DriveId: id, TotalBytes: total, UsedBytes: used})
+			}
+		}
+		sort.Slice(m.Drives, func(i, j int) bool { return m.Drives[i].GetDriveId() < m.Drives[j].GetDriveId() })
+	}
 	return m
 }
 

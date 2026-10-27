@@ -225,6 +225,16 @@ message NodeMetrics {
   // Highest thermal zone reading in Celsius; 0 if none.
   double temperature_c = 9;
   double load_1m = 10;
+  // Every mounted Drive of this Node: how full it is. Gossiped with the
+  // rest, so the Console shows every Node's Drives from one call.
+  repeated DriveUsage drives = 11;
+}
+
+// DriveUsage is one Drive's capacity, by its drive_id.
+message DriveUsage {
+  string drive_id = 1;
+  uint64 total_bytes = 2;
+  uint64 used_bytes = 3;
 }
 
 message ListRecordsRequest {

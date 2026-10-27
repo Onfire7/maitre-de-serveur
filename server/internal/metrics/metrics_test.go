@@ -19,3 +19,16 @@ func TestReadsSomething(t *testing.T) {
 		t.Fatalf("cpu %v", m.GetCpuPercent())
 	}
 }
+
+func TestReportsDrives(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	c := metrics.New(func() string { return "" })
+	c.Drives = func() map[string]string { return map[string]string{"sdb": b, "sda": a, "gone": "/does/not/exist"} }
+	m := c.Read()
+	if len(m.GetDrives()) != 2 || m.GetDrives()[0].GetDriveId() != "sda" || m.GetDrives()[1].GetDriveId() != "sdb" {
+		t.Fatalf("drives %+v", m.GetDrives())
+	}
+	if d := m.GetDrives()[0]; d.GetTotalBytes() == 0 || d.GetUsedBytes() > d.GetTotalBytes() {
+		t.Fatalf("drive %+v", d)
+	}
+}

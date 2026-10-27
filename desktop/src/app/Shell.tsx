@@ -160,6 +160,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             <Sidebar
               key="sidebar"
               services={services}
+              snap={snap}
               nodes={sidebarNodes(snap, now)}
               fleetName={state.fleet?.name ?? ""}
               badge={noticeList.length}

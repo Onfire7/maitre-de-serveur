@@ -21,6 +21,7 @@ import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { ServiceIcon, NodeMark, type NodeWord } from "./status";
 import { ServiceFlyout, type FlyoutItem } from "./ServiceFlyout";
+import { NodeFlyout } from "./NodeFlyout";
 import { useRoute } from "./routes";
 
 export const SIDEBAR_WIDTH = 240;
@@ -36,6 +37,7 @@ export interface SidebarNode {
 
 export function Sidebar({
   services,
+  snap,
   nodes,
   fleetName,
   badge,
@@ -47,6 +49,7 @@ export function Sidebar({
   provisioning,
 }: {
   services: FleetService[];
+  snap: FleetSnapshot | undefined;
   nodes: SidebarNode[];
   fleetName: string;
   badge: number;
@@ -65,6 +68,10 @@ export function Sidebar({
     el: HTMLElement;
     top: number;
   } | null>(null);
+  // The Node flyout grows upward from its row, since the Nodes sit at the
+  // bottom of the sidebar: its position is a distance from the bottom.
+  const [nodeFly, setNodeFly] = useState<{ nodeId: string; el: HTMLElement; bottom: number } | null>(null);
+  const anyFly = fly !== null || nodeFly !== null;
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -79,11 +86,20 @@ export function Sidebar({
   const topOf = (el: HTMLElement) =>
     el.getBoundingClientRect().top -
     (wrapRef.current?.getBoundingClientRect().top ?? 0);
-  const openFor = useCallback(
-    (service: FleetService, el: HTMLElement) =>
-      setFly({ service, el, top: topOf(el) }),
-    [],
-  );
+  const openFor = useCallback((service: FleetService, el: HTMLElement) => {
+    setNodeFly(null);
+    setFly({ service, el, top: topOf(el) });
+  }, []);
+  const bottomOf = (el: HTMLElement) => (wrapRef.current?.getBoundingClientRect().bottom ?? 0) - el.getBoundingClientRect().bottom;
+  const openNode = useCallback((nodeId: string, el: HTMLElement) => {
+    setFly(null);
+    setNodeFly({ nodeId, el, bottom: bottomOf(el) });
+  }, []);
+  const nodeEnter = (nodeId: string, el: HTMLElement) => {
+    clearTimers();
+    if (anyFly) openNode(nodeId, el);
+    else hoverTimer.current = setTimeout(() => openNode(nodeId, el), HOVER_DELAY);
+  };
   // The flyout sits beside the sidebar, not inside the scrolling list, so it
   // follows its row when the list scrolls.
   useEffect(() => {
@@ -101,7 +117,10 @@ export function Sidebar({
   };
   const scheduleClose = () => {
     clearTimers();
-    leaveTimer.current = setTimeout(() => setFly(null), LEAVE_DELAY);
+    leaveTimer.current = setTimeout(() => {
+      setFly(null);
+      setNodeFly(null);
+    }, LEAVE_DELAY);
   };
   const keepOpen = () => clearTimers();
   useEffect(() => () => clearTimers(), []);
@@ -117,6 +136,17 @@ export function Sidebar({
       setTimeout(() => openFor(svc, el), 400);
     }
   }, [services, openFor]);
+  // `?nodeflyout=<letter>` opens a Node's flyout on load (screenshot fixture).
+  const nodeFixture = useRef(typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("nodeflyout") : null);
+  useEffect(() => {
+    const letter = nodeFixture.current;
+    const n = snap?.nodes.find((x) => x.letter === letter);
+    const el = n ? wrapRef.current?.querySelector<HTMLElement>(`[data-node="${n.nodeId}"]`) : null;
+    if (n && el) {
+      nodeFixture.current = null;
+      setTimeout(() => openNode(n.nodeId, el), 400);
+    }
+  }, [snap, nodes, openNode]);
   // The flyout follows its row; when the list changes under it, close it.
   useEffect(() => {
     if (fly && !services.some((s) => s.spec.name === fly.service.spec.name))
@@ -204,7 +234,7 @@ export function Sidebar({
                     openFor(s, el);
                   }}
                   onKeyOpen={(el) => openFor(s, el)}
-                flyOpen={fly !== null}
+                  flyOpen={anyFly}
                 />
               </motion.li>
             ))}
@@ -281,42 +311,23 @@ export function Sidebar({
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeInOut" }}
                 className="overflow-hidden"
+                onMouseLeave={scheduleClose}
+                onMouseEnter={keepOpen}
               >
                 {nodes.map((n) => (
                   <li key={n.nodeId}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() =>
-                            go({
-                              name: "fleet",
-                              tab: "nodes",
-                              nodeId: n.nodeId,
-                            })
-                          }
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md py-1 pr-1.5 text-sm hover:bg-sidebar-accent",
-                            selectedNode === n.nodeId && "bg-sidebar-accent",
-                            collapsed ? "justify-center pl-1.5" : "pl-3",
-                          )}
-                        >
-                          <NodeMark word={n.word} />
-                          {!collapsed && (
-                            <span className="min-w-0 flex-1 truncate text-left">
-                              {n.name}
-                              {n.word !== "Healthy" && (
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  {n.word}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {n.name} · {n.word}
-                      </TooltipContent>
-                    </Tooltip>
+                    <NodeRow
+                      node={n}
+                      collapsed={collapsed}
+                      selected={selectedNode === n.nodeId}
+                      onClick={() => go({ name: "fleet", tab: "nodes", nodeId: n.nodeId })}
+                      onEnter={(el) => nodeEnter(n.nodeId, el)}
+                      onChevron={(el) => {
+                        clearTimers();
+                        openNode(n.nodeId, el);
+                      }}
+                      flyOpen={anyFly}
+                    />
                   </li>
                 ))}
                 {provisioning && (
@@ -366,6 +377,18 @@ export function Sidebar({
               setFly(null);
               onFlyoutItem(fly.service, item);
             }}
+          />
+        )}
+        {nodeFly && (
+          <NodeFlyout
+            key={"node-flyout"}
+            nodeId={nodeFly.nodeId}
+            snap={snap}
+            services={services}
+            bottom={nodeFly.bottom}
+            onEnter={keepOpen}
+            onLeave={scheduleClose}
+            onPicked={() => setNodeFly(null)}
           />
         )}
       </AnimatePresence>
@@ -448,6 +471,47 @@ function ServiceRow({
         {service.nodeUnreachable && service.node
           ? ` · Node ${service.node.name} is unreachable`
           : ""}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function NodeRow({ node: n, collapsed, selected, onClick, onEnter, onChevron, flyOpen }: { node: SidebarNode; collapsed: boolean; selected: boolean; onClick: () => void; onEnter: (el: HTMLElement) => void; onChevron: (el: HTMLElement) => void; flyOpen: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [tipOpen, setTipOpen] = useState(false);
+  const row = (
+    <div ref={ref} data-node={n.nodeId} className={cn("group flex items-center rounded-md hover:bg-sidebar-accent", selected && "bg-sidebar-accent", collapsed && "justify-center")} onMouseEnter={() => ref.current && onEnter(ref.current)}>
+      <button
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight" && ref.current) {
+            e.preventDefault();
+            onChevron(ref.current);
+          }
+        }}
+        className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring", collapsed ? "flex-none justify-center pl-1.5" : "pl-3")}
+      >
+        <NodeMark word={n.word} />
+        {!collapsed && (
+          <span className="min-w-0 flex-1 truncate text-left">
+            {n.name}
+            {n.word !== "Healthy" && <span className="ml-1 text-xs text-muted-foreground">{n.word}</span>}
+          </span>
+        )}
+      </button>
+      {!collapsed && (
+        <button aria-label={`${n.name} status`} onMouseEnter={() => ref.current && onChevron(ref.current)} onClick={() => ref.current && onChevron(ref.current)} className="mr-1 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background/60 group-hover:opacity-100 focus:opacity-100">
+          <ChevronRight className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+  if (!collapsed) return row;
+  return (
+    <Tooltip delayDuration={0} open={tipOpen && !flyOpen} onOpenChange={setTipOpen}>
+      <TooltipTrigger asChild>{row}</TooltipTrigger>
+      <TooltipContent side="right">
+        {n.name} · {n.word}
       </TooltipContent>
     </Tooltip>
   );

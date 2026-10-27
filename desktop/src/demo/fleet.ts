@@ -238,10 +238,10 @@ export class DemoFleet {
     });
     this.drives = [
       drive(NODE_A, "nvme0n1", "Apollo", "Samsung 980 PRO", 0.9 * TiB, 0.55 * TiB, { device: "/dev/nvme0n1", rotational: false, transport: "nvme", autoTags: ["ssd", "internal"], spaces: ["general"], record: { origin: "internal", tags: [] } as unknown as DriveRecord }),
-      drive(NODE_A, "sda", "Atlas", "WD Red Plus 4TB", 4 * TiB, 1.7 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }] }),
+      drive(NODE_A, "sda", "Atlas", "WD Red Plus 4TB", 4 * TiB, 0.8 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }] }),
       drive(NODE_A, "sdb", "Aspen", "WD Red Plus 4TB", 4 * TiB, 2.9 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "photos-2019", kind: "orphan", spaceId: "photos" }] }),
       drive(NODE_B, "nvme0n1", "Birch", "Kingston NV2", 0.5 * TiB, 0.42 * TiB, { device: "/dev/nvme0n1", rotational: false, transport: "nvme", autoTags: ["ssd", "internal"], record: { origin: "internal", tags: [] } as unknown as DriveRecord }),
-      drive(NODE_B, "sda", "Basin", "Seagate IronWolf 8TB", 8 * TiB, 6.1 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }, { name: "old-backups", kind: "unsorted", spaceId: "" }], record: { origin: "adopted", tags: [] } as unknown as DriveRecord }),
+      drive(NODE_B, "sda", "Basin", "Seagate IronWolf 8TB", 8 * TiB, 0.55 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }, { name: "old-backups", kind: "unsorted", spaceId: "" }], record: { origin: "adopted", tags: [] } as unknown as DriveRecord }),
     ];
     this.services = [
       this.service(specFromCatalog("jellyfin", "jellyfin", NODE_A, 20001), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
@@ -343,6 +343,11 @@ export class DemoFleet {
       remoteState: s.spec.exposure !== "private" ? "up" : "",
       forwardState: s.forwardState || (s.spec.forwardPorts && node ? `${s.spec.hostPorts.join(", ")} forwarded by ${node.portMapping.replace("router: ", "")}` : ""),
     } as ServiceStatus;
+  }
+
+  /** A Node's metrics with its Drives' fill, as the agent reports them. */
+  metricsOf(n: DemoNode): NodeMetrics {
+    return { ...n.metrics, drives: this.drives.filter((d) => d.nodeId === n.nodeId && d.adopted).map((d) => ({ driveId: d.driveId, totalBytes: d.sizeBytes, usedBytes: d.sizeBytes - d.freeBytes })) } as NodeMetrics;
   }
 
   servicesOn(nodeId: string): ServiceStatus[] {

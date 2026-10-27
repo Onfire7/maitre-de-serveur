@@ -15,6 +15,12 @@ survives.
   name, percent" from the Installer status it can read.
 ## Built
 
+- **Drive fill in the gossip.** `NodeMetrics.drives` (`DriveUsage`:
+  drive id, total, used) lists every mounted Drive the Node owns, read with
+  statfs on each sample, so the sidebar's Node flyout shows every Node's
+  Drives from the anchor without calling each Node. In `metrics.Collector`
+  (`Drives`) and `cmd/maitre/agent.go`.
+
 - **Move a Service volume to another Space.** `ServiceService.MoveVolume
   {name, volume, to_space}` on the Service's Node: stops the Service, queues
   the folder move through the file manager (`files.Manager.MoveThen`, which
