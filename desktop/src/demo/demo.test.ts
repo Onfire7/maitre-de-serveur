@@ -89,6 +89,14 @@ describe("demo Fleet", () => {
     expect(after.entries.map((e) => e.name)).not.toContain("family-reunion.mp4");
   });
 
+  it("reads a Node's logs from listed sources only", async () => {
+    const r = await at(B).node.getNodeLogs({});
+    expect(r.sources[0].id).toBe("agent");
+    expect(r.sources.map((x) => x.id)).toContain("service:minecraft");
+    expect(r.lines.length).toBeGreaterThan(0);
+    await expect(at(B).node.getNodeLogs({ source: "sshd.service" })).rejects.toThrow(/no log source/);
+  });
+
   it("deletes as a job, but never a folder a Service uses", async () => {
     await expect(at(A).files.delete({ scope: { spaceId: "general" }, names: ["jellyfin"] })).rejects.toThrow(/jellyfin uses general\/jellyfin\/config/);
     const { jobId } = await at(A).files.delete({ scope: { spaceId: "media" }, folder: "Documents", names: ["notes.txt"] });

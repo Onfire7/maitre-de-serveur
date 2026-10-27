@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { Copy, ArrowUpCircle, Undo2, Globe, Router, Network } from "lucide-react";
+import { Copy, ScrollText, ArrowUpCircle, Undo2, Globe, Router, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,11 +25,13 @@ import { useFleetServices } from "@/fleet/useFleet";
 import type { Found } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
+import { useNodeLogs } from "./NodeLogs";
 
 export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
+  const showLogs = useNodeLogs();
   const qc = useQueryClient();
   const client = useMemo(() => (target ? createClient(NodeService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
   const [maint, setMaint] = useState<Maintenance | null>(null);
@@ -167,6 +169,9 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           {st?.state === UpdateStatus_State.UPDATING && <Badge className="bg-status-starting text-white">updating {Math.round(st.progress * 100)}%</Badge>}
           {st?.state === UpdateStatus_State.FAILED && <Badge variant="destructive">last update failed</Badge>}
           <span className="flex-1" />
+          <Button size="sm" variant="outline" onClick={() => showLogs(node.nodeId)}>
+            <ScrollText /> Logs
+          </Button>
           {st?.supported && (
             <>
               <Button size="sm" variant="outline" disabled={st.state === UpdateStatus_State.UPDATING} onClick={() => setUpdateOpen(true)}>

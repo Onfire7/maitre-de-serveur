@@ -12,6 +12,7 @@ import { nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { spacesOf } from "@/spaces";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { spaceColor } from "./StorageTab";
+import { useNodeLogs } from "./NodeLogs";
 import { useRoute } from "./routes";
 
 const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
@@ -19,6 +20,7 @@ const fillColor = (p: number) => (p >= 90 ? "bg-destructive" : p >= 75 ? "bg-sta
 
 export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, onPicked }: { nodeId: string; snap: FleetSnapshot | undefined; services: FleetService[]; bottom: number; onEnter: () => void; onLeave: () => void; onPicked: () => void }) {
   const { go } = useRoute();
+  const showLogs = useNodeLogs();
   const node = snap?.nodes.find((n) => n.nodeId === nodeId);
   if (!snap || !node) return null;
   const now = Date.now();
@@ -161,6 +163,9 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
           </button>
           <button onClick={() => open({ name: "fleet", tab: "storage" })} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs hover:bg-accent">
             Storage <ArrowRight className="size-3" />
+          </button>
+          <button onClick={() => (onPicked(), showLogs(nodeId))} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs hover:bg-accent">
+            Logs <ArrowRight className="size-3" />
           </button>
         </div>
       </div>

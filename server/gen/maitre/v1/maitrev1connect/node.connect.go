@@ -47,6 +47,8 @@ const (
 	NodeServicePushRecordsProcedure = "/maitre.v1.NodeService/PushRecords"
 	// NodeServiceGetFleetStatusProcedure is the procedure name of the NodeService's GetFleetStatus RPC.
 	NodeServiceGetFleetStatusProcedure = "/maitre.v1.NodeService/GetFleetStatus"
+	// NodeServiceGetNodeLogsProcedure is the procedure name of the NodeService's GetNodeLogs RPC.
+	NodeServiceGetNodeLogsProcedure = "/maitre.v1.NodeService/GetNodeLogs"
 	// NodeServicePushStatusProcedure is the procedure name of the NodeService's PushStatus RPC.
 	NodeServicePushStatusProcedure = "/maitre.v1.NodeService/PushStatus"
 )
@@ -129,6 +131,13 @@ var (
 			Procedure:  NodeServiceGetFleetStatusProcedure,
 		}
 	})
+	nodeServiceGetNodeLogsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("GetNodeLogs"),
+			Procedure:  NodeServiceGetNodeLogsProcedure,
+		}
+	})
 	nodeServicePushStatusSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -178,6 +187,9 @@ type NodeServiceClient interface {
 	// (ADR 0006). Nothing here is stored; a Node that just started knows only
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
+	// GetNodeLogs reads this Node's journal as its own screen does (decision
+	// 187): one of the sources it lists, the last lines of it.
+	GetNodeLogs(context.Context, *v1.GetNodeLogsRequest) (*v1.GetNodeLogsResponse, error)
 	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
 	// metrics sample and, when one changed or every five minutes, its Service
 	// statuses (a message without them keeps the ones heard before). Kept in
@@ -231,6 +243,9 @@ type NodeServiceHandler interface {
 	// (ADR 0006). Nothing here is stored; a Node that just started knows only
 	// itself until the peers' next samples arrive.
 	GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error)
+	// GetNodeLogs reads this Node's journal as its own screen does (decision
+	// 187): one of the sources it lists, the last lines of it.
+	GetNodeLogs(context.Context, *v1.GetNodeLogsRequest) (*v1.GetNodeLogsResponse, error)
 	// PushStatus is the gossip (ADR 0006): a peer hands this Node its own
 	// metrics sample and, when one changed or every five minutes, its Service
 	// statuses (a message without them keeps the ones heard before). Kept in
@@ -253,6 +268,7 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceRenameNodeSpec(), Handler: adapter.renameNode},
 		connect.Method{Spec: nodeServicePushRecordsSpec(), Handler: adapter.pushRecords},
 		connect.Method{Spec: nodeServiceGetFleetStatusSpec(), Handler: adapter.getFleetStatus},
+		connect.Method{Spec: nodeServiceGetNodeLogsSpec(), Handler: adapter.getNodeLogs},
 		connect.Method{Spec: nodeServicePushStatusSpec(), Handler: adapter.pushStatus},
 	)
 }
@@ -302,6 +318,10 @@ func (UnimplementedNodeServiceHandler) PushRecords(context.Context, *v1.PushReco
 
 func (UnimplementedNodeServiceHandler) GetFleetStatus(context.Context, *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetFleetStatus is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) GetNodeLogs(context.Context, *v1.GetNodeLogsRequest) (*v1.GetNodeLogsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetNodeLogs is not implemented")
 }
 
 func (UnimplementedNodeServiceHandler) PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error) {
@@ -395,6 +415,14 @@ func (c *nodeServiceClient) PushRecords(ctx context.Context, req *v1.PushRecords
 func (c *nodeServiceClient) GetFleetStatus(ctx context.Context, req *v1.GetFleetStatusRequest) (*v1.GetFleetStatusResponse, error) {
 	var res v1.GetFleetStatusResponse
 	if err := c.client.CallUnary(ctx, nodeServiceGetFleetStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) GetNodeLogs(ctx context.Context, req *v1.GetNodeLogsRequest) (*v1.GetNodeLogsResponse, error) {
+	var res v1.GetNodeLogsResponse
+	if err := c.client.CallUnary(ctx, nodeServiceGetNodeLogsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -536,6 +564,18 @@ func (h nodeServiceHandler) getFleetStatus(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.GetFleetStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) getNodeLogs(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetNodeLogsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetNodeLogs(ctx, &req)
 	if err != nil {
 		return err
 	}

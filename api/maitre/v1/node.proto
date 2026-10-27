@@ -58,6 +58,9 @@ service NodeService {
   // (ADR 0006). Nothing here is stored; a Node that just started knows only
   // itself until the peers' next samples arrive.
   rpc GetFleetStatus(GetFleetStatusRequest) returns (GetFleetStatusResponse) {}
+  // GetNodeLogs reads this Node's journal as its own screen does (decision
+  // 187): one of the sources it lists, the last lines of it.
+  rpc GetNodeLogs(GetNodeLogsRequest) returns (GetNodeLogsResponse) {}
   // PushStatus is the gossip (ADR 0006): a peer hands this Node its own
   // metrics sample and, when one changed or every five minutes, its Service
   // statuses (a message without them keeps the ones heard before). Kept in
@@ -337,4 +340,24 @@ message NodeInfo {
   // The address the internet sees this Node from (decision 112), looked up
   // through a public IP service; empty when unknown or offline.
   string public_ip = 9;
+}
+
+message GetNodeLogsRequest {
+  // A source id from GetNodeLogsResponse.sources; "" is the Maître agent.
+  string source = 1;
+  // Default 300, at most 5000.
+  uint32 lines = 2;
+}
+
+message LogSource {
+  // "agent", "pool", "caddy", "health", "kernel", "system", or
+  // "service:<name>" for a Service on this Node.
+  string id = 1;
+  string label = 2;
+}
+
+message GetNodeLogsResponse {
+  repeated string lines = 1;
+  // What this Node can show, the agent first.
+  repeated LogSource sources = 2;
 }

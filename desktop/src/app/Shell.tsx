@@ -22,6 +22,7 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
+import { NodeLogsProvider } from "./NodeLogs";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -171,6 +172,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
 
   return (
     <TooltipProvider delayDuration={400}>
+      <NodeLogsProvider snap={snap} known={state.nodes}>
       <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
         <AnimatePresence initial={false}>
           {present && (
@@ -297,6 +299,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         </AlertDialogContent>
       </AlertDialog>
       <Toaster position="bottom-right" />
+      </NodeLogsProvider>
     </TooltipProvider>
   );
 }

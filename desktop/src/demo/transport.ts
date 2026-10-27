@@ -62,6 +62,33 @@ const handlers: Record<string, Handler> = {
     if (ownerNode && !ownerNode.reachable) return { record: { ...r, ownerNodeId: owner }, queued: true };
     return { record: f.putRecord(r), queued: false };
   },
+  "NodeService/GetNodeLogs": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    const sources = [
+      { id: "agent", label: "Maître agent" },
+      { id: "pool", label: "Storage pool" },
+      { id: "caddy", label: "Web routes (Caddy)" },
+      { id: "health", label: "Boot health checks" },
+      { id: "kernel", label: "Kernel" },
+      { id: "system", label: "Everything since boot" },
+      ...f.services.filter((s) => s.spec.nodeId === me.nodeId).map((s) => ({ id: `service:${s.spec.name}`, label: s.spec.name })),
+    ];
+    const source = (i.source as string) || "agent";
+    if (!sources.some((s) => s.id === source)) throw fail(Code.NotFound, `no log source "${source}" on this Node`);
+    if (source.startsWith("service:")) return { lines: f.logs(source.slice(8), 120), sources };
+    const host = me.name.toLowerCase();
+    const msgs: Record<string, string[]> = {
+      agent: ["peers: synced with basalt (3 records)", "gossip: pushed status to 1 peer", "fleet status: answered GetFleetStatus", "files: listed media/Documents", "rollout: automatic updates are off", "warn: peer cedar silent for 62s"],
+      pool: ["mergerfs: media over /var/mnt/drives/sda/media:/var/mnt/drives/sdb/media", "nfs: exported media to 10.0.0.6"],
+      caddy: ["route jellyfin.local -> 127.0.0.1:20001", "certificate for remote access renewed"],
+      health: ["greenboot: all required checks passed", "boot marked healthy"],
+      kernel: ["EXT4-fs (sdb1): mounted filesystem", "r8169 0000:03:00.0 enp3s0: Link is Up - 1Gbps/Full"],
+      system: ["Started maitre-agent.service - Maître agent.", "podman[812]: jellyfin started", "systemd-resolved: Using degraded feature set UDP for DNS server 10.0.0.1"],
+    };
+    const base = f.now - 60_000;
+    const lines = Array.from({ length: 80 }, (_, k) => `${new Date(base + k * 750).toISOString().slice(0, 19)} ${host} ${source === "kernel" ? "kernel" : source === "agent" ? "maitre" : source}[${400 + k}]: ${msgs[source][k % msgs[source].length]}`);
+    return { lines, sources };
+  },
   "NodeService/GetNodeMetrics": (f, n, _i, addr) => ({ metrics: f.metricsOf(needNode(n, addr)) }),
   "NodeService/GetFleetStatus": (f, n, _i, addr) => {
     const me = needNode(n, addr);
