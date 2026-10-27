@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function HoldButton({ onConfirm, holdMs = 1200, className, children, disabled, variant = "default", size = "default" }: { onConfirm: () => void; holdMs?: number; className?: string; children: React.ReactNode; disabled?: boolean; variant?: React.ComponentProps<typeof Button>["variant"]; size?: React.ComponentProps<typeof Button>["size"] }) {
-  const [progress, setProgress] = useState(0);
+  // `?hold=0.6` draws every hold button that far along (screenshot fixture).
+  const [progress, setProgress] = useState(() => Number(new URLSearchParams(window.location.search).get("hold")) || 0);
   const start = useRef<number | null>(null);
   const raf = useRef<number | undefined>(undefined);
   const done = useRef(false);
@@ -36,7 +37,13 @@ export function HoldButton({ onConfirm, holdMs = 1200, className, children, disa
     start.current = performance.now();
     raf.current = requestAnimationFrame(tick);
   };
-  useEffect(() => () => stop(), []);
+  // On unmount only stop the frames; setting state there is pointless.
+  useEffect(
+    () => () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    },
+    [],
+  );
   return (
     <Button
       variant={variant}
@@ -54,7 +61,9 @@ export function HoldButton({ onConfirm, holdMs = 1200, className, children, disa
       onClick={(e) => e.preventDefault()}
       aria-label={typeof children === "string" ? `${children} (hold)` : undefined}
     >
-      <span className="pointer-events-none absolute inset-y-0 left-0 bg-white/25 transition-[width] duration-75 dark:bg-black/25" style={{ width: `${progress * 100}%` }} />
+      {/* The fill must read on every variant: light on red and dark
+          buttons, dark on the near-white primary of the dark theme. */}
+      <span className={cn("pointer-events-none absolute inset-y-0 left-0", variant === "default" ? "bg-white/30 dark:bg-black/30" : variant === "destructive" ? "bg-white/40 dark:bg-white/30" : "bg-foreground/15")} style={{ width: `${progress * 100}%` }} />
       <span className="relative flex items-center gap-2">{children}</span>
     </Button>
   );
