@@ -3,7 +3,7 @@
 // wait while it restarts. Every call here goes straight to the Node (160).
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { Copy, ArrowUpCircle, Undo2, Globe, Router, Network } from "lucide-react";
@@ -33,11 +33,14 @@ export function NodeDetails({ node, target, snap, unreachable }: { node: Node; t
   const qc = useQueryClient();
   const client = useMemo(() => (target ? createClient(NodeService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
   const [maint, setMaint] = useState<Maintenance | null>(null);
-  const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client && !unreachable && !maint, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
-  const upd = useQuery({ queryKey: ["update-status", node.nodeId, target?.addr], enabled: !!client && !unreachable && !maint, refetchInterval: 3000, retry: false, queryFn: async () => (await client!.getUpdateStatus({})).status });
+  // The core calls (ADR 0007) go straight to the Node whatever the anchor
+  // thinks of it: if this Console can reach it, it can see and update it.
+  const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
+  const upd = useQuery({ queryKey: ["update-status", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 3000, retry: false, queryFn: async () => (await client!.getUpdateStatus({})).status });
   const services = useFleetServices(snap).filter((s) => s.spec.nodeId === node.nodeId);
   const i = info.data;
   const st = upd.data;
+  const problems = snap.status.get(node.nodeId)?.problems ?? [];
   const [updateOpen, setUpdateOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
 
@@ -79,7 +82,7 @@ export function NodeDetails({ node, target, snap, unreachable }: { node: Node; t
             </button>
           </dd>
           <dt className="text-muted-foreground">Version</dt>
-          <dd>{unreachable ? "unreachable" : i ? `${i.version}${i.devMode ? " (dev mode)" : ""}` : "…"}</dd>
+          <dd>{i ? `${i.version}${i.devMode ? " (dev mode)" : ""}` : unreachable || info.error ? "unreachable" : "…"}</dd>
           <dt className="text-muted-foreground">Up for</dt>
           <dd>{i ? formatUptime(Number(i.uptimeSeconds)) : "…"}</dd>
           <dt className="text-muted-foreground">Addresses</dt>
@@ -158,7 +161,7 @@ export function NodeDetails({ node, target, snap, unreachable }: { node: Node; t
           {st?.state === UpdateStatus_State.UPDATING && <Badge className="bg-status-starting text-white">updating {Math.round(st.progress * 100)}%</Badge>}
           {st?.state === UpdateStatus_State.FAILED && <Badge variant="destructive">last update failed</Badge>}
           <span className="flex-1" />
-          {st?.supported && !unreachable && (
+          {st?.supported && (
             <>
               <Button size="sm" variant="outline" disabled={st.state === UpdateStatus_State.UPDATING} onClick={() => setUpdateOpen(true)}>
                 <ArrowUpCircle /> Update…
@@ -169,7 +172,16 @@ export function NodeDetails({ node, target, snap, unreachable }: { node: Node; t
             </>
           )}
         </div>
-        {upd.error && !unreachable && <p className="text-xs text-muted-foreground">This Node runs a Maître Server from before updates existed. Reinstall it from current media or over the network to manage its image here.</p>}
+        {problems.length > 0 && (
+          <ul className="space-y-0.5 rounded-md bg-status-attention/10 px-2 py-1.5 text-xs">
+            {problems.map((p) => (
+              <li key={p}>
+                {node.name} {p}
+              </li>
+            ))}
+          </ul>
+        )}
+        {upd.error && ConnectError.from(upd.error).code === Code.Unimplemented && <p className="text-xs text-muted-foreground">This Node runs a Maître Server from before updates existed. Reinstall it from current media or over the network to manage its image here.</p>}
         {st && !st.supported && <p className="text-xs text-muted-foreground">Not an image-based Node (dev mode), so it cannot update itself.</p>}
         {st?.supported && (
           <div className="grid gap-2 sm:grid-cols-3">

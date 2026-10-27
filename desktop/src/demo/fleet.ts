@@ -48,6 +48,8 @@ export interface DemoNode {
   bootedUnixMs: number;
   publicIp: string;
   portMapping: string;
+  /** What the other Node has trouble calling on this one (ADR 0007). */
+  problems?: string[];
 }
 
 export interface DemoService {
@@ -357,6 +359,12 @@ export class DemoFleet {
   // --- script -------------------------------------------------------------
 
   /** Switch a Node off or on, as if the plug was pulled. */
+  /** Calls the other Node gets errors from, e.g. an older version (ADR 0007). */
+  setProblems(nodeId: string, problems: string[]) {
+    this.node(nodeId).problems = problems;
+    this.changed();
+  }
+
   setReachable(nodeId: string, reachable: boolean) {
     const n = this.node(nodeId);
     n.reachable = reachable;

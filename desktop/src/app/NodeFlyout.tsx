@@ -73,6 +73,11 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
         </div>
       </div>
 
+      {st?.problems.map((p) => (
+        <div key={p} className="border-b bg-status-attention/10 px-3 py-1.5 text-xs">
+          {node.name} {p}
+        </div>
+      ))}
       {st?.lastRollback && <div className="border-b bg-status-attention/10 px-3 py-1.5 text-xs">Rolled back its last update: {st.lastRollback}</div>}
       {st?.updateState === 3 && <div className="border-b bg-destructive/10 px-3 py-1.5 text-xs">Last update failed{st.updateMessage ? `: ${st.updateMessage}` : ""}</div>}
       {st?.updateStaged && st.updateState !== 2 && (

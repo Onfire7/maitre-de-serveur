@@ -287,7 +287,7 @@ func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsReques
 // OwnStatus is what this Node gossips (ADR 0006): its metrics and Services now.
 func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	now := time.Now().UnixMilli()
-	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now}
+	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now, Version: s.info.Version}
 	if s.Metrics != nil {
 		self.Metrics = s.Metrics()
 	} else {
@@ -326,15 +326,16 @@ func (s *Service) cachedUpdate(ctx context.Context) *maitrev1.UpdateStatus {
 }
 
 // GetFleetStatus implements NodeService (ADR 0006): this Node's own status,
-// then every peer with its reachability as seen from here, the last
-// metrics, Services and update state it gossiped, and, for a Node still
-// being installed, what its Installer reports.
+// then every peer with its reachability as seen from here (ADR 0007), its
+// version and the problems calling it, the last metrics, Services and
+// update state it gossiped, and, for a Node still being installed, what
+// its Installer reports.
 func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatusRequest) (*maitrev1.GetFleetStatusResponse, error) {
 	self := s.OwnStatus(ctx)
 	out := &maitrev1.GetFleetStatusResponse{NodeId: self.NodeId, Nodes: []*maitrev1.FleetNodeStatus{self}}
 	if s.Peers != nil {
 		for _, p := range s.Peers.Status(ctx) {
-			st := &maitrev1.FleetNodeStatus{NodeId: p.GetNodeId(), Reachable: p.GetOnline(), LastSeenUnixMs: p.GetLastSeenUnixMs()}
+			st := &maitrev1.FleetNodeStatus{NodeId: p.GetNodeId(), Reachable: p.GetOnline(), LastSeenUnixMs: p.GetLastSeenUnixMs(), Version: p.GetVersion(), Problems: p.GetProblems()}
 			if last := s.Peers.Last(p.GetNodeId()); last != nil {
 				st.Metrics, st.MetricsUnixMs = last.GetMetrics(), last.GetMetricsUnixMs()
 				st.Services, st.ServicesUnixMs = last.GetServices(), last.GetServicesUnixMs()

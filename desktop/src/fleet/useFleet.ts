@@ -174,7 +174,9 @@ export function nodeWord(n: FleetNodeStatus | undefined, now: number): NodeWord 
   if (!n || !n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) return "Unreachable";
   // UpdateStatus.State: 2 updating, 3 failed, 4 rebooting.
   if (n.updateState === 2 || n.updateState === 4) return "Updating";
-  if (n.updateState === 3 || n.lastRollback || n.metrics?.poolFallback) return "Attention";
+  // A peer that answered with errors (ADR 0007) needs attention; it is
+  // still reachable, and still updatable.
+  if (n.updateState === 3 || n.lastRollback || n.metrics?.poolFallback || n.problems.length > 0) return "Attention";
   return "Healthy";
 }
 

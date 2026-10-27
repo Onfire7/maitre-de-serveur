@@ -96,6 +96,16 @@ describe("demo Fleet", () => {
   });
 });
 
+describe("ADR 0007", () => {
+  it("a Node with problems is reachable and needs attention, not Unreachable", async () => {
+    fleet.setProblems(NODE_B, ["runs Maître Server 95c3d8a, which cannot answer PushStatus; update it"]);
+    const st = (await at(A).node.getFleetStatus({})).nodes.find((n) => n.nodeId === NODE_B);
+    expect(st?.reachable).toBe(true);
+    expect(nodeWord(st, fleet.now)).toBe("Attention");
+    expect(nodeDown(nodeWord(st, fleet.now))).toBe(false);
+  });
+});
+
 describe("a Node being installed", () => {
   it("is Provisioning in every Console, from the anchor, until it talks", async () => {
     const ins = fleet.installer;

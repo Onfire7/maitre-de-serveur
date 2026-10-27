@@ -78,6 +78,8 @@ const handlers: Record<string, Handler> = {
       updateProgress: p.update.progress,
       updateStaged: !!p.update.staged && !p.update.rollbackQueued,
       lastRollback: p.update.lastRollback,
+      version: "0.9.3",
+      problems: p === me ? [] : (p.problems ?? []),
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.

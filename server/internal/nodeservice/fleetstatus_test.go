@@ -21,7 +21,7 @@ func (f *fakePeers) Forward(context.Context, string, *maitrev1.Record) (*maitrev
 func (f *fakePeers) Push(context.Context, ...*maitrev1.Record) {}
 func (f *fakePeers) Status(context.Context) []*maitrev1.PeerStatus {
 	return []*maitrev1.PeerStatus{
-		{NodeId: "b", Name: "Basalt", Online: true, LastSeenUnixMs: 1000},
+		{NodeId: "b", Name: "Basalt", Online: true, LastSeenUnixMs: 1000, Version: "95c3d8a", Problems: []string{"runs Maître Server 95c3d8a, which cannot answer PushStatus; update it"}},
 		{NodeId: "c", Name: "Cedar", Online: false, LastSeenUnixMs: 500},
 	}
 }
@@ -36,7 +36,7 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(id, Info{Name: "Alder"}, nil)
+	s := New(id, Info{Name: "Alder", Version: "5803c23"}, nil)
 	// Cedar is still being installed.
 	peers := &fakePeers{heard: map[string]*maitrev1.FleetNodeStatus{}, installs: map[string]*maitrev1.Provisioning{
 		"c": {Phase: maitrev1.Provisioning_PHASE_INSTALLING, Percent: 40},
@@ -77,6 +77,9 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	}
 	if b.GetUpdateState() != maitrev1.UpdateStatus_STATE_UPDATING || b.GetUpdateMessage() != "pulling" || b.GetUpdateProgress() != 0.5 || !b.GetUpdateStaged() || b.GetLastRollback() != "health check failed" || b.GetProvisioning() != nil {
 		t.Fatalf("Basalt's update state not merged: %v", b)
+	}
+	if self.GetVersion() != "5803c23" || b.GetVersion() != "95c3d8a" || len(b.GetProblems()) != 1 {
+		t.Fatalf("versions and problems not reported: self %v, Basalt %v", self, b)
 	}
 	c := byID["c"]
 	if c.GetReachable() || c.GetMetrics() != nil || len(c.GetServices()) != 0 || c.GetLastSeenUnixMs() != 500 {

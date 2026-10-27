@@ -255,7 +255,8 @@ func (x *GetFleetStatusResponse) GetNodes() []*FleetNodeStatus {
 type FleetNodeStatus struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	NodeId string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	// True for the answering Node itself and for peers it reached recently.
+	// True for the answering Node itself and for peers that answered
+	// GetNodeInfo or gossiped within the last 60 s (ADR 0007).
 	Reachable bool `protobuf:"varint,2,opt,name=reachable,proto3" json:"reachable,omitempty"`
 	// When this Node last heard from the peer (any message); now for itself.
 	LastSeenUnixMs int64 `protobuf:"varint,3,opt,name=last_seen_unix_ms,json=lastSeenUnixMs,proto3" json:"last_seen_unix_ms,omitempty"`
@@ -281,7 +282,11 @@ type FleetNodeStatus struct {
 	// what it said. Cleared once the Node talks, or an hour after its record
 	// was made. Lets every Console show Provisioning, not only the one that
 	// started the install.
-	Provisioning  *Provisioning `protobuf:"bytes,13,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
+	Provisioning *Provisioning `protobuf:"bytes,13,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
+	// The Node's Maître Server version and, for a peer, the problems the
+	// answering Node has calling it (PeerStatus.problems, ADR 0007).
+	Version       string   `protobuf:"bytes,14,opt,name=version,proto3" json:"version,omitempty"`
+	Problems      []string `protobuf:"bytes,15,rep,name=problems,proto3" json:"problems,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -407,6 +412,20 @@ func (x *FleetNodeStatus) GetProvisioning() *Provisioning {
 	return nil
 }
 
+func (x *FleetNodeStatus) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *FleetNodeStatus) GetProblems() []string {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
 type PushRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Records       []*Record              `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
@@ -506,7 +525,13 @@ type PeerStatus struct {
 	Online         bool   `protobuf:"varint,4,opt,name=online,proto3" json:"online,omitempty"`
 	LastSeenUnixMs int64  `protobuf:"varint,5,opt,name=last_seen_unix_ms,json=lastSeenUnixMs,proto3" json:"last_seen_unix_ms,omitempty"`
 	// Writes waiting for this peer to come back.
-	Queued        uint32 `protobuf:"varint,6,opt,name=queued,proto3" json:"queued,omitempty"`
+	Queued uint32 `protobuf:"varint,6,opt,name=queued,proto3" json:"queued,omitempty"`
+	// The peer's Maître Server version, from its last GetNodeInfo answer.
+	Version string `protobuf:"bytes,7,opt,name=version,proto3" json:"version,omitempty"`
+	// Calls the peer answered with an error, one sentence each (ADR 0007):
+	// they make it need attention, not offline. Cleared when the same call
+	// next succeeds or the peer's version changes.
+	Problems      []string `protobuf:"bytes,8,rep,name=problems,proto3" json:"problems,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -581,6 +606,20 @@ func (x *PeerStatus) GetQueued() uint32 {
 		return x.Queued
 	}
 	return 0
+}
+
+func (x *PeerStatus) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *PeerStatus) GetProblems() []string {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
 }
 
 type GetUpdateStatusRequest struct {
@@ -1890,7 +1929,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x15GetFleetStatusRequest\"c\n" +
 	"\x16GetFleetStatusResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xc6\x04\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xfc\x04\n" +
 	"\x0fFleetNodeStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
 	"\treachable\x18\x02 \x01(\bR\treachable\x12)\n" +
@@ -1905,11 +1944,13 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	" \x01(\x01R\x0eupdateProgress\x12#\n" +
 	"\rupdate_staged\x18\v \x01(\bR\fupdateStaged\x12#\n" +
 	"\rlast_rollback\x18\f \x01(\tR\flastRollback\x12;\n" +
-	"\fprovisioning\x18\r \x01(\v2\x17.maitre.v1.ProvisioningR\fprovisioning\"A\n" +
+	"\fprovisioning\x18\r \x01(\v2\x17.maitre.v1.ProvisioningR\fprovisioning\x12\x18\n" +
+	"\aversion\x18\x0e \x01(\tR\aversion\x12\x1a\n" +
+	"\bproblems\x18\x0f \x03(\tR\bproblems\"A\n" +
 	"\x12PushRecordsRequest\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.maitre.v1.RecordR\arecords\"/\n" +
 	"\x13PushRecordsResponse\x12\x18\n" +
-	"\aapplied\x18\x01 \x01(\rR\aapplied\"\xae\x01\n" +
+	"\aapplied\x18\x01 \x01(\rR\aapplied\"\xe4\x01\n" +
 	"\n" +
 	"PeerStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
@@ -1917,7 +1958,9 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
 	"\x06online\x18\x04 \x01(\bR\x06online\x12)\n" +
 	"\x11last_seen_unix_ms\x18\x05 \x01(\x03R\x0elastSeenUnixMs\x12\x16\n" +
-	"\x06queued\x18\x06 \x01(\rR\x06queued\"\x18\n" +
+	"\x06queued\x18\x06 \x01(\rR\x06queued\x12\x18\n" +
+	"\aversion\x18\a \x01(\tR\aversion\x12\x1a\n" +
+	"\bproblems\x18\b \x03(\tR\bproblems\"\x18\n" +
 	"\x16GetUpdateStatusRequest\"J\n" +
 	"\x17GetUpdateStatusResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x17.maitre.v1.UpdateStatusR\x06status\"w\n" +

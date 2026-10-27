@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -42,6 +43,10 @@ type peer struct {
 	// When the Node record was made; a recent record never heard from is
 	// a Node still being installed.
 	provisioned time.Time
+	// version is what the peer's last GetNodeInfo said; problems are the
+	// calls it last answered with an error, by call name (ADR 0007).
+	version  string
+	problems map[string]string
 }
 
 // Manager tracks the Fleet's other Nodes and keeps the databases in sync.
@@ -152,20 +157,24 @@ func (m *Manager) Addresses() map[string][]string {
 	return out
 }
 
-// SilentFor is how long a peer may go unheard (no answered call, no
-// gossip) before it counts as offline (decision 162).
+// SilentFor is how long a peer may go unheard (no answer to the liveness
+// probe, no gossip) before it counts as offline (decision 162, ADR 0007).
 var SilentFor = 60 * time.Second
 
 // Status describes every peer for NodeInfo and GetFleetStatus. A peer is
-// online when its last call or gossip was recent, whatever the last call
-// said: a Node that stopped talking is unreachable even if nothing failed.
+// online when it answered the liveness probe or gossiped recently,
+// whatever other calls said (ADR 0007): those only add problems.
 func (m *Manager) Status(ctx context.Context) []*maitrev1.PeerStatus {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []*maitrev1.PeerStatus
 	for _, p := range m.peers {
 		online := p.online && time.Since(p.lastSeen) < SilentFor
-		st := &maitrev1.PeerStatus{NodeId: p.id, Name: p.name, Online: online, LastSeenUnixMs: p.lastSeen.UnixMilli()}
+		st := &maitrev1.PeerStatus{NodeId: p.id, Name: p.name, Online: online, LastSeenUnixMs: p.lastSeen.UnixMilli(), Version: p.version}
+		for _, msg := range p.problems {
+			st.Problems = append(st.Problems, msg)
+		}
+		sort.Strings(st.Problems)
 		if len(p.addrs) > 0 {
 			st.Address = p.addrs[0]
 		}
@@ -180,9 +189,12 @@ func (m *Manager) Status(ctx context.Context) []*maitrev1.PeerStatus {
 	return out
 }
 
-// call runs fn against a peer, trying its addresses in order until one
-// answers; a success moves that address to the front and marks it online.
-func (m *Manager) call(ctx context.Context, id string, fn func(context.Context, maitrev1connect.NodeServiceClient) error) error {
+// call runs fn (the RPC named name) against a peer, trying its addresses
+// in order until one answers. It never changes whether the peer is online
+// (ADR 0007: only the liveness probe and gossip do): an error the peer sent
+// back is recorded as a problem with that call, cleared by its next
+// success, and a call that reached nobody leaves everything as it was.
+func (m *Manager) call(ctx context.Context, id, name string, fn func(context.Context, maitrev1connect.NodeServiceClient) error) error {
 	m.mu.Lock()
 	p, ok := m.peers[id]
 	if !ok {
@@ -200,23 +212,115 @@ func (m *Manager) call(ctx context.Context, id string, fn func(context.Context, 
 		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		err := fn(cctx, c)
 		cancel()
-		m.mu.Lock()
-		if err == nil {
+		if err == nil || answered(err) {
+			m.mu.Lock()
 			p.addAddr(a, true)
-			p.online, p.lastSeen = true, time.Now()
+			if err == nil {
+				delete(p.problems, name)
+			} else {
+				if p.problems == nil {
+					p.problems = map[string]string{}
+				}
+				p.problems[name] = problem(name, p.version, err)
+			}
 			m.mu.Unlock()
-			return nil
+			return err
 		}
-		m.mu.Unlock()
 		lastErr = err
 		if ctx.Err() != nil {
 			break
 		}
 	}
-	m.mu.Lock()
-	p.online = false
-	m.mu.Unlock()
 	return lastErr
+}
+
+// answered reports whether err came back from the peer itself, as opposed
+// to the call never reaching it (dial, TLS, timeout).
+func answered(err error) bool {
+	var cerr *connect.Error
+	return errors.As(err, &cerr) && cerr.IsRemote()
+}
+
+// problem words a call the peer refused for the Console.
+func problem(name, version string, err error) string {
+	if connect.CodeOf(err) == connect.CodeUnimplemented {
+		v := "an older Maître Server"
+		if version != "" {
+			v = "Maître Server " + version
+		}
+		return fmt.Sprintf("runs %s, which cannot answer %s; update it", v, name)
+	}
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return fmt.Sprintf("refused %s: %s", name, cerr.Message())
+	}
+	return fmt.Sprintf("refused %s: %v", name, err)
+}
+
+// ProbeEvery is how often every peer is asked GetNodeInfo, the call that
+// decides whether it is online (ADR 0007).
+var ProbeEvery = 15 * time.Second
+
+// Probe asks every peer GetNodeInfo every ProbeEvery until ctx ends.
+func (m *Manager) Probe(ctx context.Context) {
+	t := time.NewTicker(ProbeEvery)
+	defer t.Stop()
+	for {
+		m.ProbeAll(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// ProbeAll asks every peer GetNodeInfo once, in parallel. A peer that
+// answers, even with an error, is online and its version noted; one that
+// cannot be reached on any address is offline.
+func (m *Manager) ProbeAll(ctx context.Context) {
+	m.mu.Lock()
+	ids := make([]string, 0, len(m.peers))
+	for id := range m.peers {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.probe(ctx, id)
+		}()
+	}
+	wg.Wait()
+}
+
+func (m *Manager) probe(ctx context.Context, id string) {
+	var version string
+	err := m.call(ctx, id, "GetNodeInfo", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+		res, err := c.GetNodeInfo(ctx, &maitrev1.GetNodeInfoRequest{})
+		if err != nil {
+			return err
+		}
+		version = res.GetNode().GetVersion()
+		return nil
+	})
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.peers[id]
+	if !ok {
+		return
+	}
+	if err != nil && !answered(err) {
+		p.online = false
+		return
+	}
+	p.online, p.lastSeen = true, time.Now()
+	if version != "" && version != p.version {
+		// An updated Node starts with a clean slate.
+		p.version, p.problems = version, nil
+	}
 }
 
 // Push sends records to every peer; failures are left to the next reconcile.
@@ -230,7 +334,7 @@ func (m *Manager) Push(ctx context.Context, recs ...*maitrev1.Record) {
 	for _, id := range ids {
 		id := id
 		go func() {
-			err := m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+			err := m.call(ctx, id, "PushRecords", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 				_, err := c.PushRecords(ctx, &maitrev1.PushRecordsRequest{Records: recs})
 				return err
 			})
@@ -253,7 +357,7 @@ func (m *Manager) Gossip(ctx context.Context, st *maitrev1.FleetNodeStatus) {
 	for _, id := range ids {
 		id := id
 		go func() {
-			err := m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+			err := m.call(ctx, id, "PushStatus", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 				_, err := c.PushStatus(ctx, &maitrev1.PushStatusRequest{Status: st})
 				return err
 			})
@@ -280,6 +384,9 @@ func (m *Manager) Received(st *maitrev1.FleetNodeStatus) {
 	m.heard[st.GetNodeId()] = st
 	if p, ok := m.peers[st.GetNodeId()]; ok {
 		p.online, p.lastSeen = true, time.Now()
+		if v := st.GetVersion(); v != "" && v != p.version {
+			p.version, p.problems = v, nil
+		}
 	}
 }
 
@@ -293,7 +400,7 @@ func (m *Manager) Last(id string) *maitrev1.FleetNodeStatus {
 // Forward writes a record owned by another Node by asking that Node; when
 // it cannot be reached the write is queued and queued=true is returned.
 func (m *Manager) Forward(ctx context.Context, owner string, rec *maitrev1.Record) (applied *maitrev1.Record, queued bool, err error) {
-	ferr := m.call(ctx, owner, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+	ferr := m.call(ctx, owner, "PutRecord", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 		res, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: rec})
 		if err != nil {
 			return err
@@ -429,7 +536,7 @@ func (m *Manager) ReconcileAll(ctx context.Context) {
 
 func (m *Manager) reconcile(ctx context.Context, id string) error {
 	var theirs []*maitrev1.Record
-	if err := m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+	if err := m.call(ctx, id, "ListRecords", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 		res, err := c.ListRecords(ctx, &maitrev1.ListRecordsRequest{})
 		if err != nil {
 			return err
@@ -462,7 +569,7 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		}
 	}
 	if len(missing) > 0 {
-		_ = m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+		_ = m.call(ctx, id, "PushRecords", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 			_, err := c.PushRecords(ctx, &maitrev1.PushRecordsRequest{Records: missing})
 			return err
 		})
@@ -474,7 +581,7 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 	}
 	for _, q := range pending {
 		rec := &maitrev1.Record{Kind: q.Kind, Id: q.ID, Body: q.Body, Deleted: q.Deleted}
-		err := m.call(ctx, id, func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
+		err := m.call(ctx, id, "PutRecord", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 			_, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: rec})
 			return err
 		})

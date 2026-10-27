@@ -140,7 +140,7 @@ var (
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
 type NodeServiceClient interface {
-	// GetNodeInfo returns identity and liveness facts about this Node.
+	// GetNodeInfo returns identity and liveness facts about this Node. Core.
 	GetNodeInfo(context.Context, *v1.GetNodeInfoRequest) (*v1.GetNodeInfoResponse, error)
 	// ListRecords returns this Node's copy of the Fleet database, optionally
 	// filtered by kind. Reads are always local (ADR 0003).
@@ -153,16 +153,17 @@ type NodeServiceClient interface {
 	// GetNodeMetrics returns the gauges the Console shows for this Node.
 	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
 	// GetUpdateStatus reports the booted, staged and rollback images (bootc
-	// status) and any update in progress.
+	// status) and any update in progress. Core.
 	GetUpdateStatus(context.Context, *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error)
 	// UpdateImage stages a new Maître Server image (bootc switch) in the
 	// background and returns at once; poll GetUpdateStatus for progress. With
 	// reboot set, the Node reboots into the new image as soon as it is staged.
+	// Core.
 	UpdateImage(context.Context, *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error)
 	// Rollback makes the previous image the next boot target (bootc rollback)
-	// and reboots when asked.
+	// and reboots when asked. Core.
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
-	// Reboot restarts the Node.
+	// Reboot restarts the Node. Core.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
 	// Give this Node a new name: its record, host name and mDNS announcement
 	// follow at once; its Tailscale name on the next start.
@@ -192,7 +193,7 @@ func NewNodeServiceClient(client *connect.Client) NodeServiceClient {
 
 // NodeServiceHandler is an implementation of the maitre.v1.NodeService service.
 type NodeServiceHandler interface {
-	// GetNodeInfo returns identity and liveness facts about this Node.
+	// GetNodeInfo returns identity and liveness facts about this Node. Core.
 	GetNodeInfo(context.Context, *v1.GetNodeInfoRequest) (*v1.GetNodeInfoResponse, error)
 	// ListRecords returns this Node's copy of the Fleet database, optionally
 	// filtered by kind. Reads are always local (ADR 0003).
@@ -205,16 +206,17 @@ type NodeServiceHandler interface {
 	// GetNodeMetrics returns the gauges the Console shows for this Node.
 	GetNodeMetrics(context.Context, *v1.GetNodeMetricsRequest) (*v1.GetNodeMetricsResponse, error)
 	// GetUpdateStatus reports the booted, staged and rollback images (bootc
-	// status) and any update in progress.
+	// status) and any update in progress. Core.
 	GetUpdateStatus(context.Context, *v1.GetUpdateStatusRequest) (*v1.GetUpdateStatusResponse, error)
 	// UpdateImage stages a new Maître Server image (bootc switch) in the
 	// background and returns at once; poll GetUpdateStatus for progress. With
 	// reboot set, the Node reboots into the new image as soon as it is staged.
+	// Core.
 	UpdateImage(context.Context, *v1.UpdateImageRequest) (*v1.UpdateImageResponse, error)
 	// Rollback makes the previous image the next boot target (bootc rollback)
-	// and reboots when asked.
+	// and reboots when asked. Core.
 	Rollback(context.Context, *v1.RollbackRequest) (*v1.RollbackResponse, error)
-	// Reboot restarts the Node.
+	// Reboot restarts the Node. Core.
 	Reboot(context.Context, *v1.RebootRequest) (*v1.RebootResponse, error)
 	// Give this Node a new name: its record, host name and mDNS announcement
 	// follow at once; its Tailscale name on the next start.

@@ -12,8 +12,15 @@ option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;m
 // NodeService is served by every Node (and by the agent in dev mode).
 // Callers are Trusted Devices and peer Nodes; the transport is mutual TLS
 // checked against the Fleet trust list, so no auth fields appear here.
+//
+// The core (ADR 0007): GetNodeInfo, GetUpdateStatus, UpdateImage, Rollback
+// and Reboot, with their messages, never lose a field, change a field's
+// meaning or refuse a request an older caller could send. Every Node keeps
+// answering them, so any Node, however old, can be seen and updated. A peer
+// is online when it answers GetNodeInfo (or gossips); a failure of any
+// other call is a problem with that Node, never a reason to call it offline.
 service NodeService {
-  // GetNodeInfo returns identity and liveness facts about this Node.
+  // GetNodeInfo returns identity and liveness facts about this Node. Core.
   rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse) {}
   // ListRecords returns this Node's copy of the Fleet database, optionally
   // filtered by kind. Reads are always local (ADR 0003).
@@ -26,16 +33,17 @@ service NodeService {
   // GetNodeMetrics returns the gauges the Console shows for this Node.
   rpc GetNodeMetrics(GetNodeMetricsRequest) returns (GetNodeMetricsResponse) {}
   // GetUpdateStatus reports the booted, staged and rollback images (bootc
-  // status) and any update in progress.
+  // status) and any update in progress. Core.
   rpc GetUpdateStatus(GetUpdateStatusRequest) returns (GetUpdateStatusResponse) {}
   // UpdateImage stages a new Maître Server image (bootc switch) in the
   // background and returns at once; poll GetUpdateStatus for progress. With
   // reboot set, the Node reboots into the new image as soon as it is staged.
+  // Core.
   rpc UpdateImage(UpdateImageRequest) returns (UpdateImageResponse) {}
   // Rollback makes the previous image the next boot target (bootc rollback)
-  // and reboots when asked.
+  // and reboots when asked. Core.
   rpc Rollback(RollbackRequest) returns (RollbackResponse) {}
-  // Reboot restarts the Node.
+  // Reboot restarts the Node. Core.
   rpc Reboot(RebootRequest) returns (RebootResponse) {}
   // Give this Node a new name: its record, host name and mDNS announcement
   // follow at once; its Tailscale name on the next start.
@@ -76,7 +84,8 @@ message GetFleetStatusResponse {
 // FleetNodeStatus is one Node as seen by the answering Node (ADR 0006).
 message FleetNodeStatus {
   string node_id = 1;
-  // True for the answering Node itself and for peers it reached recently.
+  // True for the answering Node itself and for peers that answered
+  // GetNodeInfo or gossiped within the last 60 s (ADR 0007).
   bool reachable = 2;
   // When this Node last heard from the peer (any message); now for itself.
   int64 last_seen_unix_ms = 3;
@@ -103,6 +112,10 @@ message FleetNodeStatus {
   // was made. Lets every Console show Provisioning, not only the one that
   // started the install.
   Provisioning provisioning = 13;
+  // The Node's Maître Server version and, for a peer, the problems the
+  // answering Node has calling it (PeerStatus.problems, ADR 0007).
+  string version = 14;
+  repeated string problems = 15;
 }
 
 message PushRecordsRequest {
@@ -124,6 +137,12 @@ message PeerStatus {
   int64 last_seen_unix_ms = 5;
   // Writes waiting for this peer to come back.
   uint32 queued = 6;
+  // The peer's Maître Server version, from its last GetNodeInfo answer.
+  string version = 7;
+  // Calls the peer answered with an error, one sentence each (ADR 0007):
+  // they make it need attention, not offline. Cleared when the same call
+  // next succeeds or the peer's version changes.
+  repeated string problems = 8;
 }
 
 message GetUpdateStatusRequest {}
