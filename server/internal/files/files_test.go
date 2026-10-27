@@ -138,3 +138,33 @@ func TestMakeDir(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Between folders of one Space on one Node the move is a rename: it needs
+// no rsync and leaves nothing behind.
+func TestMoveWithinSpace(t *testing.T) {
+	m, ctx, dir := setup(t)
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go m.Run(runCtx)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Inbox/Dune"), 0o755)
+	os.WriteFile(filepath.Join(dir, "pools/media/Inbox/Dune/dune.mkv"), make([]byte, 700), 0o644)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Movies"), 0o755)
+	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: "media"}, Path: "Inbox/Dune", ToSpace: "media", ToPath: "Movies/Dune"}); err != nil {
+		t.Fatal(err)
+	}
+	var j *maitrev1.Job
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if j = m.Jobs()[0]; j.GetState() == "done" || j.GetState() == "failed" {
+			break
+		}
+	}
+	if j.GetState() != "done" || j.GetBytesDone() != 700 {
+		t.Fatalf("job %v", j)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pools/media/Movies/Dune/dune.mkv")); err != nil {
+		t.Fatal("file not at destination")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pools/media/Inbox/Dune")); !os.IsNotExist(err) {
+		t.Fatal("source still there")
+	}
+}

@@ -79,7 +79,7 @@ describe("demo Fleet", () => {
   it("moves files with a job that finishes and relocates the entry", async () => {
     const before = await at(B).files.listDir({ scope: { driveId: "sda" }, path: "Downloads" });
     expect(before.entries.map((e) => e.name)).toContain("family-reunion.mp4");
-    const { jobId } = await at(B).files.move({ from: { driveId: "sda" }, path: "Downloads/family-reunion.mp4", toSpace: "media", toPath: "Movies" });
+    const { jobId } = await at(B).files.move({ from: { driveId: "sda" }, path: "Downloads/family-reunion.mp4", toSpace: "media", toPath: "Movies/family-reunion.mp4" });
     for (let i = 0; i < 40; i++) fleet.tick(fleet.now + 1000);
     const jobs = (await at(B).files.listJobs({})).jobs;
     expect(jobs.find((j) => j.jobId === jobId)?.state).toBe("done");

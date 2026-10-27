@@ -78,8 +78,10 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
       setPath(initial.path ?? "");
     }
   }, [initial]);
+  // `?move=<name>` opens Move for that entry of `?path=` (screenshot fixture).
+  const moveFixture = useState(() => new URLSearchParams(window.location.search).get("move"))[0];
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [moving, setMoving] = useState(false);
+  const [moving, setMoving] = useState(!!moveFixture);
   const [newFolder, setNewFolder] = useState(false);
   const target = scope ? targetFor(snap, state.nodes, scope.nodeId) : undefined;
   const client = useMemo(() => (target ? createClient(FilesService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
@@ -91,7 +93,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
     queryFn: async () => (await client!.listDir({ scope: { spaceId: scope!.spaceId ?? "", driveId: scope!.driveId ?? "" }, path })).entries,
   });
   const entries = useMemo(() => [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data]);
-  useEffect(() => setSelected(new Set()), [scope && scopeKey(scope), path]);
+  useEffect(() => setSelected(new Set(moveFixture && list.data ? [moveFixture] : [])), [scope && scopeKey(scope), path, !!list.data]);
   const nodeName = (id: string) => nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   const driveName = (nid: string, did: string) => drives.find((d) => d.nodeId === nid && d.driveId === did)?.name ?? did;
   const crumbs = path.split("/").filter(Boolean);
@@ -237,10 +239,16 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
           path={path}
           names={[...selected]}
           nodeName={nodeName}
+          listFolders={async (nodeId, spaceId, p) => {
+            const t = targetFor(snap, state.nodes, nodeId);
+            if (!t) throw new Error("no address");
+            const res = await createClient(FilesService, transportFor(t)).listDir({ scope: { spaceId, driveId: "" }, path: p });
+            return res.entries.filter((e) => e.dir).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+          }}
           onMove={async (req) => {
             for (const name of selected) {
               const rel = [...crumbs, name].join("/");
-              await client.move({ from: { spaceId: scope.spaceId ?? "", driveId: scope.driveId ?? "" }, path: rel, toSpace: req.toSpace, toPath: req.toPath ? `${req.toPath}/${name}`.replace(/^\/+/, "") : rel, toNodeId: req.toNodeId, toDriveId: req.toDriveId });
+              await client.move({ from: { spaceId: scope.spaceId ?? "", driveId: scope.driveId ?? "" }, path: rel, toSpace: req.toSpace, toPath: [req.toPath, name].filter(Boolean).join("/"), toNodeId: req.toNodeId, toDriveId: req.toDriveId });
             }
             toast.success(`${selected.size} ${selected.size === 1 ? "item" : "items"} queued to move`);
             setSelected(new Set());
@@ -409,76 +417,120 @@ function NewFolderDialog({ open, onClose, where, taken, onMake }: { open: boolea
   );
 }
 
-function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
-  const spaces = snap?.spaces ?? [];
+/**
+ * Where selected items go: a folder of the same Space, another Space, or the
+ * same Space on another Node. The folder is picked by browsing the
+ * destination; a Space that does not span Nodes is browsed on the Node
+ * chosen, a spanning one through any Node that has it.
+ */
+function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFolders, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; listFolders: (nodeId: string, spaceId: string, path: string) => Promise<string[]>; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
+  // Same order as the file manager's list, so each Space keeps its colour.
+  const spaces = [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority);
   const drives = snap?.drives ?? [];
   const nodes = snap?.nodes ?? [];
-  const [toSpace, setToSpace] = useState(spaces.find((s) => s.defaultForNew)?.spaceId ?? spaces[0]?.spaceId ?? "");
+  // Files on a Drive root move to a Space on their own Node first.
+  const ownNodeOnly = !!scope.driveId;
+  const holders = (spaceId: string) => nodes.filter((n) => drives.some((d) => d.nodeId === n.nodeId && spacesOf(d, spaces).includes(spaceId))).filter((n) => !ownNodeOnly || n.nodeId === scope.nodeId);
+  const spaceChoices = spaces.filter((s) => holders(s.spaceId).length > 0);
+  const firstSpace = scope.spaceId ?? spaceChoices.find((s) => s.defaultForNew)?.spaceId ?? spaceChoices[0]?.spaceId ?? "";
+  const [toSpace, setToSpace] = useState(firstSpace);
   const [toNode, setToNode] = useState("");
   const [toDrive, setToDrive] = useState("");
   const [toPath, setToPath] = useState(path);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (open) {
-      setToPath(path);
-      setToNode(scope.driveId ? scope.nodeId : "");
-      setToDrive("");
-    }
-  }, [open, path, scope.driveId, scope.nodeId]);
-  // Files on a Drive root move to a Space on their own Node first.
-  const ownNodeOnly = !!scope.driveId;
   const space = spaces.find((s) => s.spaceId === toSpace);
+  const spaceHolders = holders(toSpace);
+  // The Node a Space that does not span is on; "" for a spanning one lets
+  // the Space place it.
+  const defaultNode = (spaceId: string) => {
+    const sp = spaces.find((s) => s.spaceId === spaceId);
+    const hs = holders(spaceId);
+    if (sp?.spanNodes) return "";
+    return hs.some((n) => n.nodeId === scope.nodeId) ? scope.nodeId : (hs[0]?.nodeId ?? "");
+  };
+  function pickSpace(id: string) {
+    setToSpace(id);
+    setToNode(defaultNode(id));
+    setToDrive("");
+    setToPath(id === scope.spaceId ? path : "");
+  }
+  useEffect(() => {
+    if (!open) return;
+    setToSpace(firstSpace);
+    setToNode(defaultNode(firstSpace));
+    setToDrive("");
+    setToPath(firstSpace === scope.spaceId ? path : "");
+  }, [open]);
+  // Browse on the chosen Node, else the one the files are on, else any holder.
+  const browseNode = toNode || (spaceHolders.some((n) => n.nodeId === scope.nodeId) ? scope.nodeId : spaceHolders[0]?.nodeId) || "";
+  const folders = useQuery({
+    queryKey: ["move-folders", browseNode, toSpace, toPath],
+    enabled: open && !!browseNode && !!toSpace,
+    retry: false,
+    queryFn: () => listFolders(browseNode, toSpace, toPath),
+  });
   const memberDrives = space ? drives.filter((d) => spacesOf(d, spaces).includes(space.spaceId)) : [];
-  const nodeChoices = nodes.filter((n) => memberDrives.some((d) => d.nodeId === n.nodeId));
   const driveChoices = memberDrives.filter((d) => d.nodeId === (toNode || scope.nodeId));
+  const crumbs = toPath.split("/").filter(Boolean);
+  const sameNode = !toNode || toNode === scope.nodeId;
+  const here = toSpace === scope.spaceId && sameNode && !toDrive && toPath === path;
+  const into = (n: string) => toSpace === scope.spaceId && sameNode && [path, n].filter(Boolean).join("/");
+  const intoItself = names.some((n) => {
+    const self = into(n);
+    return self && (toPath === self || toPath.startsWith(self + "/"));
+  });
+  const problem = here ? `${names.length === 1 ? "It is" : "They are"} already here. Pick another folder, Space or Node.` : intoItself ? "A folder cannot move into itself." : "";
+  const spaceName = space?.name ?? "";
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            Move {names.length === 1 ? names[0] : `${names.length} items`}
-          </DialogTitle>
-          <DialogDescription>Copied first, checked, then removed from where it is. A move that fails leaves the original untouched.</DialogDescription>
+          <DialogTitle>Move {names.length === 1 ? names[0] : `${names.length} items`}</DialogTitle>
+          <DialogDescription>Copied first, checked, then removed from where it is. A move that fails leaves the original untouched. Within one Space on one Node it is a rename.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>To Space</Label>
-            <Select value={toSpace} onValueChange={(v) => (setToSpace(v), setToDrive(""))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Space" />
-              </SelectTrigger>
-              <SelectContent>
-                {spaces.map((s, i) => (
-                  <SelectItem key={s.spaceId} value={s.spaceId}>
-                    <span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: spaceColor(i) }} />
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Space</Label>
+              <Select value={toSpace} onValueChange={pickSpace}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Space" />
+                </SelectTrigger>
+                <SelectContent>
+                  {spaceChoices.map((s) => (
+                    <SelectItem key={s.spaceId} value={s.spaceId}>
+                      <span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: spaceColor(spaces.indexOf(s)) }} />
+                      {s.name}
+                      {s.spaceId === scope.spaceId && <span className="text-muted-foreground"> (this one)</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Node</Label>
+              <Select value={toNode || "any"} onValueChange={(v) => (setToNode(v === "any" ? "" : v), setToDrive(""))} disabled={ownNodeOnly || (!space?.spanNodes && spaceHolders.length < 2)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {space?.spanNodes && <SelectItem value="any">any Node</SelectItem>}
+                  {spaceHolders.map((n) => (
+                    <SelectItem key={n.nodeId} value={n.nodeId}>
+                      {n.name}
+                      {n.nodeId === scope.nodeId && <span className="text-muted-foreground"> (where it is)</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>On</Label>
-            <Select value={toNode || "any"} onValueChange={(v) => (setToNode(v === "any" ? "" : v), setToDrive(""))} disabled={ownNodeOnly}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">wherever the Space places it</SelectItem>
-                {nodeChoices.map((n) => (
-                  <SelectItem key={n.nodeId} value={n.nodeId}>
-                    {n.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {ownNodeOnly && <p className="text-xs text-muted-foreground">Files on a Drive move to a Space on {nodeName(scope.nodeId)} first; from there, anywhere.</p>}
-          </div>
+          {ownNodeOnly && <p className="-mt-2 text-xs text-muted-foreground">Files on a Drive move to a Space on {nodeName(scope.nodeId)} first; from there, anywhere.</p>}
           {driveChoices.length > 1 && (
             <div className="space-y-1.5">
               <Label>Drive</Label>
               <Select value={toDrive || "any"} onValueChange={(v) => setToDrive(v === "any" ? "" : v)}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -493,20 +545,65 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, onMove 
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="mv-path">Into folder</Label>
-            <Input id="mv-path" value={toPath} onChange={(e) => setToPath(e.target.value)} placeholder="top of the Space" className="font-mono text-xs" />
+            <Label>Folder</Label>
+            <div className="rounded-md border">
+              <nav className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5 text-sm">
+                <button className="rounded px-1 font-medium hover:bg-accent" onClick={() => setToPath("")}>
+                  {spaceName || "Space"}
+                </button>
+                {crumbs.map((c, i) => (
+                  <span key={i} className="flex items-center gap-1">
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                    <button className="rounded px-1 hover:bg-accent" onClick={() => setToPath(crumbs.slice(0, i + 1).join("/"))}>
+                      {c}
+                    </button>
+                  </span>
+                ))}
+              </nav>
+              <ul className="max-h-48 overflow-y-auto py-1 text-sm" aria-label="Folders">
+                {crumbs.length > 0 && (
+                  <li>
+                    <button className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-accent" onClick={() => setToPath(crumbs.slice(0, -1).join("/"))}>
+                      <CornerLeftUp className="size-4 text-muted-foreground" /> ..
+                    </button>
+                  </li>
+                )}
+                {folders.error ? (
+                  <li className="px-3 py-1 text-xs text-muted-foreground">{crumbs.length ? "This folder does not exist there yet; it is made by the move." : `Cannot read ${spaceName} on ${nodeName(browseNode)}.`}</li>
+                ) : !folders.data ? (
+                  <li className="px-3 py-1 text-xs text-muted-foreground">Reading…</li>
+                ) : (
+                  folders.data.map((f) => {
+                    const self = names.some((n) => into(n) === [toPath, f].filter(Boolean).join("/"));
+                    return (
+                      <li key={f}>
+                        <button disabled={self} title={self ? "Being moved" : undefined} className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-accent disabled:opacity-40" onClick={() => setToPath([toPath, f].filter(Boolean).join("/"))}>
+                          <Folder className="size-4 text-status-starting" /> {f}
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+                {folders.data?.length === 0 && <li className="px-3 py-1 text-xs text-muted-foreground">No folders in here.</li>}
+              </ul>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Into <span className="font-medium text-foreground">{[spaceName, ...crumbs].join(" / ")}</span>
+              {toNode ? ` on ${nodeName(toNode)}` : space?.spanNodes ? ", wherever the Space places it" : ""}
+            </p>
           </div>
+          {problem && <p className={cn("text-xs", here ? "text-muted-foreground" : "text-destructive")}>{problem}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            disabled={busy || !toSpace || names.length === 0}
+            disabled={busy || !toSpace || names.length === 0 || !!problem}
             onClick={async () => {
               setBusy(true);
               try {
-                await onMove({ toSpace, toPath: toPath.trim().replace(/^\/+|\/+$/g, ""), toNodeId: toNode, toDriveId: toDrive });
+                await onMove({ toSpace, toPath, toNodeId: toNode, toDriveId: toDrive });
                 onClose();
               } catch (e) {
                 toast.error(String((e as Error).message ?? e));
@@ -515,7 +612,7 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, onMove 
               }
             }}
           >
-            Move
+            Move here
           </Button>
         </DialogFooter>
       </DialogContent>

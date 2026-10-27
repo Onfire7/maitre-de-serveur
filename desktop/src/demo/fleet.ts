@@ -645,7 +645,10 @@ export class DemoFleet {
     if (!parent || idx < 0) return;
     const [item] = parent.splice(idx, 1);
     const toNode = req.toNodeId || j.nodeId;
-    const dest = this.walk(this.tree({ spaceId: req.toSpace }, toNode), req.toPath);
+    // to_path names the item itself: walk to its parent, take its name.
+    const toParts = (req.toPath || req.path).split("/").filter(Boolean);
+    item.name = toParts.pop() ?? item.name;
+    const dest = this.walk(this.tree({ spaceId: req.toSpace }, toNode), toParts.join("/"));
     const retarget = (n: FileNode) => {
       n.nodeId = toNode;
       n.drives = req.toDriveId ? [req.toDriveId] : [this.drives.find((d) => d.nodeId === toNode && d.spaces.includes(req.toSpace))?.driveId ?? "nvme0n1"];

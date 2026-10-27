@@ -51,5 +51,17 @@ describe("Console on the demo Fleet", () => {
     expect(within(main).queryByText("Empty.")).toBeNull();
     fireEvent.click(within(main).getByRole("button", { name: ".." }));
     expect(await within(main).findByRole("button", { name: /Dune/ })).toBeTruthy();
+
+    // Move Dune into Movies/2026: the dialog starts where it is, so Move is
+    // refused until another folder is picked.
+    fireEvent.click(within(main).getByRole("checkbox", { name: /Select Dune/ }));
+    fireEvent.click(within(main).getByRole("button", { name: /Move 1 item/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/already here/)).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "Move here" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(await within(dialog).findByRole("button", { name: "2026" }, { timeout: 5000 }));
+    expect(within(dialog).getByText("Media / Movies / 2026")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Move here" }));
+    expect(await screen.findByText(/1 item queued to move/)).toBeTruthy();
   });
 });

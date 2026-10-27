@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -520,6 +521,23 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	j.mu.Lock()
 	j.pb.BytesTotal = bytes
 	j.mu.Unlock()
+	// Between folders of one Space on this Node, to a name not taken: a
+	// rename through the Pool, instant when mergerfs keeps it on one Drive.
+	// EXDEV (the Pool would have to cross Drives) falls back to the copy.
+	if req.GetFromNodeId() == "" && req.GetToDriveId() == "" && req.GetFrom().GetSpaceId() != "" && req.GetFrom().GetSpaceId() == req.GetToSpace() {
+		if _, err := os.Lstat(dst); errors.Is(err, fs.ErrNotExist) {
+			err := os.Rename(src, dst)
+			if err == nil {
+				j.mu.Lock()
+				j.pb.BytesDone = bytes
+				j.mu.Unlock()
+				return nil
+			}
+			if !errors.Is(err, syscall.EXDEV) {
+				return err
+			}
+		}
+	}
 	// Same filesystem and not across the Pool: a rename is instant. Only
 	// for Drive-to-Drive within one Drive; everything else copies.
 	if err := m.rsync(ctx, j, src, dst, info.IsDir()); err != nil {
