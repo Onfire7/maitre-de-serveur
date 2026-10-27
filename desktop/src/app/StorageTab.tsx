@@ -3,7 +3,7 @@
 // Spaces and Drive records come from the anchor; a Node's live Drive list
 // is a direct call to it (decision 160).
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import { StorageService, SpaceSchema, type Drive, type DriveRecord, type Space } from "@/gen/maitre/v1/storage_pb";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
+import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
@@ -40,6 +41,7 @@ export function spaceColor(i: number): string {
 
 export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; state: ConsoleState }) {
   const qc = useQueryClient();
+  const { go } = useRoute();
   const spaces = useMemo(() => [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority), [snap?.spaces]);
   const drives = snap?.drives ?? [];
   const nodes = snap?.nodes ?? [];
@@ -83,6 +85,7 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
     return { count: mine.length, free, shared };
   };
   const liveFree = useLiveFree(snap, state);
+  const used = useSpaceUsed(snap, state, spaces);
 
   return (
     <div className="space-y-8">
@@ -96,7 +99,31 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
             <Plus /> Add a Space
           </Button>
         </div>
-        {spaces.length === 0 && <p className="rounded-lg border border-status-attention/60 bg-status-attention/10 p-3 text-sm">No Spaces yet. Services cannot be installed until a Space is marked as the default for new volumes.</p>}
+        {spaces.length === 0 && (
+          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-status-attention/60 bg-status-attention/10 p-4">
+            <div className="min-w-0 flex-1 text-sm">
+              <div className="font-medium">Create your first Space</div>
+              <div className="text-muted-foreground">
+                Services cannot be installed until one exists. "General" takes every Drive{drives.length ? ` (${drives.length} now: ${drives.map((d) => d.name).join(", ")})` : ""}, fills each Node's own Drives first, and becomes the default for new volumes. Make more specific Spaces later.
+              </div>
+            </div>
+            <Button
+              onClick={async () => {
+                try {
+                  await put(create(SpaceSchema, { spaceId: "general", name: "General", placement: "local_first", requireTags: [], spanNodes: false, exclusive: false, defaultForNew: true, priority: 0, createdUnixMs: BigInt(Date.now()) }));
+                  toast.success("General created; Services can be installed now");
+                } catch (e) {
+                  toast.error(String((e as Error).message ?? e));
+                }
+              }}
+            >
+              Create General
+            </Button>
+            <Button variant="outline" onClick={() => setAdding(true)}>
+              Choose myself…
+            </Button>
+          </div>
+        )}
         {spaces.length > 0 && !spaces.some((s) => s.defaultForNew) && <p className="rounded-lg border border-status-attention/60 bg-status-attention/10 p-3 text-sm">No Space is marked as the default for new volumes; installing a Service will fail until one is.</p>}
         <ul className="space-y-2">
           {spaces.map((s, i) => {
@@ -126,6 +153,8 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                         <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
                         {cap.count} {cap.count === 1 ? "Drive" : "Drives"} on {byNode(members(s)).length} {byNode(members(s)).length === 1 ? "Node" : "Nodes"}
                         <span className="text-muted-foreground">
+                          {" · "}
+                          {used.get(s.spaceId) === undefined ? "used: counting…" : `${formatBytes(used.get(s.spaceId)!)} used`}
                           {" · "}
                           {formatBytes(cap.free)} free{cap.shared ? ", shared with other Spaces" : ""}
                         </span>
@@ -195,7 +224,18 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
             <HoldButton
               variant="destructive"
               onConfirm={() => {
-                if (removing) tryPut(removing, true);
+                if (removing) {
+                  const gone = removing;
+                  const holder = drives.find((d) => spacesOf(d, spaces).includes(gone.spaceId));
+                  put(gone, true)
+                    .then(() =>
+                      toast(`${gone.name} was removed`, {
+                        description: "Its folders stay on the Drives as folders of a removed Space.",
+                        action: holder ? { label: "Open in Files", onClick: () => go({ name: "fleet", tab: "files", files: { nodeId: holder.nodeId, driveId: holder.driveId, path: gone.spaceId } }) } : undefined,
+                      }),
+                    )
+                    .catch((e) => toast.error(String((e as Error).message ?? e)));
+                }
                 setRemoving(null);
               }}
             >
@@ -209,6 +249,52 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
 }
 
 /** Free bytes per Drive from each reachable Node's live Drive list. */
+/**
+ * Used bytes per Space (decision 125): the size of the Space's folders,
+ * counted by the file manager's Usage on the Nodes that hold it. A spanning
+ * Space's merged Pool already includes its peers, so it is counted once, on
+ * the anchor if it holds it, else on its first reachable holder; any other
+ * Space is counted on each holder and summed. Usage is computed in the
+ * background and cached by the Node, so the first answer may be partial.
+ */
+function useSpaceUsed(snap: FleetSnapshot | undefined, state: ConsoleState, spaces: Space[]) {
+  const nodes = snap?.nodes ?? [];
+  const drives = snap?.drives ?? [];
+  const asks: { spaceId: string; nodeId: string }[] = [];
+  for (const s of spaces) {
+    const holders = nodes.filter((n) => drives.some((d) => d.nodeId === n.nodeId && spacesOf(d, spaces).includes(s.spaceId)));
+    const up = holders.filter((n) => nodeWord(snap?.status.get(n.nodeId), Date.now()) !== "Unreachable");
+    if (s.spanNodes) {
+      const via = up.find((n) => n.nodeId === snap?.anchor.nodeId) ?? up[0];
+      if (via) asks.push({ spaceId: s.spaceId, nodeId: via.nodeId });
+    } else for (const n of up) asks.push({ spaceId: s.spaceId, nodeId: n.nodeId });
+  }
+  const results = useQueries({
+    queries: asks.map((a) => {
+      const t = targetFor(snap, state.nodes, a.nodeId);
+      return {
+        queryKey: ["space-used", a.spaceId, a.nodeId, t?.addr],
+        enabled: !!t,
+        retry: false,
+        refetchInterval: (q: { state: { data?: { inProgress: boolean } } }) => (q.state.data?.inProgress ? 3000 : 60_000),
+        queryFn: () => createClient(FilesService, transportFor(t!)).usage({ scope: { spaceId: a.spaceId, driveId: "" }, path: "" }),
+      };
+    }),
+  });
+  const out = new Map<string, bigint>();
+  asks.forEach((a, i) => {
+    const r = results[i]?.data;
+    if (!r || r.inProgress) return;
+    out.set(a.spaceId, (out.get(a.spaceId) ?? 0n) + r.bytes);
+  });
+  // A Space counts as known only once every holder answered.
+  for (const s of spaces) {
+    const mine = asks.map((a, i) => ({ a, r: results[i]?.data })).filter((x) => x.a.spaceId === s.spaceId);
+    if (mine.some((x) => !x.r || x.r.inProgress)) out.delete(s.spaceId);
+  }
+  return out;
+}
+
 function useLiveFree(snap: FleetSnapshot | undefined, state: ConsoleState) {
   const nodes = snap?.nodes ?? [];
   const q = useQuery({

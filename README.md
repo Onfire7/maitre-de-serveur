@@ -41,7 +41,7 @@ If you lose the computer running the app: on a new one, "Join it from another co
 
 Clone with `git clone --recurse-submodules` (or run `git submodule update --init` afterwards) so the Catalog is present; the image build needs it, and `make gen` regenerates the index the Desktop bundles from it.
 
-Prerequisites: Go, Rust, pnpm, buf. For the image: podman. Linux desktop builds also need WebKitGTK 4.1 dev packages.
+Prerequisites: Go, Rust, pnpm, buf. For the image: podman. Linux desktop builds also need WebKitGTK 4.1 dev packages, and Maître Desktop needs WebKitGTK 2.40 or newer at run time (its styles use cascade layers, `@property` and `color-mix()`): current Fedora, Ubuntu 24.04 and Arch have it; older LTS releases do not.
 
 ```
 make test        # Go, Rust, TypeScript

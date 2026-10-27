@@ -575,12 +575,14 @@ export class DemoFleet {
 
   usage(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string): { bytes: bigint; files: bigint } {
     const dir = this.walk(this.tree(scope, nodeId), path) ?? [];
+    // A Space that does not span Nodes is one Pool per Node: count this Node's files only.
+    const local = !!scope.spaceId && !this.spaces.find((s) => s.spaceId === scope.spaceId)?.spanNodes;
     let bytes = 0;
     let files = 0;
     const rec = (ns: FileNode[]) => {
       for (const n of ns) {
         if (n.dir) rec(n.children ?? []);
-        else {
+        else if (!local || n.nodeId === nodeId) {
           bytes += n.size;
           files++;
         }
@@ -681,6 +683,12 @@ let timer: ReturnType<typeof setInterval> | undefined;
 export function demoFleet(): DemoFleet {
   if (!shared) {
     shared = new DemoFleet();
+    // `?empty=spaces` starts the demo with no Storage Space (empty-state fixture).
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("empty") === "spaces") {
+      shared.spaces = [];
+      for (const d of shared.drives) d.spaces = [];
+      shared.rebuildRecords();
+    }
     if (typeof window !== "undefined") {
       timer = setInterval(() => shared!.tick(), 1000);
       (window as unknown as { demo: DemoFleet }).demo = shared;

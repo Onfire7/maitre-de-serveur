@@ -123,6 +123,19 @@ export function Sidebar({
     }, LEAVE_DELAY);
   };
   const keepOpen = () => clearTimers();
+  // Escape closes whichever flyout is open.
+  useEffect(() => {
+    if (fly === null && nodeFly === null) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        clearTimers();
+        setFly(null);
+        setNodeFly(null);
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [fly, nodeFly]);
   useEffect(() => () => clearTimers(), []);
   // `?flyout=<service>` opens the flyout on load (screenshot fixture).
   const fixture = useRef(typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("flyout") : null);

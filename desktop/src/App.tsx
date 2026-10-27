@@ -2,6 +2,7 @@
 // Console shell (src/app/). The Rust side holds the Console's own state
 // (src/state.ts); the Fleet itself is read from its Nodes.
 import { useCallback, useEffect, useState } from "react";
+import { MotionConfig } from "motion/react";
 import { api, type ConsoleState, type DeviceInfo } from "./state";
 import { Welcome, RecoveryPhrase, JoinScreen, RecoverScreen, CodeScreen, type FirstRunScreen } from "./app/FirstRun";
 import { Shell as ConsoleShell } from "./app/Shell";
@@ -62,5 +63,9 @@ export default function App() {
       </RouteProvider>
     );
   }
-  return <ThemeProvider>{body}</ThemeProvider>;
+  return (
+    <MotionConfig reducedMotion="user">
+      <ThemeProvider>{body}</ThemeProvider>
+    </MotionConfig>
+  );
 }
