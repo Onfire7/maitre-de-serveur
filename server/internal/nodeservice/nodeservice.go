@@ -15,6 +15,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
@@ -62,6 +63,9 @@ type Service struct {
 	Tailscale func() *maitrev1.TailscaleStatus
 	// Rollout reports the staged rollout's last decision; nil if none.
 	Rollout func() string
+	// Available is the newer image digest the registry last offered; nil
+	// if none (UpdateStatus.available).
+	Available func() string
 	// PublicIP reports the address the internet sees this Node from
 	// (decision 112); nil or "" when unknown.
 	PublicIP func() string
@@ -299,6 +303,7 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	if st := s.cachedUpdate(ctx); st != nil {
 		self.UpdateState, self.UpdateMessage, self.UpdateProgress = st.GetState(), st.GetMessage(), st.GetProgress()
 		self.UpdateStaged, self.LastRollback = st.GetStaged() != nil && !st.GetRollbackQueued(), st.GetLastRollback()
+		self.UpdateAvailable = st.GetAvailable() != ""
 	}
 	return self
 }
@@ -317,6 +322,9 @@ func (s *Service) cachedUpdate(ctx context.Context) *maitrev1.UpdateStatus {
 		if st, err := s.Updates.Status(ctx); err == nil {
 			if s.Rollout != nil {
 				st.Rollout = s.Rollout()
+			}
+			if s.Available != nil {
+				st.Available = rollout.Newer(st, s.Available())
 			}
 			s.updLast = st
 		}
@@ -341,6 +349,7 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.Services, st.ServicesUnixMs = last.GetServices(), last.GetServicesUnixMs()
 				st.UpdateState, st.UpdateMessage, st.UpdateProgress = last.GetUpdateState(), last.GetUpdateMessage(), last.GetUpdateProgress()
 				st.UpdateStaged, st.LastRollback = last.GetUpdateStaged(), last.GetLastRollback()
+				st.UpdateAvailable = last.GetUpdateAvailable()
 			}
 			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)
@@ -368,6 +377,9 @@ func (s *Service) GetUpdateStatus(ctx context.Context, _ *maitrev1.GetUpdateStat
 	}
 	if s.Rollout != nil {
 		st.Rollout = s.Rollout()
+	}
+	if s.Available != nil {
+		st.Available = rollout.Newer(st, s.Available())
 	}
 	return &maitrev1.GetUpdateStatusResponse{Status: st}, nil
 }

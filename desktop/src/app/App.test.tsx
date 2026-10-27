@@ -29,5 +29,11 @@ describe("Console on the demo Fleet", () => {
     const main = screen.getByRole("main");
     expect(await within(main).findByText("Basalt", {}, { timeout: 5000 })).toBeTruthy();
     expect(within(main).getAllByText("CPU").length).toBe(2);
+    // Only Basalt has a newer image; its Update opens the details' dialog.
+    const update = await within(main).findByRole("button", { name: /^Update$/ }, { timeout: 5000 });
+    expect(within(main).getAllByRole("button", { name: /^Update$/ }).length).toBe(1);
+    fireEvent.click(update);
+    expect(await screen.findByRole("dialog", { name: "Update Maître Server" }, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByText("The registry has a newer build of this image.")).toBeTruthy();
   });
 });

@@ -64,3 +64,11 @@ Nothing.
   lists a spanning Space once, under the Fleet, and reads it through the
   anchor when the anchor has it. No agent change was needed: the merged
   Pool is the same from any Node that has the Space.
+- **Update availability (`UpdateStatus.available`, `FleetNodeStatus.update_available`).**
+  Every Node asks its registry (`skopeo inspect`) for the newest digest of
+  its booted reference at start and every 15 minutes, whatever the update
+  policy, and reports it when it neither runs nor has staged it; it rides
+  the gossip like the rest of the update state. The Console shows Update
+  left of Restart on that Node's card and a line in its flyout. In
+  `rollout.Runner.Check` and `rollout.Newer`. Older Nodes never set it, so
+  the button stays hidden there; Update… in the details still works.

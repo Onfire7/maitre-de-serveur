@@ -284,6 +284,7 @@ func runAgent(args []string) error {
 	ro := rollout.New(st, svc.Updates, log, id.Fingerprint())
 	ro.Current = current
 	svc.Rollout = func() string { return ro.Last.Reason }
+	svc.Available = ro.Available
 	go ro.Run(ctx)
 	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
 	cat := serviceservice.NewCatalog(nil, "")

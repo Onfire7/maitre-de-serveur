@@ -51,7 +51,7 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	if _, err := s.PushStatus(context.Background(), &maitrev1.PushStatusRequest{Status: &maitrev1.FleetNodeStatus{
 		NodeId: "b", Metrics: &maitrev1.NodeMetrics{CpuPercent: 60}, MetricsUnixMs: 900,
 		Services: []*maitrev1.ServiceStatus{{Spec: &maitrev1.ServiceSpec{Name: "uptime"}, State: maitrev1.ServiceStatus_STATE_STARTING}}, ServicesUnixMs: 800,
-		UpdateState: maitrev1.UpdateStatus_STATE_UPDATING, UpdateMessage: "pulling", UpdateProgress: 0.5, UpdateStaged: true, LastRollback: "health check failed",
+		UpdateState: maitrev1.UpdateStatus_STATE_UPDATING, UpdateMessage: "pulling", UpdateProgress: 0.5, UpdateStaged: true, LastRollback: "health check failed", UpdateAvailable: true,
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestGetFleetStatusMergesGossip(t *testing.T) {
 	if !b.GetReachable() || b.GetLastSeenUnixMs() != 1000 || b.GetMetrics().GetCpuPercent() != 60 || b.GetMetricsUnixMs() != 900 || len(b.GetServices()) != 1 || b.GetServices()[0].GetSpec().GetName() != "uptime" {
 		t.Fatalf("Basalt's gossip not merged: %v", b)
 	}
-	if b.GetUpdateState() != maitrev1.UpdateStatus_STATE_UPDATING || b.GetUpdateMessage() != "pulling" || b.GetUpdateProgress() != 0.5 || !b.GetUpdateStaged() || b.GetLastRollback() != "health check failed" || b.GetProvisioning() != nil {
+	if b.GetUpdateState() != maitrev1.UpdateStatus_STATE_UPDATING || b.GetUpdateMessage() != "pulling" || b.GetUpdateProgress() != 0.5 || !b.GetUpdateStaged() || b.GetLastRollback() != "health check failed" || !b.GetUpdateAvailable() || b.GetProvisioning() != nil {
 		t.Fatalf("Basalt's update state not merged: %v", b)
 	}
 	if self.GetVersion() != "5803c23" || b.GetVersion() != "95c3d8a" || len(b.GetProblems()) != 1 {

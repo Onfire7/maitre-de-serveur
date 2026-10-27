@@ -116,6 +116,9 @@ message FleetNodeStatus {
   // answering Node has calling it (PeerStatus.problems, ADR 0007).
   string version = 14;
   repeated string problems = 15;
+  // The registry has a newer image for the Node's reference than it runs
+  // or has staged (UpdateStatus.available).
+  bool update_available = 16;
 }
 
 message PushRecordsRequest {
@@ -197,6 +200,10 @@ message UpdateStatus {
   string last_rollback = 10;
   // What the staged rollout decided last (Milestone 6), in words.
   string rollout = 11;
+  // The digest of a newer image the registry has for the booted reference,
+  // checked every 15 minutes; empty when the Node runs or has staged the
+  // newest, or the registry was never reached. The Console's Update button.
+  string available = 12;
 }
 
 message UpdateImageRequest {

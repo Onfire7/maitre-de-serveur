@@ -285,10 +285,13 @@ type FleetNodeStatus struct {
 	Provisioning *Provisioning `protobuf:"bytes,13,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
 	// The Node's Maître Server version and, for a peer, the problems the
 	// answering Node has calling it (PeerStatus.problems, ADR 0007).
-	Version       string   `protobuf:"bytes,14,opt,name=version,proto3" json:"version,omitempty"`
-	Problems      []string `protobuf:"bytes,15,rep,name=problems,proto3" json:"problems,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Version  string   `protobuf:"bytes,14,opt,name=version,proto3" json:"version,omitempty"`
+	Problems []string `protobuf:"bytes,15,rep,name=problems,proto3" json:"problems,omitempty"`
+	// The registry has a newer image for the Node's reference than it runs
+	// or has staged (UpdateStatus.available).
+	UpdateAvailable bool `protobuf:"varint,16,opt,name=update_available,json=updateAvailable,proto3" json:"update_available,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *FleetNodeStatus) Reset() {
@@ -424,6 +427,13 @@ func (x *FleetNodeStatus) GetProblems() []string {
 		return x.Problems
 	}
 	return nil
+}
+
+func (x *FleetNodeStatus) GetUpdateAvailable() bool {
+	if x != nil {
+		return x.UpdateAvailable
+	}
+	return false
 }
 
 type PushRecordsRequest struct {
@@ -798,7 +808,11 @@ type UpdateStatus struct {
 	// not come up healthy; cleared by the next successful update.
 	LastRollback string `protobuf:"bytes,10,opt,name=last_rollback,json=lastRollback,proto3" json:"last_rollback,omitempty"`
 	// What the staged rollout decided last (Milestone 6), in words.
-	Rollout       string `protobuf:"bytes,11,opt,name=rollout,proto3" json:"rollout,omitempty"`
+	Rollout string `protobuf:"bytes,11,opt,name=rollout,proto3" json:"rollout,omitempty"`
+	// The digest of a newer image the registry has for the booted reference,
+	// checked every 15 minutes; empty when the Node runs or has staged the
+	// newest, or the registry was never reached. The Console's Update button.
+	Available     string `protobuf:"bytes,12,opt,name=available,proto3" json:"available,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -906,6 +920,13 @@ func (x *UpdateStatus) GetLastRollback() string {
 func (x *UpdateStatus) GetRollout() string {
 	if x != nil {
 		return x.Rollout
+	}
+	return ""
+}
+
+func (x *UpdateStatus) GetAvailable() string {
+	if x != nil {
+		return x.Available
 	}
 	return ""
 }
@@ -1929,7 +1950,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x15GetFleetStatusRequest\"c\n" +
 	"\x16GetFleetStatusResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xfc\x04\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xa7\x05\n" +
 	"\x0fFleetNodeStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
 	"\treachable\x18\x02 \x01(\bR\treachable\x12)\n" +
@@ -1946,7 +1967,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\rlast_rollback\x18\f \x01(\tR\flastRollback\x12;\n" +
 	"\fprovisioning\x18\r \x01(\v2\x17.maitre.v1.ProvisioningR\fprovisioning\x12\x18\n" +
 	"\aversion\x18\x0e \x01(\tR\aversion\x12\x1a\n" +
-	"\bproblems\x18\x0f \x03(\tR\bproblems\"A\n" +
+	"\bproblems\x18\x0f \x03(\tR\bproblems\x12)\n" +
+	"\x10update_available\x18\x10 \x01(\bR\x0fupdateAvailable\"A\n" +
 	"\x12PushRecordsRequest\x12+\n" +
 	"\arecords\x18\x01 \x03(\v2\x11.maitre.v1.RecordR\arecords\"/\n" +
 	"\x13PushRecordsResponse\x12\x18\n" +
@@ -1968,7 +1990,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\xa2\x04\n" +
+	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\xc0\x04\n" +
 	"\fUpdateStatus\x122\n" +
 	"\x06booted\x18\x01 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06booted\x122\n" +
 	"\x06staged\x18\x02 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06staged\x126\n" +
@@ -1981,7 +2003,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\tsupported\x18\t \x01(\bR\tsupported\x12#\n" +
 	"\rlast_rollback\x18\n" +
 	" \x01(\tR\flastRollback\x12\x18\n" +
-	"\arollout\x18\v \x01(\tR\arollout\"i\n" +
+	"\arollout\x18\v \x01(\tR\arollout\x12\x1c\n" +
+	"\tavailable\x18\f \x01(\tR\tavailable\"i\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

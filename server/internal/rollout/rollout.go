@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -81,24 +82,77 @@ type Runner struct {
 	Current func() (ref, digest string)
 	// Last decision, for NodeInfo.
 	Last Decision
+	// Status and Digest are the Node's bootc status and the registry
+	// lookup; Check uses them to find a newer image.
+	Status func(ctx context.Context) (*maitrev1.UpdateStatus, error)
+	Digest func(ctx context.Context, ref string) (string, error)
+
+	mu    sync.Mutex
+	avail string
 }
 
 // New builds a Runner for this Node.
 func New(st *store.Store, up *update.Manager, log *slog.Logger, self string) *Runner {
-	return &Runner{st: st, up: up, log: log, self: self}
+	return &Runner{st: st, up: up, log: log, self: self, Status: up.Status, Digest: installer.RegistryDigest}
 }
 
-// Run loops until ctx ends.
+// Available is the newer image's digest Check last found, or empty.
+func (r *Runner) Available() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.avail
+}
+
+// Check asks the registry for the newest digest of the booted reference
+// and remembers it when the Node neither runs nor has staged it. A failed
+// lookup keeps the last answer.
+func (r *Runner) Check(ctx context.Context) {
+	st, err := r.Status(ctx)
+	if err != nil {
+		return
+	}
+	ref := st.GetBooted().GetImage()
+	if ref == "" {
+		r.setAvailable("")
+		return
+	}
+	newest, err := r.Digest(ctx, ref)
+	if err != nil {
+		return
+	}
+	r.setAvailable(Newer(st, newest))
+}
+
+func (r *Runner) setAvailable(d string) {
+	r.mu.Lock()
+	r.avail = d
+	r.mu.Unlock()
+}
+
+// Newer is newest when it is neither the booted nor the staged image.
+func Newer(st *maitrev1.UpdateStatus, newest string) string {
+	if newest == "" || newest == st.GetBooted().GetDigest() || newest == st.GetStaged().GetDigest() {
+		return ""
+	}
+	return newest
+}
+
+// Run loops until ctx ends: Check now and every 15 minutes, Tick hourly.
 func (r *Runner) Run(ctx context.Context) {
+	r.Check(ctx)
+	check := time.NewTicker(15 * time.Minute)
+	defer check.Stop()
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-check.C:
+			r.Check(ctx)
 		case <-t.C:
+			r.Tick(ctx)
 		}
-		r.Tick(ctx)
 	}
 }
 
