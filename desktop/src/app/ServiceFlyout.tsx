@@ -1,7 +1,8 @@
 // The flyout that slides out from behind the sidebar next to a Service row
 // (decisions 131, 142, 143). It follows the pointer from row to row.
 import { motion } from "motion/react";
-import { ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Copy, ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
@@ -71,19 +72,29 @@ export function ServiceFlyout({
       </div>
       <ul className="py-1">
         {items.map((it) => (
-          <li key={it.id}>
+          <li key={it.id} className="flex items-center">
             <button
               role="menuitem"
               disabled={it.disabled}
               onClick={() => onItem(it.id)}
               className={cn(
-                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-40 disabled:hover:bg-transparent [&>svg]:size-4 [&>svg]:text-muted-foreground",
+                "flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-40 disabled:hover:bg-transparent [&>svg]:size-4 [&>svg]:text-muted-foreground",
                 it.danger && "text-destructive [&>svg]:text-destructive",
               )}
             >
               {it.icon}
               {it.label}
             </button>
+            {it.id === "open" && s?.url && (
+              <button
+                aria-label={`Copy ${s.url}`}
+                title={`Copy ${s.url}`}
+                onClick={() => navigator.clipboard?.writeText(s.url).then(() => toast(`Copied ${s.url}`), () => toast.error("Could not copy the address"))}
+                className="mr-1.5 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus:bg-accent focus:outline-none"
+              >
+                <Copy className="size-3.5" />
+              </button>
+            )}
           </li>
         ))}
       </ul>
