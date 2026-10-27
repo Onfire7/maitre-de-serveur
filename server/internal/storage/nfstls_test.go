@@ -113,14 +113,14 @@ func TestNFSOverTLSOptions(t *testing.T) {
 	mountedDirs = map[string]bool{}
 	t.Cleanup(func() { mountedDirs = nil })
 	_, _ = MountRemotePool(context.Background(), run, strings.Repeat("ab", 32), "media")
-	if len(run.cmds) != 1 || !strings.Contains(run.cmds[0], "xprtsec=mtls") || !strings.Contains(run.cmds[0], identity.NFSName(strings.Repeat("ab", 32))+":/var/mnt/pools/media") {
+	if len(run.cmds) != 1 || !strings.Contains(run.cmds[0], "xprtsec=mtls") || !strings.Contains(run.cmds[0], identity.NFSName(strings.Repeat("ab", 32))+":/media ") {
 		t.Fatalf("mount: %q", run.cmds)
 	}
 
 	ExportsFile = filepath.Join(t.TempDir(), "maitre.exports")
 	mountedDirs = map[string]bool{"/var/mnt/pools/media": true}
 	_ = WriteExports(context.Background(), &fakeRunner{}, []string{"media"}, []string{"192.168.4.74"})
-	if b, _ := os.ReadFile(ExportsFile); !strings.Contains(string(b), "192.168.4.74(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=1000)") {
+	if b, _ := os.ReadFile(ExportsFile); !strings.Contains(string(b), "\n/var/mnt/pools 192.168.4.74(ro,sync,no_subtree_check,root_squash,xprtsec=mtls,fsid=0)\n/var/mnt/pools/media 192.168.4.74(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=1000)\n") {
 		t.Fatalf("exports:\n%s", b)
 	}
 }

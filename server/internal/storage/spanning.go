@@ -67,6 +67,18 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 		if !mounted(mount) || len(hosts) == 0 {
 			continue
 		}
+		if exported == 0 {
+			// The NFSv4 root, explicitly: left to itself mountd builds one
+			// from "/", which on a bootc Node is composefs and cannot be
+			// exported ("Cannot export /"), so every path below it answered
+			// "No such file or directory" (2026-10-27). Read-only, and holds
+			// nothing but the Pools' mount points; peers mount <name>:/<space>.
+			b.WriteString(pool.PoolsDir)
+			for _, h := range hosts {
+				fmt.Fprintf(&b, " %s(ro,sync,no_subtree_check,root_squash,xprtsec=mtls,fsid=0)", h)
+			}
+			b.WriteString("\n")
+		}
 		exported++
 		b.WriteString(mount)
 		for _, h := range hosts {
@@ -174,7 +186,8 @@ func MountRemotePool(ctx context.Context, run Runner, nodeID, space string) (str
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	src := fmt.Sprintf("%s:%s", identity.NFSName(nodeID), filepath.Join(pool.PoolsDir, space))
+	// Relative to the peer's NFSv4 root, its PoolsDir (WriteExports).
+	src := fmt.Sprintf("%s:/%s", identity.NFSName(nodeID), space)
 	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,xprtsec=mtls", src, dir); err != nil {
 		return "", err
 	}
