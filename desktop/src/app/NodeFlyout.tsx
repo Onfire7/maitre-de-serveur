@@ -12,7 +12,7 @@ import { nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { spacesOf } from "@/spaces";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { spaceColor } from "./StorageTab";
-import { useNodeLogs } from "./NodeLogs";
+import { useNodeLogs } from "./LogsTab";
 import { useRoute } from "./routes";
 
 const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);

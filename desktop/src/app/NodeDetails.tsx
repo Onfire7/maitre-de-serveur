@@ -25,7 +25,7 @@ import { useFleetServices } from "@/fleet/useFleet";
 import type { Found } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
-import { useNodeLogs } from "./NodeLogs";
+import { useNodeLogs } from "./LogsTab";
 
 export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
 

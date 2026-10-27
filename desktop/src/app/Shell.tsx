@@ -22,7 +22,6 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
-import { NodeLogsProvider } from "./NodeLogs";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -34,7 +33,6 @@ import { ServicePage } from "./ServicePage";
 import { CatalogPage } from "./CatalogPage";
 import { FleetPage } from "./FleetPage";
 import { PreferencesDialog } from "./Preferences";
-import { LogsSheet } from "./LogsSheet";
 import { notices as computeNotices } from "./notices";
 import { useRoute } from "./routes";
 
@@ -113,7 +111,6 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const present = state.nodes.length > 0 || provisioning !== null;
 
   const [prefs, setPrefs] = useState(false);
-  const [logsOf, setLogsOf] = useState<string | null>(null);
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
   const [typed, setTyped] = useState("");
@@ -136,7 +133,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         if (s.status?.url) openUrl(s.status.url).catch(() => window.open(s.status!.url, "_blank"));
         return;
       case "logs":
-        setLogsOf(s.spec.name);
+        // Service logs live on the Logs tab, at full width (187).
+        go({ name: "fleet", tab: "logs", logs: { nodeId: s.spec.nodeId, source: `service:${s.spec.name}` } });
         return;
       case "remove":
         setRemoving(s);
@@ -172,7 +170,6 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
 
   return (
     <TooltipProvider delayDuration={400}>
-      <NodeLogsProvider snap={snap} known={state.nodes}>
       <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
         <AnimatePresence initial={false}>
           {present && (
@@ -214,7 +211,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
               {route.name === "catalog" && <CatalogPage snap={snap} onInstall={install} />}
-              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
+              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} />}
               {route.name === "add-node" && addFound && (
                 <div className="h-full overflow-y-auto">
                   <AddNode
@@ -250,7 +247,6 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         </main>
       </div>
       <PreferencesDialog open={prefs} onClose={() => setPrefs(false)} device={device} onAddDev={(n) => save({ ...state, nodes: [...state.nodes.filter((x) => x.node_id !== n.node_id), n] })} />
-      <LogsSheet name={logsOf} target={logsOf ? targetFor(snap, state.nodes, services.find((s) => s.spec.name === logsOf)?.spec.nodeId ?? "") : undefined} onClose={() => setLogsOf(null)} />
       {sheetService && <ExposureSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "exposure"} onClose={() => setSheet(null)} />}
       {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
       {sheetService && <StorageSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
@@ -299,7 +295,6 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         </AlertDialogContent>
       </AlertDialog>
       <Toaster position="bottom-right" />
-      </NodeLogsProvider>
     </TooltipProvider>
   );
 }

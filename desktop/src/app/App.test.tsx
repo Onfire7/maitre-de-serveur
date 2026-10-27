@@ -36,13 +36,17 @@ describe("Console on the demo Fleet", () => {
     expect(await screen.findByRole("dialog", { name: "Update Maître Server" }, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByText("The registry has a newer build of this image.")).toBeTruthy();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    // Basalt's details are open: its logs, the agent's by default (187).
+    // Basalt's details are open: Logs opens the Logs tab on its agent (187).
     fireEvent.click(await within(main).findByRole("button", { name: "Logs" }));
-    const logs = await screen.findByRole("dialog", { name: "Basalt logs" });
-    expect(await within(logs).findAllByText(/maitre\[\d+\]: /, {}, { timeout: 5000 })).not.toHaveLength(0);
-    fireEvent.change(within(logs).getByLabelText("Filter lines"), { target: { value: "silent" } });
-    expect(within(logs).getAllByText(/silent for 62s/).length).toBeGreaterThan(0);
-    fireEvent.keyDown(logs, { key: "Escape" });
+    const log = await within(main).findByRole("log", { name: "Basalt: Maître agent" });
+    expect(await within(log).findAllByText(/maitre\[\d+\]: /, {}, { timeout: 5000 })).not.toHaveLength(0);
+    // Search highlights matches and counts them; Only matching lines hides the rest.
+    fireEvent.change(within(main).getByLabelText("Search the log"), { target: { value: "silent" } });
+    expect(within(main).getByText(/^1\d* of \d+$|^\d+ of \d+$/)).toBeTruthy();
+    expect(log.querySelectorAll("mark").length).toBeGreaterThan(0);
+    const all = log.querySelectorAll("[data-line]").length;
+    fireEvent.click(within(main).getByRole("switch"));
+    expect(log.querySelectorAll("[data-line]").length).toBeLessThan(all);
 
     // Files: a new folder in Movies, then inside it only ".." (not "Empty.").
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Files/ }));

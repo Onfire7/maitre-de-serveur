@@ -1,13 +1,14 @@
 // Typed in-memory navigation (decision 152): no URL router in one Tauri window.
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
-export const FLEET_TABS = ["overview", "nodes", "storage", "files", "devices", "updates", "remote"] as const;
+export const FLEET_TABS = ["overview", "nodes", "storage", "files", "logs", "devices", "updates", "remote"] as const;
 export type FleetTab = (typeof FLEET_TABS)[number];
 export const FLEET_TAB_LABEL: Record<FleetTab, string> = {
   overview: "Overview",
   nodes: "Nodes",
   storage: "Storage",
   files: "Files",
+  logs: "Logs",
   devices: "Devices",
   updates: "Updates",
   remote: "Remote",
@@ -16,7 +17,7 @@ export const FLEET_TAB_LABEL: Record<FleetTab, string> = {
 export type Route =
   | { name: "service"; service: string }
   | { name: "catalog" }
-  | { name: "fleet"; tab: FleetTab; nodeId?: string; files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string } }
+  | { name: "fleet"; tab: FleetTab; nodeId?: string; files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string }; logs?: { nodeId: string; source: string } }
   | { name: "add-node"; addr: string; installerId: string }
   | { name: "code" };
 
