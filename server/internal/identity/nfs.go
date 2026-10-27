@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// NFS over TLS (decision 187): the kernel's TLS handshake daemon (tlshd,
+// NFS over TLS (decision 188): the kernel's TLS handshake daemon (tlshd,
 // GnuTLS) cannot pin a raw key the way the agent's own mTLS does; it checks
 // a certificate against a trust store and, as a client, the server's name.
 // Each Node therefore has a second self-signed certificate, made from the

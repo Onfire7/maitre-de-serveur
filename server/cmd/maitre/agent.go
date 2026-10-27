@@ -139,7 +139,7 @@ func runAgent(args []string) error {
 			addrs = append(addrs, net.JoinHostPort(a, fmt.Sprint(listenPort(*listen))))
 		}
 	}
-	// Decision 187: the certificate peers trust for NFS over TLS, published
+	// Decision 188: the certificate peers trust for NFS over TLS, published
 	// in our Node record and written where tlshd reads it.
 	nfsCert, err := id.NFSCertificatePEM()
 	if err != nil {
@@ -516,7 +516,7 @@ func runAgent(args []string) error {
 	withSpaces := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
 		withSpaces(r)
-		// A Node record may bring a peer's NFS certificate (decision 187).
+		// A Node record may bring a peer's NFS certificate (decision 188).
 		if r.GetKind() == storage.KindSpace || r.GetKind() == store.KindNode || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
 			requestAssemble()
 		}

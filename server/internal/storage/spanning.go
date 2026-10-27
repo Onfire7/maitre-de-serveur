@@ -15,7 +15,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// Spanning Spaces (decisions 105, 106, 127, 187): every Node exports its Pools
+// Spanning Spaces (decisions 105, 106, 127, 188): every Node exports its Pools
 // over NFS with mutual TLS (nfstls.go) to the Fleet's other Nodes only, and
 // mounts theirs soft, so a Node
 // that is off makes its files absent rather than hanging anything. A

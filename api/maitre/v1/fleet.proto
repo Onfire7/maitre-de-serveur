@@ -53,7 +53,7 @@ message Node {
   // start with it. Chosen by the Node itself: the first letter no other
   // Node holds.
   string letter = 9;
-  // Self-signed certificate for NFS over TLS (decision 187), made from the
+  // Self-signed certificate for NFS over TLS (decision 188), made from the
   // Node's key and never changing; peers put it in their tlshd trust store.
   string nfs_certificate_pem = 10;
 }

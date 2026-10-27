@@ -24,7 +24,7 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # fedora-bootc; nss-mdns is what lets the host resolve *.local names;
 # dracut-live builds the netboot installer initramfs (decision 79).
 # acl: setfacl for Spaces' shared folders (decision 182).
-# ktls-utils: tlshd, the TLS handshake for NFS over TLS (decision 187).
+# ktls-utils: tlshd, the TLS handshake for NFS over TLS (decision 188).
 RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,

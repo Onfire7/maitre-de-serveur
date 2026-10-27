@@ -172,7 +172,7 @@ export type Node = Message<"maitre.v1.Node"> & {
   letter: string;
 
   /**
-   * Self-signed certificate for NFS over TLS (decision 187), made from the
+   * Self-signed certificate for NFS over TLS (decision 188), made from the
    * Node's key and never changing; peers put it in their tlshd trust store.
    *
    * @generated from field: string nfs_certificate_pem = 10;

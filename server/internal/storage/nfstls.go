@@ -14,7 +14,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// NFS over TLS (decision 187): every Pool is exported and mounted with
+// NFS over TLS (decision 188): every Pool is exported and mounted with
 // xprtsec=mtls. The kernel hands the handshake to tlshd, which presents
 // this Node's NFS certificate and accepts only certificates in the trust
 // store, which holds the Fleet's other Nodes' certificates from their Node
@@ -33,7 +33,7 @@ const (
 	tlsCertFile  = "node.crt"
 	tlsKeyFile   = "node.key"
 	tlsTrustFile = "fleet.pem"
-	hostsBegin   = "# BEGIN maitre: the Fleet's Nodes by NFS name (decision 187)"
+	hostsBegin   = "# BEGIN maitre: the Fleet's Nodes by NFS name (decision 188)"
 	hostsEnd     = "# END maitre"
 )
 
@@ -82,7 +82,7 @@ func WriteNFSPeers(ctx context.Context, st *store.Store, addrs map[string]string
 }
 
 // HasNFSCertificate reports whether a peer's Node record carries a valid NFS
-// certificate; Nodes from before decision 187 do not, and cannot be mounted.
+// certificate; Nodes from before decision 188 do not, and cannot be mounted.
 func HasNFSCertificate(ctx context.Context, st *store.Store, nodeID string) bool {
 	var n maitrev1.Node
 	if _, err := st.Get(ctx, store.KindNode, nodeID, &n); err != nil {

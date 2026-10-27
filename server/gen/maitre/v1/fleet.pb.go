@@ -207,7 +207,7 @@ type Node struct {
 	// start with it. Chosen by the Node itself: the first letter no other
 	// Node holds.
 	Letter string `protobuf:"bytes,9,opt,name=letter,proto3" json:"letter,omitempty"`
-	// Self-signed certificate for NFS over TLS (decision 187), made from the
+	// Self-signed certificate for NFS over TLS (decision 188), made from the
 	// Node's key and never changing; peers put it in their tlshd trust store.
 	NfsCertificatePem string `protobuf:"bytes,10,opt,name=nfs_certificate_pem,json=nfsCertificatePem,proto3" json:"nfs_certificate_pem,omitempty"`
 	unknownFields     protoimpl.UnknownFields
