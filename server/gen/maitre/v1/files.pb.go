@@ -826,6 +826,95 @@ func (*CancelJobResponse) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_files_proto_rawDescGZIP(), []int{13}
 }
 
+type MakeDirRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Scope *Scope                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Relative path of the new folder, its parent included, e.g. "Movies/2026".
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeDirRequest) Reset() {
+	*x = MakeDirRequest{}
+	mi := &file_maitre_v1_files_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeDirRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeDirRequest) ProtoMessage() {}
+
+func (x *MakeDirRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeDirRequest.ProtoReflect.Descriptor instead.
+func (*MakeDirRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *MakeDirRequest) GetScope() *Scope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *MakeDirRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type MakeDirResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeDirResponse) Reset() {
+	*x = MakeDirResponse{}
+	mi := &file_maitre_v1_files_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeDirResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeDirResponse) ProtoMessage() {}
+
+func (x *MakeDirResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeDirResponse.ProtoReflect.Descriptor instead.
+func (*MakeDirResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{15}
+}
+
 var File_maitre_v1_files_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_files_proto_rawDesc = "" +
@@ -886,13 +975,18 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\x04jobs\x18\x01 \x03(\v2\x0e.maitre.v1.JobR\x04jobs\")\n" +
 	"\x10CancelJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x13\n" +
-	"\x11CancelJobResponse2\xdc\x02\n" +
+	"\x11CancelJobResponse\"L\n" +
+	"\x0eMakeDirRequest\x12&\n" +
+	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x11\n" +
+	"\x0fMakeDirResponse2\xa0\x03\n" +
 	"\fFilesService\x12B\n" +
 	"\aListDir\x12\x19.maitre.v1.ListDirRequest\x1a\x1a.maitre.v1.ListDirResponse\"\x00\x12<\n" +
 	"\x05Usage\x12\x17.maitre.v1.UsageRequest\x1a\x18.maitre.v1.UsageResponse\"\x00\x129\n" +
 	"\x04Move\x12\x16.maitre.v1.MoveRequest\x1a\x17.maitre.v1.MoveResponse\"\x00\x12E\n" +
 	"\bListJobs\x12\x1a.maitre.v1.ListJobsRequest\x1a\x1b.maitre.v1.ListJobsResponse\"\x00\x12H\n" +
-	"\tCancelJob\x12\x1b.maitre.v1.CancelJobRequest\x1a\x1c.maitre.v1.CancelJobResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\tCancelJob\x12\x1b.maitre.v1.CancelJobRequest\x1a\x1c.maitre.v1.CancelJobResponse\"\x00\x12B\n" +
+	"\aMakeDir\x12\x19.maitre.v1.MakeDirRequest\x1a\x1a.maitre.v1.MakeDirResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_files_proto_rawDescOnce sync.Once
@@ -906,7 +1000,7 @@ func file_maitre_v1_files_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_files_proto_rawDescData
 }
 
-var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_maitre_v1_files_proto_goTypes = []any{
 	(*Scope)(nil),             // 0: maitre.v1.Scope
 	(*ListDirRequest)(nil),    // 1: maitre.v1.ListDirRequest
@@ -922,6 +1016,8 @@ var file_maitre_v1_files_proto_goTypes = []any{
 	(*ListJobsResponse)(nil),  // 11: maitre.v1.ListJobsResponse
 	(*CancelJobRequest)(nil),  // 12: maitre.v1.CancelJobRequest
 	(*CancelJobResponse)(nil), // 13: maitre.v1.CancelJobResponse
+	(*MakeDirRequest)(nil),    // 14: maitre.v1.MakeDirRequest
+	(*MakeDirResponse)(nil),   // 15: maitre.v1.MakeDirResponse
 }
 var file_maitre_v1_files_proto_depIdxs = []int32{
 	0,  // 0: maitre.v1.ListDirRequest.scope:type_name -> maitre.v1.Scope
@@ -931,21 +1027,24 @@ var file_maitre_v1_files_proto_depIdxs = []int32{
 	0,  // 4: maitre.v1.MoveRequest.from:type_name -> maitre.v1.Scope
 	7,  // 5: maitre.v1.Job.request:type_name -> maitre.v1.MoveRequest
 	9,  // 6: maitre.v1.ListJobsResponse.jobs:type_name -> maitre.v1.Job
-	1,  // 7: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
-	5,  // 8: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
-	7,  // 9: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
-	10, // 10: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
-	12, // 11: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
-	4,  // 12: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
-	6,  // 13: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
-	8,  // 14: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
-	11, // 15: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
-	13, // 16: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	0,  // 7: maitre.v1.MakeDirRequest.scope:type_name -> maitre.v1.Scope
+	1,  // 8: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
+	5,  // 9: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
+	7,  // 10: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
+	10, // 11: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
+	12, // 12: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
+	14, // 13: maitre.v1.FilesService.MakeDir:input_type -> maitre.v1.MakeDirRequest
+	4,  // 14: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
+	6,  // 15: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
+	8,  // 16: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
+	11, // 17: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
+	13, // 18: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
+	15, // 19: maitre.v1.FilesService.MakeDir:output_type -> maitre.v1.MakeDirResponse
+	14, // [14:20] is the sub-list for method output_type
+	8,  // [8:14] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_files_proto_init() }
@@ -959,7 +1058,7 @@ func file_maitre_v1_files_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_files_proto_rawDesc), len(file_maitre_v1_files_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

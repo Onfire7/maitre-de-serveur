@@ -34,6 +34,8 @@ const (
 	FilesServiceListJobsProcedure = "/maitre.v1.FilesService/ListJobs"
 	// FilesServiceCancelJobProcedure is the procedure name of the FilesService's CancelJob RPC.
 	FilesServiceCancelJobProcedure = "/maitre.v1.FilesService/CancelJob"
+	// FilesServiceMakeDirProcedure is the procedure name of the FilesService's MakeDir RPC.
+	FilesServiceMakeDirProcedure = "/maitre.v1.FilesService/MakeDir"
 )
 
 var (
@@ -72,6 +74,13 @@ var (
 			Procedure:  FilesServiceCancelJobProcedure,
 		}
 	})
+	filesServiceMakeDirSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_files_proto.Services().ByName("FilesService").Methods().ByName("MakeDir"),
+			Procedure:  FilesServiceMakeDirProcedure,
+		}
+	})
 )
 
 // FilesServiceClient is a client for the maitre.v1.FilesService service.
@@ -83,6 +92,9 @@ type FilesServiceClient interface {
 	Move(context.Context, *v1.MoveRequest) (*v1.MoveResponse, error)
 	ListJobs(context.Context, *v1.ListJobsRequest) (*v1.ListJobsResponse, error)
 	CancelJob(context.Context, *v1.CancelJobRequest) (*v1.CancelJobResponse, error)
+	// Make one folder; its parent must exist. In a Space the Pool's create
+	// policy picks the Drive, as for any new folder.
+	MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error)
 }
 
 // NewFilesServiceClient constructs a client for the maitre.v1.FilesService service. Multiple
@@ -100,6 +112,9 @@ type FilesServiceHandler interface {
 	Move(context.Context, *v1.MoveRequest) (*v1.MoveResponse, error)
 	ListJobs(context.Context, *v1.ListJobsRequest) (*v1.ListJobsResponse, error)
 	CancelJob(context.Context, *v1.CancelJobRequest) (*v1.CancelJobResponse, error)
+	// Make one folder; its parent must exist. In a Space the Pool's create
+	// policy picks the Drive, as for any new folder.
+	MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error)
 }
 
 // RegisterFilesServiceHandler registers svc as the maitre.v1.FilesService implementation on server.
@@ -111,6 +126,7 @@ func RegisterFilesServiceHandler(server *connect.Server, svc FilesServiceHandler
 		connect.Method{Spec: filesServiceMoveSpec(), Handler: adapter.move},
 		connect.Method{Spec: filesServiceListJobsSpec(), Handler: adapter.listJobs},
 		connect.Method{Spec: filesServiceCancelJobSpec(), Handler: adapter.cancelJob},
+		connect.Method{Spec: filesServiceMakeDirSpec(), Handler: adapter.makeDir},
 	)
 }
 
@@ -135,6 +151,10 @@ func (UnimplementedFilesServiceHandler) ListJobs(context.Context, *v1.ListJobsRe
 
 func (UnimplementedFilesServiceHandler) CancelJob(context.Context, *v1.CancelJobRequest) (*v1.CancelJobResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.CancelJob is not implemented")
+}
+
+func (UnimplementedFilesServiceHandler) MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.MakeDir is not implemented")
 }
 
 type filesServiceClient struct {
@@ -176,6 +196,14 @@ func (c *filesServiceClient) ListJobs(ctx context.Context, req *v1.ListJobsReque
 func (c *filesServiceClient) CancelJob(ctx context.Context, req *v1.CancelJobRequest) (*v1.CancelJobResponse, error) {
 	var res v1.CancelJobResponse
 	if err := c.client.CallUnary(ctx, filesServiceCancelJobSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *filesServiceClient) MakeDir(ctx context.Context, req *v1.MakeDirRequest) (*v1.MakeDirResponse, error) {
+	var res v1.MakeDirResponse
+	if err := c.client.CallUnary(ctx, filesServiceMakeDirSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -237,6 +265,18 @@ func (h filesServiceHandler) cancelJob(ctx context.Context, _ connect.Spec, stre
 		return err
 	}
 	res, err := h.svc.CancelJob(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h filesServiceHandler) makeDir(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.MakeDirRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.MakeDir(ctx, &req)
 	if err != nil {
 		return err
 	}

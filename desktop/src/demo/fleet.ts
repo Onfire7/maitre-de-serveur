@@ -592,6 +592,20 @@ export class DemoFleet {
     return dir.map((n) => ({ name: n.name, dir: n.dir, sizeBytes: BigInt(Math.round(n.size)), modifiedUnixMs: BigInt(n.modified), locations: [...n.drives.map((d) => ({ nodeId: n.nodeId, driveId: d })), ...(n.also ?? []).flatMap((a) => a.drives.map((d) => ({ nodeId: a.nodeId, driveId: d })))] })) as Entry[];
   }
 
+  makeDir(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string) {
+    const parts = path.split("/").filter(Boolean);
+    const name = parts.pop();
+    if (!name) throw new Error("name the new folder");
+    if (name.startsWith(".")) throw new Error(`"${name}": folder names cannot start with a dot`);
+    const key = scope.spaceId ? "space:" + scope.spaceId : `drive:${scope.driveId}@${nodeId}`;
+    if (!this.files.has(key)) this.files.set(key, []);
+    const parent = this.walk(this.files.get(key)!, parts.join("/"));
+    if (!parent) throw new Error(`${path}: the folder it goes in does not exist`);
+    if (parent.some((n) => n.name === name)) throw Object.assign(new Error(`${path} already exists`), { exists: true });
+    const drive = scope.driveId ?? this.drives.find((d) => d.nodeId === nodeId)?.driveId ?? "";
+    parent.push({ name, dir: true, size: 0, modified: this.now, drives: drive ? [drive] : [], nodeId, children: [] });
+  }
+
   usage(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string): { bytes: bigint; files: bigint } {
     const dir = this.walk(this.tree(scope, nodeId), path) ?? [];
     // A Space that does not span Nodes is one Pool per Node: count this Node's files only.

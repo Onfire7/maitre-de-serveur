@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/files.proto.
  */
 export const file_maitre_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIssBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QiEQoPTGlzdEpvYnNSZXF1ZXN0IjAKEExpc3RKb2JzUmVzcG9uc2USHAoEam9icxgBIAMoCzIOLm1haXRyZS52MS5Kb2IiIgoQQ2FuY2VsSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiEwoRQ2FuY2VsSm9iUmVzcG9uc2Uy3AIKDEZpbGVzU2VydmljZRJCCgdMaXN0RGlyEhkubWFpdHJlLnYxLkxpc3REaXJSZXF1ZXN0GhoubWFpdHJlLnYxLkxpc3REaXJSZXNwb25zZSIAEjwKBVVzYWdlEhcubWFpdHJlLnYxLlVzYWdlUmVxdWVzdBoYLm1haXRyZS52MS5Vc2FnZVJlc3BvbnNlIgASOQoETW92ZRIWLm1haXRyZS52MS5Nb3ZlUmVxdWVzdBoXLm1haXRyZS52MS5Nb3ZlUmVzcG9uc2UiABJFCghMaXN0Sm9icxIaLm1haXRyZS52MS5MaXN0Sm9ic1JlcXVlc3QaGy5tYWl0cmUudjEuTGlzdEpvYnNSZXNwb25zZSIAEkgKCUNhbmNlbEpvYhIbLm1haXRyZS52MS5DYW5jZWxKb2JSZXF1ZXN0GhwubWFpdHJlLnYxLkNhbmNlbEpvYlJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIssBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QiEQoPTGlzdEpvYnNSZXF1ZXN0IjAKEExpc3RKb2JzUmVzcG9uc2USHAoEam9icxgBIAMoCzIOLm1haXRyZS52MS5Kb2IiIgoQQ2FuY2VsSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiEwoRQ2FuY2VsSm9iUmVzcG9uc2UiPwoOTWFrZURpclJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSIRCg9NYWtlRGlyUmVzcG9uc2UyoAMKDEZpbGVzU2VydmljZRJCCgdMaXN0RGlyEhkubWFpdHJlLnYxLkxpc3REaXJSZXF1ZXN0GhoubWFpdHJlLnYxLkxpc3REaXJSZXNwb25zZSIAEjwKBVVzYWdlEhcubWFpdHJlLnYxLlVzYWdlUmVxdWVzdBoYLm1haXRyZS52MS5Vc2FnZVJlc3BvbnNlIgASOQoETW92ZRIWLm1haXRyZS52MS5Nb3ZlUmVxdWVzdBoXLm1haXRyZS52MS5Nb3ZlUmVzcG9uc2UiABJFCghMaXN0Sm9icxIaLm1haXRyZS52MS5MaXN0Sm9ic1JlcXVlc3QaGy5tYWl0cmUudjEuTGlzdEpvYnNSZXNwb25zZSIAEkgKCUNhbmNlbEpvYhIbLm1haXRyZS52MS5DYW5jZWxKb2JSZXF1ZXN0GhwubWFpdHJlLnYxLkNhbmNlbEpvYlJlc3BvbnNlIgASQgoHTWFrZURpchIZLm1haXRyZS52MS5NYWtlRGlyUmVxdWVzdBoaLm1haXRyZS52MS5NYWtlRGlyUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * Scope is what a path is relative to: a Space's Pool on this Node (the
@@ -385,6 +385,43 @@ export const CancelJobResponseSchema: GenMessage<CancelJobResponse> = /*@__PURE_
   messageDesc(file_maitre_v1_files, 13);
 
 /**
+ * @generated from message maitre.v1.MakeDirRequest
+ */
+export type MakeDirRequest = Message<"maitre.v1.MakeDirRequest"> & {
+  /**
+   * @generated from field: maitre.v1.Scope scope = 1;
+   */
+  scope?: Scope | undefined;
+
+  /**
+   * Relative path of the new folder, its parent included, e.g. "Movies/2026".
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message maitre.v1.MakeDirRequest.
+ * Use `create(MakeDirRequestSchema)` to create a new message.
+ */
+export const MakeDirRequestSchema: GenMessage<MakeDirRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 14);
+
+/**
+ * @generated from message maitre.v1.MakeDirResponse
+ */
+export type MakeDirResponse = Message<"maitre.v1.MakeDirResponse"> & {
+};
+
+/**
+ * Describes the message maitre.v1.MakeDirResponse.
+ * Use `create(MakeDirResponseSchema)` to create a new message.
+ */
+export const MakeDirResponseSchema: GenMessage<MakeDirResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 15);
+
+/**
  * FilesService is the file manager's back end (decision 122): browse a
  * Space's Pool as one merged tree or a Drive's root (files that were there
  * before adoption, folders of removed Spaces), see which Node and Drive hold
@@ -437,6 +474,17 @@ export const FilesService: GenService<{
     methodKind: "unary";
     input: typeof CancelJobRequestSchema;
     output: typeof CancelJobResponseSchema;
+  },
+  /**
+   * Make one folder; its parent must exist. In a Space the Pool's create
+   * policy picks the Drive, as for any new folder.
+   *
+   * @generated from rpc maitre.v1.FilesService.MakeDir
+   */
+  makeDir: {
+    methodKind: "unary";
+    input: typeof MakeDirRequestSchema;
+    output: typeof MakeDirResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_files, 0);

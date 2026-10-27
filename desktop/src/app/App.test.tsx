@@ -35,5 +35,21 @@ describe("Console on the demo Fleet", () => {
     fireEvent.click(update);
     expect(await screen.findByRole("dialog", { name: "Update Maître Server" }, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByText("The registry has a newer build of this image.")).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    // Files: a new folder in Movies, then inside it only ".." (not "Empty.").
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Files/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
+    fireEvent.click(await within(main).findByRole("button", { name: /Movies/ }, { timeout: 5000 }));
+    expect(await within(main).findByRole("button", { name: ".." })).toBeTruthy();
+    fireEvent.click(within(main).getByRole("button", { name: /New folder/ }));
+    const input = await screen.findByLabelText("Name");
+    fireEvent.change(input, { target: { value: "2026" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(await within(main).findByRole("button", { name: /^2026$/ }, { timeout: 5000 }));
+    expect(await within(main).findByRole("button", { name: ".." })).toBeTruthy();
+    expect(within(main).queryByText("Empty.")).toBeNull();
+    fireEvent.click(within(main).getByRole("button", { name: ".." }));
+    expect(await within(main).findByRole("button", { name: /Dune/ })).toBeTruthy();
   });
 });

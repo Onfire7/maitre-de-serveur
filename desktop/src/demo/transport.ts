@@ -216,6 +216,15 @@ const handlers: Record<string, Handler> = {
     const me = needNode(n, addr);
     return { ...f.usage((i.scope as { spaceId?: string; driveId?: string }) ?? {}, me.nodeId, (i.path as string) ?? ""), inProgress: false };
   },
+  "FilesService/MakeDir": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    try {
+      f.makeDir((i.scope as { spaceId?: string; driveId?: string }) ?? {}, me.nodeId, (i.path as string) ?? "");
+      return {};
+    } catch (e) {
+      throw fail((e as { exists?: boolean }).exists ? Code.AlreadyExists : Code.InvalidArgument, (e as Error).message);
+    }
+  },
   "FilesService/Move": (f, n, i, addr) => ({ jobId: f.move(i as never, needNode(n, addr).nodeId) }),
   "FilesService/ListJobs": (f, n, _i, addr) => {
     const me = needNode(n, addr);

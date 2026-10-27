@@ -18,6 +18,9 @@ service FilesService {
   rpc Move(MoveRequest) returns (MoveResponse) {}
   rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {}
   rpc CancelJob(CancelJobRequest) returns (CancelJobResponse) {}
+  // Make one folder; its parent must exist. In a Space the Pool's create
+  // policy picks the Drive, as for any new folder.
+  rpc MakeDir(MakeDirRequest) returns (MakeDirResponse) {}
 }
 
 // Scope is what a path is relative to: a Space's Pool on this Node (the
@@ -108,3 +111,11 @@ message CancelJobRequest {
 }
 
 message CancelJobResponse {}
+
+message MakeDirRequest {
+  Scope scope = 1;
+  // Relative path of the new folder, its parent included, e.g. "Movies/2026".
+  string path = 2;
+}
+
+message MakeDirResponse {}

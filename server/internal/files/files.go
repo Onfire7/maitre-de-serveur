@@ -192,6 +192,38 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	return out, nil
 }
 
+// ErrExists is returned by MakeDir when the name is taken.
+var ErrExists = errors.New("already exists")
+
+// MakeDir makes one folder at path; its parent must exist. Names starting
+// with a dot are refused: ListDir hides them, so the folder would vanish.
+func (m *Manager) MakeDir(ctx context.Context, sc *maitrev1.Scope, path string) error {
+	base, err := m.base(ctx, sc)
+	if err != nil {
+		return err
+	}
+	r, err := rel(path)
+	if err != nil {
+		return err
+	}
+	if r == "" {
+		return errors.New("name the new folder")
+	}
+	if name := filepath.Base(r); strings.HasPrefix(name, ".") {
+		return fmt.Errorf("%q: folder names cannot start with a dot", name)
+	}
+	if err := os.Mkdir(filepath.Join(base, r), 0o775); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%s %w", r, ErrExists)
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s: the folder it goes in does not exist", r)
+		}
+		return err
+	}
+	return nil
+}
+
 // locations asks mergerfs which branches hold an entry (xattr
 // user.mergerfs.allpaths, NUL-separated) and maps each branch to a Node
 // and Drive.

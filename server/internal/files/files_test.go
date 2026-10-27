@@ -2,6 +2,7 @@ package files
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -110,5 +111,30 @@ func TestMoveIntoSpace(t *testing.T) {
 	}
 	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToSpace: "media", ToNodeId: "node-b"}); err == nil {
 		t.Fatal("drive-scope move to another Node accepted")
+	}
+}
+
+func TestMakeDir(t *testing.T) {
+	m, ctx, dir := setup(t)
+	media := &maitrev1.Scope{SpaceId: "media"}
+	if err := m.MakeDir(ctx, media, "/Movies/"); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(filepath.Join(dir, "pools/media/Movies")); err != nil || !fi.IsDir() {
+		t.Fatalf("no folder: %v", err)
+	}
+	if err := m.MakeDir(ctx, media, "Movies"); !errors.Is(err, ErrExists) {
+		t.Fatalf("taken name: %v", err)
+	}
+	if err := m.MakeDir(ctx, media, "Shows/2026"); err == nil {
+		t.Fatal("made a folder in a missing parent")
+	}
+	for _, bad := range []string{"", "/", "../escape", ".hidden", "Movies/.cache"} {
+		if err := m.MakeDir(ctx, media, bad); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+	if err := m.MakeDir(ctx, &maitrev1.Scope{DriveId: "d1"}, "Movies/Aliens"); err != nil {
+		t.Fatal(err)
 	}
 }

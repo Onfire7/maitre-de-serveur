@@ -72,3 +72,8 @@ Nothing.
   left of Restart on that Node's card and a line in its flyout. In
   `rollout.Runner.Check` and `rollout.Newer`. Older Nodes never set it, so
   the button stays hidden there; Update… in the details still works.
+- **`FilesService.MakeDir`.** The file manager's New folder: one folder in a
+  Space's Pool (the create policy picks the Drive) or on a Drive root; the
+  parent must exist; names starting with a dot are refused, since ListDir
+  hides them. In `files.Manager.MakeDir`. Older Nodes answer Unimplemented
+  and the Console says the Node needs updating.

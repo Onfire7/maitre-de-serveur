@@ -3,6 +3,7 @@ package filesservice
 
 import (
 	"context"
+	"errors"
 
 	"connectrpc.com/connect/v2"
 
@@ -49,4 +50,14 @@ func (s *Service) CancelJob(_ context.Context, req *maitrev1.CancelJobRequest) (
 		return nil, connect.Errorf(connect.CodeNotFound, "%v", err)
 	}
 	return &maitrev1.CancelJobResponse{}, nil
+}
+
+func (s *Service) MakeDir(ctx context.Context, req *maitrev1.MakeDirRequest) (*maitrev1.MakeDirResponse, error) {
+	if err := s.m.MakeDir(ctx, req.GetScope(), req.GetPath()); err != nil {
+		if errors.Is(err, files.ErrExists) {
+			return nil, connect.Errorf(connect.CodeAlreadyExists, "%v", err)
+		}
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+	}
+	return &maitrev1.MakeDirResponse{}, nil
 }

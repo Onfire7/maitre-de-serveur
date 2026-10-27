@@ -4,9 +4,9 @@
 // the Node that holds the files (160); jobs live on that Node.
 import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -67,7 +67,8 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
     return out;
   }, [nodes, spaces, drives, snap]);
   const [scope, setScope] = useState<FileScope | undefined>(initial);
-  const [path, setPath] = useState(initial?.path ?? "");
+  // `?path=` opens that folder of the first place on load (screenshot fixture).
+  const [path, setPath] = useState(initial?.path ?? new URLSearchParams(window.location.search).get("path") ?? "");
   useEffect(() => {
     if (!scope && scopes[0]) setScope(scopes[0]);
   }, [scopes, scope]);
@@ -79,6 +80,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   }, [initial]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moving, setMoving] = useState(false);
+  const [newFolder, setNewFolder] = useState(false);
   const target = scope ? targetFor(snap, state.nodes, scope.nodeId) : undefined;
   const client = useMemo(() => (target ? createClient(FilesService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
   const unreachable = scope ? nodeDown(nodeWord(snap?.status.get(scope.nodeId), Date.now())) : false;
@@ -153,6 +155,9 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
           <Button size="sm" variant="ghost" onClick={() => list.refetch()} title="Refresh">
             <RefreshCw className={cn("size-4", list.isFetching && "animate-spin")} />
           </Button>
+          <Button size="sm" variant="outline" disabled={!client || !scope || unreachable || !list.data} onClick={() => setNewFolder(true)}>
+            <FolderPlus /> New folder
+          </Button>
           <Button size="sm" disabled={selected.size === 0 || !scope} onClick={() => setMoving(true)}>
             <MoveRight /> Move {selected.size > 0 ? `${selected.size} ${selected.size === 1 ? "item" : "items"}…` : "…"}
           </Button>
@@ -167,14 +172,14 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
             <p className="p-4 text-sm text-destructive">{String((list.error as Error).message ?? list.error)}</p>
           ) : !list.data ? (
             <p className="p-4 text-sm text-muted-foreground">Reading…</p>
-          ) : entries.length === 0 ? (
+          ) : entries.length === 0 && crumbs.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Empty.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
                 <tr className="border-b">
                   <th className="w-8 px-3 py-2">
-                    <Checkbox checked={selected.size > 0 && selected.size === entries.length ? true : selected.size > 0 ? "indeterminate" : false} onCheckedChange={(v) => setSelected(v === true ? new Set(entries.map((e) => e.name)) : new Set())} aria-label="Select all" />
+                    <Checkbox disabled={entries.length === 0} checked={selected.size > 0 && selected.size === entries.length ? true : selected.size > 0 ? "indeterminate" : false} onCheckedChange={(v) => setSelected(v === true ? new Set(entries.map((e) => e.name)) : new Set())} aria-label="Select all" />
                   </th>
                   <th className="px-2 py-2 text-left font-medium">Name</th>
                   <th className="px-2 py-2 text-right font-medium">Size</th>
@@ -183,6 +188,17 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                 </tr>
               </thead>
               <tbody>
+                {crumbs.length > 0 && (
+                  <tr className="border-b last:border-0 hover:bg-accent/40">
+                    <td className="px-3 py-1.5" />
+                    <td className="px-2 py-1.5" colSpan={4}>
+                      <button className="flex items-center gap-2 text-left hover:underline" title="Up one folder" onClick={() => go(crumbs.slice(0, -1).join("/"))} onDoubleClick={() => go(crumbs.slice(0, -1).join("/"))}>
+                        <CornerLeftUp className="size-4 text-muted-foreground" />
+                        ..
+                      </button>
+                    </td>
+                  </tr>
+                )}
                 {entries.map((e) => (
                   <Row key={e.name} e={e} client={client!} scope={scope} path={path} selected={selected.has(e.name)} onSelect={(on) => setSelected((s) => (on ? new Set([...s, e.name]) : new Set([...s].filter((x) => x !== e.name))))} onOpen={() => e.dir && go([...crumbs, e.name].join("/"))} nodeName={nodeName} driveName={driveName} />
                 ))}
@@ -194,6 +210,24 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
         <Jobs snap={snap} state={state} nodeName={nodeName} />
       </div>
 
+      {scope && client && (
+        <NewFolderDialog
+          open={newFolder}
+          onClose={() => setNewFolder(false)}
+          where={[current?.label ?? "", ...crumbs].join(" / ")}
+          taken={entries.map((e) => e.name)}
+          onMake={async (name) => {
+            try {
+              await client.makeDir({ scope: { spaceId: scope.spaceId ?? "", driveId: scope.driveId ?? "" }, path: [...crumbs, name].join("/") });
+            } catch (e) {
+              if (e instanceof ConnectError && e.code === Code.Unimplemented) throw new Error(`${nodeName(scope.nodeId)} runs an older Maître Server; update it to make folders here.`);
+              throw e;
+            }
+            toast.success(`${name} made`);
+            await list.refetch();
+          }}
+        />
+      )}
       {scope && client && (
         <MoveDialog
           open={moving}
@@ -327,6 +361,51 @@ function WhereBreakdown({ where }: { where: Where[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function NewFolderDialog({ open, onClose, where, taken, onMake }: { open: boolean; onClose: () => void; where: string; taken: string[]; onMake: (name: string) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (open) setName("");
+  }, [open]);
+  const n = name.trim();
+  const problem = !n ? "" : n.includes("/") ? "A name cannot contain /" : n.startsWith(".") ? "A name cannot start with a dot" : taken.includes(n) ? "Something here already has that name" : "";
+  async function make() {
+    if (!n || problem || busy) return;
+    setBusy(true);
+    try {
+      await onMake(n);
+      onClose();
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New folder</DialogTitle>
+          <DialogDescription>In {where}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="new-folder">Name</Label>
+          <Input id="new-folder" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && make()} placeholder="Untitled folder" />
+          {problem && <p className="text-xs text-destructive">{problem}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!n || !!problem || busy} onClick={make}>
+            Make folder
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
