@@ -3,45 +3,25 @@
 // anchor logic, unreachable Nodes and per-Node calls behave as they would
 // against real machines. Every RPC the Console uses is here; an unknown one
 // fails with Unimplemented so a prototype never silently gets empty data.
-import {
-  create,
-  type DescMessage,
-  type DescMethodUnary,
-  type MessageInitShape,
-  type MessageShape,
-} from "@bufbuild/protobuf";
-import {
-  Code,
-  ConnectError,
-  type Transport,
-  type UnaryResponse,
-} from "@connectrpc/connect";
+import { create, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
+import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
 import { ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
 import { type DemoFleet, type DemoNode, demoFleet } from "./fleet";
 
-type Handler = (
-  fleet: DemoFleet,
-  node: DemoNode | undefined,
-  input: Record<string, unknown>,
-  addr: string,
-) => unknown;
+type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
 
 const fail = (code: Code, msg: string) => new ConnectError(msg, code);
 
 function needNode(node: DemoNode | undefined, addr: string): DemoNode {
   if (!node) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
-  if (!node.reachable)
-    throw fail(Code.Unavailable, `dial tcp ${node.addr}: no route to host`);
+  if (!node.reachable) throw fail(Code.Unavailable, `dial tcp ${node.addr}: no route to host`);
   return node;
 }
 
-const actions: Record<
-  number,
-  "start" | "stop" | "restart" | "remove" | "update" | "rollback"
-> = {
+const actions: Record<number, "start" | "stop" | "restart" | "remove" | "update" | "rollback"> = {
   [ControlServiceRequest_Action.START]: "start",
   [ControlServiceRequest_Action.STOP]: "stop",
   [ControlServiceRequest_Action.RESTART]: "restart",
@@ -60,34 +40,12 @@ const handlers: Record<string, Handler> = {
         name: me.name,
         fleetId: f.records.find((r) => r.kind === "fleet")?.id ?? "",
         version: "0.9.3",
-        uptimeSeconds: BigInt(
-          Math.max(0, Math.floor((f.now - me.bootedUnixMs) / 1000)),
-        ),
+        uptimeSeconds: BigInt(Math.max(0, Math.floor((f.now - me.bootedUnixMs) / 1000))),
         devMode: false,
-        peers: f.nodes
-          .filter((p) => p !== me)
-          .map((p) => ({
-            nodeId: p.nodeId,
-            name: p.name,
-            address: p.addr,
-            online: p.reachable,
-            lastSeenUnixMs: BigInt(p.lastSeenUnixMs),
-            queued: p.reachable ? 0 : 1,
-          })),
+        peers: f.nodes.filter((p) => p !== me).map((p) => ({ nodeId: p.nodeId, name: p.name, address: p.addr, online: p.reachable, lastSeenUnixMs: BigInt(p.lastSeenUnixMs), queued: p.reachable ? 0 : 1 })),
         portMapping: me.portMapping,
         publicIp: me.publicIp,
-        tailscale:
-          me.letter === "A"
-            ? {
-                hostname: me.name.toLowerCase(),
-                state: "Running",
-                loginUrl: "",
-                dnsName: `${me.name.toLowerCase()}.home-fleet.ts.net.`,
-                addresses: ["100.64.0.5"],
-                tailnet: "home-fleet.ts.net",
-                error: "",
-              }
-            : undefined,
+        tailscale: me.letter === "A" ? { hostname: me.name.toLowerCase(), state: "Running", loginUrl: "", dnsName: `${me.name.toLowerCase()}.home-fleet.ts.net.`, addresses: ["100.64.0.5"], tailnet: "home-fleet.ts.net", error: "" } : undefined,
       },
     };
   },
@@ -98,25 +56,13 @@ const handlers: Record<string, Handler> = {
   },
   "NodeService/PutRecord": (f, n, i, addr) => {
     needNode(n, addr);
-    const r = i.record as {
-      kind: string;
-      id: string;
-      body?: Uint8Array;
-      deleted?: boolean;
-    };
-    const owner = f.records.find(
-      (x) => x.kind === r.kind && x.id === r.id,
-    )?.ownerNodeId;
-    const ownerNode = owner
-      ? f.nodes.find((x) => x.nodeId === owner)
-      : undefined;
-    if (ownerNode && !ownerNode.reachable)
-      return { record: { ...r, ownerNodeId: owner }, queued: true };
+    const r = i.record as { kind: string; id: string; body?: Uint8Array; deleted?: boolean };
+    const owner = f.records.find((x) => x.kind === r.kind && x.id === r.id)?.ownerNodeId;
+    const ownerNode = owner ? f.nodes.find((x) => x.nodeId === owner) : undefined;
+    if (ownerNode && !ownerNode.reachable) return { record: { ...r, ownerNodeId: owner }, queued: true };
     return { record: f.putRecord(r), queued: false };
   },
-  "NodeService/GetNodeMetrics": (f, n, _i, addr) => ({
-    metrics: f.metricsOf(needNode(n, addr)),
-  }),
+  "NodeService/GetNodeMetrics": (f, n, _i, addr) => ({ metrics: f.metricsOf(needNode(n, addr)) }),
   "NodeService/GetFleetStatus": (f, n, _i, addr) => {
     const me = needNode(n, addr);
     const entry = (p: DemoNode) => ({
@@ -126,11 +72,7 @@ const handlers: Record<string, Handler> = {
       metrics: f.metricsOf(p),
       metricsUnixMs: BigInt(p.metricsUnixMs),
       services: f.servicesOn(p.nodeId),
-      servicesUnixMs: BigInt(
-        f.services
-          .filter((s) => s.spec.nodeId === p.nodeId)
-          .reduce((m, s) => Math.max(m, s.statusUnixMs), 0),
-      ),
+      servicesUnixMs: BigInt(f.services.filter((s) => s.spec.nodeId === p.nodeId).reduce((m, s) => Math.max(m, s.statusUnixMs), 0)),
       updateState: p.update.state,
       updateMessage: p.update.message,
       updateProgress: p.update.progress,
@@ -142,36 +84,13 @@ const handlers: Record<string, Handler> = {
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.
-    const installing =
-      f.installer.provisioning &&
-      !f.nodes.some((p) => p.nodeId === f.installer.id) &&
-      f.records.some(
-        (r) => r.kind === "node" && r.id === f.installer.id && !r.deleted,
-      )
-        ? [
-            {
-              nodeId: f.installer.id,
-              reachable: false,
-              provisioning: installerProvisioning(f),
-            },
-          ]
-        : [];
-    return {
-      nodeId: me.nodeId,
-      nodes: [
-        entry(me),
-        ...f.nodes.filter((p) => p !== me).map(entry),
-        ...installing,
-      ],
-    };
+    const installing = f.installer.provisioning && !f.nodes.some((p) => p.nodeId === f.installer.id) && f.records.some((r) => r.kind === "node" && r.id === f.installer.id && !r.deleted) ? [{ nodeId: f.installer.id, reachable: false, provisioning: installerProvisioning(f) }] : [];
+    return { nodeId: me.nodeId, nodes: [entry(me), ...f.nodes.filter((p) => p !== me).map(entry), ...installing] };
   },
-  "NodeService/GetUpdateStatus": (_f, n, _i, addr) => ({
-    status: needNode(n, addr).update,
-  }),
+  "NodeService/GetUpdateStatus": (_f, n, _i, addr) => ({ status: needNode(n, addr).update }),
   "NodeService/UpdateImage": (f, n, i, addr) => {
     const me = needNode(n, addr);
-    if (me.update.state === UpdateStatus_State.UPDATING)
-      throw fail(Code.FailedPrecondition, "an update is already running");
+    if (me.update.state === UpdateStatus_State.UPDATING) throw fail(Code.FailedPrecondition, "an update is already running");
     f.startUpdate(me.nodeId, i.image as string);
     if (i.reboot) f.reboot(me.nodeId);
     return {};
@@ -190,21 +109,9 @@ const handlers: Record<string, Handler> = {
     const me = needNode(n, addr);
     const name = (i.name as string).trim();
     if (!name) throw fail(Code.InvalidArgument, "a name is needed");
-    if (
-      f.nodes.some(
-        (x) => x !== me && x.name.toLowerCase() === name.toLowerCase(),
-      )
-    )
-      throw fail(Code.AlreadyExists, `a Node named ${name} already exists`);
+    if (f.nodes.some((x) => x !== me && x.name.toLowerCase() === name.toLowerCase())) throw fail(Code.AlreadyExists, `a Node named ${name} already exists`);
     f.rename(me.nodeId, name);
-    return {
-      node: {
-        nodeId: me.nodeId,
-        name,
-        letter: me.letter,
-        addresses: [me.addr],
-      },
-    };
+    return { node: { nodeId: me.nodeId, name, letter: me.letter, addresses: [me.addr] } };
   },
   "NodeService/PushStatus": (_f, n, _i, addr) => {
     needNode(n, addr);
@@ -212,28 +119,16 @@ const handlers: Record<string, Handler> = {
   },
   "NodeService/PushRecords": (f, n, i, addr) => {
     needNode(n, addr);
-    for (const r of (i.records as {
-      kind: string;
-      id: string;
-      body?: Uint8Array;
-      deleted?: boolean;
-    }[]) ?? [])
-      f.putRecord(r);
+    for (const r of (i.records as { kind: string; id: string; body?: Uint8Array; deleted?: boolean }[]) ?? []) f.putRecord(r);
     return { applied: ((i.records as unknown[]) ?? []).length };
   },
 
   // ServiceService
   "ServiceService/GetCatalog": (f, n, _i, addr) => {
     needNode(n, addr);
-    return {
-      indexJson: new TextEncoder().encode(JSON.stringify(bundledCatalog)),
-      source: "https://catalog.maitre.dev/index.json",
-      fetchedUnixMs: BigInt(f.now - 3600_000),
-    };
+    return { indexJson: new TextEncoder().encode(JSON.stringify(bundledCatalog)), source: "https://catalog.maitre.dev/index.json", fetchedUnixMs: BigInt(f.now - 3600_000) };
   },
-  "ServiceService/ListServices": (f, n, _i, addr) => ({
-    services: f.servicesOn(needNode(n, addr).nodeId),
-  }),
+  "ServiceService/ListServices": (f, n, _i, addr) => ({ services: f.servicesOn(needNode(n, addr).nodeId) }),
   "ServiceService/InstallService": (f, n, i, addr) => {
     const me = needNode(n, addr);
     try {
@@ -278,17 +173,9 @@ const handlers: Record<string, Handler> = {
   // StorageService
   "StorageService/ListDrives": (f, n, _i, addr) => {
     const me = needNode(n, addr);
-    return {
-      drives: f.drives
-        .filter((d) => d.nodeId === me.nodeId)
-        .map(({ nodeId: _n, ...d }) => d),
-    };
+    return { drives: f.drives.filter((d) => d.nodeId === me.nodeId).map(({ nodeId: _n, ...d }) => d) };
   },
-  "StorageService/DriveContents": () => ({
-    entries: ["Downloads", "old-backups"],
-    usedBytes: 130n * 1024n ** 3n,
-    empty: false,
-  }),
+  "StorageService/DriveContents": () => ({ entries: ["Downloads", "old-backups"], usedBytes: 130n * 1024n ** 3n, empty: false }),
   "StorageService/AdoptDrive": () => {
     throw fail(Code.Unimplemented, "demo: no unadopted Drives on this Node");
   },
@@ -297,9 +184,7 @@ const handlers: Record<string, Handler> = {
   },
   "StorageService/SetDriveTags": (f, n, i, addr) => {
     const me = needNode(n, addr);
-    const d = f.drives.find(
-      (x) => x.nodeId === me.nodeId && x.driveId === i.driveId,
-    );
+    const d = f.drives.find((x) => x.nodeId === me.nodeId && x.driveId === i.driveId);
     if (!d?.record) throw fail(Code.NotFound, "no such Drive");
     d.record.tags = (i.tags as string[]) ?? [];
     if (i.name) d.record.name = i.name as string;
@@ -309,15 +194,9 @@ const handlers: Record<string, Handler> = {
   },
   "StorageService/ForgetDrive": (f, n, i, addr) => {
     const me = needNode(n, addr);
-    const d = f.drives.find(
-      (x) => x.nodeId === me.nodeId && x.driveId === i.driveId,
-    );
+    const d = f.drives.find((x) => x.nodeId === me.nodeId && x.driveId === i.driveId);
     if (!d) throw fail(Code.NotFound, "no such Drive");
-    if (d.record?.origin === "internal")
-      throw fail(
-        Code.FailedPrecondition,
-        "the built-in Drive cannot be forgotten",
-      );
+    if (d.record?.origin === "internal") throw fail(Code.FailedPrecondition, "the built-in Drive cannot be forgotten");
     f.drives = f.drives.filter((x) => x !== d);
     f.rebuildRecords();
     return {};
@@ -327,50 +206,24 @@ const handlers: Record<string, Handler> = {
   "FilesService/ListDir": (f, n, i, addr) => {
     const me = needNode(n, addr);
     try {
-      return {
-        entries: f.listDir(
-          (i.scope as { spaceId?: string; driveId?: string }) ?? {},
-          me.nodeId,
-          (i.path as string) ?? "",
-        ),
-      };
+      return { entries: f.listDir((i.scope as { spaceId?: string; driveId?: string }) ?? {}, me.nodeId, (i.path as string) ?? "") };
     } catch (e) {
       throw fail(Code.NotFound, (e as Error).message);
     }
   },
   "FilesService/Usage": (f, n, i, addr) => {
     const me = needNode(n, addr);
-    return {
-      ...f.usage(
-        (i.scope as { spaceId?: string; driveId?: string }) ?? {},
-        me.nodeId,
-        (i.path as string) ?? "",
-      ),
-      inProgress: false,
-    };
+    return { ...f.usage((i.scope as { spaceId?: string; driveId?: string }) ?? {}, me.nodeId, (i.path as string) ?? ""), inProgress: false };
   },
-  "FilesService/Move": (f, n, i, addr) => ({
-    jobId: f.move(i as never, needNode(n, addr).nodeId),
-  }),
+  "FilesService/Move": (f, n, i, addr) => ({ jobId: f.move(i as never, needNode(n, addr).nodeId) }),
   "FilesService/ListJobs": (f, n, _i, addr) => {
     const me = needNode(n, addr);
-    return {
-      jobs: f.jobs
-        .filter((j) => j.nodeId === me.nodeId)
-        .map(({ nodeId: _n, onDone: _d, ...j }) => j),
-    };
+    return { jobs: f.jobs.filter((j) => j.nodeId === me.nodeId).map(({ nodeId: _n, onDone: _d, ...j }) => j) };
   },
   "ServiceService/MoveVolume": (f, n, i, addr) => {
     const me = needNode(n, addr);
     try {
-      return {
-        jobId: f.moveVolume(
-          i.name as string,
-          i.volume as string,
-          i.toSpace as string,
-          me.nodeId,
-        ),
-      };
+      return { jobId: f.moveVolume(i.name as string, i.volume as string, i.toSpace as string, me.nodeId) };
     } catch (e) {
       throw fail(Code.FailedPrecondition, (e as Error).message);
     }
@@ -384,8 +237,7 @@ const handlers: Record<string, Handler> = {
   // InstallerService (the Installer on the LAN, at its own address)
   "InstallerService/GetInstallerStatus": (f, _n, _i, addr) => {
     const ins = f.installer;
-    if (addr !== ins.addr)
-      throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
+    if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
     return {
       status: {
         installerId: ins.id,
@@ -393,20 +245,8 @@ const handlers: Record<string, Handler> = {
         addresses: [ins.addr],
         pairingCode: ins.pairingCode,
         disks: [
-          {
-            path: "/dev/nvme0n1",
-            model: "WD Blue SN580 1TB",
-            sizeBytes: 1000n * 1000n ** 3n,
-            removable: false,
-            isInstallerMedia: false,
-          },
-          {
-            path: "/dev/sda",
-            model: "SanDisk Ultra USB",
-            sizeBytes: 32n * 1000n ** 3n,
-            removable: true,
-            isInstallerMedia: true,
-          },
+          { path: "/dev/nvme0n1", model: "WD Blue SN580 1TB", sizeBytes: 1000n * 1000n ** 3n, removable: false, isInstallerMedia: false },
+          { path: "/dev/sda", model: "SanDisk Ultra USB", sizeBytes: 32n * 1000n ** 3n, removable: true, isInstallerMedia: true },
         ],
         provisioning: installerProvisioning(f),
         machineName: ins.machine,
@@ -419,8 +259,7 @@ const handlers: Record<string, Handler> = {
   },
   "InstallerService/Provision": (f, _n, _i, addr) => {
     const ins = f.installer;
-    if (addr !== ins.addr)
-      throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
+    if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
     ins.provisioning = true;
     ins.progress = 0;
     ins.log = ["partitioning"];
@@ -433,55 +272,23 @@ const handlers: Record<string, Handler> = {
 
 function installerProvisioning(f: DemoFleet) {
   const ins = f.installer;
-  const phase = ins.provisioning
-    ? ins.progress < 0.7
-      ? Provisioning_Phase.INSTALLING
-      : ins.progress < 1
-        ? Provisioning_Phase.CONFIGURING
-        : Provisioning_Phase.REBOOTING
-    : Provisioning_Phase.IDLE;
-  return {
-    phase,
-    message: ins.log.at(-1) ?? "",
-    percent: Math.round(ins.progress * 100),
-  };
+  const phase = ins.provisioning ? (ins.progress < 0.7 ? Provisioning_Phase.INSTALLING : ins.progress < 1 ? Provisioning_Phase.CONFIGURING : Provisioning_Phase.REBOOTING) : Provisioning_Phase.IDLE;
+  return { phase, message: ins.log.at(-1) ?? "", percent: Math.round(ins.progress * 100) };
 }
 
 /** A Transport answering as the demo machine at `addr`. */
-export function createDemoTransport(
-  addr: string,
-  fleet: DemoFleet = demoFleet(),
-): Transport {
+export function createDemoTransport(addr: string, fleet: DemoFleet = demoFleet()): Transport {
   return {
-    async unary<I extends DescMessage, O extends DescMessage>(
-      method: DescMethodUnary<I, O>,
-      signal: AbortSignal | undefined,
-      _timeoutMs: number | undefined,
-      _header: HeadersInit | undefined,
-      input: MessageInitShape<I>,
-    ): Promise<UnaryResponse<I, O>> {
+    async unary<I extends DescMessage, O extends DescMessage>(method: DescMethodUnary<I, O>, signal: AbortSignal | undefined, _timeoutMs: number | undefined, _header: HeadersInit | undefined, input: MessageInitShape<I>): Promise<UnaryResponse<I, O>> {
       // A little latency so loading states are visible; none in tests.
-      if (typeof window !== "undefined" && !("__vitest_worker__" in globalThis))
-        await new Promise((r) => setTimeout(r, 40 + Math.random() * 80));
+      if (typeof window !== "undefined" && !("__vitest_worker__" in globalThis)) await new Promise((r) => setTimeout(r, 40 + Math.random() * 80));
       if (signal?.aborted) throw fail(Code.Canceled, "cancelled");
       const key = `${method.parent.name}/${method.name}`;
       const h = handlers[key];
       if (!h) throw fail(Code.Unimplemented, `demo: ${key} is not scripted`);
       const node = fleet.nodeByAddr(addr);
-      const out = h(
-        fleet,
-        node,
-        create(method.input, input) as unknown as Record<string, unknown>,
-        addr,
-      ) as MessageInitShape<O>;
-      return {
-        stream: false,
-        service: method.parent,
-        method,
-        header: new Headers(),
-        trailer: new Headers(),
-        message: create(method.output, out) as MessageShape<O>,
-      };
+      const out = h(fleet, node, create(method.input, input) as unknown as Record<string, unknown>, addr) as MessageInitShape<O>;
+      return { stream: false, service: method.parent, method, header: new Headers(), trailer: new Headers(), message: create(method.output, out) as MessageShape<O> };
     },
     async stream() {
       throw fail(Code.Unimplemented, "demo: no streaming RPCs");
