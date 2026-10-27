@@ -21,7 +21,17 @@ service FilesService {
   // Make one folder; its parent must exist. In a Space the Pool's create
   // policy picks the Drive, as for any new folder.
   rpc MakeDir(MakeDirRequest) returns (MakeDirResponse) {}
+  // Zip items of one folder into an archive beside them, as a job
+  // (decision 184).
+  rpc Zip(ZipRequest) returns (ZipResponse) {}
+  // Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
+  rpc Unzip(UnzipRequest) returns (UnzipResponse) {}
 }
+
+// File contents are not RPCs: GET and PUT /maitre/files/content on the same
+// listener (decision 183), with query parameters space, drive and path; GET
+// takes download=1 (attachment) and, for a folder, zip=1; PUT takes
+// mkdirs=1 to make missing parent folders. PUT never replaces a file.
 
 // Scope is what a path is relative to: a Space's Pool on this Node (the
 // merged view), or a Drive's root on this Node.
@@ -98,6 +108,10 @@ message Job {
   int64 started_unix_ms = 7;
   int64 finished_unix_ms = 8;
   MoveRequest request = 9;
+  // "" for a move, else "zip" or "unzip"; summary says what it does in
+  // words ("Zip 3 items into Archive.zip").
+  string kind = 10;
+  string summary = 11;
 }
 
 message ListJobsRequest {}
@@ -119,3 +133,31 @@ message MakeDirRequest {
 }
 
 message MakeDirResponse {}
+
+message ZipRequest {
+  Scope scope = 1;
+  // The folder the items are in ("" for the top) and their names.
+  string folder = 2;
+  repeated string names = 3;
+  // The archive's file name; default <name>.zip for one item, else
+  // Archive.zip. A taken name gets " 2", " 3"… before .zip.
+  string name = 4;
+}
+
+message ZipResponse {
+  string job_id = 1;
+  // The archive's file name as made.
+  string name = 2;
+}
+
+message UnzipRequest {
+  Scope scope = 1;
+  // The archive.
+  string path = 2;
+}
+
+message UnzipResponse {
+  string job_id = 1;
+  // The folder it unpacks into, beside the archive.
+  string folder = 2;
+}

@@ -77,3 +77,10 @@ Nothing.
   parent must exist; names starting with a dot are refused, since ListDir
   hides them. In `files.Manager.MakeDir`. Older Nodes answer Unimplemented
   and the Console says the Node needs updating.
+- **File contents, Zip and Unzip (decisions 177, 180, 183, 184).**
+  `GET`/`PUT /maitre/files/content` on the mutual-TLS listener (ranges for
+  previews and video; a folder downloads as a zip made on the fly; `PUT`
+  never replaces), and `FilesService.Zip`/`Unzip` as jobs beside moves
+  (`Job.kind`, `Job.summary`). In `files/http.go` and `files/archive.go`.
+  Older Nodes have none of it: previews fail with a 404 and Zip/Unzip say
+  the Node needs updating.

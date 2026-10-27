@@ -36,6 +36,10 @@ const (
 	FilesServiceCancelJobProcedure = "/maitre.v1.FilesService/CancelJob"
 	// FilesServiceMakeDirProcedure is the procedure name of the FilesService's MakeDir RPC.
 	FilesServiceMakeDirProcedure = "/maitre.v1.FilesService/MakeDir"
+	// FilesServiceZipProcedure is the procedure name of the FilesService's Zip RPC.
+	FilesServiceZipProcedure = "/maitre.v1.FilesService/Zip"
+	// FilesServiceUnzipProcedure is the procedure name of the FilesService's Unzip RPC.
+	FilesServiceUnzipProcedure = "/maitre.v1.FilesService/Unzip"
 )
 
 var (
@@ -81,6 +85,20 @@ var (
 			Procedure:  FilesServiceMakeDirProcedure,
 		}
 	})
+	filesServiceZipSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_files_proto.Services().ByName("FilesService").Methods().ByName("Zip"),
+			Procedure:  FilesServiceZipProcedure,
+		}
+	})
+	filesServiceUnzipSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_files_proto.Services().ByName("FilesService").Methods().ByName("Unzip"),
+			Procedure:  FilesServiceUnzipProcedure,
+		}
+	})
 )
 
 // FilesServiceClient is a client for the maitre.v1.FilesService service.
@@ -95,6 +113,11 @@ type FilesServiceClient interface {
 	// Make one folder; its parent must exist. In a Space the Pool's create
 	// policy picks the Drive, as for any new folder.
 	MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error)
+	// Zip items of one folder into an archive beside them, as a job
+	// (decision 184).
+	Zip(context.Context, *v1.ZipRequest) (*v1.ZipResponse, error)
+	// Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
+	Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error)
 }
 
 // NewFilesServiceClient constructs a client for the maitre.v1.FilesService service. Multiple
@@ -115,6 +138,11 @@ type FilesServiceHandler interface {
 	// Make one folder; its parent must exist. In a Space the Pool's create
 	// policy picks the Drive, as for any new folder.
 	MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error)
+	// Zip items of one folder into an archive beside them, as a job
+	// (decision 184).
+	Zip(context.Context, *v1.ZipRequest) (*v1.ZipResponse, error)
+	// Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
+	Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error)
 }
 
 // RegisterFilesServiceHandler registers svc as the maitre.v1.FilesService implementation on server.
@@ -127,6 +155,8 @@ func RegisterFilesServiceHandler(server *connect.Server, svc FilesServiceHandler
 		connect.Method{Spec: filesServiceListJobsSpec(), Handler: adapter.listJobs},
 		connect.Method{Spec: filesServiceCancelJobSpec(), Handler: adapter.cancelJob},
 		connect.Method{Spec: filesServiceMakeDirSpec(), Handler: adapter.makeDir},
+		connect.Method{Spec: filesServiceZipSpec(), Handler: adapter.zip},
+		connect.Method{Spec: filesServiceUnzipSpec(), Handler: adapter.unzip},
 	)
 }
 
@@ -155,6 +185,14 @@ func (UnimplementedFilesServiceHandler) CancelJob(context.Context, *v1.CancelJob
 
 func (UnimplementedFilesServiceHandler) MakeDir(context.Context, *v1.MakeDirRequest) (*v1.MakeDirResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.MakeDir is not implemented")
+}
+
+func (UnimplementedFilesServiceHandler) Zip(context.Context, *v1.ZipRequest) (*v1.ZipResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.Zip is not implemented")
+}
+
+func (UnimplementedFilesServiceHandler) Unzip(context.Context, *v1.UnzipRequest) (*v1.UnzipResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.FilesService.Unzip is not implemented")
 }
 
 type filesServiceClient struct {
@@ -204,6 +242,22 @@ func (c *filesServiceClient) CancelJob(ctx context.Context, req *v1.CancelJobReq
 func (c *filesServiceClient) MakeDir(ctx context.Context, req *v1.MakeDirRequest) (*v1.MakeDirResponse, error) {
 	var res v1.MakeDirResponse
 	if err := c.client.CallUnary(ctx, filesServiceMakeDirSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *filesServiceClient) Zip(ctx context.Context, req *v1.ZipRequest) (*v1.ZipResponse, error) {
+	var res v1.ZipResponse
+	if err := c.client.CallUnary(ctx, filesServiceZipSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *filesServiceClient) Unzip(ctx context.Context, req *v1.UnzipRequest) (*v1.UnzipResponse, error) {
+	var res v1.UnzipResponse
+	if err := c.client.CallUnary(ctx, filesServiceUnzipSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -277,6 +331,30 @@ func (h filesServiceHandler) makeDir(ctx context.Context, _ connect.Spec, stream
 		return err
 	}
 	res, err := h.svc.MakeDir(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h filesServiceHandler) zip(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ZipRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Zip(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h filesServiceHandler) unzip(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UnzipRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Unzip(ctx, &req)
 	if err != nil {
 		return err
 	}

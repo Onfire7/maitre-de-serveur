@@ -225,6 +225,26 @@ const handlers: Record<string, Handler> = {
       throw fail((e as { exists?: boolean }).exists ? Code.AlreadyExists : Code.InvalidArgument, (e as Error).message);
     }
   },
+  "FilesService/Zip": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    const scope = (i.scope as { spaceId?: string; driveId?: string }) ?? {};
+    const names = (i.names as string[]) ?? [];
+    if (names.length === 0) throw fail(Code.InvalidArgument, "pick something to zip");
+    const want = ((i.name as string) || (names.length === 1 ? names[0] : "Archive")).replace(/\.zip$/i, "");
+    const name = f.freeName(scope, me.nodeId, (i.folder as string) ?? "", want, ".zip");
+    return { jobId: f.archiveJob("zip", scope, me.nodeId, (i.folder as string) ?? "", names, name), name };
+  },
+  "FilesService/Unzip": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    const scope = (i.scope as { spaceId?: string; driveId?: string }) ?? {};
+    const path = (i.path as string) ?? "";
+    const parts = path.split("/");
+    const file = parts.pop() ?? "";
+    const stem = file.replace(/(\.tar\.gz|\.tgz|\.tar\.bz2|\.tbz2|\.tar|\.zip)$/i, "");
+    if (stem === file) throw fail(Code.InvalidArgument, `${file}: only zip, tar, tar.gz and tar.bz2 unpack here`);
+    const folder = f.freeName(scope, me.nodeId, parts.join("/"), stem, "");
+    return { jobId: f.archiveJob("unzip", scope, me.nodeId, parts.join("/"), [file], folder), folder };
+  },
   "FilesService/Move": (f, n, i, addr) => ({ jobId: f.move(i as never, needNode(n, addr).nodeId) }),
   "FilesService/ListJobs": (f, n, _i, addr) => {
     const me = needNode(n, addr);

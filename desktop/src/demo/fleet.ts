@@ -173,6 +173,8 @@ export class DemoFleet {
   /** An Installer on the LAN (shows under Nodes > Add a Node). */
   installer = { id: INSTALLER_ID, name: "Cedar", machine: "Intel NUC", addr: "10.0.0.9:7443", pairingCode: "482 913", provisioning: false, progress: 0, log: [] as string[] };
   files = new Map<string, FileNode[]>();
+  /** Contents uploaded in the browser, by demoBlobKey, for previews. */
+  blobs = new Map<string, Blob>();
   private listeners = new Set<() => void>();
   private nextJob = 1;
 
@@ -436,10 +438,10 @@ export class DemoFleet {
       if (j.bytesDone >= j.bytesTotal) {
         j.state = "done";
         j.finishedUnixMs = BigInt(this.now);
-        j.message = "verified";
+        j.message = j.kind ? "" : "verified";
         if (j.onDone) j.onDone();
         else this.applyMove(j);
-      } else j.message = "copying";
+      } else j.message = j.kind ? "" : "copying";
     }
     if (this.installer.provisioning && this.installer.progress < 1) {
       this.installer.progress = Math.min(1, this.installer.progress + 0.02);
@@ -557,6 +559,8 @@ export class DemoFleet {
       { name: "Photos", dir: true, size: 0, modified: t - 9 * 86400_000, drives: ["sda", "sdb", "sdc", "sdd", "sde", "sdf", "sdg", "sdh", "sdi", "sdj", "sdk", "sdl"], nodeId: NODE_A, children: [f("2019.zip", 2.2 * GiB, ["sda"], NODE_A, 400)], also: [{ nodeId: NODE_B, drives: ["sda", "sdb", "sdc", "sdd", "sde", "sdf", "sdg", "sdh"] }] },
       d("Shows", [d("Severance", [f("S01E01.mkv", 2.1 * GiB, ["sda"], NODE_B), f("S01E02.mkv", 2.0 * GiB, ["sda"], NODE_B)], ["sda"], NODE_B)], ["sda"], NODE_B),
       d("Music", [f("library.db", 42e6, ["sdb"], NODE_A)], ["sdb"], NODE_A),
+      // One file of each kind the preview shows (decision 178).
+      d("Documents", [f("README.md", 1.2e3, ["sdb"], NODE_A, 2), f("notes.txt", 820, ["sdb"], NODE_A, 5), f("jellyfin.yaml", 610, ["sdb"], NODE_A, 8), f("running-costs.xlsx", 18e3, ["sdb"], NODE_A, 3), f("letter.docx", 24e3, ["sdb"], NODE_A, 12), f("manual.pdf", 1.1e3, ["sdb"], NODE_A, 30), f("lake.jpg", 2.4e6, ["sda"], NODE_B, 60), f("chime.wav", 88e3, ["sda"], NODE_B, 1), f("trailer.mp4", 48e6, ["sda"], NODE_B, 14), f("photos-2023.zip", 1.4 * GiB, ["sda"], NODE_B, 200)], ["sda", "sdb"], NODE_A),
     ]);
     this.files.set("space:general", [
       d("jellyfin", [d("config", [f("system.xml", 12e3, ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A),
@@ -606,6 +610,48 @@ export class DemoFleet {
     parent.push({ name, dir: true, size: 0, modified: this.now, drives: drive ? [drive] : [], nodeId, children: [] });
   }
 
+  /** An upload from the browser: the entry, and its contents for previews. */
+  upload(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string, blob: Blob) {
+    const parts = path.split("/").filter(Boolean);
+    const name = parts.pop()!;
+    const key = scope.spaceId ? "space:" + scope.spaceId : `drive:${scope.driveId}@${nodeId}`;
+    if (!this.files.has(key)) this.files.set(key, []);
+    let dir = this.files.get(key)!;
+    const drive = scope.driveId ?? this.drives.find((d) => d.nodeId === nodeId)?.driveId ?? "";
+    for (const part of parts) {
+      let next = dir.find((n) => n.name === part && n.dir);
+      if (!next) dir.push((next = { name: part, dir: true, size: 0, modified: this.now, drives: drive ? [drive] : [], nodeId, children: [] }));
+      dir = next.children ??= [];
+    }
+    if (dir.some((n) => n.name === name)) return false;
+    dir.push({ name, dir: false, size: blob.size, modified: this.now, drives: drive ? [drive] : [], nodeId });
+    this.blobs.set(scope.spaceId ? `space:${scope.spaceId}:${path}` : `drive:${scope.driveId}@${nodeId}:${path}`, blob);
+    this.changed();
+    return true;
+  }
+
+  /** Zip and Unzip as quick jobs: the archive or folder appears when done. */
+  archiveJob(kind: "zip" | "unzip", scope: { spaceId?: string; driveId?: string }, nodeId: string, folder: string, names: string[], archive: string): string {
+    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "", bytesDone: 0n, bytesTotal: 1000n, current: archive, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, kind, summary: kind === "zip" ? `Zip ${names.length === 1 ? names[0] : `${names.length} items`} into ${archive}` : `Unzip ${names[0]} into ${archive}`, request: { from: scope, path: folder } as MoveRequest, nodeId };
+    job.onDone = () => {
+      const dir = this.walk(this.tree(scope, nodeId), folder);
+      if (!dir) return;
+      const drive = scope.driveId ?? this.drives.find((d) => d.nodeId === nodeId)?.driveId ?? "";
+      if (kind === "zip") dir.push({ name: archive, dir: false, size: 1000, modified: this.now, drives: [drive], nodeId });
+      else dir.push({ name: archive, dir: true, size: 0, modified: this.now, drives: [drive], nodeId, children: [{ name: "unpacked.txt", dir: false, size: 120, modified: this.now, drives: [drive], nodeId }] });
+    };
+    this.jobs.push(job);
+    this.changed();
+    return job.jobId;
+  }
+
+  freeName(scope: { spaceId?: string; driveId?: string }, nodeId: string, folder: string, stem: string, ext: string) {
+    const dir = this.walk(this.tree(scope, nodeId), folder) ?? [];
+    let name = stem + ext;
+    for (let i = 2; dir.some((n) => n.name === name); i++) name = `${stem} ${i}${ext}`;
+    return name;
+  }
+
   usage(scope: { spaceId?: string; driveId?: string }, nodeId: string, path: string): { bytes: bigint; files: bigint } {
     const dir = this.walk(this.tree(scope, nodeId), path) ?? [];
     // A Space that does not span Nodes is one Pool per Node: count this Node's files only.
@@ -630,7 +676,7 @@ export class DemoFleet {
     const parent = this.walk(this.tree({ spaceId: req.from?.spaceId, driveId: req.from?.driveId }, nodeId), req.path.split("/").slice(0, -1).join("/"));
     const item = parent?.find((n) => n.name === req.path.split("/").at(-1));
     const total = item && !item.dir ? BigInt(Math.round(item.size)) : u.bytes;
-    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "starting", bytesDone: 0n, bytesTotal: total || 1n, current: req.path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, request: req, nodeId };
+    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "starting", bytesDone: 0n, bytesTotal: total || 1n, current: req.path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, kind: "", summary: "", request: req, nodeId };
     this.jobs.push(job);
     this.changed();
     return job.jobId;
@@ -675,7 +721,7 @@ export class DemoFleet {
     s.statusUnixMs = this.now;
     const path = `${name}/${volume}`;
     const req = { from: { spaceId: from, driveId: "" }, path, toSpace, toPath: path, toNodeId: "", toDriveId: "", fromNodeId: "" } as MoveRequest;
-    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "copying", bytesDone: 0n, bytesTotal: BigInt(Math.round(1.5 * GiB)), current: path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, request: req, nodeId, onDone: () => {
+    const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "copying", bytesDone: 0n, bytesTotal: BigInt(Math.round(1.5 * GiB)), current: path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, kind: "", summary: "", request: req, nodeId, onDone: () => {
       s.spec.volumeSpaces[volume] = toSpace;
       this.rebuildRecords();
       if (wasRunning) {

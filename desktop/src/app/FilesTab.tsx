@@ -2,11 +2,11 @@
 // Node or a Drive's root, see where each entry lives and how big it is, and
 // queue moves between Spaces, Drives and Nodes. Every call goes straight to
 // the Node that holds the files (160); jobs live on that Node.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Upload, Download, FileArchive, PackageOpen, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,6 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { isDemo } from "@/demo/flag";
+import { Preview } from "@/files/Preview";
+import { unzippable } from "@/files/kinds";
+import { demoUpload, download, pickAndUpload, uploadPaths, type Place } from "@/files/transfers";
 import { cn } from "@/lib/utils";
 import { formatBytes, ago } from "@/lib/format";
 import { FilesService, type Entry, type Job } from "@/gen/maitre/v1/files_pb";
@@ -83,6 +88,13 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moving, setMoving] = useState(!!moveFixture);
   const [newFolder, setNewFolder] = useState(false);
+  // The file being previewed and whether it fills the window (179).
+  // `?preview=<name>` opens one of `?path=` on load (screenshot fixture).
+  const [preview, setPreview] = useState<string | null>(() => new URLSearchParams(window.location.search).get("preview"));
+  const [full, setFull] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const pickFiles = useRef<HTMLInputElement>(null);
+  const pickFolder = useRef<HTMLInputElement>(null);
   const target = scope ? targetFor(snap, state.nodes, scope.nodeId) : undefined;
   const client = useMemo(() => (target ? createClient(FilesService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
   const unreachable = scope ? nodeDown(nodeWord(snap?.status.get(scope.nodeId), Date.now())) : false;
@@ -100,7 +112,64 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const current = scope ? scopes.find((s) => sameScope(scope, s)) : undefined;
   const go = (p: string) => {
     setPath(p);
+    setPreview(null);
   };
+  const place: Place | undefined = scope && target ? { target, nodeId: scope.nodeId, spaceId: scope.spaceId, driveId: scope.driveId } : undefined;
+  const wire = scope ? { spaceId: scope.spaceId ?? "", driveId: scope.driveId ?? "" } : undefined;
+  const files = entries.filter((e) => !e.dir);
+  const shown = preview ? files.find((e) => e.name === preview) : undefined;
+  const shownAt = shown ? files.indexOf(shown) : -1;
+  const step = (d: number) => files.length && setPreview(files[(shownAt + d + files.length) % files.length].name);
+  const chosen = entries.filter((e) => selected.has(e.name));
+  const canWrite = !!client && !!scope && !unreachable && !!list.data;
+  async function afterUpload() {
+    await list.refetch();
+  }
+  async function zip(names: string[]) {
+    if (!client || !wire) return;
+    try {
+      const r = await client.zip({ scope: wire, folder: path, names });
+      toast.success(`Zipping into ${r.name}`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+    } catch (e) {
+      toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${nodeName(scope!.nodeId)} runs an older Maître Server; update it to zip here.` : String((e as Error).message ?? e));
+    }
+  }
+  async function unzip(name: string) {
+    if (!client || !wire) return;
+    try {
+      const r = await client.unzip({ scope: wire, path: [...crumbs, name].join("/") });
+      toast.success(`Unzipping into ${r.folder}`);
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+    } catch (e) {
+      toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${nodeName(scope!.nodeId)} runs an older Maître Server; update it to unzip here.` : String((e as Error).message ?? e));
+    }
+  }
+  // Files dropped on the window from the desktop upload into the open
+  // folder (185). Tauri reports the drop with the files' paths.
+  useEffect(() => {
+    if (isDemo() || !place || !canWrite) return;
+    let off: (() => void) | undefined;
+    let gone = false;
+    import("@tauri-apps/api/webview")
+      .then(({ getCurrentWebview }) =>
+        getCurrentWebview().onDragDropEvent((e) => {
+          if (e.payload.type === "over" || e.payload.type === "enter") setDropping(true);
+          else if (e.payload.type === "leave") setDropping(false);
+          else if (e.payload.type === "drop") {
+            setDropping(false);
+            uploadPaths(place, path, e.payload.paths).then(afterUpload);
+          }
+        }),
+      )
+      .then((f) => (gone ? f() : (off = f)))
+      .catch(() => {});
+    return () => {
+      gone = true;
+      off?.();
+    };
+  }, [place?.target.addr, place?.spaceId, place?.driveId, path, canWrite]);
 
   return (
     <div className="grid h-full grid-cols-[220px_1fr] gap-6">
@@ -157,15 +226,53 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
           <Button size="sm" variant="ghost" onClick={() => list.refetch()} title="Refresh">
             <RefreshCw className={cn("size-4", list.isFetching && "animate-spin")} />
           </Button>
-          <Button size="sm" variant="outline" disabled={!client || !scope || unreachable || !list.data} onClick={() => setNewFolder(true)}>
-            <FolderPlus /> New folder
-          </Button>
-          <Button size="sm" disabled={selected.size === 0 || !scope} onClick={() => setMoving(true)}>
-            <MoveRight /> Move {selected.size > 0 ? `${selected.size} ${selected.size === 1 ? "item" : "items"}…` : "…"}
-          </Button>
+          {selected.size > 0 ? (
+            <>
+              <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+              <Button size="sm" variant="outline" onClick={() => place && download(place, path, chosen)}>
+                <Download /> Download
+              </Button>
+              <Button size="sm" variant="outline" disabled={!canWrite} onClick={() => zip([...selected])}>
+                <FileArchive /> Zip
+              </Button>
+              {chosen.length === 1 && !chosen[0].dir && unzippable(chosen[0].name) && (
+                <Button size="sm" variant="outline" disabled={!canWrite} onClick={() => unzip(chosen[0].name)}>
+                  <PackageOpen /> Unzip
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setMoving(true)}>
+                <MoveRight /> Move…
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" disabled={!canWrite} onClick={() => setNewFolder(true)}>
+                <FolderPlus /> New folder
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={!canWrite}>
+                    <Upload /> Upload <ChevronDown className="opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => (isDemo() ? pickFiles.current?.click() : place && pickAndUpload(place, path, false).then(afterUpload))}>Files…</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => (isDemo() ? pickFolder.current?.click() : place && pickAndUpload(place, path, true).then(afterUpload))}>A folder…</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+          {isDemo() && (
+            <>
+              <input ref={pickFiles} type="file" multiple hidden onChange={(e) => (place && e.target.files && demoUpload(place, path, e.target.files).then(afterUpload), (e.target.value = ""))} />
+              <input ref={pickFolder} type="file" multiple hidden {...{ webkitdirectory: "" }} onChange={(e) => (place && e.target.files && demoUpload(place, path, e.target.files).then(afterUpload), (e.target.value = ""))} />
+            </>
+          )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border bg-card">
+        <div className={cn("grid min-h-0 flex-1 gap-3", shown && !full ? "grid-cols-[minmax(0,1fr)_minmax(320px,45%)]" : "grid-cols-1")}>
+        <div className={cn("relative min-h-0 overflow-y-auto rounded-xl border bg-card", dropping && "ring-2 ring-primary")}>
+          {dropping && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm font-medium">Drop to upload into {[current?.label, ...crumbs].join(" / ")}</div>}
           {!scope ? (
             <p className="p-4 text-sm text-muted-foreground">Create a Storage Space or adopt a Drive first; then there is something to browse.</p>
           ) : unreachable ? (
@@ -202,11 +309,27 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                   </tr>
                 )}
                 {entries.map((e) => (
-                  <Row key={e.name} e={e} client={client!} scope={scope} path={path} selected={selected.has(e.name)} onSelect={(on) => setSelected((s) => (on ? new Set([...s, e.name]) : new Set([...s].filter((x) => x !== e.name))))} onOpen={() => e.dir && go([...crumbs, e.name].join("/"))} nodeName={nodeName} driveName={driveName} />
+                  <Row key={e.name} e={e} client={client!} scope={scope} path={path} selected={selected.has(e.name)} previewing={shown === e} onSelect={(on) => setSelected((s) => (on ? new Set([...s, e.name]) : new Set([...s].filter((x) => x !== e.name))))} onOpen={() => (e.dir ? go([...crumbs, e.name].join("/")) : setPreview(e.name))} nodeName={nodeName} driveName={driveName} />
                 ))}
               </tbody>
             </table>
           )}
+        </div>
+        {shown && place && (
+          <Preview
+            entry={shown}
+            file={{ ...place, path: [...crumbs, shown.name].join("/") }}
+            index={shownAt}
+            count={files.length}
+            full={full}
+            onFull={setFull}
+            onPrev={() => step(-1)}
+            onNext={() => step(1)}
+            onClose={() => (setPreview(null), setFull(false))}
+            onDownload={() => download(place, path, [shown])}
+            onUnzip={() => unzip(shown.name)}
+          />
+        )}
         </div>
 
         <Jobs snap={snap} state={state} nodeName={nodeName} />
@@ -260,7 +383,7 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   );
 }
 
-function Row({ e, client, scope, path, selected, onSelect, onOpen, nodeName, driveName }: { e: Entry; client: ReturnType<typeof createClient<typeof FilesService>>; scope: FileScope; path: string; selected: boolean; onSelect: (on: boolean) => void; onOpen: () => void; nodeName: (id: string) => string; driveName: (n: string, d: string) => string }) {
+function Row({ e, client, scope, path, selected, previewing, onSelect, onOpen, nodeName, driveName }: { e: Entry; client: ReturnType<typeof createClient<typeof FilesService>>; scope: FileScope; path: string; selected: boolean; previewing: boolean; onSelect: (on: boolean) => void; onOpen: () => void; nodeName: (id: string) => string; driveName: (n: string, d: string) => string }) {
   const [askSize, setAskSize] = useState(false);
   const usage = useQuery({
     queryKey: ["usage", scopeKey(scope), path, e.name],
@@ -270,12 +393,12 @@ function Row({ e, client, scope, path, selected, onSelect, onOpen, nodeName, dri
   });
   const where = whereOf(e, nodeName, driveName);
   return (
-    <tr className={cn("border-b last:border-0 hover:bg-accent/40", selected && "bg-accent/60")}>
+    <tr className={cn("border-b last:border-0 hover:bg-accent/40", selected && "bg-accent/60", previewing && "bg-primary/10")}>
       <td className="px-3 py-1.5">
         <Checkbox checked={selected} onCheckedChange={(v) => onSelect(v === true)} aria-label={`Select ${e.name}`} />
       </td>
       <td className="px-2 py-1.5">
-        <button className={cn("flex items-center gap-2 text-left", e.dir && "hover:underline")} onClick={onOpen} onDoubleClick={onOpen}>
+        <button className="flex items-center gap-2 text-left hover:underline" onClick={onOpen} title={e.dir ? "Open" : "Preview"}>
           {e.dir ? <Folder className="size-4 text-status-starting" /> : <File className="size-4 text-muted-foreground" />}
           {e.name}
         </button>
@@ -631,6 +754,11 @@ function Jobs({ snap, state, nodeName }: { snap: FleetSnapshot | undefined; stat
   });
   const jobs = results.flatMap((r) => r.data ?? []).sort((a, b) => Number(b.job.startedUnixMs - a.job.startedUnixMs));
   const [open, setOpen] = useState(true);
+  // A job that finishes changes the folders: list them again.
+  const finished = jobs.filter((j) => j.job.state === "done").length;
+  useEffect(() => {
+    if (finished > 0) qc.invalidateQueries({ queryKey: ["files"] });
+  }, [finished]);
   if (jobs.length === 0) return null;
   const active = jobs.filter((j) => j.job.state === "running" || j.job.state === "queued").length;
   async function cancel(j: Job, t: Target) {
@@ -645,7 +773,7 @@ function Jobs({ snap, state, nodeName }: { snap: FleetSnapshot | undefined; stat
     <div className="mt-3 rounded-xl border bg-card">
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 px-3 py-2 text-sm">
         <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
-        <span className="font-medium">Moves</span>
+        <span className="font-medium">Moves and archives</span>
         {active > 0 && <Badge className="bg-status-starting text-white">{active} running</Badge>}
         <span className="text-xs text-muted-foreground">{jobs.length} in all</span>
       </button>
@@ -657,8 +785,15 @@ function Jobs({ snap, state, nodeName }: { snap: FleetSnapshot | undefined; stat
               <li key={nodeId + j.jobId} className="px-3 py-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">
-                    <span className="font-medium text-foreground">{j.request?.path}</span> → {snap?.spaces.find((s) => s.spaceId === j.request?.toSpace)?.name ?? j.request?.toSpace}
-                    {j.request?.toNodeId && ` on ${nodeName(j.request.toNodeId)}`} <span className="text-muted-foreground">· from {nodeName(nodeId)}</span>
+                    {j.kind ? (
+                      <span className="font-medium text-foreground">{j.summary}</span>
+                    ) : (
+                      <>
+                        <span className="font-medium text-foreground">{j.request?.path}</span> → {snap?.spaces.find((s) => s.spaceId === j.request?.toSpace)?.name ?? j.request?.toSpace}
+                        {j.request?.toNodeId && ` on ${nodeName(j.request.toNodeId)}`}
+                      </>
+                    )}{" "}
+                    <span className="text-muted-foreground">· {j.kind ? "on" : "from"} {nodeName(nodeId)}</span>
                   </span>
                   <Badge variant={j.state === "failed" ? "destructive" : j.state === "done" ? "secondary" : "outline"}>{j.state}</Badge>
                   {(j.state === "running" || j.state === "queued") && (

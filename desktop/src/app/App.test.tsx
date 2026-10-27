@@ -55,7 +55,7 @@ describe("Console on the demo Fleet", () => {
     // Move Dune into Movies/2026: the dialog starts where it is, so Move is
     // refused until another folder is picked.
     fireEvent.click(within(main).getByRole("checkbox", { name: /Select Dune/ }));
-    fireEvent.click(within(main).getByRole("button", { name: /Move 1 item/ }));
+    fireEvent.click(within(main).getByRole("button", { name: "Move…" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/already here/)).toBeTruthy();
     expect((within(dialog).getByRole("button", { name: "Move here" }) as HTMLButtonElement).disabled).toBe(true);
@@ -63,5 +63,20 @@ describe("Console on the demo Fleet", () => {
     expect(within(dialog).getByText("Media / Movies / 2026")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Move here" }));
     expect(await screen.findByText(/1 item queued to move/)).toBeTruthy();
+
+    // Documents: a file opens in the side panel, which steps to the next
+    // file and goes full screen; Zip queues a job named after the file.
+    fireEvent.click(within(main).getByRole("button", { name: ".." }));
+    fireEvent.click(await within(main).findByRole("button", { name: "Documents" }, { timeout: 5000 }));
+    fireEvent.click(await within(main).findByRole("button", { name: "README.md" }, { timeout: 5000 }));
+    const panel = await screen.findByRole("complementary", { name: "Preview of README.md" });
+    fireEvent.click(within(panel).getByRole("button", { name: "Next file" }));
+    expect(await screen.findByRole("complementary", { name: /Preview of running-costs.xlsx/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("complementary", { name: /Preview of running-costs.xlsx/ }).className).toContain("fixed");
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    fireEvent.click(within(main).getByRole("checkbox", { name: "Select notes.txt" }));
+    fireEvent.click(within(main).getByRole("button", { name: /Zip/ }));
+    expect(await screen.findByText("Zipping into notes.txt.zip")).toBeTruthy();
   });
 });

@@ -61,3 +61,19 @@ func (s *Service) MakeDir(ctx context.Context, req *maitrev1.MakeDirRequest) (*m
 	}
 	return &maitrev1.MakeDirResponse{}, nil
 }
+
+func (s *Service) Zip(ctx context.Context, req *maitrev1.ZipRequest) (*maitrev1.ZipResponse, error) {
+	j, name, err := s.m.Zip(ctx, req)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+	}
+	return &maitrev1.ZipResponse{JobId: j.GetJobId(), Name: name}, nil
+}
+
+func (s *Service) Unzip(ctx context.Context, req *maitrev1.UnzipRequest) (*maitrev1.UnzipResponse, error) {
+	j, folder, err := s.m.Unzip(ctx, req)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+	}
+	return &maitrev1.UnzipResponse{JobId: j.GetJobId(), Folder: folder}, nil
+}

@@ -614,6 +614,11 @@ func runAgent(args []string) error {
 	maitrev1connect.RegisterFilesServiceHandler(rpc, filesservice.New(fm))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
+	// Decision 183: file contents for the file manager, same callers as RPCs.
+	mux.Handle(files.ContentPath, fm.Handler(func(r *http.Request) bool {
+		p, ok := peer.From(r.Context())
+		return ok && !list.Limited(p.Fingerprint)
+	}))
 
 	// Milestone 5: join the Fleet's tailnet as this Node, so the Console
 	// reaches it from anywhere; the mTLS listener is served there as well.

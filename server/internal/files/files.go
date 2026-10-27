@@ -83,6 +83,8 @@ type job struct {
 	// done runs once the job finished, with nil on success, the error on
 	// failure, or context.Canceled when cancelled.
 	done func(error)
+	// run does the work of a job that is not a move (Zip, Unzip).
+	run func(ctx context.Context, j *job) error
 }
 
 // New builds a Manager. self is this Node's id.
@@ -360,19 +362,23 @@ func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done 
 	if req.GetToNodeId() != "" && req.GetToNodeId() != m.self && req.GetFrom().GetDriveId() != "" {
 		return nil, errors.New("files on a Drive move to a Space on this Node first; then anywhere")
 	}
+	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done}), nil
+}
+
+// enqueue gives j an id and queues it behind the other jobs.
+func (m *Manager) enqueue(j *job) *maitrev1.Job {
 	m.mu.Lock()
 	m.seq++
-	id := fmt.Sprintf("job-%d-%d", time.Now().Unix(), m.seq)
-	j := &job{pb: &maitrev1.Job{JobId: id, State: "queued", Request: req}, done: done}
-	m.jobs[id] = j
-	m.order = append(m.order, id)
+	j.pb.JobId = fmt.Sprintf("job-%d-%d", time.Now().Unix(), m.seq)
+	m.jobs[j.pb.JobId] = j
+	m.order = append(m.order, j.pb.JobId)
 	m.mu.Unlock()
 	select {
 	case m.queue <- j:
 	default:
-		m.setState(j, "failed", "too many queued moves")
+		m.setState(j, "failed", "too many queued jobs")
 	}
-	return m.snapshot(j), nil
+	return m.snapshot(j)
 }
 
 // Jobs lists every job, newest last.
@@ -445,16 +451,25 @@ func (m *Manager) execute(parent context.Context, j *job) {
 		m.mu.Unlock()
 	}()
 	m.setState(j, "running", "")
-	err := m.move(ctx, j, req)
+	var err error
+	if j.run != nil {
+		err = j.run(ctx, j)
+	} else {
+		err = m.move(ctx, j, req)
+	}
+	untouched := "; the source is untouched"
+	if j.run != nil {
+		untouched = "; the originals are untouched"
+	}
 	switch {
 	case err == nil:
 		m.setState(j, "done", "")
 	case ctx.Err() != nil:
-		m.setState(j, "cancelled", "stopped; the source is untouched, a partial copy may remain at the destination")
+		m.setState(j, "cancelled", "stopped"+untouched+", a partial result may remain")
 		err = context.Canceled
 	default:
-		m.setState(j, "failed", err.Error()+"; the source is untouched")
-		m.log.Warn("move failed", "job", j.pb.JobId, "err", err)
+		m.setState(j, "failed", err.Error()+untouched)
+		m.log.Warn("job failed", "job", j.pb.JobId, "kind", j.pb.Kind, "err", err)
 	}
 	if j.done != nil {
 		j.done(err)

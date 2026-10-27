@@ -569,8 +569,12 @@ type Job struct {
 	StartedUnixMs  int64        `protobuf:"varint,7,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
 	FinishedUnixMs int64        `protobuf:"varint,8,opt,name=finished_unix_ms,json=finishedUnixMs,proto3" json:"finished_unix_ms,omitempty"`
 	Request        *MoveRequest `protobuf:"bytes,9,opt,name=request,proto3" json:"request,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// "" for a move, else "zip" or "unzip"; summary says what it does in
+	// words ("Zip 3 items into Archive.zip").
+	Kind          string `protobuf:"bytes,10,opt,name=kind,proto3" json:"kind,omitempty"`
+	Summary       string `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Job) Reset() {
@@ -664,6 +668,20 @@ func (x *Job) GetRequest() *MoveRequest {
 		return x.Request
 	}
 	return nil
+}
+
+func (x *Job) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *Job) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
 }
 
 type ListJobsRequest struct {
@@ -915,6 +933,236 @@ func (*MakeDirResponse) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_files_proto_rawDescGZIP(), []int{15}
 }
 
+type ZipRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Scope *Scope                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The folder the items are in ("" for the top) and their names.
+	Folder string   `protobuf:"bytes,2,opt,name=folder,proto3" json:"folder,omitempty"`
+	Names  []string `protobuf:"bytes,3,rep,name=names,proto3" json:"names,omitempty"`
+	// The archive's file name; default <name>.zip for one item, else
+	// Archive.zip. A taken name gets " 2", " 3"… before .zip.
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ZipRequest) Reset() {
+	*x = ZipRequest{}
+	mi := &file_maitre_v1_files_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ZipRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ZipRequest) ProtoMessage() {}
+
+func (x *ZipRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ZipRequest.ProtoReflect.Descriptor instead.
+func (*ZipRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ZipRequest) GetScope() *Scope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *ZipRequest) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+func (x *ZipRequest) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+func (x *ZipRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ZipResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	JobId string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// The archive's file name as made.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ZipResponse) Reset() {
+	*x = ZipResponse{}
+	mi := &file_maitre_v1_files_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ZipResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ZipResponse) ProtoMessage() {}
+
+func (x *ZipResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ZipResponse.ProtoReflect.Descriptor instead.
+func (*ZipResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ZipResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ZipResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type UnzipRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Scope *Scope                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The archive.
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnzipRequest) Reset() {
+	*x = UnzipRequest{}
+	mi := &file_maitre_v1_files_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnzipRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnzipRequest) ProtoMessage() {}
+
+func (x *UnzipRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnzipRequest.ProtoReflect.Descriptor instead.
+func (*UnzipRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *UnzipRequest) GetScope() *Scope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *UnzipRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type UnzipResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	JobId string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// The folder it unpacks into, beside the archive.
+	Folder        string `protobuf:"bytes,2,opt,name=folder,proto3" json:"folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnzipResponse) Reset() {
+	*x = UnzipResponse{}
+	mi := &file_maitre_v1_files_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnzipResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnzipResponse) ProtoMessage() {}
+
+func (x *UnzipResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_files_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnzipResponse.ProtoReflect.Descriptor instead.
+func (*UnzipResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_files_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *UnzipResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *UnzipResponse) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
 var File_maitre_v1_files_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_files_proto_rawDesc = "" +
@@ -957,7 +1205,7 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\ffrom_node_id\x18\a \x01(\tR\n" +
 	"fromNodeId\"%\n" +
 	"\fMoveResponse\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xaa\x02\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xd8\x02\n" +
 	"\x03Job\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12\x18\n" +
@@ -969,7 +1217,10 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\acurrent\x18\x06 \x01(\tR\acurrent\x12&\n" +
 	"\x0fstarted_unix_ms\x18\a \x01(\x03R\rstartedUnixMs\x12(\n" +
 	"\x10finished_unix_ms\x18\b \x01(\x03R\x0efinishedUnixMs\x120\n" +
-	"\arequest\x18\t \x01(\v2\x16.maitre.v1.MoveRequestR\arequest\"\x11\n" +
+	"\arequest\x18\t \x01(\v2\x16.maitre.v1.MoveRequestR\arequest\x12\x12\n" +
+	"\x04kind\x18\n" +
+	" \x01(\tR\x04kind\x12\x18\n" +
+	"\asummary\x18\v \x01(\tR\asummary\"\x11\n" +
 	"\x0fListJobsRequest\"6\n" +
 	"\x10ListJobsResponse\x12\"\n" +
 	"\x04jobs\x18\x01 \x03(\v2\x0e.maitre.v1.JobR\x04jobs\")\n" +
@@ -979,14 +1230,31 @@ const file_maitre_v1_files_proto_rawDesc = "" +
 	"\x0eMakeDirRequest\x12&\n" +
 	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"\x11\n" +
-	"\x0fMakeDirResponse2\xa0\x03\n" +
+	"\x0fMakeDirResponse\"v\n" +
+	"\n" +
+	"ZipRequest\x12&\n" +
+	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x16\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder\x12\x14\n" +
+	"\x05names\x18\x03 \x03(\tR\x05names\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"8\n" +
+	"\vZipResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"J\n" +
+	"\fUnzipRequest\x12&\n" +
+	"\x05scope\x18\x01 \x01(\v2\x10.maitre.v1.ScopeR\x05scope\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\">\n" +
+	"\rUnzipResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder2\x96\x04\n" +
 	"\fFilesService\x12B\n" +
 	"\aListDir\x12\x19.maitre.v1.ListDirRequest\x1a\x1a.maitre.v1.ListDirResponse\"\x00\x12<\n" +
 	"\x05Usage\x12\x17.maitre.v1.UsageRequest\x1a\x18.maitre.v1.UsageResponse\"\x00\x129\n" +
 	"\x04Move\x12\x16.maitre.v1.MoveRequest\x1a\x17.maitre.v1.MoveResponse\"\x00\x12E\n" +
 	"\bListJobs\x12\x1a.maitre.v1.ListJobsRequest\x1a\x1b.maitre.v1.ListJobsResponse\"\x00\x12H\n" +
 	"\tCancelJob\x12\x1b.maitre.v1.CancelJobRequest\x1a\x1c.maitre.v1.CancelJobResponse\"\x00\x12B\n" +
-	"\aMakeDir\x12\x19.maitre.v1.MakeDirRequest\x1a\x1a.maitre.v1.MakeDirResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\aMakeDir\x12\x19.maitre.v1.MakeDirRequest\x1a\x1a.maitre.v1.MakeDirResponse\"\x00\x126\n" +
+	"\x03Zip\x12\x15.maitre.v1.ZipRequest\x1a\x16.maitre.v1.ZipResponse\"\x00\x12<\n" +
+	"\x05Unzip\x12\x17.maitre.v1.UnzipRequest\x1a\x18.maitre.v1.UnzipResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_files_proto_rawDescOnce sync.Once
@@ -1000,7 +1268,7 @@ func file_maitre_v1_files_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_files_proto_rawDescData
 }
 
-var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_maitre_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_maitre_v1_files_proto_goTypes = []any{
 	(*Scope)(nil),             // 0: maitre.v1.Scope
 	(*ListDirRequest)(nil),    // 1: maitre.v1.ListDirRequest
@@ -1018,6 +1286,10 @@ var file_maitre_v1_files_proto_goTypes = []any{
 	(*CancelJobResponse)(nil), // 13: maitre.v1.CancelJobResponse
 	(*MakeDirRequest)(nil),    // 14: maitre.v1.MakeDirRequest
 	(*MakeDirResponse)(nil),   // 15: maitre.v1.MakeDirResponse
+	(*ZipRequest)(nil),        // 16: maitre.v1.ZipRequest
+	(*ZipResponse)(nil),       // 17: maitre.v1.ZipResponse
+	(*UnzipRequest)(nil),      // 18: maitre.v1.UnzipRequest
+	(*UnzipResponse)(nil),     // 19: maitre.v1.UnzipResponse
 }
 var file_maitre_v1_files_proto_depIdxs = []int32{
 	0,  // 0: maitre.v1.ListDirRequest.scope:type_name -> maitre.v1.Scope
@@ -1028,23 +1300,29 @@ var file_maitre_v1_files_proto_depIdxs = []int32{
 	7,  // 5: maitre.v1.Job.request:type_name -> maitre.v1.MoveRequest
 	9,  // 6: maitre.v1.ListJobsResponse.jobs:type_name -> maitre.v1.Job
 	0,  // 7: maitre.v1.MakeDirRequest.scope:type_name -> maitre.v1.Scope
-	1,  // 8: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
-	5,  // 9: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
-	7,  // 10: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
-	10, // 11: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
-	12, // 12: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
-	14, // 13: maitre.v1.FilesService.MakeDir:input_type -> maitre.v1.MakeDirRequest
-	4,  // 14: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
-	6,  // 15: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
-	8,  // 16: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
-	11, // 17: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
-	13, // 18: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
-	15, // 19: maitre.v1.FilesService.MakeDir:output_type -> maitre.v1.MakeDirResponse
-	14, // [14:20] is the sub-list for method output_type
-	8,  // [8:14] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	0,  // 8: maitre.v1.ZipRequest.scope:type_name -> maitre.v1.Scope
+	0,  // 9: maitre.v1.UnzipRequest.scope:type_name -> maitre.v1.Scope
+	1,  // 10: maitre.v1.FilesService.ListDir:input_type -> maitre.v1.ListDirRequest
+	5,  // 11: maitre.v1.FilesService.Usage:input_type -> maitre.v1.UsageRequest
+	7,  // 12: maitre.v1.FilesService.Move:input_type -> maitre.v1.MoveRequest
+	10, // 13: maitre.v1.FilesService.ListJobs:input_type -> maitre.v1.ListJobsRequest
+	12, // 14: maitre.v1.FilesService.CancelJob:input_type -> maitre.v1.CancelJobRequest
+	14, // 15: maitre.v1.FilesService.MakeDir:input_type -> maitre.v1.MakeDirRequest
+	16, // 16: maitre.v1.FilesService.Zip:input_type -> maitre.v1.ZipRequest
+	18, // 17: maitre.v1.FilesService.Unzip:input_type -> maitre.v1.UnzipRequest
+	4,  // 18: maitre.v1.FilesService.ListDir:output_type -> maitre.v1.ListDirResponse
+	6,  // 19: maitre.v1.FilesService.Usage:output_type -> maitre.v1.UsageResponse
+	8,  // 20: maitre.v1.FilesService.Move:output_type -> maitre.v1.MoveResponse
+	11, // 21: maitre.v1.FilesService.ListJobs:output_type -> maitre.v1.ListJobsResponse
+	13, // 22: maitre.v1.FilesService.CancelJob:output_type -> maitre.v1.CancelJobResponse
+	15, // 23: maitre.v1.FilesService.MakeDir:output_type -> maitre.v1.MakeDirResponse
+	17, // 24: maitre.v1.FilesService.Zip:output_type -> maitre.v1.ZipResponse
+	19, // 25: maitre.v1.FilesService.Unzip:output_type -> maitre.v1.UnzipResponse
+	18, // [18:26] is the sub-list for method output_type
+	10, // [10:18] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_files_proto_init() }
@@ -1058,7 +1336,7 @@ func file_maitre_v1_files_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_files_proto_rawDesc), len(file_maitre_v1_files_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

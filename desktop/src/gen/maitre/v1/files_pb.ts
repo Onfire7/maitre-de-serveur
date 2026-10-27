@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/files.proto.
  */
 export const file_maitre_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIssBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QiEQoPTGlzdEpvYnNSZXF1ZXN0IjAKEExpc3RKb2JzUmVzcG9uc2USHAoEam9icxgBIAMoCzIOLm1haXRyZS52MS5Kb2IiIgoQQ2FuY2VsSm9iUmVxdWVzdBIOCgZqb2JfaWQYASABKAkiEwoRQ2FuY2VsSm9iUmVzcG9uc2UiPwoOTWFrZURpclJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSIRCg9NYWtlRGlyUmVzcG9uc2UyoAMKDEZpbGVzU2VydmljZRJCCgdMaXN0RGlyEhkubWFpdHJlLnYxLkxpc3REaXJSZXF1ZXN0GhoubWFpdHJlLnYxLkxpc3REaXJSZXNwb25zZSIAEjwKBVVzYWdlEhcubWFpdHJlLnYxLlVzYWdlUmVxdWVzdBoYLm1haXRyZS52MS5Vc2FnZVJlc3BvbnNlIgASOQoETW92ZRIWLm1haXRyZS52MS5Nb3ZlUmVxdWVzdBoXLm1haXRyZS52MS5Nb3ZlUmVzcG9uc2UiABJFCghMaXN0Sm9icxIaLm1haXRyZS52MS5MaXN0Sm9ic1JlcXVlc3QaGy5tYWl0cmUudjEuTGlzdEpvYnNSZXNwb25zZSIAEkgKCUNhbmNlbEpvYhIbLm1haXRyZS52MS5DYW5jZWxKb2JSZXF1ZXN0GhwubWFpdHJlLnYxLkNhbmNlbEpvYlJlc3BvbnNlIgASQgoHTWFrZURpchIZLm1haXRyZS52MS5NYWtlRGlyUmVxdWVzdBoaLm1haXRyZS52MS5NYWtlRGlyUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChVtYWl0cmUvdjEvZmlsZXMucHJvdG8SCW1haXRyZS52MSIrCgVTY29wZRIQCghzcGFjZV9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCSI/Cg5MaXN0RGlyUmVxdWVzdBIfCgVzY29wZRgBIAEoCzIQLm1haXRyZS52MS5TY29wZRIMCgRwYXRoGAIgASgJIi0KCExvY2F0aW9uEg8KB25vZGVfaWQYASABKAkSEAoIZHJpdmVfaWQYAiABKAkieAoFRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEiYKCWxvY2F0aW9ucxgFIAMoCzITLm1haXRyZS52MS5Mb2NhdGlvbiI0Cg9MaXN0RGlyUmVzcG9uc2USIQoHZW50cmllcxgBIAMoCzIQLm1haXRyZS52MS5FbnRyeSI9CgxVc2FnZVJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDAoEcGF0aBgCIAEoCSJCCg1Vc2FnZVJlc3BvbnNlEg0KBWJ5dGVzGAEgASgEEg0KBWZpbGVzGAIgASgEEhMKC2luX3Byb2dyZXNzGAMgASgIIp0BCgtNb3ZlUmVxdWVzdBIeCgRmcm9tGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkSEAoIdG9fc3BhY2UYAyABKAkSDwoHdG9fcGF0aBgEIAEoCRISCgp0b19ub2RlX2lkGAUgASgJEhMKC3RvX2RyaXZlX2lkGAYgASgJEhQKDGZyb21fbm9kZV9pZBgHIAEoCSIeCgxNb3ZlUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIuoBCgNKb2ISDgoGam9iX2lkGAEgASgJEg0KBXN0YXRlGAIgASgJEg8KB21lc3NhZ2UYAyABKAkSEgoKYnl0ZXNfZG9uZRgEIAEoBBITCgtieXRlc190b3RhbBgFIAEoBBIPCgdjdXJyZW50GAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAggASgDEicKB3JlcXVlc3QYCSABKAsyFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QSDAoEa2luZBgKIAEoCRIPCgdzdW1tYXJ5GAsgASgJIhEKD0xpc3RKb2JzUmVxdWVzdCIwChBMaXN0Sm9ic1Jlc3BvbnNlEhwKBGpvYnMYASADKAsyDi5tYWl0cmUudjEuSm9iIiIKEENhbmNlbEpvYlJlcXVlc3QSDgoGam9iX2lkGAEgASgJIhMKEUNhbmNlbEpvYlJlc3BvbnNlIj8KDk1ha2VEaXJSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiEQoPTWFrZURpclJlc3BvbnNlIloKClppcFJlcXVlc3QSHwoFc2NvcGUYASABKAsyEC5tYWl0cmUudjEuU2NvcGUSDgoGZm9sZGVyGAIgASgJEg0KBW5hbWVzGAMgAygJEgwKBG5hbWUYBCABKAkiKwoLWmlwUmVzcG9uc2USDgoGam9iX2lkGAEgASgJEgwKBG5hbWUYAiABKAkiPQoMVW56aXBSZXF1ZXN0Eh8KBXNjb3BlGAEgASgLMhAubWFpdHJlLnYxLlNjb3BlEgwKBHBhdGgYAiABKAkiLwoNVW56aXBSZXNwb25zZRIOCgZqb2JfaWQYASABKAkSDgoGZm9sZGVyGAIgASgJMpYECgxGaWxlc1NlcnZpY2USQgoHTGlzdERpchIZLm1haXRyZS52MS5MaXN0RGlyUmVxdWVzdBoaLm1haXRyZS52MS5MaXN0RGlyUmVzcG9uc2UiABI8CgVVc2FnZRIXLm1haXRyZS52MS5Vc2FnZVJlcXVlc3QaGC5tYWl0cmUudjEuVXNhZ2VSZXNwb25zZSIAEjkKBE1vdmUSFi5tYWl0cmUudjEuTW92ZVJlcXVlc3QaFy5tYWl0cmUudjEuTW92ZVJlc3BvbnNlIgASRQoITGlzdEpvYnMSGi5tYWl0cmUudjEuTGlzdEpvYnNSZXF1ZXN0GhsubWFpdHJlLnYxLkxpc3RKb2JzUmVzcG9uc2UiABJICglDYW5jZWxKb2ISGy5tYWl0cmUudjEuQ2FuY2VsSm9iUmVxdWVzdBocLm1haXRyZS52MS5DYW5jZWxKb2JSZXNwb25zZSIAEkIKB01ha2VEaXISGS5tYWl0cmUudjEuTWFrZURpclJlcXVlc3QaGi5tYWl0cmUudjEuTWFrZURpclJlc3BvbnNlIgASNgoDWmlwEhUubWFpdHJlLnYxLlppcFJlcXVlc3QaFi5tYWl0cmUudjEuWmlwUmVzcG9uc2UiABI8CgVVbnppcBIXLm1haXRyZS52MS5VbnppcFJlcXVlc3QaGC5tYWl0cmUudjEuVW56aXBSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * Scope is what a path is relative to: a Space's Pool on this Node (the
@@ -315,6 +315,19 @@ export type Job = Message<"maitre.v1.Job"> & {
    * @generated from field: maitre.v1.MoveRequest request = 9;
    */
   request?: MoveRequest | undefined;
+
+  /**
+   * "" for a move, else "zip" or "unzip"; summary says what it does in
+   * words ("Zip 3 items into Archive.zip").
+   *
+   * @generated from field: string kind = 10;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string summary = 11;
+   */
+  summary: string;
 };
 
 /**
@@ -422,6 +435,115 @@ export const MakeDirResponseSchema: GenMessage<MakeDirResponse> = /*@__PURE__*/
   messageDesc(file_maitre_v1_files, 15);
 
 /**
+ * @generated from message maitre.v1.ZipRequest
+ */
+export type ZipRequest = Message<"maitre.v1.ZipRequest"> & {
+  /**
+   * @generated from field: maitre.v1.Scope scope = 1;
+   */
+  scope?: Scope | undefined;
+
+  /**
+   * The folder the items are in ("" for the top) and their names.
+   *
+   * @generated from field: string folder = 2;
+   */
+  folder: string;
+
+  /**
+   * @generated from field: repeated string names = 3;
+   */
+  names: string[];
+
+  /**
+   * The archive's file name; default <name>.zip for one item, else
+   * Archive.zip. A taken name gets " 2", " 3"… before .zip.
+   *
+   * @generated from field: string name = 4;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message maitre.v1.ZipRequest.
+ * Use `create(ZipRequestSchema)` to create a new message.
+ */
+export const ZipRequestSchema: GenMessage<ZipRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 16);
+
+/**
+ * @generated from message maitre.v1.ZipResponse
+ */
+export type ZipResponse = Message<"maitre.v1.ZipResponse"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+
+  /**
+   * The archive's file name as made.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message maitre.v1.ZipResponse.
+ * Use `create(ZipResponseSchema)` to create a new message.
+ */
+export const ZipResponseSchema: GenMessage<ZipResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 17);
+
+/**
+ * @generated from message maitre.v1.UnzipRequest
+ */
+export type UnzipRequest = Message<"maitre.v1.UnzipRequest"> & {
+  /**
+   * @generated from field: maitre.v1.Scope scope = 1;
+   */
+  scope?: Scope | undefined;
+
+  /**
+   * The archive.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message maitre.v1.UnzipRequest.
+ * Use `create(UnzipRequestSchema)` to create a new message.
+ */
+export const UnzipRequestSchema: GenMessage<UnzipRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 18);
+
+/**
+ * @generated from message maitre.v1.UnzipResponse
+ */
+export type UnzipResponse = Message<"maitre.v1.UnzipResponse"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+
+  /**
+   * The folder it unpacks into, beside the archive.
+   *
+   * @generated from field: string folder = 2;
+   */
+  folder: string;
+};
+
+/**
+ * Describes the message maitre.v1.UnzipResponse.
+ * Use `create(UnzipResponseSchema)` to create a new message.
+ */
+export const UnzipResponseSchema: GenMessage<UnzipResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_files, 19);
+
+/**
  * FilesService is the file manager's back end (decision 122): browse a
  * Space's Pool as one merged tree or a Drive's root (files that were there
  * before adoption, folders of removed Spaces), see which Node and Drive hold
@@ -485,6 +607,27 @@ export const FilesService: GenService<{
     methodKind: "unary";
     input: typeof MakeDirRequestSchema;
     output: typeof MakeDirResponseSchema;
+  },
+  /**
+   * Zip items of one folder into an archive beside them, as a job
+   * (decision 184).
+   *
+   * @generated from rpc maitre.v1.FilesService.Zip
+   */
+  zip: {
+    methodKind: "unary";
+    input: typeof ZipRequestSchema;
+    output: typeof ZipResponseSchema;
+  },
+  /**
+   * Unpack a zip, tar, tar.gz or tar.bz2 into a folder beside it, as a job.
+   *
+   * @generated from rpc maitre.v1.FilesService.Unzip
+   */
+  unzip: {
+    methodKind: "unary";
+    input: typeof UnzipRequestSchema;
+    output: typeof UnzipResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_files, 0);

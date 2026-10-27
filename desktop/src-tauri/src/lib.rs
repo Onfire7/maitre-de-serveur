@@ -4,6 +4,7 @@ mod media;
 mod netboot;
 mod pairing;
 pub mod proxy;
+pub mod transfer;
 mod recovery;
 mod rpc;
 
@@ -182,6 +183,29 @@ async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: Stri
     state.proxies.open(state.identity.clone(), addr, fingerprint, service).await
 }
 
+/// The local base URL for a Node's file contents (decision 183): the file
+/// manager's previews read `<base>/maitre/files/content?…` from it.
+#[tauri::command]
+async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String) -> Result<String, String> {
+    state.proxies.open_files(state.identity.clone(), addr, fingerprint).await
+}
+
+/// Save a file (or a folder as a zip) from a Node to `dest` on this computer.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn files_download(app: tauri::AppHandle, state: State<'_, AppState>, addr: String, fingerprint: String, scope: transfer::Scope, path: String, folder: bool, dest: String, id: String) -> Result<(), String> {
+    let client = state.client_for(&fingerprint)?;
+    transfer::download(app, client, addr, scope, path, folder, dest, id).await
+}
+
+/// Upload local files and folders into `folder` of a scope on a Node.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn files_upload(app: tauri::AppHandle, state: State<'_, AppState>, addr: String, fingerprint: String, scope: transfer::Scope, folder: String, paths: Vec<String>, id: String) -> Result<transfer::UploadResult, String> {
+    let client = state.client_for(&fingerprint)?;
+    transfer::upload(app, client, addr, scope, folder, paths, id).await
+}
+
 /// Send one Connect-protocol unary request to `addr`, trusting only `fingerprint`.
 /// `procedure` is like "/maitre.v1.NodeService/GetNodeInfo".
 #[tauri::command]
@@ -335,6 +359,7 @@ fn media_status(state: State<'_, AppState>) -> media::WriteStatus {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
@@ -364,6 +389,9 @@ pub fn run() {
             discover,
             peek_installer,
             service_url,
+            files_url,
+            files_download,
+            files_upload,
             rpc,
             device_code,
             announce_join,
