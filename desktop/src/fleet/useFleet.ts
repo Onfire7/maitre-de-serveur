@@ -4,13 +4,13 @@
 // `transportFor` directly and are not routed through here.
 import { useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@connectrpc/connect";
-import { fromBinary } from "@bufbuild/protobuf";
-import { NodeService, type FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
+import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
+import { create, fromBinary } from "@bufbuild/protobuf";
+import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
 import { NodeSchema, FleetSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
-import { ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
+import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
-import { transportFor } from "@/transport";
+import { transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
 import { pickAnchor, type AnchorPick } from "./anchor";
 
@@ -33,26 +33,71 @@ export interface FleetSnapshot {
   policy?: UpdatePolicy;
   status: Map<string, FleetNodeStatus>;
   records: Rec[];
+  /**
+   * The anchor runs a Maître Server from before GetFleetStatus (ADR 0006),
+   * so the status was gathered by asking each Node directly, the old way.
+   * Happens during a staged rollout or until the Nodes are updated.
+   */
+  legacy?: boolean;
 }
 
 function decode<T>(records: Rec[], kind: string, schema: Parameters<typeof fromBinary>[0]): T[] {
   return records.filter((r) => r.kind === kind && !r.deleted).map((r) => fromBinary(schema, r.body) as T);
 }
 
-export async function readFleet(anchor: AnchorPick): Promise<Omit<FleetSnapshot, "anchor" | "at">> {
-  const client = createClient(NodeService, transportFor({ addr: anchor.addr, fingerprint: anchor.nodeId }));
-  const [recs, st] = await Promise.all([client.listRecords({}), client.getFleetStatus({})]);
-  const records = recs.records;
+type TransportFor = (t: Target) => Transport;
+
+/**
+ * The Fleet status the old way, for Nodes from before GetFleetStatus: the
+ * anchor's view of its peers from GetNodeInfo, then each reachable Node's
+ * own metrics and Services, asked directly and in parallel.
+ */
+async function legacyStatus(anchor: AnchorPick, nodes: Node[], known: KnownNode[], tf: TransportFor): Promise<FleetNodeStatus[]> {
+  const opts = { timeoutMs: 4000 };
+  const now = BigInt(Date.now());
+  const info = await createClient(NodeService, tf({ addr: anchor.addr, fingerprint: anchor.nodeId })).getNodeInfo({}, opts);
+  const peers = new Map((info.node?.peers ?? []).map((p) => [p.nodeId, p]));
+  const ids = Array.from(new Set([anchor.nodeId, ...nodes.map((n) => n.nodeId), ...peers.keys()]));
+  return Promise.all(
+    ids.map(async (id) => {
+      const addr = id === anchor.nodeId ? anchor.addr : (peers.get(id)?.address || nodes.find((n) => n.nodeId === id)?.addresses[0] || known.find((k) => k.node_id === id)?.addresses[0]);
+      const base = create(FleetNodeStatusSchema, { nodeId: id, reachable: false, lastSeenUnixMs: peers.get(id)?.lastSeenUnixMs ?? 0n });
+      if (!addr) return base;
+      const t = { addr, fingerprint: id };
+      try {
+        const [m, sv] = await Promise.all([createClient(NodeService, tf(t)).getNodeMetrics({}, opts), createClient(ServiceService, tf(t)).listServices({}, opts)]);
+        return create(FleetNodeStatusSchema, { nodeId: id, reachable: true, lastSeenUnixMs: now, metrics: m.metrics, metricsUnixMs: now, services: sv.services, servicesUnixMs: now });
+      } catch {
+        return base;
+      }
+    }),
+  );
+}
+
+export async function readFleet(anchor: AnchorPick, known: KnownNode[] = [], tf: TransportFor = transportFor): Promise<Omit<FleetSnapshot, "anchor" | "at">> {
+  const client = createClient(NodeService, tf({ addr: anchor.addr, fingerprint: anchor.nodeId }));
+  const records = (await client.listRecords({})).records;
+  const nodes = decode<Node>(records, "node", NodeSchema).sort((a, b) => a.letter.localeCompare(b.letter));
+  let statuses: FleetNodeStatus[];
+  let legacy = false;
+  try {
+    statuses = (await client.getFleetStatus({})).nodes;
+  } catch (e) {
+    if (!(e instanceof ConnectError) || e.code !== Code.Unimplemented) throw e;
+    legacy = true;
+    statuses = await legacyStatus(anchor, nodes, known, tf);
+  }
   const fleet = decode<{ fleetId: string; name: string }>(records, "fleet", FleetSchema)[0];
   return {
     fleet,
-    nodes: decode<Node>(records, "node", NodeSchema).sort((a, b) => a.letter.localeCompare(b.letter)),
+    legacy,
+    nodes,
     devices: decode<TrustedDevice>(records, "trusted_device", TrustedDeviceSchema),
     spaces: decode<Space>(records, "space", SpaceSchema),
     drives: decode<DriveRecord>(records, "drive", DriveRecordSchema),
     specs: decode<ServiceSpec>(records, "service", ServiceSpecSchema),
     policy: decode<UpdatePolicy>(records, "update_policy", UpdatePolicySchema)[0],
-    status: new Map(st.nodes.map((n) => [n.nodeId, n])),
+    status: new Map(statuses.map((n) => [n.nodeId, n])),
     records,
   };
 }
@@ -91,7 +136,7 @@ export function useFleet(known: KnownNode[]) {
         const pick = pickAnchor(nodes, last.current, failed.current);
         if (!pick) break;
         try {
-          const data = await readFleet(pick);
+          const data = await readFleet(pick, known);
           last.current = pick;
           failed.current.clear();
           return { ...data, anchor: pick, at: Date.now() };

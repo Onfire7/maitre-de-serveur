@@ -34,6 +34,8 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
   const drives = [...records]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((r) => ({ record: r, usage: usage.get(r.driveId) }));
+  // A Node from before Drive fill was gossiped reports no Drives at all.
+  const noFill = !!m && (m.drives ?? []).length === 0 && drives.length > 0;
   const cols = drives.length > 16 ? 3 : drives.length > 8 ? 2 : 1;
   const mine = services.filter((s) => s.spec.nodeId === nodeId);
   const totalUsed = drives.reduce((n, d) => n + (d.usage?.usedBytes ?? 0n), 0n);
@@ -97,6 +99,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
             </span>
           )}
         </div>
+        {noFill && <p className="mb-1.5 text-[11px] text-muted-foreground">How full each Drive is shows once {node.name} runs a newer Maître Server.</p>}
         {drives.length === 0 ? (
           <p className="text-xs text-muted-foreground">No Drives yet.</p>
         ) : (
@@ -114,7 +117,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
                         <span key={id} className="size-1.5 rounded-full" style={{ background: spaceColor(spaces.findIndex((s) => s.spaceId === id)) }} title={spaces.find((s) => s.spaceId === id)?.name} />
                       ))}
                     </span>
-                    <span className={cn("ml-auto shrink-0 tabular-nums", !u ? "text-muted-foreground" : p >= 90 ? "text-destructive" : p >= 75 ? "text-status-attention" : "text-muted-foreground")}>{u ? `${p.toFixed(0)}%` : "not mounted"}</span>
+                    <span className={cn("ml-auto shrink-0 tabular-nums", !u ? "text-muted-foreground" : p >= 90 ? "text-destructive" : p >= 75 ? "text-status-attention" : "text-muted-foreground")}>{u ? `${p.toFixed(0)}%` : noFill ? "" : "not mounted"}</span>
                   </div>
                   <div className="mt-0.5 h-1 rounded bg-muted">{u && <div className={cn("h-1 rounded transition-[width] duration-700", fillColor(p))} style={{ width: `${Math.min(100, p)}%` }} />}</div>
                   {u && cols === 1 && <div className="mt-0.5 text-[10px] text-muted-foreground">{formatBytes(u.totalBytes - u.usedBytes)} free of {formatBytes(u.totalBytes)}</div>}

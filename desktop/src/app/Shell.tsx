@@ -173,7 +173,9 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             />
           )}
         </AnimatePresence>
-        <main className="relative min-w-0 flex-1">
+        <main className="flex min-w-0 flex-1 flex-col">
+          {fleet.error && state.nodes.length > 0 && <div className="shrink-0 bg-status-attention/90 px-4 py-1 text-center text-xs text-black">No Node answers. {String((fleet.error as Error).message ?? fleet.error)}</div>}
+          <div className="relative min-h-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={routeKey(route)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="absolute inset-0">
               {route.name === "service" &&
@@ -215,7 +217,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               )}
             </motion.div>
           </AnimatePresence>
-          {fleet.error && state.nodes.length > 0 && <div className="absolute inset-x-0 top-0 z-10 bg-status-attention/90 px-4 py-1 text-center text-xs text-black">No Node answers. {String((fleet.error as Error).message ?? fleet.error)}</div>}
+          </div>
         </main>
       </div>
       <PreferencesDialog open={prefs} onClose={() => setPrefs(false)} device={device} onAddDev={(n) => save({ ...state, nodes: [...state.nodes.filter((x) => x.node_id !== n.node_id), n] })} />

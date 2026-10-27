@@ -17,6 +17,8 @@ export interface Notice {
 export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: { nodeName: string; until: number } | null, now = Date.now()): Notice[] {
   const out: Notice[] = [];
   if (!snap) return out;
+  if (snap.legacy)
+    out.push({ id: "legacy", title: "The Nodes run an older Maître Server", detail: "This app asks each Node directly until they are updated, which is slower and misses Nodes it cannot reach. Update them from the Nodes tab.", tab: "nodes", severity: "info" });
   if (!snap.spaces.some((s) => s.defaultForNew))
     out.push({ id: "no-default-space", title: "No default Storage Space", detail: snap.spaces.length ? "Mark one Space as the default for new Services." : "Create a Storage Space before installing a Service.", tab: "storage", severity: "attention" });
   for (const f of found.filter((f) => f.kind === "device")) out.push({ id: `device:${f.id}`, title: `${f.name || "A device"} is asking to join`, detail: "Approve it only if the code on its screen matches.", tab: "devices", severity: "info" });
