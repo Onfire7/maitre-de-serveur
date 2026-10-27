@@ -94,7 +94,7 @@ wait_for 'maitre installer' 300
 echo "installer is up; provisioning from the host"
 DEV="$OUT/device"
 "$MAITRE" provision --identity "$DEV" --addr "127.0.0.1:${FWD_PORT}" --fleet "CI Fleet" --name ci-node \
-  --disk /dev/vda --yes --save-node-pub "$OUT/node.pub" | tee "$OUT/provision.log"
+  --disk /dev/vda --data --yes --save-node-pub "$OUT/node.pub" | tee "$OUT/provision.log"
 
 # 4. The machine reboots into the installed Node.
 echo "waiting for the installed node"
@@ -121,13 +121,18 @@ echo "boot-test: node OK (installed from USB-equivalent media, rebooted, answere
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" catalog
 # Decision 123: a Fleet has no Storage Space until one is created, and a
 # Service needs one marked default. Create it the way first run does (every
-# Drive, local first), then wait for its Pool to be assembled.
+# Drive, local first), then wait for its Pool to be assembled on the data
+# partition provisioning made (the agent adopts it as the Node's Drive).
 "$MAITRE" space --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --id general --name General --default create
 for i in $(seq 1 30); do
   "$MAITRE" metrics --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" | grep -q "fallback=false" && break
   sleep 2
 done
-"$MAITRE" metrics --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" | grep -q "fallback=false" || { echo "boot-test: the General Space's Pool never came up"; exit 1; }
+"$MAITRE" metrics --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" | grep -q "fallback=false" || {
+  echo "boot-test: the General Space's Pool never came up"
+  "$MAITRE" info --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --drives || true
+  exit 1
+}
 "$MAITRE" space --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" list
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --wait 10m install uptime-kuma
 for i in $(seq 1 30); do
