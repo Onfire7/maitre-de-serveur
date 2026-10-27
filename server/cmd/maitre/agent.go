@@ -474,6 +474,10 @@ func runAgent(args []string) error {
 			if err := pool.Assemble(ctx, space, all, len(branches), placement[space]); err != nil {
 				log.Warn("pool", "space", space, "err", err)
 			}
+			// What peers mount: our own branches only (decision 188).
+			if err := pool.AssembleShared(ctx, space, branches, placement[space]); err != nil {
+				log.Warn("shared pool", "space", space, "err", err)
+			}
 		}
 		peerSet := map[string]bool{}
 		for id := range addrs {

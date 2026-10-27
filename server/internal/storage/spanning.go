@@ -15,12 +15,14 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// Spanning Spaces (decisions 105, 106, 127, 188): every Node exports its Pools
+// Spanning Spaces (decisions 105, 106, 127, 188): every Node exports, per
+// Space, a Pool over its own Drives only (pool.SharedDir; the full Pool holds
+// the peers' Pools, which hold ours, and listing it looped between Nodes)
 // over NFS with mutual TLS (nfstls.go) to the Fleet's other Nodes only, and
-// mounts theirs soft, so a Node
-// that is off makes its files absent rather than hanging anything. A
-// spanning Space's Pool on a Node is mergerfs over its local Space folders, then
-// the remote Pools; the Space's placement decides where new files land.
+// mounts theirs soft, so a Node that is off makes its files absent rather
+// than hanging anything. A spanning Space's Pool on a Node is mergerfs over
+// its local Space folders, then the peers' shared Pools; the Space's
+// placement decides where new files land.
 
 // RemoteDir is where peers' Pools are mounted: RemoteDir/<node_id>/<space>;
 // a variable for tests.
@@ -63,7 +65,7 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 	sort.Strings(spaces)
 	exported := 0
 	for i, space := range spaces {
-		mount := filepath.Join(pool.PoolsDir, space)
+		mount := filepath.Join(pool.SharedDir, space)
 		if !mounted(mount) || len(hosts) == 0 {
 			continue
 		}
@@ -72,8 +74,9 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 			// from "/", which on a bootc Node is composefs and cannot be
 			// exported ("Cannot export /"), so every path below it answered
 			// "No such file or directory" (2026-10-27). Read-only, and holds
-			// nothing but the Pools' mount points; peers mount <name>:/<space>.
-			b.WriteString(pool.PoolsDir)
+			// nothing but the shared Pools' mount points; peers mount
+			// <name>:/<space>.
+			b.WriteString(pool.SharedDir)
 			for _, h := range hosts {
 				fmt.Fprintf(&b, " %s(ro,sync,no_subtree_check,root_squash,xprtsec=mtls,fsid=0)", h)
 			}
@@ -186,7 +189,7 @@ func MountRemotePool(ctx context.Context, run Runner, nodeID, space string) (str
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	// Relative to the peer's NFSv4 root, its PoolsDir (WriteExports).
+	// Relative to the peer's NFSv4 root, its SharedDir (WriteExports).
 	src := fmt.Sprintf("%s:/%s", identity.NFSName(nodeID), space)
 	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,xprtsec=mtls", src, dir); err != nil {
 		return "", err

@@ -14,7 +14,7 @@ import (
 // Space showed only the anchor's files).
 func TestWriteExportsStartsTheServerWhenUnchanged(t *testing.T) {
 	ExportsFile = filepath.Join(t.TempDir(), "exports.d", "maitre.exports")
-	mountedDirs = map[string]bool{filepath.Join(pool.PoolsDir, "media"): true}
+	mountedDirs = map[string]bool{filepath.Join(pool.SharedDir, "media"): true}
 	t.Cleanup(func() { mountedDirs = nil })
 	ctx := context.Background()
 	hosts := []string{"192.168.4.74"}

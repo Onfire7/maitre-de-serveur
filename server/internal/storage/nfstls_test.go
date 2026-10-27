@@ -118,9 +118,9 @@ func TestNFSOverTLSOptions(t *testing.T) {
 	}
 
 	ExportsFile = filepath.Join(t.TempDir(), "maitre.exports")
-	mountedDirs = map[string]bool{"/var/mnt/pools/media": true}
+	mountedDirs = map[string]bool{"/var/mnt/shared/media": true}
 	_ = WriteExports(context.Background(), &fakeRunner{}, []string{"media"}, []string{"192.168.4.74"})
-	if b, _ := os.ReadFile(ExportsFile); !strings.Contains(string(b), "\n/var/mnt/pools 192.168.4.74(ro,sync,no_subtree_check,root_squash,xprtsec=mtls,fsid=0)\n/var/mnt/pools/media 192.168.4.74(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=1000)\n") {
+	if b, _ := os.ReadFile(ExportsFile); !strings.Contains(string(b), "\n/var/mnt/shared 192.168.4.74(ro,sync,no_subtree_check,root_squash,xprtsec=mtls,fsid=0)\n/var/mnt/shared/media 192.168.4.74(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=1000)\n") {
 		t.Fatalf("exports:\n%s", b)
 	}
 }
