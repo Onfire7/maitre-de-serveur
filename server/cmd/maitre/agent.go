@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -141,20 +142,19 @@ func runAgent(args []string) error {
 	}
 	// Decision 188: the certificate peers trust for NFS over TLS, published
 	// in our Node record and written where tlshd reads it.
-	nfsCert, err := id.NFSCertificatePEM()
+	nfsCert, nfsSig, nfsKey, err := id.NFSCredentials()
 	if err != nil {
 		return fmt.Errorf("nfs certificate: %w", err)
 	}
-	if key, err := id.PrivateKeyPEM(); err != nil {
-		return fmt.Errorf("nfs key: %w", err)
-	} else if err := storage.WriteTLSIdentity(nfsCert, key); err != nil {
+	if err := storage.WriteTLSIdentity(nfsCert, nfsKey); err != nil {
 		log.Warn("nfs tls identity", "err", err)
 	}
-	if (len(addrs) > 0 && !slices.Equal(addrs, self.GetAddresses())) || self.GetNfsCertificatePem() != string(nfsCert) {
+	if (len(addrs) > 0 && !slices.Equal(addrs, self.GetAddresses())) || self.GetNfsCertificatePem() != string(nfsCert) || !bytes.Equal(self.GetNfsCertificateSignature(), nfsSig) {
 		if len(addrs) > 0 {
 			self.Addresses = addrs
 		}
 		self.NfsCertificatePem = string(nfsCert)
+		self.NfsCertificateSignature = nfsSig
 		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err != nil {
 			log.Warn("own node record", "err", err)
 		}

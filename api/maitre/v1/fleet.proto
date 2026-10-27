@@ -53,9 +53,12 @@ message Node {
   // start with it. Chosen by the Node itself: the first letter no other
   // Node holds.
   string letter = 9;
-  // Self-signed certificate for NFS over TLS (decision 188), made from the
-  // Node's key and never changing; peers put it in their tlshd trust store.
+  // Self-signed P-256 certificate for NFS over TLS (decision 188), its key
+  // derived from the Node's key; never changes. Peers put it in their tlshd
+  // trust store when nfs_certificate_signature, the Node key's Ed25519
+  // signature over its DER bytes, checks out.
   string nfs_certificate_pem = 10;
+  bytes nfs_certificate_signature = 11;
 }
 
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):

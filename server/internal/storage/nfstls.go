@@ -50,7 +50,7 @@ func WriteTLSIdentity(certPEM, keyPEM []byte) error {
 }
 
 // WriteNFSPeers writes the trust store from the other Nodes' records (only
-// certificates that carry the Node's own key) and maps each peer's NFS name
+// certificates its own key signed) and maps each peer's NFS name
 // to its address in /etc/hosts. addrs is the best address per Node id.
 func WriteNFSPeers(ctx context.Context, st *store.Store, addrs map[string]string) error {
 	nodes, err := store.ListLive(ctx, st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
@@ -65,8 +65,8 @@ func WriteNFSPeers(ctx context.Context, st *store.Store, addrs map[string]string
 		if id == st.NodeID() {
 			continue
 		}
-		if c := n.GetNfsCertificatePem(); c != "" && identity.CheckNFSCertificate([]byte(c), id) == nil {
-			trust.WriteString(c)
+		if nfsCertificateOK(n) {
+			trust.WriteString(n.GetNfsCertificatePem())
 		}
 		if h := hostOf(addrs[id]); h != "" {
 			hosts = append(hosts, h+" "+identity.NFSName(id))
@@ -88,7 +88,17 @@ func HasNFSCertificate(ctx context.Context, st *store.Store, nodeID string) bool
 	if _, err := st.Get(ctx, store.KindNode, nodeID, &n); err != nil {
 		return false
 	}
-	return identity.CheckNFSCertificate([]byte(n.GetNfsCertificatePem()), nodeID) == nil
+	return n.GetNodeId() == nodeID && nfsCertificateOK(&n)
+}
+
+// nfsCertificateOK checks a Node record's NFS certificate against the
+// record's own public key, which must be the key its id names.
+func nfsCertificateOK(n *maitrev1.Node) bool {
+	pub, err := identity.ParsePublicKeyPEM([]byte(n.GetPublicKeyPem()))
+	if err != nil || identity.Fingerprint(pub) != n.GetNodeId() {
+		return false
+	}
+	return identity.CheckNFSCertificate([]byte(n.GetNfsCertificatePem()), n.GetNfsCertificateSignature(), pub) == nil
 }
 
 func hostOf(addr string) string {

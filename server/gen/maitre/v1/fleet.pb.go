@@ -207,11 +207,14 @@ type Node struct {
 	// start with it. Chosen by the Node itself: the first letter no other
 	// Node holds.
 	Letter string `protobuf:"bytes,9,opt,name=letter,proto3" json:"letter,omitempty"`
-	// Self-signed certificate for NFS over TLS (decision 188), made from the
-	// Node's key and never changing; peers put it in their tlshd trust store.
-	NfsCertificatePem string `protobuf:"bytes,10,opt,name=nfs_certificate_pem,json=nfsCertificatePem,proto3" json:"nfs_certificate_pem,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Self-signed P-256 certificate for NFS over TLS (decision 188), its key
+	// derived from the Node's key; never changes. Peers put it in their tlshd
+	// trust store when nfs_certificate_signature, the Node key's Ed25519
+	// signature over its DER bytes, checks out.
+	NfsCertificatePem       string `protobuf:"bytes,10,opt,name=nfs_certificate_pem,json=nfsCertificatePem,proto3" json:"nfs_certificate_pem,omitempty"`
+	NfsCertificateSignature []byte `protobuf:"bytes,11,opt,name=nfs_certificate_signature,json=nfsCertificateSignature,proto3" json:"nfs_certificate_signature,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
@@ -312,6 +315,13 @@ func (x *Node) GetNfsCertificatePem() string {
 		return x.NfsCertificatePem
 	}
 	return ""
+}
+
+func (x *Node) GetNfsCertificateSignature() []byte {
+	if x != nil {
+		return x.NfsCertificateSignature
+	}
+	return nil
 }
 
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
@@ -504,7 +514,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x05Fleet\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\xd5\x02\n" +
+	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\x91\x03\n" +
 	"\x04Node\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
@@ -516,7 +526,8 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x0ebooted_unix_ms\x18\b \x01(\x03R\fbootedUnixMs\x12\x16\n" +
 	"\x06letter\x18\t \x01(\tR\x06letter\x12.\n" +
 	"\x13nfs_certificate_pem\x18\n" +
-	" \x01(\tR\x11nfsCertificatePem\"\xb9\x01\n" +
+	" \x01(\tR\x11nfsCertificatePem\x12:\n" +
+	"\x19nfs_certificate_signature\x18\v \x01(\fR\x17nfsCertificateSignature\"\xb9\x01\n" +
 	"\fUpdatePolicy\x12\x1c\n" +
 	"\tautomatic\x18\x01 \x01(\bR\tautomatic\x12*\n" +
 	"\x11window_start_hour\x18\x02 \x01(\x05R\x0fwindowStartHour\x12&\n" +

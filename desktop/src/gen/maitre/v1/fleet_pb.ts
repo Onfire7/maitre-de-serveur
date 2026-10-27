@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMi2wEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkiegoMVXBkYXRlUG9saWN5EhEKCWF1dG9tYXRpYxgBIAEoCBIZChF3aW5kb3dfc3RhcnRfaG91chgCIAEoBRIXCg93aW5kb3dfZW5kX2hvdXIYAyABKAUSEwoLc3RhZ2VfaG91cnMYBCABKAUSDgoGcGF1c2VkGAUgASgIIooBCg1UcnVzdGVkRGV2aWNlEhEKCWRldmljZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhUKDXJlY292ZXJ5X29ubHkYBCABKAgSFQoNYWRkZWRfdW5peF9tcxgFIAEoAxISCgpub2RlX3Njb3BlGAYgASgJQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMi/gEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgiigEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAlCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -172,12 +172,19 @@ export type Node = Message<"maitre.v1.Node"> & {
   letter: string;
 
   /**
-   * Self-signed certificate for NFS over TLS (decision 188), made from the
-   * Node's key and never changing; peers put it in their tlshd trust store.
+   * Self-signed P-256 certificate for NFS over TLS (decision 188), its key
+   * derived from the Node's key; never changes. Peers put it in their tlshd
+   * trust store when nfs_certificate_signature, the Node key's Ed25519
+   * signature over its DER bytes, checks out.
    *
    * @generated from field: string nfs_certificate_pem = 10;
    */
   nfsCertificatePem: string;
+
+  /**
+   * @generated from field: bytes nfs_certificate_signature = 11;
+   */
+  nfsCertificateSignature: Uint8Array;
 };
 
 /**

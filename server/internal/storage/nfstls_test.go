@@ -12,21 +12,26 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-func nfsNode(t *testing.T) (*identity.Identity, string) {
+type nfsCreds struct {
+	cert string
+	sig  []byte
+}
+
+func nfsNode(t *testing.T) (*identity.Identity, nfsCreds) {
 	t.Helper()
 	id, err := identity.Generate()
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := id.NFSCertificatePEM()
+	c, sig, _, err := id.NFSCredentials()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return id, string(c)
+	return id, nfsCreds{string(c), sig}
 }
 
-// The trust store holds each peer's certificate only when it carries that
-// peer's key, and /etc/hosts gains a block naming peers without losing what
+// The trust store holds each peer's certificate only when that peer's own
+// key signed it, and /etc/hosts gains a block naming peers without losing what
 // was there.
 func TestWriteNFSPeers(t *testing.T) {
 	ctx := context.Background()
@@ -45,22 +50,23 @@ func TestWriteNFSPeers(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	put := func(id *identity.Identity, cert string) {
-		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &maitrev1.Node{NodeId: id.Fingerprint(), NfsCertificatePem: cert}, false); err != nil {
+	put := func(id *identity.Identity, c nfsCreds) {
+		n := &maitrev1.Node{NodeId: id.Fingerprint(), PublicKeyPem: string(id.PublicKeyPEM()), NfsCertificatePem: c.cert, NfsCertificateSignature: c.sig}
+		if _, err := st.Put(ctx, store.KindNode, id.Fingerprint(), n, false); err != nil {
 			t.Fatal(err)
 		}
 	}
 	put(self, selfCert)
 	put(peer, peerCert)
-	put(liar, peerCert) // another Node's certificate under its own id
-	put(old, "")        // from before NFS over TLS
+	put(liar, peerCert)  // another Node's certificate under its own id
+	put(old, nfsCreds{}) // from before NFS over TLS
 
 	addrs := map[string]string{peer.Fingerprint(): "192.168.4.74:7443", old.Fingerprint(): "192.168.4.80:7443"}
 	if err := WriteNFSPeers(ctx, st, addrs); err != nil {
 		t.Fatal(err)
 	}
 	trust, _ := os.ReadFile(filepath.Join(TLSDir, "fleet.pem"))
-	if string(trust) != peerCert {
+	if string(trust) != peerCert.cert {
 		t.Fatalf("trust store should hold only the peer's own certificate:\n%s", trust)
 	}
 	hosts, _ := os.ReadFile(HostsFile)
