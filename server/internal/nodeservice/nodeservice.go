@@ -4,6 +4,7 @@ package nodeservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -264,11 +265,17 @@ func (s *Service) PushRecords(ctx context.Context, req *maitrev1.PushRecordsRequ
 	if s.store == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "this Node has no Fleet database (dev mode)")
 	}
+	// One Record that cannot be applied must not cost the rest of the
+	// batch: apply everything else, then report the first failure.
 	var applied uint32
+	var firstErr error
 	for _, r := range req.GetRecords() {
 		ok, err := s.store.Apply(ctx, r)
 		if err != nil {
-			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s %s: %w", r.GetKind(), r.GetId(), err)
+			}
+			continue
 		}
 		if ok {
 			applied++
@@ -276,6 +283,9 @@ func (s *Service) PushRecords(ctx context.Context, req *maitrev1.PushRecordsRequ
 				s.OnChange(r)
 			}
 		}
+	}
+	if firstErr != nil {
+		return nil, connect.Errorf(connect.CodeInternal, "%v", firstErr)
 	}
 	return &maitrev1.PushRecordsResponse{Applied: applied}, nil
 }

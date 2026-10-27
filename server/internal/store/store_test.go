@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -99,5 +101,34 @@ func TestOwnershipAndApply(t *testing.T) {
 	}
 	if ok, _ := b.Apply(ctx, fa); ok {
 		t.Fatal("older record from other owner should not win")
+	}
+}
+
+// A tombstone crosses the wire with no body (protobuf leaves it nil); the
+// receiving Node must still apply it.
+func TestApplyTombstoneFromTheWire(t *testing.T) {
+	ctx := context.Background()
+	a, b := open(t, "node-a"), open(t, "node-b")
+	rec, err := a.Put(ctx, store.KindNode, "node-a", &maitrev1.Node{Name: "Alder"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := b.Apply(ctx, rec); err != nil || !ok {
+		t.Fatalf("apply live: %v %v", ok, err)
+	}
+	del, err := a.Delete(ctx, store.KindNode, "node-a", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := proto.Marshal(del)
+	wire := &maitrev1.Record{}
+	if err := proto.Unmarshal(raw, wire); err != nil || wire.Body != nil {
+		t.Fatalf("expected a nil body off the wire, got %v (%v)", wire.Body, err)
+	}
+	if ok, err := b.Apply(ctx, wire); err != nil || !ok {
+		t.Fatalf("apply tombstone: %v %v", ok, err)
+	}
+	if _, err := b.Get(ctx, store.KindNode, "node-a", nil); err == nil {
+		t.Fatal("the record should be gone on b")
 	}
 }

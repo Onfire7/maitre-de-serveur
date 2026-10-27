@@ -259,6 +259,12 @@ ON CONFLICT(kind, id) DO UPDATE SET
 // a different owner with a later timestamp (ties broken by owner ID so every
 // Node converges on the same answer). Returns true if applied.
 func (s *Store) Apply(ctx context.Context, rec *maitrev1.Record) (bool, error) {
+	// A tombstone's empty body arrives as nil from the wire; the column
+	// holds an empty blob, never NULL.
+	body := rec.GetBody()
+	if body == nil {
+		body = []byte{}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -285,7 +291,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(kind, id) DO UPDATE SET
   owner_node_id=excluded.owner_node_id, version=excluded.version,
   updated_unix_ms=excluded.updated_unix_ms, body=excluded.body, deleted=excluded.deleted`,
-		rec.Kind, rec.Id, rec.OwnerNodeId, rec.Version, rec.UpdatedUnixMs, rec.Body, boolInt(rec.Deleted)); err != nil {
+		rec.Kind, rec.Id, rec.OwnerNodeId, rec.Version, rec.UpdatedUnixMs, body, boolInt(rec.Deleted)); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()

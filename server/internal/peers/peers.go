@@ -550,9 +550,12 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 	index := map[string]*maitrev1.Record{}
 	for _, r := range theirs {
 		index[r.GetKind()+"\x00"+r.GetId()] = r
+		// One Record that cannot be applied must not stop the rest, the
+		// push back or the queued writes.
 		ok, err := m.st.Apply(ctx, r)
 		if err != nil {
-			return err
+			m.log.Warn("could not apply a peer's record", "peer", id, "kind", r.GetKind(), "id", r.GetId(), "err", err)
+			continue
 		}
 		changed = changed || ok
 	}
