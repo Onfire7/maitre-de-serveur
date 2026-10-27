@@ -14,7 +14,9 @@ import (
 )
 
 // Addresses returns the machine's non-loopback unicast IP addresses, IPv4
-// first, as strings without zone or prefix.
+// first, as strings without zone or prefix. Container and VM bridges are
+// left out: podman's 10.89.0.1 is no address anyone else can reach, and
+// announced for a Service name it sent browsers nowhere.
 func Addresses() []string {
 	var v4, v6 []string
 	ifaces, err := net.Interfaces()
@@ -22,7 +24,7 @@ func Addresses() []string {
 		return nil
 	}
 	for _, ifc := range ifaces {
-		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualInterface(ifc.Name) {
 			continue
 		}
 		addrs, err := ifc.Addrs()
@@ -151,4 +153,16 @@ func ScanBackups(ctx context.Context) []*maitrev1.Backup {
 		}
 	}
 	return backup.Scan(ctx, parts)
+}
+
+// virtualInterface reports interfaces that only exist inside this machine:
+// container and VM networks (podman, netavark, CNI, Docker, libvirt) and
+// the veth ends of containers.
+func virtualInterface(name string) bool {
+	for _, p := range []string{"podman", "veth", "cni", "docker", "br-", "virbr", "vnet", "flannel"} {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
 }

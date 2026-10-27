@@ -2,6 +2,9 @@
 // (decision 138). When it is not Online, or has no web page, a status card
 // takes its place (decision 144).
 import { ExternalLink, Play, ScrollText, RotateCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
+import type { Target } from "@/transport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FleetService } from "@/fleet/useFleet";
@@ -9,12 +12,26 @@ import { isDemo } from "@/demo/flag";
 import { ServiceIcon, StatusWord } from "./status";
 import { catalogById } from "./status";
 
-export function ServicePage({ service, onAction }: { service: FleetService; onAction: (a: "start" | "restart" | "logs" | "open") => void }) {
+export function ServicePage({ service, target, onAction }: { service: FleetService; target: Target | undefined; onAction: (a: "start" | "restart" | "logs" | "open") => void }) {
   const s = service.status;
   const web = !!s?.url;
-  if (service.word === "Online" && web) {
+  const online = service.word === "Online" && web;
+  // Decision 71: the page is read through a loopback proxy that tunnels to
+  // the Node over its mutual-TLS listener, so it needs neither mDNS nor the
+  // Service being reachable on the LAN, and the window may embed it.
+  const local = useQuery({
+    queryKey: ["service-url", service.spec.name, target?.addr],
+    enabled: online && !!target && !isDemo(),
+    staleTime: Infinity,
+    retry: 1,
+    queryFn: () => invoke<string>("service_url", { addr: target!.addr, fingerprint: target!.fingerprint, service: service.spec.name }),
+  });
+  if (online) {
     if (isDemo()) return <DemoFrame service={service} />;
-    return <iframe key={s!.url} title={service.spec.name} src={s!.url} className="h-full w-full border-0 bg-white" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads" />;
+    // Outside the app (no Tauri) the proxy is not there: use the address.
+    const src = local.data ?? (local.error ? s!.url : undefined);
+    if (!src) return null;
+    return <iframe key={src} title={service.spec.name} src={src} className="h-full w-full border-0 bg-white" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads" />;
   }
   const entry = catalogById.get(service.spec.catalogId);
   return (

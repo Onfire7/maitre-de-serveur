@@ -1,6 +1,7 @@
 // The Console's shell once a Fleet exists: sidebar, main area, notices
 // (build order step 2). Data comes through the anchor Node (useFleet);
 // per-Service calls go straight to the owning Node.
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -119,7 +120,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     const t = target(s);
     switch (item) {
       case "open":
-        if (s.status?.url) window.open(s.status.url, "_blank");
+        // window.open does nothing in the Tauri window; the opener plugin
+        // hands the address to the system browser. A plain browser (the
+        // demo) has no plugin.
+        if (s.status?.url) openUrl(s.status.url).catch(() => window.open(s.status!.url, "_blank"));
         return;
       case "logs":
         setLogsOf(s.spec.name);
@@ -194,7 +198,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             <motion.div key={routeKey(route)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="absolute inset-0">
               {route.name === "service" &&
                 (current ? (
-                  <ServicePage service={current} onAction={(a) => act(current, a)} />
+                  <ServicePage service={current} target={target(current)} onAction={(a) => act(current, a)} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
