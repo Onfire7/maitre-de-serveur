@@ -11,7 +11,7 @@ import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { spacesOf } from "@/spaces";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
-import { spaceColor } from "./StorageTab";
+import { colorOf } from "./StorageTab";
 import { useNodeLogs } from "./LogsTab";
 import { useRoute } from "./routes";
 
@@ -127,7 +127,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
                     <span className="truncate font-medium">{r.name}</span>
                     <span className="flex gap-0.5">
                       {ids.map((id) => (
-                        <span key={id} className="size-1.5 rounded-full" style={{ background: spaceColor(spaces.findIndex((s) => s.spaceId === id)) }} title={spaces.find((s) => s.spaceId === id)?.name} />
+                        <span key={id} className="size-1.5 rounded-full" style={{ background: colorOf(spaces.find((s) => s.spaceId === id), spaces) }} title={spaces.find((s) => s.spaceId === id)?.name} />
                       ))}
                     </span>
                     <span className={cn("ml-auto shrink-0 tabular-nums", !u ? "text-muted-foreground" : p >= 90 ? "text-destructive" : p >= 75 ? "text-status-attention" : "text-muted-foreground")}>{u ? `${p.toFixed(0)}%` : noFill ? "" : "not mounted"}</span>

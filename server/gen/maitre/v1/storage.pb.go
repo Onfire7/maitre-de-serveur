@@ -1051,7 +1051,10 @@ type Space struct {
 	// full, in placement's order (decision 202). Only matters for a Space
 	// that spans Nodes. placement "local_first" (from before) is most_free
 	// with this set.
-	PreferLocal   bool `protobuf:"varint,12,opt,name=prefer_local,json=preferLocal,proto3" json:"prefer_local,omitempty"`
+	PreferLocal bool `protobuf:"varint,12,opt,name=prefer_local,json=preferLocal,proto3" json:"prefer_local,omitempty"`
+	// The colour the Console shows it in, #rrggbb (decision 204); empty:
+	// one picked by its place in the list.
+	Color         string `protobuf:"bytes,13,opt,name=color,proto3" json:"color,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1170,6 +1173,13 @@ func (x *Space) GetPreferLocal() bool {
 	return false
 }
 
+func (x *Space) GetColor() string {
+	if x != nil {
+		return x.Color
+	}
+	return ""
+}
+
 var File_maitre_v1_storage_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_storage_proto_rawDesc = "" +
@@ -1251,7 +1261,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x12ForgetDriveRequest\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x18\n" +
 	"\aconfirm\x18\x02 \x01(\tR\aconfirm\"\x15\n" +
-	"\x13ForgetDriveResponse\"\xf9\x02\n" +
+	"\x13ForgetDriveResponse\"\x8f\x03\n" +
 	"\x05Space\x12\x19\n" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -1266,7 +1276,8 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x0fdefault_for_new\x18\n" +
 	" \x01(\bR\rdefaultForNew\x12\x19\n" +
 	"\bowner_id\x18\v \x01(\rR\aownerId\x12!\n" +
-	"\fprefer_local\x18\f \x01(\bR\vpreferLocal2\xf3\x03\n" +
+	"\fprefer_local\x18\f \x01(\bR\vpreferLocal\x12\x14\n" +
+	"\x05color\x18\r \x01(\tR\x05color2\xf3\x03\n" +
 	"\x0eStorageService\x12K\n" +
 	"\n" +
 	"ListDrives\x12\x1c.maitre.v1.ListDrivesRequest\x1a\x1d.maitre.v1.ListDrivesResponse\"\x00\x12T\n" +

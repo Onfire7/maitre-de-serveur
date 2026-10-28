@@ -7,8 +7,9 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
-import { ChevronRight, HardDrive, Lock, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, HardDrive, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,8 +51,17 @@ export function withFill(s: Space, fill: string, preferLocal: boolean): Space {
 /** One colour per Space, by position (highest priority first). */
 export function spaceColor(i: number): string {
   const palette = ["oklch(0.62 0.14 250)", "oklch(0.72 0.17 55)", "oklch(0.65 0.15 145)", "oklch(0.65 0.15 320)", "oklch(0.62 0.2 25)", "oklch(0.7 0.1 195)", "oklch(0.8 0.15 95)", "oklch(0.75 0.12 350)"];
-  return palette[i % palette.length];
+  return palette[Math.max(0, i) % palette.length];
 }
+
+/** A Space's colour: the one picked for it (204), else by its place among `spaces` (highest priority first). */
+export function colorOf(s: Space | undefined, spaces: Space[]): string {
+  if (!s) return "var(--border)";
+  return s.color || spaceColor(spaces.findIndex((x) => x.spaceId === s.spaceId));
+}
+
+/** Colours offered for a Space (204), as #rrggbb, which is what the Node accepts. */
+const SWATCHES = ["#3b82f6", "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#f59e0b", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#6366f1", "#78716c", "#64748b"];
 
 export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; state: ConsoleState }) {
   const qc = useQueryClient();
@@ -145,9 +155,10 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
         <ul className="space-y-2">
           {listed.map((s) => {
             const cap = capacity(s);
-            const color = spaceColor(spaces.indexOf(s));
+            const color = colorOf(s, spaces);
             return (
-              <li key={s.spaceId} className="flex items-start gap-3 rounded-xl border bg-card p-3" style={{ borderLeftWidth: 4, borderLeftColor: color }}>
+              <li key={s.spaceId} className="relative flex items-start gap-3 overflow-hidden rounded-xl border bg-card p-3 pl-5">
+                <ColorEdge space={s} color={color} onPick={(c) => tryPut(create(SpaceSchema, { ...s, color: c }))} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{s.name}</span>
@@ -208,16 +219,6 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">On: one Pool across every Node with a Drive of this Space, shared over the network, so every Node sees the same files. Off: each Node has its own Pool of its own Drives.</TooltipContent>
                     </Tooltip>
-                    {s.spanNodes && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="flex items-center gap-1.5">
-                            <Switch checked={fillOf(s).preferLocal} onCheckedChange={(v) => tryPut(withFill(s, fillOf(s).fill, v))} aria-label={`${s.name} prefers local Drives`} /> Prefer local Drives
-                          </label>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">On: a Node puts new files on its own Drives of this Space, in the order below, and on other Nodes' only once its own are full. Faster, and no network needed. Off: every Node's Drives are filled in the order below, wherever they are.</TooltipContent>
-                      </Tooltip>
-                    )}
                     <label className="flex items-center gap-1.5">
                       New files go to
                       <Select value={fillOf(s).fill} onValueChange={(v) => tryPut(withFill(s, v, fillOf(s).preferLocal))}>
@@ -233,6 +234,16 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                         </SelectContent>
                       </Select>
                     </label>
+                    {s.spanNodes && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-1.5">
+                            <Switch checked={fillOf(s).preferLocal} onCheckedChange={(v) => tryPut(withFill(s, fillOf(s).fill, v))} aria-label={`${s.name} prefers local Drives`} /> Prefer local Drives
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">On: a Node puts new files on its own Drives of this Space, in the order below, and on other Nodes' only once its own are full. Faster, and no network needed. Off: every Node's Drives are filled in the order below, wherever they are.</TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
                 <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setRemoving(s)}>
@@ -541,7 +552,7 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
                   )}
                   {d.adopted ? idx.length ? idx.map((i) => (
                         <Badge key={i} variant="secondary">
-                          <span className="size-2 rounded-full" style={{ background: spaceColor(i) }} /> {spaces[i].name}
+                          <span className="size-2 rounded-full" style={{ background: colorOf(spaces[i], spaces) }} /> {spaces[i].name}
                         </Badge>
                       )) : <Badge variant="outline">no Space</Badge> : <Badge variant="outline">not used</Badge>}
                   {d.record?.origin === "internal" && <span className="text-xs text-muted-foreground">built in</span>}
@@ -819,5 +830,44 @@ function SpaceTagsDialog({ space, spaces, drives, nodeName, onClose, onSave }: {
       onSave={(tags) => onSave(create(SpaceSchema, { ...space, requireTags: tags }))}
       onClose={onClose}
     />
+  );
+}
+
+/**
+ * A Space's coloured left edge, which opens a choice of colours (decision
+ * 204): swatches, any colour, or back to the one its place gives it.
+ */
+function ColorEdge({ space, color, onPick }: { space: Space; color: string; onPick: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const pick = (c: string) => {
+    onPick(c);
+    setOpen(false);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="absolute inset-y-0 left-0 w-2 cursor-pointer transition-[width] hover:w-3 focus-visible:w-3 focus-visible:outline-none" style={{ background: color }} aria-label={`Change ${space.name}'s colour`} title="Change its colour" />
+      </PopoverTrigger>
+      <PopoverContent align="start" side="right" className="w-auto p-3">
+        <div className="mb-2 text-xs font-medium text-muted-foreground">{space.name}'s colour</div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {SWATCHES.map((c) => (
+            <button key={c} className="flex size-6 items-center justify-center rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring" style={{ background: c }} aria-label={c} aria-pressed={space.color.toLowerCase() === c} onClick={() => pick(c)}>
+              {space.color.toLowerCase() === c && <Check className="size-3.5 text-white" />}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2 text-xs">
+          <label className="flex items-center gap-1.5">
+            <input type="color" className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" value={/^#[0-9a-f]{6}$/i.test(space.color) ? space.color : "#3b82f6"} onChange={(e) => onPick(e.target.value)} aria-label="Any colour" /> Any colour
+          </label>
+          {space.color && (
+            <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => pick("")}>
+              Automatic
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

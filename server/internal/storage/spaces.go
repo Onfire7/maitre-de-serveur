@@ -19,6 +19,8 @@ import (
 // KindSpace is the Record kind for Storage Spaces (decisions 121-128).
 const KindSpace = "space"
 
+var spaceColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
 var spaceIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$|^[a-z0-9]$`)
 
 // Placement policies for new files in a Space's Pool.
@@ -57,6 +59,8 @@ func ValidateSpace(b *maitrev1.Space) error {
 		return errors.New("placement must be local_first, most_free, most_free_percent, least_free or least_free_percent")
 	case b.GetExclusive() && len(b.GetRequireTags()) == 0 && len(b.GetNodeIds()) == 0:
 		return errors.New("an exclusive Space needs at least one required tag or Node; otherwise it would claim every Drive")
+	case b.GetColor() != "" && !spaceColorRe.MatchString(b.GetColor()):
+		return errors.New("a Space's colour is #rrggbb")
 	case b.GetOwnerId() != 0 && OwnerOf(b) == 0:
 		return fmt.Errorf("a Space's owner id is between %d and %d", MinOwnerID, MaxOwnerID)
 	}

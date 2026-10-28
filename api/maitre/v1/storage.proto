@@ -181,4 +181,7 @@ message Space {
   // that spans Nodes. placement "local_first" (from before) is most_free
   // with this set.
   bool prefer_local = 12;
+  // The colour the Console shows it in, #rrggbb (decision 204); empty:
+  // one picked by its place in the list.
+  string color = 13;
 }

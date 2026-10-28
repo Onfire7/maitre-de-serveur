@@ -33,7 +33,7 @@ import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
-import { spaceColor } from "./StorageTab";
+import { colorOf } from "./StorageTab";
 import type { FleetService } from "@/fleet/useFleet";
 import { serviceFolders, type ServiceFolder } from "@/files/sources";
 import { ServiceIcon } from "./status";
@@ -70,16 +70,16 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
     const out: (FileScope & { group: string; label: string; kind: "space" | "drive"; color?: string })[] = [];
     const reachable = (id: string) => !nodeDown(nodeWord(snap?.status.get(id), Date.now()));
     const has = (n: { nodeId: string }, s: { spaceId: string }) => drives.filter((d) => d.nodeId === n.nodeId).some((d) => spacesOf(d, spaces).includes(s.spaceId));
-    spaces.forEach((s, i) => {
+    spaces.forEach((s) => {
       if (!s.spanNodes) return;
       const holders = nodes.filter((n) => has(n, s));
       const via = holders.find((n) => n.nodeId === snap?.anchor.nodeId && reachable(n.nodeId)) ?? holders.find((n) => reachable(n.nodeId)) ?? holders[0] ?? (snap ? nodes.find((n) => n.nodeId === snap.anchor.nodeId) : undefined);
-      if (via) out.push({ group: "fleet", nodeId: via.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: spaceColor(i) });
+      if (via) out.push({ group: "fleet", nodeId: via.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: colorOf(s, spaces) });
     });
     for (const n of nodes) {
       const mine = drives.filter((d) => d.nodeId === n.nodeId);
-      spaces.forEach((s, i) => {
-        if (!s.spanNodes && has(n, s)) out.push({ group: n.nodeId, nodeId: n.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: spaceColor(i) });
+      spaces.forEach((s) => {
+        if (!s.spanNodes && has(n, s)) out.push({ group: n.nodeId, nodeId: n.nodeId, spaceId: s.spaceId, label: s.name, kind: "space", color: colorOf(s, spaces) });
       });
       for (const d of [...mine].sort((a, b) => a.name.localeCompare(b.name))) out.push({ group: n.nodeId, nodeId: n.nodeId, driveId: d.driveId, label: d.name, kind: "drive" });
     }
@@ -1016,7 +1016,7 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
                 <SelectContent>
                   {spaceChoices.map((s) => (
                     <SelectItem key={s.spaceId} value={s.spaceId}>
-                      <span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: spaceColor(spaces.indexOf(s)) }} />
+                      <span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: colorOf(s, spaces) }} />
                       {s.name}
                       {s.spaceId === scope.spaceId && <span className="text-muted-foreground"> (this one)</span>}
                     </SelectItem>

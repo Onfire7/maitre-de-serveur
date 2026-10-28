@@ -470,3 +470,8 @@ Made while building 170-181 (2026-10-27)
 ### Drive device (decision 203, 2026-10-28)
 
 - 203 (user, 2026-10-28): a Drive's line on the Storage tab shows its device (/dev/sda) where it showed its mount path.
+
+### Space colours (decision 204, 2026-10-28)
+
+- 204 (user, 2026-10-28): Prefer local Drives comes after New files go to. A Space's coloured left edge on the Storage tab opens a choice of colours: fourteen swatches, any colour, or Automatic (the one its place in the list gives it, as before). The colour is kept in the Space record (new field `Space.color`, #rrggbb, which the Node checks; older Nodes keep it as written) and used wherever Spaces are coloured: the Storage tab, the Files tab and a Node's flyout.
+- Built (2026-10-28): `colorOf` and `ColorEdge` in `desktop/src/app/StorageTab.tsx`; `storage.ValidateSpace`.

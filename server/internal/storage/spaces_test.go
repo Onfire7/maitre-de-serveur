@@ -44,15 +44,20 @@ func TestSpacesOf(t *testing.T) {
 }
 
 func TestValidateSpace(t *testing.T) {
-	ok := &maitrev1.Space{SpaceId: "media", Name: "Media", Placement: PlacementMostFree}
-	if err := ValidateSpace(ok); err != nil {
-		t.Fatal(err)
+	for _, ok := range []*maitrev1.Space{
+		{SpaceId: "media", Name: "Media", Placement: PlacementMostFree},
+		{SpaceId: "media", Name: "Media", Placement: PlacementLeastFreePercent, PreferLocal: true, Color: "#3a7bd5"},
+	} {
+		if err := ValidateSpace(ok); err != nil {
+			t.Fatal(err)
+		}
 	}
 	bad := []*maitrev1.Space{
 		{SpaceId: "media", Name: "Media", Placement: "fastest"},
 		{SpaceId: "Media!", Name: "Media", Placement: PlacementMostFree},
 		{SpaceId: "all", Name: "All", Placement: PlacementLocalFirst, Exclusive: true},
 		{Name: "x", Placement: PlacementLocalFirst},
+		{SpaceId: "media", Name: "Media", Placement: PlacementMostFree, Color: "red; background: url(x)"},
 	}
 	for _, b := range bad {
 		if ValidateSpace(b) == nil {
