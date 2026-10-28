@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { Copy, ScrollText, ArrowUpCircle, Undo2, Globe, Router, Network } from "lucide-react";
+import { Copy, ScrollText, ArrowUpCircle, Undo2, Globe, Router, Network, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -31,51 +31,14 @@ export type Maintenance = { kind: "update"; target: string; reboot: boolean } | 
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
-  const showLogs = useNodeLogs();
-  const qc = useQueryClient();
   const client = useMemo(() => (target ? createClient(NodeService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
-  const [maint, setMaint] = useState<Maintenance | null>(null);
   // The core calls (ADR 0007) go straight to the Node whatever the anchor
   // thinks of it: if this Console can reach it, it can see and update it.
-  const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
-  const upd = useQuery({ queryKey: ["update-status", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 3000, retry: false, queryFn: async () => (await client!.getUpdateStatus({})).status });
+  const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
   const services = useFleetServices(snap).filter((s) => s.spec.nodeId === node.nodeId);
   const i = info.data;
-  const st = upd.data;
-  const problems = snap.status.get(node.nodeId)?.problems ?? [];
-  const [updateOpen, setUpdateOpen] = useState(false);
-  const [rollbackOpen, setRollbackOpen] = useState(false);
-  // The card's Update button: open the dialog once the Node's status is in.
-  useEffect(() => {
-    if (!askUpdate || !st) return;
-    if (st.supported) setUpdateOpen(true);
-    onAsked?.();
-  }, [askUpdate, !!st]);
-
-  async function run(fn: () => Promise<unknown>, m: Maintenance) {
-    try {
-      await fn();
-      setMaint(m);
-    } catch (e) {
-      toast.error(String((e as Error).message ?? e));
-    }
-  }
 
   if (!target) return <p className="text-sm text-muted-foreground">This Node has no known address.</p>;
-  if (maint && client)
-    return (
-      <MaintenanceCard
-        client={client}
-        name={node.name}
-        m={maint}
-        onDone={() => {
-          setMaint(null);
-          qc.invalidateQueries({ queryKey: ["node-info", node.nodeId] });
-          qc.invalidateQueries({ queryKey: ["update-status", node.nodeId] });
-          qc.invalidateQueries({ queryKey: ["fleet"] });
-        }}
-      />
-    );
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -163,9 +126,66 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
         </p>
       </section>
 
-      <section className="space-y-2 md:col-span-2">
+      <div className="md:col-span-2">
+        <ServerImage node={node} target={target} snap={snap} askUpdate={askUpdate} onAsked={onAsked} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A Node's Maître Server image: what it runs, has staged and can go back
+ * to, with Logs, Update and Roll back, and the wait while it restarts. On
+ * the Node's card and, for every Node, on the Updates tab (decision 197).
+ */
+export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "Maître Server" }: { node: Node; target: Target | undefined; snap: FleetSnapshot; askUpdate?: boolean; onAsked?: () => void; title?: React.ReactNode }) {
+  const showLogs = useNodeLogs();
+  const qc = useQueryClient();
+  const client = useMemo(() => (target ? createClient(NodeService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
+  const [maint, setMaint] = useState<Maintenance | null>(null);
+  const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
+  const upd = useQuery({ queryKey: ["update-status", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 3000, retry: false, queryFn: async () => (await client!.getUpdateStatus({})).status });
+  const i = info.data;
+  const st = upd.data;
+  const problems = snap.status.get(node.nodeId)?.problems ?? [];
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [rollbackOpen, setRollbackOpen] = useState(false);
+  // The card's Update button: open the dialog once the Node's status is in.
+  useEffect(() => {
+    if (!askUpdate || !st) return;
+    if (st.supported) setUpdateOpen(true);
+    onAsked?.();
+  }, [askUpdate, !!st]);
+
+  async function run(fn: () => Promise<unknown>, m: Maintenance) {
+    try {
+      await fn();
+      setMaint(m);
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e));
+    }
+  }
+
+  if (maint && client)
+    return (
+      <MaintenanceCard
+        client={client}
+        name={node.name}
+        m={maint}
+        onDone={() => {
+          setMaint(null);
+          qc.invalidateQueries({ queryKey: ["node-info", node.nodeId] });
+          qc.invalidateQueries({ queryKey: ["update-status", node.nodeId] });
+          qc.invalidateQueries({ queryKey: ["fleet"] });
+        }}
+      />
+    );
+
+  return (
+    <>
+      <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Maître Server</h3>
+          <h3 className="text-sm font-semibold">{title}</h3>
           {st?.state === UpdateStatus_State.UPDATING && <Badge className="bg-status-starting text-white">updating {Math.round(st.progress * 100)}%</Badge>}
           {st?.state === UpdateStatus_State.FAILED && <Badge variant="destructive">last update failed</Badge>}
           <span className="flex-1" />
@@ -212,7 +232,14 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           </div>
         )}
         {st?.state === UpdateStatus_State.FAILED && <p className="text-xs text-destructive">Update to {st.target} failed: {st.message}</p>}
-        {st?.staged && st.state !== UpdateStatus_State.UPDATING && <p className="text-xs text-muted-foreground">An update is staged. Restart the Node to run it.</p>}
+        {st?.staged && st.state !== UpdateStatus_State.UPDATING && (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            An update is staged. Restart the Node to run it.
+            <Button size="sm" variant="outline" className="h-7" onClick={() => client && run(() => client.reboot({}), { kind: "reboot" })}>
+              <RotateCw /> Restart now
+            </Button>
+          </p>
+        )}
         {st?.available && st.state !== UpdateStatus_State.UPDATING && <p className="text-xs text-muted-foreground">The registry has a newer build of {st.booted?.image || "this Node's image"}.</p>}
         {st?.rollout && <p className="text-xs text-muted-foreground">Automatic updates: {st.rollout}.</p>}
         {st?.lastRollback && <p className="text-xs text-status-attention">The last update was rolled back: {st.lastRollback}. The Node runs the image from before it.</p>}
@@ -241,7 +268,7 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

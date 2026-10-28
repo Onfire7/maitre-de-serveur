@@ -24,7 +24,9 @@ import type { ConsoleState } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
 
-// Tailscale's admin console pages for the two steps (decision 196).
+// Tailscale's pages for each step (decisions 196, 197).
+const SIGN_UP = "https://login.tailscale.com/start";
+const DOWNLOAD = "https://tailscale.com/download";
 const ACCESS_CONTROLS = "https://console.tailscale.com/admin/acls";
 const TRUST_CREDENTIALS = "https://console.tailscale.com/admin/settings/trust-credentials";
 
@@ -148,12 +150,24 @@ function ConnectDialog({ open, onClose, snap, tag: current }: { open: boolean; o
   }
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Connect the Fleet to Tailscale</DialogTitle>
           <DialogDescription>One OAuth client for the whole Fleet. Every Node makes its own key from it and joins by itself.</DialogDescription>
         </DialogHeader>
         <ol className="list-decimal space-y-3 pl-5 text-sm text-muted-foreground">
+          <li>
+            Make a Tailscale account, or sign in to the one you have. The free Personal plan covers a home Fleet.
+            <Button type="button" size="sm" variant="outline" className="mt-1.5 flex" onClick={() => browse(SIGN_UP)}>
+              <ExternalLink /> Sign up for Tailscale
+            </Button>
+          </li>
+          <li>
+            Install Tailscale on this computer, and on your phone or laptop, signed in to that account: that is how they reach the Fleet away from home. The Nodes need nothing installed; they join by themselves.
+            <Button type="button" size="sm" variant="outline" className="mt-1.5 flex" onClick={() => browse(DOWNLOAD)}>
+              <ExternalLink /> Download Tailscale
+            </Button>
+          </li>
           <li>
             Make the tag the Nodes join with. In Tailscale's <b className="text-foreground">Access controls</b>, choose the visual editor's <b className="text-foreground">Tags</b> tab, then <b className="text-foreground">Add a tag</b>: name it <code className="rounded bg-muted px-1 text-xs text-foreground">{(tag || "tag:maitre").replace(/^tag:/, "")}</code> and leave the owners as they are.
             <Button type="button" size="sm" variant="outline" className="mt-1.5 flex" onClick={() => browse(ACCESS_CONTROLS)}>
