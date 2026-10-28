@@ -131,11 +131,9 @@ func (m *Manager) servePut(w http.ResponseWriter, r *http.Request, base, p strin
 		http.Error(w, "name the file", http.StatusBadRequest)
 		return
 	}
-	for _, part := range strings.Split(p, "/") {
-		if strings.HasPrefix(part, ".") {
-			http.Error(w, fmt.Sprintf("%q: names cannot start with a dot", part), http.StatusBadRequest)
-			return
-		}
+	if part := reservedIn(p); part != "" {
+		http.Error(w, fmt.Sprintf("%q is a name Maître keeps for itself", part), http.StatusBadRequest)
+		return
 	}
 	full := filepath.Join(base, p)
 	dir := filepath.Dir(full)

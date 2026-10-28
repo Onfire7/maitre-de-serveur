@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,10 +130,27 @@ func TestMakeDir(t *testing.T) {
 	if err := m.MakeDir(ctx, media, "Shows/2026"); err == nil {
 		t.Fatal("made a folder in a missing parent")
 	}
-	for _, bad := range []string{"", "/", "../escape", ".hidden", "Movies/.cache"} {
+	for _, bad := range []string{"", "/", "../escape", ".maitre-owner", "Movies/.maitre-zip-1", ".mergerfs"} {
 		if err := m.MakeDir(ctx, media, bad); err == nil {
 			t.Fatalf("accepted %q", bad)
 		}
+	}
+	// Decision 206: other names starting with a dot are the user's, listed
+	// for the Console to hide or show; Maître's own stay out of sight.
+	if err := m.MakeDir(ctx, media, ".Services"); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(dir, "pools/media/.maitre-owner"), nil, 0o644)
+	entries, err := m.ListDir(ctx, media, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.GetName())
+	}
+	if got := strings.Join(names, ","); !strings.Contains(got, ".Services") || strings.Contains(got, ".maitre") {
+		t.Fatalf("listed %s", got)
 	}
 	if err := m.MakeDir(ctx, &maitrev1.Scope{DriveId: "d1"}, "Movies/Aliens"); err != nil {
 		t.Fatal(err)

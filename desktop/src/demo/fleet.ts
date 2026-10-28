@@ -666,7 +666,8 @@ export class DemoFleet {
     const parts = path.split("/").filter(Boolean);
     const name = parts.pop();
     if (!name) throw new Error("name the new folder");
-    if (name.startsWith(".")) throw new Error(`"${name}": folder names cannot start with a dot`);
+    // As the Node (206): only Maître's own names are refused.
+    if (name.startsWith(".maitre") || name === ".mergerfs") throw new Error(`"${name}" is a name Maître keeps for itself`);
     const key = scope.spaceId ? "space:" + scope.spaceId : `drive:${scope.driveId}@${nodeId}`;
     if (!this.files.has(key)) this.files.set(key, []);
     const parent = this.walk(this.files.get(key)!, parts.join("/"));

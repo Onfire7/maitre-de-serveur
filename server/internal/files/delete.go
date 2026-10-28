@@ -39,6 +39,9 @@ func (m *Manager) Delete(ctx context.Context, req *maitrev1.DeleteRequest) (*mai
 		if n == "" || strings.ContainsRune(n, '/') || n == "." || n == ".." {
 			return nil, fmt.Errorf("%q is not a name in the folder", n)
 		}
+		if Reserved(n) {
+			return nil, fmt.Errorf("%q is a name Maître keeps for itself", n)
+		}
 		r := filepath.Join(folder, n)
 		info, err := os.Lstat(filepath.Join(base, r))
 		if err != nil {

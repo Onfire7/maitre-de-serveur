@@ -118,6 +118,25 @@ func (m *Manager) Run(ctx context.Context) {
 
 var cleanRe = regexp.MustCompile(`/+`)
 
+// Reserved says whether a name is Maître's own (its markers, temporary
+// files and the Node's config backup, all .maitre…) or mergerfs's control
+// file. The file manager neither lists nor touches them. Other names
+// starting with a dot are the user's (decision 206, such as .Services):
+// listed, and hidden by the Console unless asked.
+func Reserved(name string) bool {
+	return strings.HasPrefix(name, ".maitre") || name == ".mergerfs"
+}
+
+// reservedIn is the first reserved part of a relative path, or "".
+func reservedIn(p string) string {
+	for _, part := range strings.Split(p, "/") {
+		if Reserved(part) {
+			return part
+		}
+	}
+	return ""
+}
+
 // rel cleans a user path to a safe relative path ("" for the top).
 func rel(p string) (string, error) {
 	p = cleanRe.ReplaceAllString(strings.TrimSpace(p), "/")
@@ -173,7 +192,7 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	var out []*maitrev1.Entry
 	for _, e := range entries {
 		name := e.Name()
-		if strings.HasPrefix(name, ".") || (r == "" && name == "lost+found") {
+		if Reserved(name) || (r == "" && name == "lost+found") {
 			// Maître's own markers, the Node's config backup, and the
 			// filesystem's lost+found are not the user's files.
 			continue
@@ -219,8 +238,8 @@ func (m *Manager) MakeDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	if r == "" {
 		return errors.New("name the new folder")
 	}
-	if name := filepath.Base(r); strings.HasPrefix(name, ".") {
-		return fmt.Errorf("%q: folder names cannot start with a dot", name)
+	if part := reservedIn(r); part != "" {
+		return fmt.Errorf("%q is a name Maître keeps for itself", part)
 	}
 	// Decision 189: as the Space's owner, like every change the file
 	// manager makes for a person.
@@ -334,6 +353,11 @@ func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done 
 	}
 	if _, err := rel(req.GetToPath()); err != nil {
 		return nil, err
+	}
+	for _, p := range []string{req.GetPath(), req.GetToPath()} {
+		if part := reservedIn(p); part != "" {
+			return nil, fmt.Errorf("%q is a name Maître keeps for itself", part)
+		}
 	}
 	spaces, err := storage.Spaces(ctx, m.st)
 	if err != nil {

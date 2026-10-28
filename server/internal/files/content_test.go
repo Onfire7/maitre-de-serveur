@@ -85,8 +85,8 @@ func TestContentGetPut(t *testing.T) {
 	if c := put("?space=media&path=Shows/S1/e1.mkv&mkdirs=1", "x"); c != http.StatusCreated {
 		t.Fatalf("mkdirs: %d", c)
 	}
-	if c := put("?space=media&path=.hidden", "x"); c != http.StatusBadRequest {
-		t.Fatalf("hidden: %d", c)
+	if c := put("?space=media&path=.maitre-owner", "x"); c != http.StatusBadRequest {
+		t.Fatalf("Maître's own name: %d", c)
 	}
 	if entries, _ := os.ReadDir(filepath.Join(dir, "pools/media")); len(entries) != 2 {
 		t.Fatalf("leftovers in the Pool: %v", entries)

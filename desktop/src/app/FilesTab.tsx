@@ -432,7 +432,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
           </nav>
           {!listing && (
           <>
-          <Button size="sm" variant="ghost" onClick={toggleHidden} title={showHidden ? "Hide names starting with a dot" : `Show hidden${hiddenCount ? ` (${hiddenCount} here)` : ""}`} aria-pressed={showHidden} aria-label="Show hidden">
+          <Button size="sm" variant="ghost" onClick={toggleHidden} title={showHidden ? "Hide hidden files and folders." : "Show Hidden files and folders."} aria-pressed={showHidden} aria-label="Show hidden">
             {showHidden ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => list.refetch()} title="Refresh">
@@ -599,7 +599,8 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
             const t = targetFor(snap, state.nodes, nodeId);
             if (!t) throw new Error("no address");
             const res = await createClient(FilesService, transportFor(t)).listDir({ scope: { spaceId, driveId: "" }, path: p });
-            return res.entries.filter((e) => e.dir && !hidden(e.name)).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+            // Hidden folders too when Files shows them, so a move can reach .Services.
+            return res.entries.filter((e) => e.dir && (showHidden || !hidden(e.name))).map((e) => e.name).sort((a, b) => a.localeCompare(b));
           }}
           makeFolder={async (nodeId, spaceId, p) => {
             const t = targetFor(snap, state.nodes, nodeId);
@@ -923,7 +924,7 @@ function NewFolderDialog({ open, onClose, where, taken, onMake }: { open: boolea
     if (open) setName("");
   }, [open]);
   const n = name.trim();
-  const problem = !n ? "" : n.includes("/") ? "A name cannot contain /" : n.startsWith(".") ? "A name cannot start with a dot" : taken.includes(n) ? "Something here already has that name" : "";
+  const problem = !n ? "" : n.includes("/") ? "A name cannot contain /" : n.startsWith(".maitre") || n === ".mergerfs" ? "Maître keeps that name for itself" : taken.includes(n) ? "Something here already has that name" : "";
   async function make() {
     if (!n || problem || busy) return;
     setBusy(true);

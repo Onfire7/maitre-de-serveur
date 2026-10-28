@@ -480,3 +480,8 @@ Made while building 170-181 (2026-10-27)
 
 - 205 (user, 2026-10-28): a Service's own folders move from `<Space>/<Service>/<volume>` to `<Space>/.Services/<Service>/<volume>`, out of the way of the user's folders. The Files tab hides names starting with a dot unless Show hidden (the eye beside Refresh, remembered) is on, when they show dimmed; "Empty." says how many are hidden. Folder pickers leave them out. No migration (one Service exists): moving a volume to another Space and back brings it to the new place (docs/node-needs.md). Until then, anything that re-renders the Service, including an automatic update, points it at the new, empty folders.
 - Built (2026-10-28): `server/internal/layout`, its use in `services` and `files`, `TestMoveVolumeFromTheOldPlace`; `desktop/src/files/layout.ts`, `volumeDir` in `serviceFolders`, the Service move and the Storage editor; Show hidden in `FilesTab.tsx`; the demo keeps its Services' folders under .Services.
+
+### Dotted names are the user's (decision 206, 2026-10-28)
+
+- 206 (user, 2026-10-28): Show hidden's tooltip reads "Show Hidden files and folders." (and "Hide hidden files and folders." when on). New folder takes a name starting with a dot; only Maître's own names (`.maitre…`, `.mergerfs`) are refused. The Node lists dotted names (it hid them all, which is why `.Services` could not be seen or picked in Files) and keeps only its own out of sight and out of reach (docs/node-needs.md). The Move dialog's folder list shows hidden folders when Files shows them.
+- Built (2026-10-28): `files.Reserved` and its use in ListDir, MakeDir, uploads, Delete and Move, with tests; `FilesTab.tsx`; the demo's MakeDir.
