@@ -583,6 +583,15 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		if !isMounted(dstBase) {
 			return fmt.Errorf("Space %s has no Pool on this Node", req.GetToSpace())
 		}
+		// A Service's own volume (keepOwner) lands on this Node's own
+		// Drives of the Space (decision 207): its local-only Pool, when it
+		// has one. Through the full Pool of a Space that spans Nodes the
+		// copy could land on a peer's Drive over NFS, where root is
+		// squashed, so keeping its container's owners failed and the
+		// volume stayed where it was.
+		if own := filepath.Join(pool.SharedDir, req.GetToSpace()); j.keepOwner && req.GetToDriveId() == "" && isMounted(own) {
+			dstBase = own
+		}
 	}
 	dst := filepath.Join(dstBase, req.GetToPath())
 	if same, _ := samePath(src, dst); same {

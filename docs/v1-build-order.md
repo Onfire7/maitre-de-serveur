@@ -485,3 +485,8 @@ Made while building 170-181 (2026-10-27)
 
 - 206 (user, 2026-10-28): Show hidden's tooltip reads "Show Hidden files and folders." (and "Hide hidden files and folders." when on). New folder takes a name starting with a dot; only Maître's own names (`.maitre…`, `.mergerfs`) are refused. The Node lists dotted names (it hid them all, which is why `.Services` could not be seen or picked in Files) and keeps only its own out of sight and out of reach (docs/node-needs.md). The Move dialog's folder list shows hidden folders when Files shows them.
 - Built (2026-10-28): `files.Reserved` and its use in ListDir, MakeDir, uploads, Delete and Move, with tests; `FilesTab.tsx`; the demo's MakeDir.
+
+### A Service's volume moves onto the Node's own Drives, and says how it went (decision 207, 2026-10-28)
+
+- 207 (user report, 2026-10-28): moving jellyfin's cache from Default back to Media (a Space that spans Nodes) left it in Default without a word. The likely cause: a Service's volume is copied as root to keep its container's owners, into the full Pool of the Space, whose placement can pick a peer's Drive over NFS, where root is squashed; the copy fails and the Node only logs it. Not confirmed on the Node. Now a Service's volume moved into a Space lands in this Node's local-only Pool of it (`/var/mnt/shared/<space>`) when it has one, and the Storage section follows the move job: progress under the volume, and when it fails, why, and that the volume stayed where it was.
+- Built (2026-10-28): `files.move` (keepOwner destination); the job tracking in `StorageEditor`.

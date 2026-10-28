@@ -18,6 +18,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
+import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
@@ -275,6 +276,30 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
   const here = spaces.filter((sp) => sp.spanNodes || (snap?.drives ?? []).some((d) => d.nodeId === service.spec.nodeId && spacesOf(d, spaces).includes(sp.spaceId)));
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [moving, setMoving] = useState<string | null>(null);
+  // Each volume's move job, followed until it ends (decision 207): a move
+  // that fails leaves the volume where it was, and says why here.
+  const [jobs, setJobs] = useState<Record<string, { jobId: string; to: string }>>({});
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const jobList = useQuery({
+    queryKey: ["volume-move-jobs", target?.addr],
+    enabled: !!target && Object.keys(jobs).length > 0,
+    refetchInterval: 1500,
+    queryFn: async () => (await createClient(FilesService, transportFor(target!)).listJobs({})).jobs,
+  });
+  useEffect(() => {
+    for (const [volume, { jobId, to }] of Object.entries(jobs)) {
+      const j = jobList.data?.find((x) => x.jobId === jobId);
+      if (!j || j.state === "queued" || j.state === "running") continue;
+      setJobs(({ [volume]: _, ...rest }) => rest);
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+      if (j.state === "done") toast.success(`${volume} is in ${spaceName(to)} now`);
+      else {
+        const why = j.message || j.state;
+        setFailed((f) => ({ ...f, [volume]: why }));
+        toast.error(`${volume} did not move to ${spaceName(to)}`, { description: why });
+      }
+    }
+  }, [jobList.data]);
   // Decisions 170, 171, 174: folders are edited here and saved together.
   const saved: Folders = useMemo(() => ({ volumeSpaces: { ...service.spec.volumeSpaces }, volumeFolders: { ...service.spec.volumeFolders }, mounts: service.spec.mounts.map((m) => ({ spaceId: m.spaceId, folder: m.folder, path: m.path, readOnly: m.readOnly })) }), [service.spec]);
   const [folders, setFolders] = useState<Folders>(saved);
@@ -305,7 +330,9 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
     setMoving(volume);
     try {
       const { jobId } = await serviceClient(target).moveVolume({ name: service.spec.name, volume, toSpace: to });
-      toast.success(`${service.spec.name} stops while ${volume} moves to ${spaceName(to)}`, { description: `Job ${jobId}; progress is on the Files tab.` });
+      setJobs((m) => ({ ...m, [volume]: { jobId, to } }));
+      setFailed(({ [volume]: _, ...rest }) => rest);
+      toast(`${service.spec.name} stops while ${volume} moves to ${spaceName(to)}`);
       qc.invalidateQueries({ queryKey: ["jobs"] });
       qc.invalidateQueries({ queryKey: ["fleet"] });
       setPicked((p) => ({ ...p, [volume]: "" }));
@@ -326,7 +353,22 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
               if (here.length < 2 || v in folders.volumeFolders) return null;
               const cur = service.spec.volumeSpaces[v];
               const to = picked[v] ?? "";
+              const job = jobs[v] && jobList.data?.find((x) => x.jobId === jobs[v].jobId);
+              if (jobs[v])
+                return (
+                  <div className="space-y-1 text-xs">
+                    <div>
+                      Moving to {spaceName(jobs[v].to)}
+                      {job && job.bytesTotal > 0n ? `: ${Math.round((Number(job.bytesDone) / Number(job.bytesTotal)) * 100)}%` : "…"}
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded bg-muted">
+                      <div className="h-full rounded bg-primary transition-[width]" style={{ width: `${job && job.bytesTotal > 0n ? Math.round((Number(job.bytesDone) / Number(job.bytesTotal)) * 100) : 5}%` }} />
+                    </div>
+                  </div>
+                );
               return (
+                <div className="space-y-1">
+                {failed[v] && <p className="rounded-md border border-destructive/60 bg-destructive/5 px-2 py-1 text-xs">The last move failed and it stayed in {spaceName(cur)}: {failed[v]}</p>}
                 <div className="flex items-center gap-2">
                   <Select value={to || "stay"} onValueChange={(val) => setPicked((p) => ({ ...p, [v]: val === "stay" ? "" : val }))} disabled={service.nodeUnreachable || moving !== null}>
                     <SelectTrigger size="sm" className="flex-1">
@@ -346,6 +388,7 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
                   <Button size="sm" disabled={!to || !target || moving !== null} onClick={() => move(v)}>
                     {moving === v ? "Moving…" : "Move"}
                   </Button>
+                </div>
                 </div>
               );
             }}
