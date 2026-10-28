@@ -556,6 +556,13 @@ func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Ext
 	if !hasKey(container, "NoNewPrivileges") {
 		out.WriteString("NoNewPrivileges=true\n")
 	}
+	// The container's hostname is the Service's name, not Podman's random
+	// id, so apps that name themselves after it (Jellyfin's server name)
+	// keep one name across restarts. Not where the template names it or
+	// shares the host's or a pod's UTS namespace.
+	if !hasKey(container, "HostName") && !hasKey(container, "Pod") && !hasValue(container, "Network", "host") && !hasValue(container, "UTS", "host") {
+		fmt.Fprintf(&out, "HostName=%s\n", spec.GetName())
+	}
 	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
 		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
 	}
@@ -604,6 +611,16 @@ func splitContainer(body string) (container, rest string) {
 func hasKey(body, key string) bool {
 	for _, l := range strings.Split(body, "\n") {
 		if k, _, ok := strings.Cut(strings.TrimSpace(l), "="); ok && strings.TrimSpace(k) == key {
+			return true
+		}
+	}
+	return false
+}
+
+// hasValue reports whether a unit body sets key to value.
+func hasValue(body, key, value string) bool {
+	for _, l := range strings.Split(body, "\n") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(l), "="); ok && strings.TrimSpace(k) == key && strings.TrimSpace(v) == value {
 			return true
 		}
 	}

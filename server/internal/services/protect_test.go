@@ -178,6 +178,22 @@ func TestRenderKeepsSectionsApart(t *testing.T) {
 	}
 }
 
+func TestRenderNamesTheHost(t *testing.T) {
+	spec := &maitrev1.ServiceSpec{Name: "jellyfin", Image: "img", Quadlet: "[Container]\nImage={{ .Image }}\n"}
+	unit, _ := services.Render(spec, nil)
+	if !strings.Contains(string(unit), "\nHostName=jellyfin\n") {
+		t.Fatalf("no HostName:\n%s", unit)
+	}
+	// The template's own name, or the host's or a pod's namespace, wins.
+	for _, line := range []string{"HostName=media", "Network=host", "UTS=host", "Pod=media.pod"} {
+		spec.Quadlet = "[Container]\nImage={{ .Image }}\n" + line + "\n"
+		unit, _ = services.Render(spec, nil)
+		if strings.Contains(string(unit), "HostName=jellyfin") {
+			t.Errorf("%s: unit sets HostName=jellyfin:\n%s", line, unit)
+		}
+	}
+}
+
 func TestInstallRefusesLineBreaks(t *testing.T) {
 	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
 	defer st.Close()
