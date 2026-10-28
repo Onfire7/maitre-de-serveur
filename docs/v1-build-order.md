@@ -446,3 +446,8 @@ Made while building 170-181 (2026-10-27)
 
 - 198 (user, 2026-10-28): on the Files tab the Fleet and each Node open too, from their headings in the side list or from the path above the files. The Fleet shows its spanning Spaces and its Nodes; a Node shows the spanning Spaces it holds a Drive of, its own Spaces and its Drives. Each row says what it is and what it holds (Drives and their size; for a Drive, its size and model; for a Node, its Spaces, Drives and size, and whether it is unreachable) and opens it. The path above a place now starts at the Fleet and its Node (Home › Alder › General), each step opening that view. Files opens on the whole Fleet unless asked for a place.
 - Built (2026-10-28): `Places` and the overview in `desktop/src/app/FilesTab.tsx`; `App.test.tsx` opens Media from the Fleet. Fixture: `?route=fleet:files&files-view=fleet|<node name>`.
+
+### Free space in Files (decision 199, 2026-10-28)
+
+- 199 (user, 2026-10-28): the Files tab's side list shows how much space is free at the right of the Fleet, each Node, each Space and each Drive, replacing the "Drive" label (the icon already says so); the Fleet and Node views get a Free column ("4.1 TB free of 8.8 TB"). It comes from the Drive usage each Node gossips with its metrics, so nothing new is asked of the Nodes: a Space's is that of its Drives (on that Node, or every Node for a spanning one), a Node's that of its Drives, the Fleet's that of all. It turns amber under 15% free and red under 5%; when some Drives have not reported yet it reads "≥".
+- Built (2026-10-28): `Free` and `freeOf` in `desktop/src/app/FilesTab.tsx`.

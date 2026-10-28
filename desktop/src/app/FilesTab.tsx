@@ -171,6 +171,16 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
   const entries = useMemo(() => [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data]);
   useEffect(() => setSelected(new Set(moveFixture && list.data ? [moveFixture] : [])), [scope && scopeKey(scope), path, !!list.data]);
   const fleetName = state.fleet?.name ?? "Fleet";
+  // Free space from the Drives' gossiped usage (decision 199): a place's
+  // Drives, a Node's, or the whole Fleet's. Unknown until a Node reports.
+  const usage = (d: { nodeId: string; driveId: string }) => snap?.status.get(d.nodeId)?.metrics?.drives.find((u) => u.driveId === d.driveId);
+  const freeOf = (ds: { nodeId: string; driveId: string }[]) => {
+    const us = ds.map(usage).filter((u) => !!u);
+    if (us.length === 0) return undefined;
+    return { free: us.reduce((a, u) => a + Number(u.totalBytes - u.usedBytes), 0), total: us.reduce((a, u) => a + Number(u.totalBytes), 0), partial: us.length < ds.length };
+  };
+  const placeDrives = (s: (typeof scopes)[number]) => (s.kind === "drive" ? drives.filter((d) => d.nodeId === s.nodeId && d.driveId === s.driveId) : drivesOf(s.spaceId!, s.group === "fleet" ? undefined : s.nodeId));
+  const groupDrives = (id: string) => (id === "fleet" ? drives : drives.filter((d) => d.nodeId === id));
   // The Fleet's and each Node's places, as rows that open them (198).
   const drivesOf = (spaceId: string, nodeId?: string) => drives.filter((d) => (!nodeId || d.nodeId === nodeId) && spacesOf(d, spaces).includes(spaceId));
   const bytes = (ds: { sizeBytes: bigint }[]) => formatBytes(ds.reduce((a, d) => a + Number(d.sizeBytes), 0));
@@ -186,12 +196,12 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
   const placeRow = (s: (typeof scopes)[number], nodeId?: string): PlaceRow => {
     if (s.kind === "drive") {
       const d = drives.find((x) => x.nodeId === s.nodeId && x.driveId === s.driveId);
-      return { key: scopeKey(s), icon: <HardDrive className="size-4 text-muted-foreground" />, label: s.label, kind: "Drive", detail: d ? `${bytes([d])}${d.model ? ` · ${d.model}` : ""}` : "", open: () => openPlace(s) };
+      return { key: scopeKey(s), free: d ? freeOf([d]) : undefined, icon: <HardDrive className="size-4 text-muted-foreground" />, label: s.label, kind: "Drive", detail: d ? `${bytes([d])}${d.model ? ` · ${d.model}` : ""}` : "", open: () => openPlace(s) };
     }
     // Inside a Node, a spanning Space counts that Node's Drives of it.
     const ds = drivesOf(s.spaceId!, nodeId ?? (s.group === "fleet" ? undefined : s.nodeId));
     const here = s.group === "fleet" && nodeId ? ` on ${nodeName(nodeId)}` : "";
-    return { key: scopeKey(s), icon: <Layers className="size-4" style={{ color: s.color }} />, label: s.label, kind: s.group === "fleet" ? "Space, spans Nodes" : "Space", detail: `${count(ds.length, "Drive")} · ${bytes(ds)}${here}`, open: () => openPlace(s) };
+    return { key: scopeKey(s), free: freeOf(ds), icon: <Layers className="size-4" style={{ color: s.color }} />, label: s.label, kind: s.group === "fleet" ? "Space, spans Nodes" : "Space", detail: `${count(ds.length, "Drive")} · ${bytes(ds)}${here}`, open: () => openPlace(s) };
   };
   const fleetRows = (): PlaceRow[] => [
     ...scopes.filter((s) => s.group === "fleet").map((s) => placeRow(s)),
@@ -199,7 +209,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
       const own = scopes.filter((s) => s.group === n.nodeId);
       const mine = drives.filter((d) => d.nodeId === n.nodeId);
       const down = nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()));
-      return { key: `node:${n.nodeId}`, icon: <Server className="size-4 text-muted-foreground" />, label: n.name, kind: "Node", detail: `${count(own.filter((s) => s.kind === "space").length, "Space")} · ${count(mine.length, "Drive")} · ${bytes(mine)}${down ? " · unreachable" : ""}`, open: () => showOverview({ nodeId: n.nodeId }) };
+      return { key: `node:${n.nodeId}`, free: freeOf(mine), icon: <Server className="size-4 text-muted-foreground" />, label: n.name, kind: "Node", detail: `${count(own.filter((s) => s.kind === "space").length, "Space")} · ${count(mine.length, "Drive")} · ${bytes(mine)}${down ? " · unreachable" : ""}`, open: () => showOverview({ nodeId: n.nodeId }) };
     }),
   ];
   // A Node's own Spaces, the spanning ones it holds a Drive of, its Drives.
@@ -300,6 +310,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
               className={cn("mb-1 flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground", overview && (overview.nodeId ?? "fleet") === n.id && "bg-accent text-foreground")}
             >
               {n.id === "fleet" ? <Boxes className="size-4" /> : <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{n.letter}</span>} {n.name}
+              <Free f={freeOf(groupDrives(n.id))} className="ml-auto font-normal" />
             </button>
             <ul className="space-y-0.5">
               {scopes
@@ -318,7 +329,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
                     >
                       {s.kind === "space" ? <Layers className="size-4 shrink-0" style={{ color: s.color }} /> : <HardDrive className="size-4 shrink-0 text-muted-foreground" />}
                       <span className="truncate">{s.label}</span>
-                      {s.kind === "drive" && <span className="ml-auto text-[10px] text-muted-foreground">Drive</span>}
+                      <Free f={freeOf(placeDrives(s))} className="ml-auto" />
                     </button>
                   </li>
                 ))}
@@ -590,12 +601,32 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
 }
 
 interface PlaceRow {
+  free?: FreeSpace;
   key: string;
   icon: React.ReactNode;
   label: string;
   kind: string;
   detail: string;
   open: () => void;
+}
+
+interface FreeSpace {
+  free: number;
+  total: number;
+  /** Some of the Drives have not reported yet. */
+  partial: boolean;
+}
+
+/** Free space, coloured as it runs out; `long` adds "of" the total (199). */
+function Free({ f, long, className }: { f?: FreeSpace; long?: boolean; className?: string }) {
+  if (!f || f.total === 0) return null;
+  const left = f.free / f.total;
+  return (
+    <span className={cn("shrink-0 whitespace-nowrap text-[10px] tabular-nums", long && "text-xs", left < 0.05 ? "text-destructive" : left < 0.15 ? "text-status-attention" : "text-muted-foreground", className)} title={`${formatBytes(f.free)} free of ${formatBytes(f.total)}${f.partial ? "; some Drives have not reported" : ""}`}>
+      {f.partial ? "≥ " : ""}
+      {formatBytes(f.free)} free{long ? ` of ${formatBytes(f.total)}` : ""}
+    </span>
+  );
 }
 
 /** The Fleet's or a Node's places as rows, each opening it (198). */
@@ -607,7 +638,8 @@ function Places({ rows, empty }: { rows: PlaceRow[]; empty: string }) {
         <tr className="border-b">
           <th className="px-3 py-2 text-left font-medium">Name</th>
           <th className="px-2 py-2 text-left font-medium">Kind</th>
-          <th className="px-3 py-2 text-left font-medium">Holds</th>
+          <th className="px-2 py-2 text-left font-medium">Holds</th>
+          <th className="px-3 py-2 text-right font-medium">Free</th>
         </tr>
       </thead>
       <tbody>
@@ -620,7 +652,10 @@ function Places({ rows, empty }: { rows: PlaceRow[]; empty: string }) {
               </button>
             </td>
             <td className="px-2 py-1.5 text-xs text-muted-foreground">{r.kind}</td>
-            <td className="px-3 py-1.5 text-xs text-muted-foreground">{r.detail}</td>
+            <td className="px-2 py-1.5 text-xs text-muted-foreground">{r.detail}</td>
+            <td className="px-3 py-1.5 text-right">
+              <Free f={r.free} long />
+            </td>
           </tr>
         ))}
       </tbody>
