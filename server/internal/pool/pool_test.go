@@ -5,20 +5,41 @@ import (
 	"testing"
 )
 
-// Decision 201: each placement maps to a mergerfs create policy, and
-// least_free_percent orders the branches fullest first.
-func TestPlacements(t *testing.T) {
-	for placement, want := range map[string]string{"local_first": "mfs", "most_free": "mfs", "most_free_percent": "pfrd", "least_free": "lfs", "least_free_percent": "ff", "": "mfs"} {
-		if got := CreatePolicy(placement, false); got != want {
-			t.Errorf("%q: %s, want %s", placement, got, want)
+// Decisions 201, 202: each fill maps to a mergerfs create policy; with
+// local Drives preferred and peers present, the local ones come first in
+// the fill's order and "ff" takes the first with room.
+func TestPlan(t *testing.T) {
+	stat := func(d string) (uint64, float64, bool) {
+		s, ok := map[string][2]float64{"/a": {500, 0.5}, "/b": {900, 0.1}, "/c": {100, 0.9}, "/peer": {5000, 0.8}}[d]
+		return uint64(s[0]), s[1], ok
+	}
+	all := []string{"/a", "/unknown", "/b", "/c", "/peer"}
+	for _, c := range []struct {
+		p      Placement
+		local  int
+		order  []string
+		create string
+	}{
+		{Placement{Fill: "most_free"}, 4, all, "mfs"},
+		{Placement{Fill: "most_free_percent"}, 4, all, "pfrd"},
+		{Placement{Fill: "least_free"}, 4, all, "lfs"},
+		{Placement{Fill: "least_free_percent"}, 4, []string{"/b", "/a", "/peer", "/c", "/unknown"}, "ff"},
+		{Placement{Fill: "most_free", PreferLocal: true}, 4, []string{"/b", "/a", "/c", "/unknown", "/peer"}, "ff"},
+		{Placement{Fill: "most_free_percent", PreferLocal: true}, 4, []string{"/c", "/a", "/b", "/unknown", "/peer"}, "ff"},
+		{Placement{Fill: "least_free", PreferLocal: true}, 4, []string{"/c", "/a", "/b", "/unknown", "/peer"}, "ff"},
+		{Placement{Fill: "least_free_percent", PreferLocal: true}, 4, []string{"/b", "/a", "/c", "/unknown", "/peer"}, "ff"},
+		// Without peers, preferring local Drives changes nothing.
+		{Placement{Fill: "most_free", PreferLocal: true}, 5, all, "mfs"},
+	} {
+		order, create := Plan(c.p, all, c.local, stat)
+		if create != c.create || !reflect.DeepEqual(order, c.order) {
+			t.Errorf("%+v: %v %s, want %v %s", c.p, order, create, c.order, c.create)
 		}
 	}
-	if got := CreatePolicy("local_first", true); got != "ff" {
-		t.Errorf("local_first with peers: %s", got)
+	if got := PlacementOf("local_first", false); got != (Placement{Fill: "most_free", PreferLocal: true}) {
+		t.Errorf("local_first: %+v", got)
 	}
-	share := map[string]float64{"/a": 0.5, "/b": 0.1, "/c": 0.9}
-	got := ByFreeShare([]string{"/a", "/unknown", "/b", "/c"}, func(d string) (float64, bool) { f, ok := share[d]; return f, ok })
-	if want := []string{"/b", "/a", "/c", "/unknown"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("%v, want %v", got, want)
+	if got := PlacementOf("least_free", true); got != (Placement{Fill: "least_free", PreferLocal: true}) {
+		t.Errorf("least_free: %+v", got)
 	}
 }

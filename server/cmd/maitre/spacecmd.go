@@ -31,7 +31,7 @@ func runSpace(args []string) error {
 	id := fs.String("id", "", "create: Space id (lower-case letters, digits, dashes)")
 	name := fs.String("name", "", "create: display name (default: the id)")
 	tags := fs.String("tags", "", "create: required Drive tags, comma-separated (empty: every Drive)")
-	placement := fs.String("placement", storage.PlacementLocalFirst, "create: local_first, most_free or most_free_percent")
+	placement := fs.String("placement", storage.PlacementLocalFirst, "create: local_first (most_free, local Drives first), most_free, most_free_percent, least_free or least_free_percent")
 	span := fs.Bool("span", false, "create: one Pool across Nodes")
 	exclusive := fs.Bool("exclusive", false, "create: member Drives serve this Space only")
 	def := fs.Bool("default", false, "create: new Service volumes land here")

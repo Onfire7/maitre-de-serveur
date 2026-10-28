@@ -50,22 +50,42 @@ func mounted(dir string) bool {
 // no branches on this Node gets no Pool here. local says how many leading
 // branches are this Node's own Drives: files are created on those first
 // (decision 106); the rest are peers' Pools over NFS.
+// Placement is how a Space fills its Drives (decisions 201, 202): Fill is
+// most_free, most_free_percent, least_free or least_free_percent; with
+// PreferLocal, this Node's own Drives fill first (in that order) and peers'
+// Pools only once they are full.
+type Placement struct {
+	Fill        string
+	PreferLocal bool
+}
+
+// PlacementOf reads a Space's placement. The old "local_first" is most
+// free space with local Drives preferred, which is what it did.
+func PlacementOf(placement string, preferLocal bool) Placement {
+	switch placement {
+	case "local_first":
+		return Placement{Fill: "most_free", PreferLocal: true}
+	case "most_free", "most_free_percent", "least_free", "least_free_percent":
+		return Placement{Fill: placement, PreferLocal: preferLocal}
+	default:
+		return Placement{Fill: "most_free", PreferLocal: preferLocal}
+	}
+}
+
 // Assemble mounts (or re-shapes in place) the Pool of one Space over its
-// branches: this Node's Space folders first, then peers' Pools. placement is
-// the Space's: local_first (first branch with room), most_free (most free
-// space), most_free_percent, least_free, least_free_percent (decision
-// 201). Idempotent; an empty branch list unmounts.
-func Assemble(ctx context.Context, space string, branches []string, local int, placement string) error {
-	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, placement)
+// branches: this Node's Space folders first (local of them), then peers'
+// Pools. Idempotent; an empty branch list unmounts.
+func Assemble(ctx context.Context, space string, branches []string, local int, p Placement) error {
+	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, p)
 }
 
 // AssembleShared mounts the local-only Pool of one Space at
 // SharedDir/<space>, over this Node's own branches.
-func AssembleShared(ctx context.Context, space string, branches []string, placement string) error {
-	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), placement)
+func AssembleShared(ctx context.Context, space string, branches []string, p Placement) error {
+	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), p)
 }
 
-func assemble(ctx context.Context, mount, fsname string, branches []string, local int, placement string) error {
+func assemble(ctx context.Context, mount, fsname string, branches []string, local int, p Placement) error {
 	space := filepath.Base(mount)
 	if len(branches) == 0 {
 		if mounted(mount) {
@@ -76,14 +96,7 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 	if err := os.MkdirAll(mount, 0o755); err != nil {
 		return err
 	}
-	create := CreatePolicy(placement, local < len(branches))
-	if placement == "least_free_percent" {
-		// mergerfs has no such policy: order the branches fullest first
-		// (by share free) and take the first with room. The order is
-		// refreshed whenever the Pool is assembled; the fullest Drive
-		// stays fullest as it fills, so it rarely needs to change.
-		branches = ByFreeShare(branches, freeShare)
-	}
+	branches, create := Plan(p, branches, local, statBranch)
 	if mounted(mount) {
 		ctl := filepath.Join(mount, ".mergerfs")
 		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), ctl).CombinedOutput(); err != nil {
@@ -99,51 +112,78 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 	return nil
 }
 
-// CreatePolicy maps a Space's placement to mergerfs's create policy. With
-// remote branches present, local_first is "ff" (first branch with room,
-// local branches come first); on local branches alone it is "mfs".
-func CreatePolicy(placement string, hasRemote bool) string {
-	switch placement {
+// Stat is a branch's free bytes and share of free space; ok is false when
+// it cannot be read.
+type Stat func(dir string) (free uint64, share float64, ok bool)
+
+// Plan returns the branch order and mergerfs create policy for a
+// placement. The first local branches are this Node's own Drives.
+//
+// Preferring local Drives with peers present: the local branches ordered
+// by the fill, then the peers', and "ff" (the first with room), so peers
+// get new files only once every local Drive is full. Otherwise mergerfs's
+// own policy for the fill over every branch: mfs, pfrd, lfs; it has none
+// for the least free share, which is the branches ordered fullest first
+// and "ff". An order is refreshed whenever the Pool is assembled (and
+// every ten minutes), so "most free" by order fills one Drive for a while
+// before moving on rather than balancing each file.
+func Plan(p Placement, branches []string, local int, stat Stat) ([]string, string) {
+	if local > len(branches) {
+		local = len(branches)
+	}
+	if p.PreferLocal && local < len(branches) {
+		return append(Order(p.Fill, branches[:local], stat), branches[local:]...), "ff"
+	}
+	switch p.Fill {
 	case "most_free_percent":
-		return "pfrd"
+		return branches, "pfrd"
 	case "least_free":
-		return "lfs"
+		return branches, "lfs"
 	case "least_free_percent":
-		return "ff"
-	case "local_first":
-		if hasRemote {
-			return "ff"
-		}
-		return "mfs"
+		return Order(p.Fill, branches, stat), "ff"
 	default:
-		return "mfs"
+		return branches, "mfs"
 	}
 }
 
-// ByFreeShare orders branches by their share of free space, least first;
-// a branch whose share cannot be read goes last. Stable for equal shares.
-func ByFreeShare(branches []string, share func(string) (float64, bool)) []string {
+// Order sorts branches for a fill, the one to take first first: most free
+// bytes or share, or least. A branch that cannot be read goes last; equal
+// ones keep their order.
+func Order(fill string, branches []string, stat Stat) []string {
 	out := append([]string(nil), branches...)
-	key := map[string]float64{}
-	for _, b := range out {
-		if f, ok := share(b); ok {
-			key[b] = f
-		} else {
-			key[b] = 2
-		}
+	type key struct {
+		ok    bool
+		value float64
 	}
-	sort.SliceStable(out, func(i, j int) bool { return key[out[i]] < key[out[j]] })
+	keys := map[string]key{}
+	for _, b := range out {
+		free, share, ok := stat(b)
+		v := float64(free)
+		if fill == "most_free_percent" || fill == "least_free_percent" {
+			v = share
+		}
+		if fill == "most_free" || fill == "most_free_percent" {
+			v = -v
+		}
+		keys[b] = key{ok, v}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := keys[out[i]], keys[out[j]]
+		if a.ok != b.ok {
+			return a.ok
+		}
+		return a.value < b.value
+	})
 	return out
 }
 
-// freeShare is the share of a branch's filesystem free to unprivileged
-// writers, 0 to 1.
-func freeShare(dir string) (float64, bool) {
+// statBranch reads a branch's free space for unprivileged writers.
+func statBranch(dir string) (uint64, float64, bool) {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(dir, &st); err != nil || st.Blocks == 0 {
-		return 0, false
+		return 0, 0, false
 	}
-	return float64(st.Bavail) / float64(st.Blocks), true
+	return st.Bavail * uint64(st.Bsize), float64(st.Bavail) / float64(st.Blocks), true
 }
 
 // Mounted reports whether dir is a mount point.

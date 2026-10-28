@@ -150,7 +150,7 @@ message Space {
   string space_id = 1;
   string name = 2;
   // Where new files go among the Pool's branches:
-  //   "local_first"       this Node's Drives while any has room, then peers'
+  //   "local_first"       older: most_free with prefer_local (decision 202)
   //   "most_free"         the Drive with the most free space, wherever it is
   //   "most_free_percent" the Drive with the highest share of free space
   //   "least_free"         the Drive with the least free space (decision 201)
@@ -176,4 +176,9 @@ message Space {
   // one. Folders are setgid 2775 with a default ACL giving the group rwx;
   // a container gets this group for every Space it has a picked folder in.
   uint32 owner_id = 11;
+  // Fill this Node's own Drives first and peers' Pools only once they are
+  // full, in placement's order (decision 202). Only matters for a Space
+  // that spans Nodes. placement "local_first" (from before) is most_free
+  // with this set.
+  bool prefer_local = 12;
 }

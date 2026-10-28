@@ -446,9 +446,9 @@ func runAgent(args []string) error {
 			return
 		}
 		spaces, _ := storage.Spaces(ctx, st)
-		placement := map[string]string{}
+		placement := map[string]pool.Placement{}
 		for _, b := range spaces {
-			placement[b.GetSpaceId()] = b.GetPlacement()
+			placement[b.GetSpaceId()] = pool.PlacementOf(b.GetPlacement(), b.GetPreferLocal())
 		}
 		// Spanning Tiers (105, 106): peers' Pools after our own Drives. The
 		// default Tier can span too (user, 2026-10-26: "every Drive, across
@@ -528,6 +528,20 @@ func runAgent(args []string) error {
 			}
 			time.Sleep(time.Second)
 			assemblePools()
+		}
+	}()
+	// Placements that order the Drives by free space (decisions 201, 202)
+	// re-sort as they fill.
+	go func() {
+		t := time.NewTicker(10 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				requestAssemble()
+			}
 		}
 	}()
 	stor.OnChange = func() {

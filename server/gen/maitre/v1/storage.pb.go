@@ -1021,7 +1021,7 @@ type Space struct {
 	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Where new files go among the Pool's branches:
 	//
-	//	"local_first"       this Node's Drives while any has room, then peers'
+	//	"local_first"       older: most_free with prefer_local (decision 202)
 	//	"most_free"         the Drive with the most free space, wherever it is
 	//	"most_free_percent" the Drive with the highest share of free space
 	//	"least_free"         the Drive with the least free space (decision 201)
@@ -1046,7 +1046,12 @@ type Space struct {
 	// shared folders, Fleet-wide, from 61000 up; 0 until a Console assigns
 	// one. Folders are setgid 2775 with a default ACL giving the group rwx;
 	// a container gets this group for every Space it has a picked folder in.
-	OwnerId       uint32 `protobuf:"varint,11,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId uint32 `protobuf:"varint,11,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	// Fill this Node's own Drives first and peers' Pools only once they are
+	// full, in placement's order (decision 202). Only matters for a Space
+	// that spans Nodes. placement "local_first" (from before) is most_free
+	// with this set.
+	PreferLocal   bool `protobuf:"varint,12,opt,name=prefer_local,json=preferLocal,proto3" json:"prefer_local,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1158,6 +1163,13 @@ func (x *Space) GetOwnerId() uint32 {
 	return 0
 }
 
+func (x *Space) GetPreferLocal() bool {
+	if x != nil {
+		return x.PreferLocal
+	}
+	return false
+}
+
 var File_maitre_v1_storage_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_storage_proto_rawDesc = "" +
@@ -1239,7 +1251,7 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\x12ForgetDriveRequest\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x18\n" +
 	"\aconfirm\x18\x02 \x01(\tR\aconfirm\"\x15\n" +
-	"\x13ForgetDriveResponse\"\xd6\x02\n" +
+	"\x13ForgetDriveResponse\"\xf9\x02\n" +
 	"\x05Space\x12\x19\n" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -1253,7 +1265,8 @@ const file_maitre_v1_storage_proto_rawDesc = "" +
 	"\texclusive\x18\t \x01(\bR\texclusive\x12&\n" +
 	"\x0fdefault_for_new\x18\n" +
 	" \x01(\bR\rdefaultForNew\x12\x19\n" +
-	"\bowner_id\x18\v \x01(\rR\aownerId2\xf3\x03\n" +
+	"\bowner_id\x18\v \x01(\rR\aownerId\x12!\n" +
+	"\fprefer_local\x18\f \x01(\bR\vpreferLocal2\xf3\x03\n" +
 	"\x0eStorageService\x12K\n" +
 	"\n" +
 	"ListDrives\x12\x1c.maitre.v1.ListDrivesRequest\x1a\x1d.maitre.v1.ListDrivesResponse\"\x00\x12T\n" +

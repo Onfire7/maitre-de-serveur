@@ -56,9 +56,9 @@ func runPoolUp(args []string) error {
 		return err
 	}
 	spaces, _ := storage.Spaces(ctx, db)
-	placement := map[string]string{}
+	placement := map[string]pool.Placement{}
 	for _, b := range spaces {
-		placement[b.GetSpaceId()] = b.GetPlacement()
+		placement[b.GetSpaceId()] = pool.PlacementOf(b.GetPlacement(), b.GetPreferLocal())
 	}
 	if len(bySpace) == 0 {
 		fmt.Println("pool-up: the Fleet has no Storage Spaces yet")

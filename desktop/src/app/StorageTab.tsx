@@ -33,8 +33,19 @@ import { nextOwnerId } from "@/fleet/owners";
 import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 
-// Decision 201 adds the least free ones: fill the fullest Drive first.
-const PLACEMENTS: Record<string, string> = { local_first: "local Drives first", most_free: "most free space", most_free_percent: "most free share", least_free: "least free space", least_free_percent: "least free share" };
+// How a Space fills its Drives: decision 201 adds the least free ones (the
+// fullest Drive first); 202 makes local Drives first a switch of its own.
+const PLACEMENTS: Record<string, string> = { most_free: "most free space", most_free_percent: "most free share", least_free: "least free space", least_free_percent: "least free share" };
+
+/** A Space's fill and whether it prefers local Drives; "local_first" from before is most free with local preferred. */
+export function fillOf(s: Space): { fill: string; preferLocal: boolean } {
+  return s.placement === "local_first" ? { fill: "most_free", preferLocal: true } : { fill: s.placement in PLACEMENTS ? s.placement : "most_free", preferLocal: s.preferLocal };
+}
+
+/** Writes them back. Most free with local preferred stays "local_first", which older Nodes know. */
+export function withFill(s: Space, fill: string, preferLocal: boolean): Space {
+  return create(SpaceSchema, { ...s, placement: fill === "most_free" && preferLocal ? "local_first" : fill, preferLocal });
+}
 
 /** One colour per Space, by position (highest priority first). */
 export function spaceColor(i: number): string {
@@ -197,9 +208,19 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">On: one Pool across every Node with a Drive of this Space, shared over the network, so every Node sees the same files. Off: each Node has its own Pool of its own Drives.</TooltipContent>
                     </Tooltip>
+                    {s.spanNodes && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-1.5">
+                            <Switch checked={fillOf(s).preferLocal} onCheckedChange={(v) => tryPut(withFill(s, fillOf(s).fill, v))} aria-label={`${s.name} prefers local Drives`} /> Prefer local Drives
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">On: a Node puts new files on its own Drives of this Space, in the order below, and on other Nodes' only once its own are full. Faster, and no network needed. Off: every Node's Drives are filled in the order below, wherever they are.</TooltipContent>
+                      </Tooltip>
+                    )}
                     <label className="flex items-center gap-1.5">
                       New files go to
-                      <Select value={s.placement} onValueChange={(v) => tryPut(create(SpaceSchema, { ...s, placement: v }))}>
+                      <Select value={fillOf(s).fill} onValueChange={(v) => tryPut(withFill(s, v, fillOf(s).preferLocal))}>
                         <SelectTrigger size="sm" className="h-7 text-xs" aria-label={`Where new files in ${s.name} go`}>
                           <SelectValue />
                         </SelectTrigger>
@@ -342,14 +363,15 @@ function useLiveFree(snap: FleetSnapshot | undefined, state: ConsoleState) {
 function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { open: boolean; onClose: () => void; spaces: Space[]; drives: DriveRecord[]; nodeName: (id: string) => string; onAdd: (s: Space) => Promise<void> }) {
   const [name, setName] = useState("");
   const [tags, setTags] = useState("");
-  const [placement, setPlacement] = useState("local_first");
+  const [placement, setPlacement] = useState("most_free");
+  const [preferLocal, setPreferLocal] = useState(true);
   const [spanning, setSpanning] = useState(false);
   const [exclusive, setExclusive] = useState(false);
   const [busy, setBusy] = useState(false);
   const tagList = tags.split(/[,\s]+/).filter(Boolean);
   const preview = drives.filter((d) => tagList.every((x) => [...d.autoTags, ...d.tags].includes(x)));
   const allTags = Array.from(new Set(drives.flatMap((d) => [...d.autoTags, ...d.tags]))).sort();
-  const reset = () => (setName(""), setTags(""), setPlacement("local_first"), setSpanning(false), setExclusive(false));
+  const reset = () => (setName(""), setTags(""), setPlacement("most_free"), setPreferLocal(true), setSpanning(false), setExclusive(false));
   return (
     <Dialog
       open={open}
@@ -421,6 +443,15 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
             </span>
             <Switch checked={spanning} onCheckedChange={setSpanning} />
           </label>
+          {spanning && (
+            <label className="flex items-center justify-between text-sm">
+              <span>
+                Prefer local Drives
+                <span className="block text-xs text-muted-foreground">Each Node fills its own Drives first and other Nodes' only once its own are full.</span>
+              </span>
+              <Switch checked={preferLocal} onCheckedChange={setPreferLocal} />
+            </label>
+          )}
           <label className="flex items-center justify-between text-sm">
             <span>
               Exclusive
@@ -439,7 +470,7 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
               setBusy(true);
               const id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
               try {
-                await onAdd(create(SpaceSchema, { spaceId: id, name: name.trim(), placement, requireTags: tagList, spanNodes: spanning, exclusive, defaultForNew: spaces.length === 0, priority: spaces.length, createdUnixMs: BigInt(Date.now()) }));
+                await onAdd(withFill(create(SpaceSchema, { spaceId: id, name: name.trim(), placement, requireTags: tagList, spanNodes: spanning, exclusive, defaultForNew: spaces.length === 0, priority: spaces.length, createdUnixMs: BigInt(Date.now()) }), placement, spanning && preferLocal));
                 toast.success(`${name.trim()} added${spaces.length === 0 ? " and marked as the default" : ""}`);
                 onClose();
                 reset();
