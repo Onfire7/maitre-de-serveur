@@ -1,15 +1,19 @@
-// The Fleet's Overview (decisions 148, 209): a dashboard. How the Fleet is
-// doing in a line, a row of headline numbers (Nodes, Services, storage,
-// updates, reach from away), each Node's load over the last minutes, every
+// The Fleet's Overview (decisions 148, 209, 210): a dashboard. How the Fleet
+// is doing in a line, a row of headline numbers (Nodes, Services, storage,
+// updates, reach from away), each Node's CPU over the picked range, every
 // Service at a glance, what needs attention and how full each Space is.
 // Everything opens the tab that manages it.
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { ArrowUpCircle, CheckCircle2, CircleAlert, Globe, HardDrive, Info, Server, Boxes } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { onSamples, samples, type Sample } from "@/fleet/history";
+import { pointsOf, rangeOf, useMetricsHistory, useRange } from "@/fleet/metrics";
+import { targetFor } from "@/fleet/actions";
+import { HistoryChart } from "./HistoryChart";
+import { fmtPercent } from "./Usage";
 import { spacesOf } from "@/spaces";
 import type { ConsoleState } from "@/state";
 import type { DeviceInfo } from "@/state";
@@ -184,6 +188,12 @@ function NodeCard({ snap, nodeId, name, word, services, onOpen }: { snap: FleetS
   const st = snap.status.get(nodeId);
   const m = st?.metrics;
   const history = useSyncExternalStore(onSamples, () => samples(nodeId));
+  // CPU over the picked range from the Node itself (210); a Node from
+  // before, or one not answered yet, shows what this Console has seen (209).
+  const range = useRange();
+  const q = useMetricsHistory(nodeId, nodeDown(word) ? undefined : targetFor(snap, [], nodeId), ["node/cpu"], range);
+  const h = q.data?.supported ? q.data : undefined;
+  const seen = useMemo(() => history.map((p) => ({ t: p.t, v: p.cpu, max: p.cpu })), [history]);
   const memory = m && m.memoryTotalBytes > 0n ? Number((m.memoryUsedBytes * 1000n) / m.memoryTotalBytes) / 1000 : undefined;
   const up = services.filter((s) => s.word === "Online" || s.word === "Starting").length;
   return (
@@ -199,10 +209,14 @@ function NodeCard({ snap, nodeId, name, word, services, onOpen }: { snap: FleetS
       ) : (
         <>
           <div className="mt-3 flex items-end justify-between text-xs text-muted-foreground">
-            <span>CPU, last {spanOf(history)}</span>
+            <span>CPU, last {h ? rangeOf(h.range).span : spanOf(history)}</span>
             <span className="text-sm font-semibold text-foreground">{m.cpuPercent.toFixed(0)}%</span>
           </div>
-          <Sparkline points={history} label={`${name} CPU`} />
+          {h ? (
+            <HistoryChart compact title={`${name} CPU`} percent series={[{ label: "CPU", points: pointsOf(h.series.get("node/cpu")), color: "chart-1" }]} format={fmtPercent} from={h.from} to={h.to} range={h.range} dim={q.isPlaceholderData} empty="No readings in this range" />
+          ) : (
+            <HistoryChart compact title={`${name} CPU`} percent series={[{ label: "CPU", points: seen, color: "chart-1" }]} format={fmtPercent} from={seen[0]?.t ?? 0} to={seen[seen.length - 1]?.t ?? 1} range="1h" empty="Gathering samples…" />
+          )}
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
             <div>
               <div className="flex justify-between text-muted-foreground">
@@ -237,66 +251,6 @@ function spanOf(points: Sample[]) {
   if (points.length < 2) return "moments";
   const min = Math.round((points[points.length - 1].t - points[0].t) / 60000);
   return min < 1 ? "minute" : `${min} min`;
-}
-
-/**
- * CPU over the samples this Console has seen, 0-100%. A 2px line in the
- * chart blue, its last point marked; a hairline and readout follow the
- * pointer (dataviz: hover layer on line charts).
- */
-function Sparkline({ points, label }: { points: Sample[]; label: string }) {
-  const ref = useRef<SVGSVGElement>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  useEffect(() => setHover(null), [points.length === 0]);
-  const W = 300;
-  const H = 44;
-  const xs = useMemo(() => {
-    if (points.length < 2) return points.map(() => W);
-    const t0 = points[0].t;
-    const span = points[points.length - 1].t - t0 || 1;
-    return points.map((p) => ((p.t - t0) / span) * W);
-  }, [points]);
-  const y = (v: number) => H - 2 - (Math.min(100, Math.max(0, v)) / 100) * (H - 4);
-  const d = points.map((p, i) => `${i ? "L" : "M"}${xs[i].toFixed(1)},${y(p.cpu).toFixed(1)}`).join("");
-  const last = points.length - 1;
-  const at = hover ?? last;
-  return (
-    <div className="relative mt-1">
-      <svg
-        ref={ref}
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="h-11 w-full overflow-visible"
-        role="img"
-        aria-label={points.length ? `${label}: ${points[last].cpu.toFixed(0)}% now` : `${label}: no samples yet`}
-        onPointerMove={(e) => {
-          if (points.length < 2 || !ref.current) return;
-          const r = ref.current.getBoundingClientRect();
-          const x = ((e.clientX - r.left) / r.width) * W;
-          let best = 0;
-          xs.forEach((v, i) => Math.abs(v - x) < Math.abs(xs[best] - x) && (best = i));
-          setHover(best);
-        }}
-        onPointerLeave={() => setHover(null)}
-      >
-        {[25, 50, 75].map((g) => (
-          <line key={g} x1={0} x2={W} y1={y(g)} y2={y(g)} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" strokeDasharray="2 3" />
-        ))}
-        {points.length > 1 && <path d={d} fill="none" className="stroke-chart-1" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
-        {hover !== null && <line x1={xs[hover]} x2={xs[hover]} y1={0} y2={H} className="stroke-muted-foreground" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
-      </svg>
-      {points.length > 0 && (
-        // The marked point as HTML, so it stays round in the stretched SVG.
-        <span className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-chart-1" style={{ left: `${(xs[at] / W) * 100}%`, top: `${(y(points[at].cpu) / H) * 100}%` }} />
-      )}
-      {hover !== null && (
-        <div className="pointer-events-none absolute -top-7 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-0.5 text-xs shadow-sm" style={{ left: `${Math.min(85, Math.max(15, (xs[hover] / W) * 100))}%` }}>
-          <span className="font-semibold">{points[hover].cpu.toFixed(0)}%</span> <span className="text-muted-foreground">at {new Date(points[hover].t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-        </div>
-      )}
-      {points.length < 2 && <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">Gathering samples…</div>}
-    </div>
-  );
 }
 
 /** Each Space: how full its Drives are, from their gossiped usage. */

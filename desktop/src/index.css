@@ -41,6 +41,9 @@
      dataviz checks against this surface; its track a light step of it. */
   --chart-1: #2a78d6;
   --chart-track: #cde2fb;
+  /* A second series, as in network in and out (decision 210): the dataviz
+     slot 2 orange, validated beside the blue on this surface and the dark. */
+  --chart-2: #eb6834;
 }
 
 .dark {
@@ -72,6 +75,7 @@
   --sidebar-ring: oklch(0.556 0 0);
   --chart-1: #3987e5;
   --chart-track: #184f95;
+  --chart-2: #d95926;
 }
 
 @theme inline {
@@ -111,6 +115,7 @@
   --color-status-stopped: var(--status-stopped);
   --color-chart-1: var(--chart-1);
   --color-chart-track: var(--chart-track);
+  --color-chart-2: var(--chart-2);
 }
 
 @layer base {

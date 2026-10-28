@@ -15,6 +15,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
@@ -42,6 +43,9 @@ type Service struct {
 	OnChange func(*maitrev1.Record)
 	// Metrics supplies GetNodeMetrics; nil means empty readings.
 	Metrics func() *maitrev1.NodeMetrics
+	// History holds the long-term metrics (decision 210); nil answers
+	// Unimplemented, as an older Node does.
+	History *history.Store
 	// Services lists this Node's Services with live status for
 	// GetFleetStatus; nil means none.
 	Services func(ctx context.Context) []*maitrev1.ServiceStatus
@@ -471,4 +475,45 @@ func (s *Service) Reboot(ctx context.Context, _ *maitrev1.RebootRequest) (*maitr
 		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
 	}
 	return &maitrev1.RebootResponse{}, nil
+}
+
+func errNoHistory() error {
+	return connect.NewError(connect.CodeUnimplemented, "this Node keeps no metrics history")
+}
+
+// GetMetricsHistory implements NodeService (decision 210).
+func (s *Service) GetMetricsHistory(_ context.Context, in *maitrev1.GetMetricsHistoryRequest) (*maitrev1.GetMetricsHistoryResponse, error) {
+	if s.History == nil {
+		return nil, errNoHistory()
+	}
+	series, err := s.History.Query(in.GetSeries(), in.GetFromUnixMs(), in.GetToUnixMs(), min(int(in.GetPoints()), 5000))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+	}
+	return &maitrev1.GetMetricsHistoryResponse{Series: series}, nil
+}
+
+// ExportMetrics implements NodeService: a Service's series, for the Node
+// it moves to.
+func (s *Service) ExportMetrics(_ context.Context, in *maitrev1.ExportMetricsRequest) (*maitrev1.ExportMetricsResponse, error) {
+	if s.History == nil {
+		return nil, errNoHistory()
+	}
+	files, err := s.History.Export(in.GetService())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+	}
+	return &maitrev1.ExportMetricsResponse{Files: files}, nil
+}
+
+// ImportMetrics implements NodeService: a Service that moved here keeps
+// its graphs.
+func (s *Service) ImportMetrics(_ context.Context, in *maitrev1.ImportMetricsRequest) (*maitrev1.ImportMetricsResponse, error) {
+	if s.History == nil {
+		return nil, errNoHistory()
+	}
+	if err := s.History.Import(in.GetService(), in.GetFiles()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+	}
+	return &maitrev1.ImportMetricsResponse{}, nil
 }

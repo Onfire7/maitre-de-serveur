@@ -2,7 +2,7 @@
 // (decision 192), with a contents list that stays in view beside it.
 // Settings and auto update (193), Access and Storage (194, shown as their
 // editors) and the image (195) change here, in place; ports and root
-// powers through the flyout's sheets.
+// powers through the flyout's sheets. Its usage over time shows too (210).
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { setImage, setSettings, targetFor } from "@/fleet/actions";
 import { catalogById } from "./status";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { AccessEditor, StorageEditor } from "./ServiceSheets";
+import { ServiceUsage } from "./Usage";
 import type { ServiceEdit } from "./routes";
 
 const STATE = ["Unknown", "Stopped", "Starting", "Running", "Failed", "Removing"];
@@ -99,6 +100,11 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
           ]}
         />
       ),
+    },
+    {
+      id: "usage",
+      title: "Usage",
+      body: <ServiceUsage service={s} snap={snap} />,
     },
     {
       id: "web",

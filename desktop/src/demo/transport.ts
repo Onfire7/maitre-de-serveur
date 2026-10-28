@@ -12,6 +12,7 @@ import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
 import { type DemoFleet, type DemoNode, demoFleet } from "./fleet";
+import { demoHistory } from "./metrics";
 
 type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
 
@@ -102,6 +103,17 @@ const handlers: Record<string, Handler> = {
     return { lines, sources };
   },
   "NodeService/GetNodeMetrics": (f, n, _i, addr) => ({ metrics: f.metricsOf(needNode(n, addr)) }),
+  "NodeService/GetMetricsHistory": (f, n, i, addr) => demoHistory(f, needNode(n, addr), i),
+  // A Service's history moves with it (decision 210): handed over as made-up files.
+  "NodeService/ExportMetrics": (f, n, i, addr) => {
+    const me = needNode(n, addr);
+    if (!f.services.some((s) => s.spec.name === i.service)) return { files: {} };
+    return { files: Object.fromEntries(["cpu", "memory", "disk_read", "disk_write"].map((k) => [k, new TextEncoder().encode(`${i.service}/${k} from ${me.name}`)])) };
+  },
+  "NodeService/ImportMetrics": (_f, n, _i, addr) => {
+    needNode(n, addr);
+    return {};
+  },
   "NodeService/GetFleetStatus": (f, n, _i, addr) => {
     const me = needNode(n, addr);
     const entry = (p: DemoNode) => ({

@@ -51,6 +51,13 @@ const (
 	NodeServiceGetNodeLogsProcedure = "/maitre.v1.NodeService/GetNodeLogs"
 	// NodeServicePushStatusProcedure is the procedure name of the NodeService's PushStatus RPC.
 	NodeServicePushStatusProcedure = "/maitre.v1.NodeService/PushStatus"
+	// NodeServiceGetMetricsHistoryProcedure is the procedure name of the NodeService's
+	// GetMetricsHistory RPC.
+	NodeServiceGetMetricsHistoryProcedure = "/maitre.v1.NodeService/GetMetricsHistory"
+	// NodeServiceExportMetricsProcedure is the procedure name of the NodeService's ExportMetrics RPC.
+	NodeServiceExportMetricsProcedure = "/maitre.v1.NodeService/ExportMetrics"
+	// NodeServiceImportMetricsProcedure is the procedure name of the NodeService's ImportMetrics RPC.
+	NodeServiceImportMetricsProcedure = "/maitre.v1.NodeService/ImportMetrics"
 )
 
 var (
@@ -145,6 +152,27 @@ var (
 			Procedure:  NodeServicePushStatusProcedure,
 		}
 	})
+	nodeServiceGetMetricsHistorySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("GetMetricsHistory"),
+			Procedure:  NodeServiceGetMetricsHistoryProcedure,
+		}
+	})
+	nodeServiceExportMetricsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("ExportMetrics"),
+			Procedure:  NodeServiceExportMetricsProcedure,
+		}
+	})
+	nodeServiceImportMetricsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("ImportMetrics"),
+			Procedure:  NodeServiceImportMetricsProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -195,6 +223,16 @@ type NodeServiceClient interface {
 	// statuses (a message without them keeps the ones heard before). Kept in
 	// memory only, never stored; every Node sends it to every peer every 5 s.
 	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
+	// GetMetricsHistory returns this Node's stored metrics (decision 210):
+	// each series asked for over a time range, from the finest level of
+	// detail that covers it. Optional: older Nodes answer Unimplemented and
+	// the Console keeps its own recent history instead.
+	GetMetricsHistory(context.Context, *v1.GetMetricsHistoryRequest) (*v1.GetMetricsHistoryResponse, error)
+	// ExportMetrics hands over a Service's stored metrics, and ImportMetrics
+	// takes them on the Node it moved to (decision 191), so its graphs keep
+	// their history. Both optional.
+	ExportMetrics(context.Context, *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error)
+	ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -251,6 +289,16 @@ type NodeServiceHandler interface {
 	// statuses (a message without them keeps the ones heard before). Kept in
 	// memory only, never stored; every Node sends it to every peer every 5 s.
 	PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error)
+	// GetMetricsHistory returns this Node's stored metrics (decision 210):
+	// each series asked for over a time range, from the finest level of
+	// detail that covers it. Optional: older Nodes answer Unimplemented and
+	// the Console keeps its own recent history instead.
+	GetMetricsHistory(context.Context, *v1.GetMetricsHistoryRequest) (*v1.GetMetricsHistoryResponse, error)
+	// ExportMetrics hands over a Service's stored metrics, and ImportMetrics
+	// takes them on the Node it moved to (decision 191), so its graphs keep
+	// their history. Both optional.
+	ExportMetrics(context.Context, *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error)
+	ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -270,6 +318,9 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceGetFleetStatusSpec(), Handler: adapter.getFleetStatus},
 		connect.Method{Spec: nodeServiceGetNodeLogsSpec(), Handler: adapter.getNodeLogs},
 		connect.Method{Spec: nodeServicePushStatusSpec(), Handler: adapter.pushStatus},
+		connect.Method{Spec: nodeServiceGetMetricsHistorySpec(), Handler: adapter.getMetricsHistory},
+		connect.Method{Spec: nodeServiceExportMetricsSpec(), Handler: adapter.exportMetrics},
+		connect.Method{Spec: nodeServiceImportMetricsSpec(), Handler: adapter.importMetrics},
 	)
 }
 
@@ -326,6 +377,18 @@ func (UnimplementedNodeServiceHandler) GetNodeLogs(context.Context, *v1.GetNodeL
 
 func (UnimplementedNodeServiceHandler) PushStatus(context.Context, *v1.PushStatusRequest) (*v1.PushStatusResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.PushStatus is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) GetMetricsHistory(context.Context, *v1.GetMetricsHistoryRequest) (*v1.GetMetricsHistoryResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.GetMetricsHistory is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) ExportMetrics(context.Context, *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.ExportMetrics is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.ImportMetrics is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -431,6 +494,30 @@ func (c *nodeServiceClient) GetNodeLogs(ctx context.Context, req *v1.GetNodeLogs
 func (c *nodeServiceClient) PushStatus(ctx context.Context, req *v1.PushStatusRequest) (*v1.PushStatusResponse, error) {
 	var res v1.PushStatusResponse
 	if err := c.client.CallUnary(ctx, nodeServicePushStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) GetMetricsHistory(ctx context.Context, req *v1.GetMetricsHistoryRequest) (*v1.GetMetricsHistoryResponse, error) {
+	var res v1.GetMetricsHistoryResponse
+	if err := c.client.CallUnary(ctx, nodeServiceGetMetricsHistorySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) ExportMetrics(ctx context.Context, req *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error) {
+	var res v1.ExportMetricsResponse
+	if err := c.client.CallUnary(ctx, nodeServiceExportMetricsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) ImportMetrics(ctx context.Context, req *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error) {
+	var res v1.ImportMetricsResponse
+	if err := c.client.CallUnary(ctx, nodeServiceImportMetricsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -588,6 +675,42 @@ func (h nodeServiceHandler) pushStatus(ctx context.Context, _ connect.Spec, stre
 		return err
 	}
 	res, err := h.svc.PushStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) getMetricsHistory(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetMetricsHistoryRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetMetricsHistory(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) exportMetrics(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ExportMetricsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ExportMetrics(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) importMetrics(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ImportMetricsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ImportMetrics(ctx, &req)
 	if err != nil {
 		return err
 	}

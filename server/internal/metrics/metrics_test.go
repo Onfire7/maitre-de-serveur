@@ -1,6 +1,8 @@
 package metrics_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,5 +32,23 @@ func TestReportsDrives(t *testing.T) {
 	}
 	if d := m.GetDrives()[0]; d.GetTotalBytes() == 0 || d.GetUsedBytes() > d.GetTotalBytes() {
 		t.Fatalf("drive %+v", d)
+	}
+}
+
+func TestReadsUnitCgroup(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "system.slice", "jellyfin.service")
+	_ = os.MkdirAll(dir, 0o755)
+	_ = os.WriteFile(filepath.Join(dir, "cpu.stat"), []byte("usage_usec 1500000\nuser_usec 1000000\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "memory.current"), []byte("1000\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "memory.stat"), []byte("anon 600\ninactive_file 300\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "io.stat"), []byte("8:0 rbytes=10 wbytes=20 rios=1\n8:16 rbytes=5 wbytes=0\n"), 0o644)
+	metrics.CgroupRoot = root
+	u, ok := metrics.Unit("jellyfin.service")
+	if !ok || u != (metrics.UnitUsage{CPUMicros: 1500000, Memory: 700, ReadBytes: 15, WriteBytes: 20}) {
+		t.Fatalf("%v %+v", ok, u)
+	}
+	if _, ok := metrics.Unit("gone.service"); ok {
+		t.Fatal("a missing unit read as running")
 	}
 }

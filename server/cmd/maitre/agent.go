@@ -36,6 +36,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
@@ -296,6 +297,29 @@ func runAgent(args []string) error {
 		return out
 	}
 	svc.Metrics = collector.Read
+	// Decision 210: the long-term metrics, a reading every 10 s.
+	if hist, err := history.Open(filepath.Join(*state, "metrics")); err != nil {
+		log.Warn("metrics history unavailable", "err", err)
+	} else {
+		defer hist.Close()
+		svc.History = hist
+		own := metrics.New(collector.PoolDir)
+		own.Drives = collector.Drives
+		sampler := &history.Sampler{Node: own.Read, Services: func() []string {
+			specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+			if err != nil {
+				return nil
+			}
+			var names []string
+			for _, sp := range specs {
+				if sp.GetNodeId() == id.Fingerprint() {
+					names = append(names, sp.GetName())
+				}
+			}
+			return names
+		}}
+		go recordHistory(ctx, log, hist, sampler)
+	}
 	svc.Updates = update.New(nil, log)
 	// Milestone 6: record what this Node runs, for the staged rollout, and
 	// let the rollout runner act on the Fleet's policy every hour.
@@ -1106,4 +1130,36 @@ func statusKey(list []*maitrev1.ServiceStatus) string {
 		fmt.Fprintf(&b, "%s:%d:%t:%d:%s:%s;", st.GetSpec().GetName(), st.GetState(), st.GetHealthy(), st.GetRestarts(), st.GetMessage(), st.GetForwardState())
 	}
 	return b.String()
+}
+
+// recordHistory takes the readings every history.Every, writes what is in
+// memory every minute, and drops series no longer recorded once a day.
+func recordHistory(ctx context.Context, log *slog.Logger, hist *history.Store, sampler *history.Sampler) {
+	hist.Sweep()
+	tick := time.NewTicker(history.Every)
+	defer tick.Stop()
+	var flushed, swept time.Time
+	sampler.Read(time.Now()) // prime the rates
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-tick.C:
+			if err := hist.Record(now, sampler.Read(now)); err != nil {
+				log.Warn("metrics history", "err", err)
+			}
+			if now.Sub(flushed) >= time.Minute {
+				if err := hist.Flush(); err != nil {
+					log.Warn("metrics history flush", "err", err)
+				}
+				flushed = now
+			}
+			if now.Sub(swept) >= 24*time.Hour {
+				if !swept.IsZero() {
+					hist.Sweep()
+				}
+				swept = now
+			}
+		}
+	}
 }

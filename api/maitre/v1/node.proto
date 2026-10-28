@@ -66,7 +66,73 @@ service NodeService {
   // statuses (a message without them keeps the ones heard before). Kept in
   // memory only, never stored; every Node sends it to every peer every 5 s.
   rpc PushStatus(PushStatusRequest) returns (PushStatusResponse) {}
+  // GetMetricsHistory returns this Node's stored metrics (decision 210):
+  // each series asked for over a time range, from the finest level of
+  // detail that covers it. Optional: older Nodes answer Unimplemented and
+  // the Console keeps its own recent history instead.
+  rpc GetMetricsHistory(GetMetricsHistoryRequest) returns (GetMetricsHistoryResponse) {}
+  // ExportMetrics hands over a Service's stored metrics, and ImportMetrics
+  // takes them on the Node it moved to (decision 191), so its graphs keep
+  // their history. Both optional.
+  rpc ExportMetrics(ExportMetricsRequest) returns (ExportMetricsResponse) {}
+  rpc ImportMetrics(ImportMetricsRequest) returns (ImportMetricsResponse) {}
 }
+
+message GetMetricsHistoryRequest {
+  // Series names, or prefixes ending in "/" for every series under one:
+  //   node/cpu          percent of all cores
+  //   node/memory       percent of memory in use
+  //   node/load         1-minute load average
+  //   node/temperature  degrees Celsius, highest thermal zone
+  //   node/net_rx, node/net_tx  bytes per second, all non-loopback links
+  //   node/pool         percent of the default Pool in use
+  //   drive/<drive_id>  percent of that Drive in use
+  //   service/<name>/cpu         percent of all the Node's cores
+  //   service/<name>/memory      bytes in use (without reclaimable cache)
+  //   service/<name>/disk_read, service/<name>/disk_write  bytes per second
+  // Empty means every node/ and drive/ series.
+  repeated string series = 1;
+  int64 from_unix_ms = 2;
+  // 0 means now.
+  int64 to_unix_ms = 3;
+  // About how many points the caller wants; the Node picks the finest level
+  // that covers the range and does not give many more than this. 0 means
+  // 300.
+  int32 points = 4;
+}
+
+message GetMetricsHistoryResponse {
+  repeated MetricSeries series = 1;
+}
+
+// MetricSeries is one series at one level of detail. Point i covers
+// [start_unix_ms + i*step_ms, + step_ms). A point with no readings (the
+// Node was off, or the series did not exist yet) is NaN in both lists.
+message MetricSeries {
+  string name = 1;
+  int64 start_unix_ms = 2;
+  int64 step_ms = 3;
+  // Average of the readings in each step.
+  repeated double avg = 4;
+  // Highest reading in each step.
+  repeated double max = 5;
+}
+
+message ExportMetricsRequest {
+  string service = 1;
+}
+
+message ExportMetricsResponse {
+  // The Service's series files, by name without the service/<name>/ prefix.
+  map<string, bytes> files = 1;
+}
+
+message ImportMetricsRequest {
+  string service = 1;
+  map<string, bytes> files = 2;
+}
+
+message ImportMetricsResponse {}
 
 message PushStatusRequest {
   // The sender's own status: node_id, metrics, services and their times.

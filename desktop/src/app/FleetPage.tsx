@@ -17,6 +17,10 @@ import { RemoteTab } from "./RemoteTab";
 import { FilesTab } from "./FilesTab";
 import type { Notice } from "./notices";
 import { OverviewTab } from "./OverviewTab";
+import { RangePicker } from "@/components/range-picker";
+
+/** The tabs with graphs, where the header offers their time range (decision 210). */
+const GRAPH_TABS = new Set<FleetTab>(["overview", "nodes", "services"]);
 
 export function FleetPage({
   tab,
@@ -59,6 +63,7 @@ export function FleetPage({
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-semibold">{state.fleet?.name ?? "Fleet"}</h1>
           {tab === "overview" && anchorName && <span className="text-xs text-muted-foreground">connected through {anchorName}</span>}
+          {GRAPH_TABS.has(tab) && <RangePicker className="ml-auto self-center" />}
         </div>
         <Tabs value={tab} onValueChange={(v) => go({ name: "fleet", tab: v as FleetTab })} className="mt-3">
           <TabsList className="h-9 bg-transparent p-0">

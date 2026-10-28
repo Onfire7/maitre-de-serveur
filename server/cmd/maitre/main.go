@@ -15,11 +15,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -210,6 +212,8 @@ func runInfo(args []string) error {
 	metrics := fs.Bool("metrics", false, "print the Node's gauges (CPU, memory, Pool, network, temperature, load) instead")
 	drives := fs.Bool("drives", false, "print the Node's Drives (ListDrives) instead")
 	rename := fs.String("rename", "", "give the Node this name instead")
+	hist := fs.Duration("history", 0, "print the Node's stored metrics over this long (e.g. 1h, 168h) instead: each series' step, latest average and peak")
+	series := fs.String("series", "", "with --history: comma-separated series or prefixes ending in / (default node/ and drive/)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -231,6 +235,31 @@ func runInfo(args []string) error {
 			return err
 		}
 		fmt.Printf("renamed to %s\n", res.GetNode().GetName())
+		return nil
+	}
+	if *hist > 0 {
+		var names []string
+		if *series != "" {
+			names = strings.Split(*series, ",")
+		}
+		res, err := client.GetMetricsHistory(ctx, &maitrev1.GetMetricsHistoryRequest{Series: names, FromUnixMs: time.Now().Add(-*hist).UnixMilli()})
+		if err != nil {
+			return err
+		}
+		for _, s := range res.GetSeries() {
+			last, peak, n := math.NaN(), math.NaN(), 0
+			for i, a := range s.GetAvg() {
+				if math.IsNaN(a) {
+					continue
+				}
+				n++
+				last = a
+				if m := s.GetMax()[i]; math.IsNaN(peak) || m > peak {
+					peak = m
+				}
+			}
+			fmt.Printf("%-34s step=%-6s points=%-4d with-data=%-4d last=%-12.2f peak=%.2f\n", s.GetName(), time.Duration(s.GetStepMs())*time.Millisecond, len(s.GetAvg()), n, last, peak)
+		}
 		return nil
 	}
 	if *drives {

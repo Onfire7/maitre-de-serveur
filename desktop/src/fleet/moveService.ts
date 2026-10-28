@@ -3,9 +3,11 @@
 // cannot reach, remove it from the old Node keeping its data, wait until
 // the new Node has heard, and install the same Service there. A Node may
 // not take over another Node's live Service of the same name (189), hence
-// the order. Anything that fails puts it back where it was.
+// the order. Anything that fails puts it back where it was. Its stored
+// metrics follow it afterwards, if both Nodes keep them (210).
 import { create } from "@bufbuild/protobuf";
-import { createClient } from "@connectrpc/connect";
+import { createClient, type Transport } from "@connectrpc/connect";
+import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { ServiceSpecSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { ownSpacesOn, spacesOn, volumeDir } from "@/files/sources";
@@ -215,5 +217,23 @@ export async function moveService(
     // Installing starts it; it was off, so it goes off again.
     await controlService(to, name, "stop").catch(() => {});
     set("start", { state: "done" });
+  }
+  await carryMetrics(from, to, name);
+}
+
+/**
+ * Hands a moved Service's stored metrics from its old Node to its new one
+ * (decision 210), so its graphs keep their history. Best effort: a Node
+ * from before (Unimplemented) or any failure just leaves it behind; the
+ * move has succeeded either way.
+ */
+export async function carryMetrics(from: Target, to: Target, service: string, tf: (t: Target) => Transport = transportFor): Promise<boolean> {
+  try {
+    const { files } = await createClient(NodeService, tf(from)).exportMetrics({ service }, { timeoutMs: 30_000 });
+    if (Object.keys(files).length === 0) return false;
+    await createClient(NodeService, tf(to)).importMetrics({ service, files }, { timeoutMs: 30_000 });
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 import { DemoFleet, NODE_A, NODE_B } from "@/demo/fleet";
 import { createDemoTransport } from "@/demo/transport";
-import { planMove, specFor } from "./moveService";
+import { carryMetrics, planMove, specFor } from "./moveService";
 import { readFleet, type FleetService, type FleetSnapshot } from "./useFleet";
 
 async function setup() {
@@ -46,5 +47,46 @@ describe("planMove (decision 191)", () => {
     const adguard = svc("adguard");
     const infra = { ...adguard, spec: { ...adguard.spec, infrastructure: true } } as FleetService;
     expect(planMove(snap, infra, NODE_B).warnings.join(" ")).toMatch(/network infrastructure/);
+  });
+});
+
+describe("carryMetrics (decision 210)", () => {
+  // The demo Nodes, recording what each is asked and refusing the history calls when `old`.
+  function nodes(old: Set<string>) {
+    const fleet = new DemoFleet();
+    const calls: { addr: string; method: string; files?: string[] }[] = [];
+    const tf = (t: { addr: string }): Transport => {
+      const tr = createDemoTransport(t.addr, fleet);
+      return {
+        ...tr,
+        unary: (method, signal, timeout, header, input, ...rest) => {
+          if (method.name === "ExportMetrics" || method.name === "ImportMetrics") {
+            calls.push({ addr: t.addr, method: method.name, files: method.name === "ImportMetrics" ? Object.keys((input as { files: Record<string, unknown> }).files).sort() : undefined });
+            if (old.has(t.addr)) return Promise.reject(new ConnectError(`procedure "/maitre.v1.NodeService/${method.name}" not registered`, Code.Unimplemented));
+          }
+          return tr.unary(method, signal, timeout, header, input, ...rest);
+        },
+      } as Transport;
+    };
+    return { calls, tf };
+  }
+  const A = { addr: "10.0.0.5:7443", fingerprint: NODE_A };
+  const B = { addr: "10.0.0.6:7443", fingerprint: NODE_B };
+
+  it("hands a moved Service's history from its old Node to its new one", async () => {
+    const { calls, tf } = nodes(new Set());
+    expect(await carryMetrics(A, B, "jellyfin", tf)).toBe(true);
+    expect(calls).toEqual([
+      { addr: A.addr, method: "ExportMetrics", files: undefined },
+      { addr: B.addr, method: "ImportMetrics", files: ["cpu", "disk_read", "disk_write", "memory"] },
+    ]);
+  });
+
+  it("leaves it behind without failing when either Node is from before", async () => {
+    const oldFrom = nodes(new Set([A.addr]));
+    expect(await carryMetrics(A, B, "jellyfin", oldFrom.tf)).toBe(false);
+    expect(oldFrom.calls.map((c) => c.method)).toEqual(["ExportMetrics"]);
+    const oldTo = nodes(new Set([B.addr]));
+    await expect(carryMetrics(A, B, "jellyfin", oldTo.tf)).resolves.toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 // A Node's details inside its card on the Nodes tab (decision 148): what it
 // is, what it runs, its Maître Server image with update, roll back and the
-// wait while it restarts. Every call here goes straight to the Node (160).
+// wait while it restarts, and its usage over time (210). Every call here
+// goes straight to the Node (160).
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
@@ -26,6 +27,7 @@ import type { Found } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
+import { NodeUsage } from "./Usage";
 
 export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
 
@@ -124,6 +126,11 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           </button>{" "}
           tab.
         </p>
+      </section>
+
+      <section className="space-y-3 md:col-span-2">
+        <h3 className="text-sm font-semibold">Usage</h3>
+        <NodeUsage node={node} target={unreachable ? undefined : target} snap={snap} />
       </section>
 
       <div className="md:col-span-2">
