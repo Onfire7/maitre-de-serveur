@@ -278,7 +278,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
+              className="dark:bg-destructive"
               disabled={deleteData && typed.trim() !== removing?.spec.name}
               onClick={async () => {
                 const s = removing!;

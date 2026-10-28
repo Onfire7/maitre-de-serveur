@@ -277,7 +277,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
                 Hold to restart
               </HoldButton>
             ) : (
-              <AlertDialogAction disabled={typed.trim() !== node.name} onClick={() => remove()} className="bg-destructive text-white hover:bg-destructive/90">
+              <AlertDialogAction disabled={typed.trim() !== node.name} onClick={() => remove()} variant="destructive" className="dark:bg-destructive">
                 Remove
               </AlertDialogAction>
             )}
