@@ -37,7 +37,7 @@ export function FleetPage({
 }: {
   tab: FleetTab;
   nodeId?: string;
-  files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string };
+  files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string; service?: string; folder?: string };
   logs?: { nodeId: string; source: string };
   snap: FleetSnapshot | undefined;
   state: ConsoleState;
@@ -79,7 +79,7 @@ export function FleetPage({
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
         {tab === "services" && <ServicesTab snap={snap} state={state} services={services} onAct={onAct} now={now} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}
-        {tab === "files" && <FilesTab snap={snap} state={state} initial={files} />}
+        {tab === "files" && <FilesTab snap={snap} state={state} initial={files} services={services} />}
         {tab === "logs" && <LogsTab snap={snap} state={state} initial={logs} />}
         {tab === "devices" && <DevicesTab snap={snap} device={device} found={found} onPromote={onPromote} scoped={scoped} />}
         {tab === "updates" && <UpdatesTab snap={snap} state={state} />}

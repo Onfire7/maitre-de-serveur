@@ -913,6 +913,61 @@ func (m *Manager) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 	return m.Status(ctx, &spec)
 }
 
+// SetImage runs a Service on another image (decision 195): the reference
+// is pulled and pinned to its digest (a digest given is kept as it is),
+// the old image kept for Rollback, and the Service restarted if it was
+// running. Another repository needs its own grants (189); the render
+// refuses until a Trusted Device allows them, and nothing changes.
+func (m *Manager) SetImage(ctx context.Context, name, image string) (*maitrev1.ServiceStatus, error) {
+	image = strings.TrimSpace(image)
+	if !imageRef.MatchString(image) {
+		return nil, fmt.Errorf("%q is not an image reference such as docker.io/library/nginx:1.27", image)
+	}
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
+		return nil, ErrNotFound
+	}
+	if spec.GetNodeId() != "" && spec.GetNodeId() != m.store.NodeID() {
+		return nil, fmt.Errorf("%s runs on another Node; ask that one", name)
+	}
+	pinned := image
+	if !strings.Contains(image, "@") {
+		if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
+			return nil, fmt.Errorf("pull %s: %w", image, err)
+		}
+		out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", image)
+		if err != nil {
+			return nil, err
+		}
+		digest := strings.TrimSpace(out)
+		if digest == "" {
+			return nil, fmt.Errorf("%s has no digest after pulling", image)
+		}
+		pinned = image + "@" + digest
+	} else if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
+		return nil, fmt.Errorf("pull %s: %w", image, err)
+	}
+	if pinned == spec.GetImage() {
+		return m.Status(ctx, &spec)
+	}
+	spec.PreviousImage = spec.GetImage()
+	spec.Image = pinned
+	if err := m.apply(ctx, &spec); err != nil {
+		return nil, err
+	}
+	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
+		return nil, err
+	}
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", name+".service"); err != nil {
+		return nil, err
+	}
+	return m.Status(ctx, &spec)
+}
+
+// imageRef is a registry/path[:tag][@sha256:digest] reference: lower case
+// path parts, nothing that could break a unit file line (189).
+var imageRef = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*(\.[a-z0-9-]+)*(:[0-9]{1,5})?(/[a-z0-9]+([._-]+[a-z0-9]+)*)+(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$`)
+
 var settingKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
 // SetExposure changes where a Service is reachable. Infrastructure

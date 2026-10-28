@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
+import { FolderSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,8 +51,8 @@ function useNodeInfo(target: Target | undefined, enabled: boolean) {
   return useQuery({ queryKey: ["node-info", target?.fingerprint, target?.addr], enabled: !!target && enabled, refetchInterval: 5000, retry: false, queryFn: async () => (await createClient(NodeService, transportFor(target!)).getNodeInfo({})).node });
 }
 
-/** Who can reach a Service, changed in place; onDone after Apply or Cancel. */
-export function AccessEditor({ service, target, snap, onDone }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined; onDone: () => void }) {
+/** Who can reach a Service: the choice as it is, changed in place (194, 195). */
+export function AccessEditor({ service, target, snap }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined }) {
   const qc = useQueryClient();
   const { go } = useRoute();
   const info = useNodeInfo(target, true);
@@ -59,6 +60,13 @@ export function AccessEditor({ service, target, snap, onDone }: { service: Fleet
   const [host, setHost] = useState(service.spec.publicHost || "");
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
+  const reset = () => {
+    setChoice(service.spec.exposure || "private");
+    setHost(service.spec.publicHost || "");
+    setAck(false);
+  };
+  // Changed elsewhere (or applied here): show what it is now.
+  useEffect(reset, [service.spec.name, service.spec.exposure, service.spec.publicHost]);
   // Decision 114: one optional email for the whole Fleet, given to Let's Encrypt.
   const savedEmail = (() => {
     const r = snap?.records.find((r) => r.kind === "public_settings" && !r.deleted);
@@ -110,7 +118,7 @@ export function AccessEditor({ service, target, snap, onDone }: { service: Fleet
           {!remoteReady && (
             <p className="text-xs text-muted-foreground">
               Tailscale is set up on the{" "}
-              <button className="underline" onClick={() => (onDone(), go({ name: "fleet", tab: "remote" }))}>
+              <button className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
                 Remote
               </button>{" "}
               tab.
@@ -157,6 +165,7 @@ export function AccessEditor({ service, target, snap, onDone }: { service: Fleet
               </label>
             </div>
           )}
+          {changed && (
           <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -167,7 +176,6 @@ export function AccessEditor({ service, target, snap, onDone }: { service: Fleet
                 await serviceClient(target!).setExposure({ name, exposure: choice, publicHost: choice === "direct" ? h : "" });
                 toast.success(`${name}: ${options.find((o) => o.id === choice)?.title.toLowerCase()}`);
                 qc.invalidateQueries({ queryKey: ["fleet"] });
-                onDone();
               } catch (e) {
                 if (!declined(e)) toast.error(String((e as Error).message ?? e));
               } finally {
@@ -177,10 +185,11 @@ export function AccessEditor({ service, target, snap, onDone }: { service: Fleet
           >
             Apply
           </Button>
-          <Button size="sm" variant="ghost" onClick={onDone}>
+          <Button size="sm" variant="ghost" onClick={reset}>
             Cancel
           </Button>
           </div>
+          )}
         </div>
   );
 }
@@ -256,8 +265,8 @@ export function PortForwardSheet({ service, target, open, onClose }: { service: 
   );
 }
 
-/** Where a Service's data lives, changed in place; onDone after Save or Cancel. */
-export function StorageEditor({ service, target, snap, onDone }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined; onDone: () => void }) {
+/** Where a Service's data lives: the folders as they are, changed in place (194, 195). */
+export function StorageEditor({ service, target, snap }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined }) {
   const { go } = useRoute();
   const qc = useQueryClient();
   const spaces = snap?.spaces ?? [];
@@ -270,7 +279,11 @@ export function StorageEditor({ service, target, snap, onDone }: { service: Flee
   const saved: Folders = useMemo(() => ({ volumeSpaces: { ...service.spec.volumeSpaces }, volumeFolders: { ...service.spec.volumeFolders }, mounts: service.spec.mounts.map((m) => ({ spaceId: m.spaceId, folder: m.folder, path: m.path, readOnly: m.readOnly })) }), [service.spec]);
   const [folders, setFolders] = useState<Folders>(saved);
   const [saving, setSaving] = useState(false);
-  const dirty = JSON.stringify(folders) !== JSON.stringify(saved);
+  const savedKey = JSON.stringify(saved);
+  const dirty = JSON.stringify(folders) !== savedKey;
+  // Changed elsewhere (or saved here): show what it is now.
+  useEffect(() => setFolders(saved), [service.spec.name, savedKey]);
+  const files = (at?: { service: string; folder?: string }) => go({ name: "fleet", tab: "files", files: { nodeId: service.spec.nodeId, service: service.spec.name, ...at } });
   const running = service.status?.state === 2 || service.status?.state === 3;
   async function saveFolders() {
     if (!target) return;
@@ -279,7 +292,6 @@ export function StorageEditor({ service, target, snap, onDone }: { service: Flee
       await serviceClient(target).setFolders({ name: service.spec.name, volumeFolders: folders.volumeFolders, volumeSpaces: Object.fromEntries(Object.keys(folders.volumeFolders).map((v) => [v, folders.volumeSpaces[v]])), mounts: folders.mounts });
       toast.success(`${service.spec.name}'s folders saved`, { description: "It restarts with them if it was running." });
       qc.invalidateQueries({ queryKey: ["fleet"] });
-      onDone();
     } catch (e) {
       if (declined(e)) return;
       toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${service.node?.name ?? "Its Node"} runs an older Maître Server; update it to change folders.` : String((e as Error).message ?? e));
@@ -308,6 +320,7 @@ export function StorageEditor({ service, target, snap, onDone }: { service: Flee
           <FoldersEditor volumes={service.spec.volumes} spaces={here} value={folders} onChange={setFolders} source={(sp) => folderSource(snap, service.spec.nodeId, sp)}
             serviceName={service.spec.name}
             lockOwnSpace
+            onOpen={(at) => files({ service: service.spec.name, folder: "volume" in at ? at.volume : `mount:${at.mount}` })}
             ownExtra={(v) => {
               // An own folder changes Space by moving its data (MoveVolume).
               if (here.length < 2 || v in folders.volumeFolders) return null;
@@ -337,16 +350,20 @@ export function StorageEditor({ service, target, snap, onDone }: { service: Flee
               );
             }}
           />
-          <p className="text-xs text-muted-foreground">An own folder lives in one Space on {service.node?.name ?? "its Node"}. Moving it to another Space stops the Service, copies and checks the folder, then starts it again; the Files tab shows progress. Picked folders are shared and never moved or deleted with the Service.</p>
+          <p className="text-xs text-muted-foreground">The Service's folder lives in one Space on {service.node?.name ?? "its Node"}. Moving it to another Space stops the Service, copies and checks the folder, then starts it again; the Files tab shows progress. Shared folders are never moved or deleted with the Service.</p>
           <div className="flex items-center gap-2">
-            <Button size="sm" disabled={!dirty || saving || !target || service.nodeUnreachable} onClick={saveFolders}>
-              {saving ? "Saving…" : running ? "Save and restart" : "Save"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onDone}>
-              {dirty ? "Cancel" : "Done"}
-            </Button>
-            <Button size="sm" variant="outline" className="ml-auto" onClick={() => go({ name: "fleet", tab: "files", files: { nodeId: service.spec.nodeId, spaceId: Object.values(service.spec.volumeSpaces)[0], path: service.spec.name } })}>
-              Open in Files
+            {dirty && (
+              <>
+                <Button size="sm" disabled={saving || !target || service.nodeUnreachable} onClick={saveFolders}>
+                  {saving ? "Saving…" : running ? "Save and restart" : "Save"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setFolders(saved)}>
+                  Cancel
+                </Button>
+              </>
+            )}
+            <Button size="sm" variant="outline" className="ml-auto" onClick={() => files()}>
+              <FolderSearch /> Open in Files
             </Button>
           </div>
         </div>

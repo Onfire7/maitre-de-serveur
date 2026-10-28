@@ -1,7 +1,8 @@
 // A Service's every setting, shown when its row on the Services tab opens
 // (decision 192), with a contents list that stays in view beside it.
-// Settings and auto update (193), Access and Storage (194) change here, in
-// place; ports and root powers through the flyout's sheets.
+// Settings and auto update (193), Access and Storage (194, shown as their
+// editors) and the image (195) change here, in place; ports and root
+// powers through the flyout's sheets.
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -13,18 +14,11 @@ import { cn } from "@/lib/utils";
 import { ago, formatUptime } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { declined, grantsOf, optionNote } from "@/fleet/grants";
-import { setSettings, targetFor } from "@/fleet/actions";
+import { setImage, setSettings, targetFor } from "@/fleet/actions";
 import { catalogById } from "./status";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { AccessEditor, StorageEditor } from "./ServiceSheets";
 import type { ServiceEdit } from "./routes";
-
-const REACH: Record<string, [string, string]> = {
-  private: ["At home only", "Devices on your network, and this app."],
-  remote: ["From anywhere, for you", "Your devices on Tailscale, wherever they are."],
-  public: ["Public, at a Tailscale address", "Anyone on the internet with the link."],
-  direct: ["Public, at your own address", "Anyone on the internet, at a name you own."],
-};
 
 const STATE = ["Unknown", "Stopped", "Starting", "Running", "Failed", "Removing"];
 
@@ -35,7 +29,6 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
   const spec = s.spec;
   const st = s.status;
   const entry = catalogById.get(spec.catalogId);
-  const spaceName = (id: string) => snap?.spaces.find((sp) => sp.spaceId === id)?.name ?? id;
   const grants = grantsOf(snap?.records, spec.name).filter((g) => !g.grant.nodeId || g.grant.nodeId === spec.nodeId);
   const running = st?.state === 3 || st?.state === 2;
   const settingLabel = (k: string) => entry?.settings?.find((x) => x.key === k)?.label;
@@ -47,15 +40,26 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   useEffect(() => setDraft(null), [spec.name]);
-  const [editing, setEditing] = useState<ServiceEdit | undefined>(edit);
-  useEffect(() => setEditing(edit), [edit, spec.name]);
   const target = targetFor(snap, [], spec.nodeId);
-  const change = (id: ServiceEdit) =>
-    editing === id ? undefined : (
-      <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => setEditing(id)}>
-        Change
-      </Button>
-    );
+  // The image being typed, while Change image is open (195).
+  const [newImage, setNewImage] = useState<string | null>(null);
+  const [imageError, setImageError] = useState("");
+  useEffect(() => setNewImage(null), [spec.name]);
+  async function changeImage(image: string) {
+    if (!target) return toast.error(`No address for ${s.node?.name ?? "its Node"}`);
+    setSaving(true);
+    setImageError("");
+    try {
+      await setImage(target, spec.name, image, s.node?.name);
+      toast.success(`${spec.name} now runs ${image}${running ? ", restarting" : ""}`);
+      setNewImage(null);
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+    } catch (e) {
+      if (!declined(e)) setImageError(String((e as Error).message ?? e));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save(settings: Record<string, string>, autoUpdate?: boolean) {
     const t = target;
@@ -117,18 +121,7 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
     {
       id: "access",
       title: "Access",
-      button: change("access"),
-      body: editing === "access" ? (
-        <AccessEditor service={s} target={target} snap={snap} onDone={() => setEditing(undefined)} />
-      ) : (
-        <Rows
-          rows={[
-            ["Reachable", REACH[spec.exposure || "private"]?.[0] ?? spec.exposure],
-            ["", REACH[spec.exposure || "private"]?.[1]],
-            ["Address", spec.exposure === "direct" ? spec.publicHost : undefined],
-          ]}
-        />
-      ),
+      body: <AccessEditor service={s} target={target} snap={snap} />,
     },
     {
       id: "ports",
@@ -149,31 +142,7 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
     {
       id: "storage",
       title: "Storage",
-      button: change("storage"),
-      body: editing === "storage" ? (
-        <StorageEditor service={s} target={target} snap={snap} onDone={() => setEditing(undefined)} />
-      ) : (
-        <div className="space-y-3">
-          {spec.volumes.length ? (
-            <Table
-              head={["Data", "In the container", "Space", "Folder"]}
-              rows={spec.volumes.map((v) => {
-                const space = spec.volumeSpaces[v.name] ?? "";
-                const picked = v.name in spec.volumeFolders;
-                return [v.name, <code key="p">{v.path}</code>, spaceName(space), picked ? `${spec.volumeFolders[v.name] || "(top)"}, shared` : `${spec.name}/${v.name}, its own`];
-              })}
-            />
-          ) : (
-            <p className="text-muted-foreground">It keeps no data.</p>
-          )}
-          {spec.mounts.length > 0 && (
-            <Table
-              head={["Extra folder", "In the container", "Space", "Access"]}
-              rows={spec.mounts.map((m) => [m.folder || "(top)", <code key="p">{m.path}</code>, spaceName(m.spaceId), m.readOnly ? "Read only" : "Read and write"])}
-            />
-          )}
-        </div>
-      ),
+      body: <StorageEditor service={s} target={target} snap={snap} />,
     },
     {
       id: "settings",
@@ -250,8 +219,38 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
     {
       id: "image",
       title: "Image and updates",
+      button:
+        newImage === null ? (
+          <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => (setImageError(""), setNewImage(spec.image.split("@")[0]))}>
+            Change image
+          </Button>
+        ) : undefined,
       body: (
         <div className="space-y-3">
+          {newImage !== null && (
+            <form
+              className="space-y-2 rounded-md border p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                changeImage(newImage.trim());
+              }}
+            >
+              <label className="block space-y-1.5">
+                <span className="text-muted-foreground">Image to run</span>
+                <Input className="font-mono text-xs" value={newImage} onChange={(e) => setNewImage(e.target.value)} placeholder="docker.io/jellyfin/jellyfin:10.11" aria-label="Image to run" autoFocus />
+              </label>
+              <p className="text-xs text-muted-foreground">A tag is pinned to the image it names now; it moves only when updated. The current image stays for Roll back. An image from another repository may need its root powers allowed again.</p>
+              {imageError && <p className="rounded-md border border-destructive/60 bg-destructive/5 p-2 text-sm">{imageError}</p>}
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm" disabled={saving || !newImage.trim() || newImage.trim() === spec.image}>
+                  {saving ? "Pulling…" : running ? "Change and restart" : "Change"}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setNewImage(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
           <Rows
             rows={[
               ["Image", <Image key="i" image={spec.image} />],

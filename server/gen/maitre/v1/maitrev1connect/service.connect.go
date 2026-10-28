@@ -49,6 +49,8 @@ const (
 	ServiceServiceSetFoldersProcedure = "/maitre.v1.ServiceService/SetFolders"
 	// ServiceServiceSetSettingsProcedure is the procedure name of the ServiceService's SetSettings RPC.
 	ServiceServiceSetSettingsProcedure = "/maitre.v1.ServiceService/SetSettings"
+	// ServiceServiceSetImageProcedure is the procedure name of the ServiceService's SetImage RPC.
+	ServiceServiceSetImageProcedure = "/maitre.v1.ServiceService/SetImage"
 )
 
 var (
@@ -122,6 +124,13 @@ var (
 			Procedure:  ServiceServiceSetSettingsProcedure,
 		}
 	})
+	serviceServiceSetImageSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("SetImage"),
+			Procedure:  ServiceServiceSetImageProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -156,6 +165,10 @@ type ServiceServiceClient interface {
 	// updates by itself (decision 193): saved, applied, and the Service
 	// restarted if it was running.
 	SetSettings(context.Context, *v1.SetSettingsRequest) (*v1.SetSettingsResponse, error)
+	// SetImage runs a Service on another image (decision 195): pulled,
+	// pinned to its digest, the old one kept for Rollback, and the Service
+	// restarted if it was running.
+	SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -196,6 +209,10 @@ type ServiceServiceHandler interface {
 	// updates by itself (decision 193): saved, applied, and the Service
 	// restarted if it was running.
 	SetSettings(context.Context, *v1.SetSettingsRequest) (*v1.SetSettingsResponse, error)
+	// SetImage runs a Service on another image (decision 195): pulled,
+	// pinned to its digest, the old one kept for Rollback, and the Service
+	// restarted if it was running.
+	SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -213,6 +230,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceMoveVolumeSpec(), Handler: adapter.moveVolume},
 		connect.Method{Spec: serviceServiceSetFoldersSpec(), Handler: adapter.setFolders},
 		connect.Method{Spec: serviceServiceSetSettingsSpec(), Handler: adapter.setSettings},
+		connect.Method{Spec: serviceServiceSetImageSpec(), Handler: adapter.setImage},
 	)
 }
 
@@ -257,6 +275,10 @@ func (UnimplementedServiceServiceHandler) SetFolders(context.Context, *v1.SetFol
 
 func (UnimplementedServiceServiceHandler) SetSettings(context.Context, *v1.SetSettingsRequest) (*v1.SetSettingsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetSettings is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetImage is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -338,6 +360,14 @@ func (c *serviceServiceClient) SetFolders(ctx context.Context, req *v1.SetFolder
 func (c *serviceServiceClient) SetSettings(ctx context.Context, req *v1.SetSettingsRequest) (*v1.SetSettingsResponse, error) {
 	var res v1.SetSettingsResponse
 	if err := c.client.CallUnary(ctx, serviceServiceSetSettingsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) SetImage(ctx context.Context, req *v1.SetImageRequest) (*v1.SetImageResponse, error) {
+	var res v1.SetImageResponse
+	if err := c.client.CallUnary(ctx, serviceServiceSetImageSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -459,6 +489,18 @@ func (h serviceServiceHandler) setSettings(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.SetSettings(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) setImage(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetImageRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetImage(ctx, &req)
 	if err != nil {
 		return err
 	}

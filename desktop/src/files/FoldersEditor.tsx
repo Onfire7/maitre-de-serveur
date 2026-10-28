@@ -2,7 +2,7 @@
 // folder or a folder the user picks, and extra folders mounted into it.
 // The install sheet and the Storage sheet both use it.
 import { useEffect, useState } from "react";
-import { FolderOpen, Plus, X } from "lucide-react";
+import { FolderOpen, FolderSearch, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,9 +53,16 @@ export function folderLabel(spaces: Space[], spaceId: string, folder: string) {
   return [spaces.find((s) => s.spaceId === spaceId)?.name ?? spaceId, ...folder.split("/").filter(Boolean)].join(" / ");
 }
 
-export function FoldersEditor({ volumes, spaces, value, onChange, source, serviceName, lockOwnSpace, ownExtra }: { volumes: VolumeInfo[]; spaces: Space[]; value: Folders; onChange: (f: Folders) => void; source: (spaceId: string) => FolderSource; serviceName: string; lockOwnSpace?: boolean; ownExtra?: (volume: string) => React.ReactNode }) {
+export function FoldersEditor({ volumes, spaces, value, onChange, source, serviceName, lockOwnSpace, ownExtra, onOpen }: { volumes: VolumeInfo[]; spaces: Space[]; value: Folders; onChange: (f: Folders) => void; source: (spaceId: string) => FolderSource; serviceName: string; lockOwnSpace?: boolean; ownExtra?: (volume: string) => React.ReactNode; onOpen?: (at: { volume: string } | { mount: string }) => void }) {
   const [picking, setPicking] = useState<{ volume?: string; mount?: number; add?: boolean } | null>(null);
   const set = (patch: Partial<Folders>) => onChange({ ...value, ...patch });
+  // Opens that folder on the Files tab, under the Service (195).
+  const open = (at: { volume: string } | { mount: string }, what: string) =>
+    onOpen && (
+      <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 text-xs" title={`Open ${what} in Files`} aria-label={`Open ${what} in Files`} onClick={() => onOpen(at)}>
+        <FolderSearch /> Open in Files
+      </Button>
+    );
   const pickedFor = picking?.volume ? { spaceId: value.volumeSpaces[picking.volume], folder: value.volumeFolders[picking.volume] ?? "" } : picking?.mount !== undefined ? value.mounts[picking.mount] : undefined;
   return (
     <div className="space-y-3">
@@ -73,26 +80,34 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
                   </div>
                   <div className="flex rounded-md border p-0.5 text-xs" role="radiogroup" aria-label={`Where ${v.name} lives`}>
                     <button type="button" role="radio" aria-checked={!picked} className={cn("rounded px-2 py-0.5", !picked && "bg-accent font-medium")} onClick={() => picked && set({ volumeFolders: Object.fromEntries(Object.entries(value.volumeFolders).filter(([k]) => k !== v.name)) })}>
-                      Own folder
+                      Service's folder
                     </button>
                     <button type="button" role="radio" aria-checked={picked} className={cn("rounded px-2 py-0.5", picked && "bg-accent font-medium")} onClick={() => !picked && setPicking({ volume: v.name })}>
-                      Pick a folder
+                      Shared folder
                     </button>
                   </div>
                 </div>
                 {picked ? (
-                  <button type="button" onClick={() => setPicking({ volume: v.name })} className="flex w-full items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-accent">
-                    <FolderOpen className="size-4 text-status-starting" />
-                    <span className="flex-1 truncate">{folderLabel(spaces, space, value.volumeFolders[v.name])}</span>
-                    <span className="text-xs text-muted-foreground">shared · change</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setPicking({ volume: v.name })} className="flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-accent">
+                      <FolderOpen className="size-4 text-status-starting" />
+                      <span className="flex-1 truncate">{folderLabel(spaces, space, value.volumeFolders[v.name])}</span>
+                      <span className="text-xs text-muted-foreground">shared · change</span>
+                    </button>
+                    {open({ volume: v.name }, v.name)}
+                  </div>
                 ) : lockOwnSpace ? (
                   <>
                     <p className="text-xs text-muted-foreground">
                       {folderLabel(spaces, space, `${serviceName}/${v.name}`)}
                       {v.size ? ` · ${v.size}` : ""}
                     </p>
-                    {ownExtra?.(v.name)}
+                    {(ownExtra || onOpen) && (
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">{ownExtra?.(v.name)}</div>
+                        {open({ volume: v.name }, v.name)}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <Select value={space} onValueChange={(val) => set({ volumeSpaces: { ...value.volumeSpaces, [v.name]: val } })}>
@@ -130,6 +145,7 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
                 <button type="button" className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => setPicking({ mount: i })}>
                   {folderLabel(spaces, m.spaceId, m.folder)} <span className="font-mono text-[11px] text-muted-foreground">→ {m.path}</span>
                 </button>
+                {open({ mount: m.path }, m.path)}
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Switch checked={m.readOnly} onCheckedChange={(ro) => set({ mounts: value.mounts.map((x, j) => (j === i ? { ...x, readOnly: ro } : x)) })} /> read only
                 </label>

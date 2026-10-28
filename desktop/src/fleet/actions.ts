@@ -25,7 +25,7 @@ const actionCode: Record<ServiceAction, ControlServiceRequest_Action> = {
 };
 
 /** The calls a Node may refuse for want of a grant (decision 189). */
-const GRANTED_CALLS = new Set(["installService", "controlService", "setFolders", "moveVolume", "setExposure", "setPortForwarding", "setSettings"]);
+const GRANTED_CALLS = new Set(["installService", "controlService", "setFolders", "moveVolume", "setExposure", "setPortForwarding", "setSettings", "setImage"]);
 
 /**
  * A ServiceService client for one Node. The calls that may need grants ask
@@ -63,6 +63,15 @@ export async function setSettings(t: Target, name: string, settings: Record<stri
     return (await services(t).setSettings({ name, settings, autoUpdate })).service;
   } catch (e) {
     throw tooOld(e, `Changing settings needs a newer Maître Server on ${nodeName}. Update it on the Nodes tab.`);
+  }
+}
+
+/** Runs a Service on another image (decision 195). */
+export async function setImage(t: Target, name: string, image: string, nodeName = "its Node") {
+  try {
+    return (await services(t).setImage({ name, image })).service;
+  } catch (e) {
+    throw tooOld(e, `Changing the image needs a newer Maître Server on ${nodeName}. Update it on the Nodes tab.`);
   }
 }
 

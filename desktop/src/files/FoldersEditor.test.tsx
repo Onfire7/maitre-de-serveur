@@ -51,7 +51,7 @@ describe("FoldersEditor", () => {
     );
     // Decision 175: media points at the top of Media; config has its own folder.
     expect(screen.getByRole("button", { name: /^Media/ })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: "Own folder", checked: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Service's folder", checked: true })).toBeTruthy();
 
     // Point media at Media/Movies.
     fireEvent.click(screen.getByRole("button", { name: /^Media/ }));

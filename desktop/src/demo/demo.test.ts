@@ -224,3 +224,15 @@ describe("SetSettings (decision 193)", () => {
     expect(tooOld(other, "x")).toBe(other);
   });
 });
+
+describe("SetImage (decision 195)", () => {
+  it("pins the new image, keeps the old for Roll back, and refuses what could break the unit", async () => {
+    const svc = at(B).services;
+    const mc = () => fleet.services.find((s) => s.spec.name === "minecraft")!;
+    const old = mc().spec.image;
+    await expect(svc.setImage({ name: "minecraft", image: "itzg/minecraft-server:java21\nExecStartPre=/bin/sh" })).rejects.toThrow(/not an image reference/);
+    await svc.setImage({ name: "minecraft", image: "docker.io/itzg/minecraft-server:java21" });
+    expect(mc().spec.image).toMatch(/^docker\.io\/itzg\/minecraft-server:java21@sha256:[0-9a-f]{64}$/);
+    expect(mc().spec.previousImage).toBe(old);
+  });
+});

@@ -141,6 +141,16 @@ func (s *Service) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 	return &maitrev1.SetSettingsResponse{Service: st}, nil
 }
 
+// SetImage implements ServiceService (decision 195).
+func (s *Service) SetImage(ctx context.Context, req *maitrev1.SetImageRequest) (*maitrev1.SetImageResponse, error) {
+	st, err := s.mgr.SetImage(ctx, req.GetName(), req.GetImage())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	s.changed()
+	return &maitrev1.SetImageResponse{Service: st}, nil
+}
+
 // SetPortForwarding implements ServiceService (decision 115).
 func (s *Service) SetPortForwarding(ctx context.Context, req *maitrev1.SetPortForwardingRequest) (*maitrev1.SetPortForwardingResponse, error) {
 	st, err := s.mgr.SetPortForwarding(ctx, req.GetName(), req.GetEnabled())

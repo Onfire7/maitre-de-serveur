@@ -220,6 +220,22 @@ const handlers: Record<string, Handler> = {
     f.rebuildRecords();
     return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
   },
+  "ServiceService/SetImage": (f, n, i, addr) => {
+    needNode(n, addr);
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
+    const image = String(i.image ?? "").trim();
+    if (!/^[a-z0-9]+([._-][a-z0-9]+)*(\.[a-z0-9-]+)*(:[0-9]{1,5})?(\/[a-z0-9]+([._-]+[a-z0-9]+)*)+(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$/.test(image)) throw fail(Code.InvalidArgument, `"${image}" is not an image reference such as docker.io/library/nginx:1.27`);
+    // As the Node pins a tag to the digest it pulls.
+    const pinned = image.includes("@") ? image : `${image}@sha256:${[...image].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16).padStart(8, "0").repeat(8)}`;
+    if (pinned !== s.spec.image) {
+      s.spec.previousImage = s.spec.image;
+      s.spec.image = pinned;
+    }
+    const running = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
+    f.rebuildRecords();
+    return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
+  },
   "ServiceService/SetFolders": (f, n, i, addr) => {
     needNode(n, addr);
     const s = f.services.find((x) => x.spec.name === i.name);

@@ -21,7 +21,7 @@ export type ServiceEdit = "access" | "storage";
 export type Route =
   | { name: "service"; service: string }
   | { name: "catalog" }
-  | { name: "fleet"; tab: FleetTab; nodeId?: string; files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string }; logs?: { nodeId: string; source: string }; open?: { service: string; edit?: ServiceEdit } }
+  | { name: "fleet"; tab: FleetTab; nodeId?: string; files?: { nodeId: string; spaceId?: string; driveId?: string; path?: string; service?: string; folder?: string }; logs?: { nodeId: string; source: string }; open?: { service: string; edit?: ServiceEdit } }
   | { name: "add-node"; addr: string; installerId: string }
   | { name: "code" };
 

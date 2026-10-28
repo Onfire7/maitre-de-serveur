@@ -1,12 +1,13 @@
 // The Files tab (decision 122, docs/ui-needs.md): browse a Space's Pool on a
 // Node or a Drive's root, see where each entry lives and how big it is, and
 // queue moves between Spaces, Drives and Nodes. Every call goes straight to
-// the Node that holds the files (160); jobs live on that Node.
+// the Node that holds the files (160); jobs live on that Node. Under
+// Services, each Service shows the folders it uses, wherever they are (195).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Package, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,6 +33,9 @@ import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
 import { spaceColor } from "./StorageTab";
+import type { FleetService } from "@/fleet/useFleet";
+import { serviceFolders, type ServiceFolder } from "@/files/sources";
+import { ServiceIcon } from "./status";
 
 export interface FileScope {
   nodeId: string;
@@ -43,7 +47,14 @@ export interface FileScope {
 const scopeKey = (s: FileScope) => `${s.nodeId}:${s.spaceId ?? ""}:${s.driveId ?? ""}`;
 const sameScope = (a: FileScope, b: FileScope & { group?: string }) => (b.group === "fleet" ? a.spaceId === b.spaceId && !a.driveId : scopeKey(a) === scopeKey(b));
 
-export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undefined; state: ConsoleState; initial?: FileScope }) {
+/** A Service's folder opened from the Services section: browsing stays
+ * rooted at it, under the Service's name. */
+interface Via {
+  service: string;
+  folder: ServiceFolder;
+}
+
+export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetSnapshot | undefined; state: ConsoleState; initial?: FileScope & { service?: string; folder?: string }; services?: FleetService[] }) {
   const qc = useQueryClient();
   const nodes = snap?.nodes ?? [];
   const spaces = useMemo(() => [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority), [snap?.spaces]);
@@ -73,18 +84,47 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
     }
     return out;
   }, [nodes, spaces, drives, snap]);
-  const [scope, setScope] = useState<FileScope | undefined>(initial);
+  const [scope, setScope] = useState<FileScope | undefined>(initial?.service ? undefined : initial);
+  // The Service whose folders are listed, and the one of them open (195).
+  // `?files-service=<name>` opens one on load (screenshot fixture).
+  const [svc, setSvc] = useState<string | null>(() => initial?.service ?? new URLSearchParams(window.location.search).get("files-service"));
+  const [via, setVia] = useState<Via | null>(null);
+  const svcOf = (name: string | null) => services.find((s) => s.spec.name === name);
+  const shownSvc = svcOf(svc);
+  const svcFolders = shownSvc ? serviceFolders(shownSvc.spec) : [];
+  function openFolder(service: FleetService, f: ServiceFolder) {
+    setSvc(service.spec.name);
+    setVia({ service: service.spec.name, folder: f });
+    setScope({ nodeId: service.spec.nodeId, spaceId: f.spaceId });
+    setPath(f.path);
+    setPreview(null);
+  }
+  function showService(name: string) {
+    setSvc(name);
+    setVia(null);
+    setPreview(null);
+  }
   // `?path=` opens that folder of the first place on load (screenshot fixture).
   const [path, setPath] = useState(initial?.path ?? new URLSearchParams(window.location.search).get("path") ?? "");
   useEffect(() => {
-    if (!scope && scopes[0]) setScope(scopes[0]);
-  }, [scopes, scope]);
+    if (!scope && !svc && scopes[0]) setScope(scopes[0]);
+  }, [scopes, scope, svc]);
   useEffect(() => {
-    if (initial) {
-      setScope(initial);
-      setPath(initial.path ?? "");
+    if (!initial) return;
+    if (initial.service) {
+      const s = svcOf(initial.service);
+      const f = s && initial.folder ? serviceFolders(s.spec).find((x) => x.key === initial.folder) : undefined;
+      if (s && f) openFolder(s, f);
+      else showService(initial.service);
+      return;
     }
+    setSvc(null);
+    setVia(null);
+    setScope(initial);
+    setPath(initial.path ?? "");
   }, [initial]);
+  // Listing a Service's folders, none open yet: nothing to read.
+  const listing = !!shownSvc && !via;
   // `?move=<name>` opens Move for that entry of `?path=` (screenshot fixture).
   const moveFixture = useState(() => new URLSearchParams(window.location.search).get("move"))[0];
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -104,12 +144,13 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const unreachable = scope ? nodeDown(nodeWord(snap?.status.get(scope.nodeId), Date.now())) : false;
   const list = useQuery({
     queryKey: ["files", scope && scopeKey(scope), path, target?.addr],
-    enabled: !!client && !!scope && !unreachable,
+    enabled: !!client && !!scope && !unreachable && !listing,
     retry: false,
     queryFn: async () => (await client!.listDir({ scope: { spaceId: scope!.spaceId ?? "", driveId: scope!.driveId ?? "" }, path })).entries,
   });
   const entries = useMemo(() => [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data]);
   useEffect(() => setSelected(new Set(moveFixture && list.data ? [moveFixture] : [])), [scope && scopeKey(scope), path, !!list.data]);
+  const spaceLabel = (id: string) => spaces.find((s) => s.spaceId === id)?.name ?? id;
   const nodeName = (id: string) => nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   const driveName = (nid: string, did: string) => drives.find((d) => d.nodeId === nid && d.driveId === did)?.name ?? did;
   const crumbs = path.split("/").filter(Boolean);
@@ -125,7 +166,10 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
   const shownAt = shown ? files.indexOf(shown) : -1;
   const step = (d: number) => files.length && setPreview(files[(shownAt + d + files.length) % files.length].name);
   const chosen = entries.filter((e) => selected.has(e.name));
-  const canWrite = !!client && !!scope && !unreachable && !!list.data;
+  const canWrite = !!client && !!scope && !unreachable && !!list.data && !listing;
+  // Inside a Service's folder the path shows from that folder down.
+  const base = via ? via.folder.path.split("/").filter(Boolean) : [];
+  const rel = via ? crumbs.slice(base.length) : crumbs;
   async function afterUpload() {
     await list.refetch();
   }
@@ -202,10 +246,12 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                   <li key={scopeKey(s)}>
                     <button
                       onClick={() => {
+                        setSvc(null);
+                        setVia(null);
                         setScope(s);
                         setPath("");
                       }}
-                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", scope && sameScope(scope, s) && "bg-accent")}
+                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", !svc && scope && sameScope(scope, s) && "bg-accent")}
                     >
                       {s.kind === "space" ? <Layers className="size-4 shrink-0" style={{ color: s.color }} /> : <HardDrive className="size-4 shrink-0 text-muted-foreground" />}
                       <span className="truncate">{s.label}</span>
@@ -218,27 +264,64 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
           </div>
         ))}
         {nodes.length === 0 && <p className="text-sm text-muted-foreground">No Node answers yet.</p>}
+        <div>
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Package className="size-4" /> Services
+          </div>
+          <ul className="space-y-0.5">
+            {[...services]
+              .sort((a, b) => a.spec.name.localeCompare(b.spec.name))
+              .map((s) => (
+                <li key={s.spec.name}>
+                  <button onClick={() => showService(s.spec.name)} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", svc === s.spec.name && "bg-accent")}>
+                    <ServiceIcon catalogId={s.spec.catalogId} word={s.word} size={16} />
+                    <span className="truncate">{s.spec.name}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{serviceFolders(s.spec).length || ""}</span>
+                  </button>
+                </li>
+              ))}
+            {services.length === 0 && <li className="px-2 text-xs text-muted-foreground">no Services yet</li>}
+          </ul>
+        </div>
       </aside>
 
       <div className="flex min-h-0 flex-col">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm">
-            {current && (
+            {shownSvc ? (
+              <>
+                <button className="flex items-center gap-1.5 rounded px-1 font-medium hover:bg-accent" onClick={() => showService(shownSvc.spec.name)}>
+                  <ServiceIcon catalogId={shownSvc.spec.catalogId} word={shownSvc.word} size={16} />
+                  {shownSvc.spec.name}
+                  <span className="text-xs font-normal text-muted-foreground">{via ? `${via.folder.inContainer} in the container · ${[spaceLabel(via.folder.spaceId), ...base].join(" / ")}` : `on ${nodeName(shownSvc.spec.nodeId)}`}</span>
+                </button>
+                {via && (
+                  <span className="flex items-center gap-1">
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                    <button className="rounded px-1 hover:bg-accent" onClick={() => go(base.join("/"))}>
+                      {via.folder.label}
+                    </button>
+                  </span>
+                )}
+              </>
+            ) : current && (
               <button className="flex items-center gap-1.5 rounded px-1 font-medium hover:bg-accent" onClick={() => go("")}>
                 {current.kind === "space" ? <Layers className="size-4" style={{ color: current.color }} /> : <HardDrive className="size-4 text-muted-foreground" />}
                 {current.label}
                 <span className="text-xs font-normal text-muted-foreground">{current.group === "fleet" ? `spans Nodes · via ${nodeName(current.nodeId)}` : `on ${nodeName(current.nodeId)}`}</span>
               </button>
             )}
-            {crumbs.map((c, i) => (
+            {!listing && rel.map((c, i) => (
               <span key={i} className="flex items-center gap-1">
                 <ChevronRight className="size-3.5 text-muted-foreground" />
-                <button className="rounded px-1 hover:bg-accent" onClick={() => go(crumbs.slice(0, i + 1).join("/"))}>
+                <button className="rounded px-1 hover:bg-accent" onClick={() => go([...base, ...rel.slice(0, i + 1)].join("/"))}>
                   {c}
                 </button>
               </span>
             ))}
           </nav>
+          {!listing && (
+          <>
           <Button size="sm" variant="ghost" onClick={() => list.refetch()} title="Refresh">
             <RefreshCw className={cn("size-4", list.isFetching && "animate-spin")} />
           </Button>
@@ -281,6 +364,8 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
               </DropdownMenu>
             </>
           )}
+          </>
+          )}
           {isDemo() && (
             <>
               <input ref={pickFiles} type="file" multiple hidden onChange={(e) => (place && e.target.files && demoUpload(place, path, e.target.files).then(afterUpload), (e.target.value = ""))} />
@@ -292,7 +377,9 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
         <div className={cn("grid min-h-0 flex-1 gap-3", shown && !full ? "grid-cols-[minmax(0,1fr)_minmax(320px,45%)]" : "grid-cols-1")}>
         <div className={cn("relative min-h-0 overflow-y-auto rounded-xl border bg-card", dropping && "ring-2 ring-primary")}>
           {dropping && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm font-medium">Drop to upload into {[current?.label, ...crumbs].join(" / ")}</div>}
-          {!scope ? (
+          {listing ? (
+            <ServiceFolders service={shownSvc!} folders={svcFolders} spaceLabel={spaceLabel} nodeName={nodeName} onOpen={(f) => openFolder(shownSvc!, f)} />
+          ) : !scope ? (
             <p className="p-4 text-sm text-muted-foreground">Create a Storage Space or adopt a Drive first; then there is something to browse.</p>
           ) : unreachable ? (
             <p className="p-4 text-sm text-muted-foreground">{nodeName(scope.nodeId)} is unreachable. Its files show when it is back.</p>
@@ -316,11 +403,11 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
                 </tr>
               </thead>
               <tbody>
-                {crumbs.length > 0 && (
+                {(crumbs.length > 0 || via) && (
                   <tr className="border-b last:border-0 hover:bg-accent/40">
                     <td className="px-3 py-1.5" />
                     <td className="px-2 py-1.5" colSpan={4}>
-                      <button className="flex items-center gap-2 text-left hover:underline" title="Up one folder" onClick={() => go(crumbs.slice(0, -1).join("/"))} onDoubleClick={() => go(crumbs.slice(0, -1).join("/"))}>
+                      <button className="flex items-center gap-2 text-left hover:underline" title="Up one folder" onClick={() => (via && rel.length === 0 ? showService(via.service) : go(crumbs.slice(0, -1).join("/")))}>
                         <CornerLeftUp className="size-4 text-muted-foreground" />
                         ..
                       </button>
@@ -406,6 +493,41 @@ export function FilesTab({ snap, state, initial }: { snap: FleetSnapshot | undef
         />
       )}
     </div>
+  );
+}
+
+/** A Service's folders as rows, each opening where it really is. */
+function ServiceFolders({ service, folders, spaceLabel, nodeName, onOpen }: { service: FleetService; folders: ServiceFolder[]; spaceLabel: (id: string) => string; nodeName: (id: string) => string; onOpen: (f: ServiceFolder) => void }) {
+  if (folders.length === 0) return <p className="p-4 text-sm text-muted-foreground">{service.spec.name} keeps no data and uses no folders.</p>;
+  return (
+    <table className="w-full text-sm">
+      <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
+        <tr className="border-b">
+          <th className="px-3 py-2 text-left font-medium">Folder</th>
+          <th className="px-2 py-2 text-left font-medium">In the container</th>
+          <th className="px-3 py-2 text-left font-medium">Where</th>
+        </tr>
+      </thead>
+      <tbody>
+        {folders.map((f) => (
+          <tr key={f.key} className="border-b last:border-0 hover:bg-accent/40">
+            <td className="px-3 py-1.5">
+              <button className="flex items-center gap-2 text-left hover:underline" onClick={() => onOpen(f)}>
+                <Folder className={cn("size-4", f.shared ? "text-status-starting" : "text-muted-foreground")} />
+                {f.label}
+                {f.key.startsWith("mount:") && <Badge variant="secondary">extra</Badge>}
+                {f.readOnly && <Badge variant="outline">read only</Badge>}
+              </button>
+            </td>
+            <td className="px-2 py-1.5 font-mono text-xs">{f.inContainer}</td>
+            <td className="px-3 py-1.5 text-xs text-muted-foreground">
+              {[spaceLabel(f.spaceId), ...f.path.split("/").filter(Boolean)].join(" / ")} on {nodeName(service.spec.nodeId)}
+              {f.shared ? ", shared" : ", its own"}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

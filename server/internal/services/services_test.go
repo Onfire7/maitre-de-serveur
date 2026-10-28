@@ -27,6 +27,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	if name == "systemctl" && len(args) > 1 && args[0] == "show" {
 		return "ActiveState=" + f.state + "\nSubState=running\nNRestarts=2\nResult=success\nExecMainStartTimestamp=Fri 2026-10-24 10:00:00 UTC\n", nil
 	}
+	if name == "podman" && len(args) > 1 && args[0] == "image" && args[1] == "inspect" {
+		return "sha256:" + strings.Repeat("c", 64) + "\n", nil
+	}
 	if name == "journalctl" {
 		return "l1\nl2\n", nil
 	}

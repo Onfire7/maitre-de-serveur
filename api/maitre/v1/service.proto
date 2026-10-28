@@ -39,6 +39,21 @@ service ServiceService {
   // updates by itself (decision 193): saved, applied, and the Service
   // restarted if it was running.
   rpc SetSettings(SetSettingsRequest) returns (SetSettingsResponse) {}
+  // SetImage runs a Service on another image (decision 195): pulled,
+  // pinned to its digest, the old one kept for Rollback, and the Service
+  // restarted if it was running.
+  rpc SetImage(SetImageRequest) returns (SetImageResponse) {}
+}
+
+message SetImageRequest {
+  string name = 1;
+  // An image reference such as docker.io/jellyfin/jellyfin:10.11, with or
+  // without a digest. Without one, the tag's current digest is pinned.
+  string image = 2;
+}
+
+message SetImageResponse {
+  ServiceStatus service = 1;
 }
 
 message SetSettingsRequest {
