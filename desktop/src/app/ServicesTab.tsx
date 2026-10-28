@@ -3,7 +3,7 @@
 // Start, Stop, Restart and Update for several at once.
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowUpCircle, ExternalLink, MoreHorizontal, Play, Plus, RotateCw, Search, Square } from "lucide-react";
+import { ArrowUpCircle, ChevronRight, ExternalLink, MoreHorizontal, Play, Plus, RotateCw, Search, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { declined } from "@/fleet/grants";
 import type { ConsoleState } from "@/state";
 import { flyoutItems, type FlyoutItem } from "./ServiceFlyout";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
+import { ServiceDetails } from "./ServiceDetails";
 import { useRoute } from "./routes";
 
 const GROUP_KEY = "maitre.services.group";
@@ -38,6 +39,8 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
   const [byNode, setByNode] = useState(() => localStorage.getItem(GROUP_KEY) !== "list");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  // One Service open at a time, with all its settings (192).
+  const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get("expand"));
 
   const spaceName = (id: string) => snap?.spaces.find((sp) => sp.spaceId === id)?.name ?? id;
   const shown = useMemo(() => {
@@ -101,7 +104,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
     );
 
   const row = (s: FleetService) => (
-    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "service", service: s.spec.name })} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
+    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "service", service: s.spec.name })} snap={snap} open={open === s.spec.name} onToggle={() => setOpen((o) => (o === s.spec.name ? null : s.spec.name))} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
   );
 
   return (
@@ -192,81 +195,87 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
   );
 }
 
-function ServiceRow({ service: s, picked, onPick, onAct, onOpenPage, showNode, spaces, now }: { service: FleetService; picked: boolean; onPick: (on: boolean) => void; onAct: (it: FlyoutItem) => void; onOpenPage: () => void; showNode: boolean; spaces: string[]; now: number }) {
+function ServiceRow({ service: s, snap, open, onToggle, picked, onPick, onAct, onOpenPage, showNode, spaces, now }: { service: FleetService; snap: FleetSnapshot | undefined; open: boolean; onToggle: () => void; picked: boolean; onPick: (on: boolean) => void; onAct: (it: FlyoutItem) => void; onOpenPage: () => void; showNode: boolean; spaces: string[]; now: number }) {
   const st = s.status;
   const running = st?.state === 3 || st?.state === 2;
   const items = flyoutItems(s);
   const up = running && st?.startedUnixMs ? Math.max(0, Math.floor((now - Number(st.startedUnixMs)) / 1000)) : 0;
   return (
-    <li className={cn("flex items-center gap-3 px-3 py-2", picked && "bg-accent/40", s.nodeUnreachable && "opacity-60")}>
-      <Checkbox aria-label={`Select ${s.spec.name}`} checked={picked} onCheckedChange={(v) => onPick(v === true)} />
-      <ServiceIcon catalogId={s.spec.catalogId} word={s.word} />
-      <div className="w-44 min-w-0 shrink-0">
-        <button onClick={onOpenPage} className="block max-w-full truncate text-left text-sm font-medium hover:underline">
-          {s.spec.name}
+    <li>
+      <div className={cn("flex items-center gap-3 px-3 py-2", picked && "bg-accent/40", s.nodeUnreachable && "opacity-60")}>
+        <button onClick={onToggle} aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} all of ${s.spec.name}'s settings`} title={open ? "Hide settings" : "Show all settings"} className="-mr-1 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+          <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
         </button>
-        <div className="truncate text-xs">
-          {s.nodeUnreachable ? <span className="text-status-attention">Node unreachable</span> : <StatusWord word={s.word} />}
-          {showNode && <span className="text-muted-foreground"> · {s.node?.name ?? "Node unknown"}</span>}
-        </div>
-      </div>
-      <div className="min-w-0 flex-1 text-xs text-muted-foreground">
-        {!s.nodeUnreachable && st?.message && s.word !== "Online" ? (
-          <div className="truncate text-foreground/80" title={st.message}>
-            {st.message}
+        <Checkbox aria-label={`Select ${s.spec.name}`} checked={picked} onCheckedChange={(v) => onPick(v === true)} />
+        <ServiceIcon catalogId={s.spec.catalogId} word={s.word} />
+        <div className="w-44 min-w-0 shrink-0">
+          <button onClick={onOpenPage} className="block max-w-full truncate text-left text-sm font-medium hover:underline">
+            {s.spec.name}
+          </button>
+          <div className="truncate text-xs">
+            {s.nodeUnreachable ? <span className="text-status-attention">Node unreachable</span> : <StatusWord word={s.word} />}
+            {showNode && <span className="text-muted-foreground"> · {s.node?.name ?? "Node unknown"}</span>}
           </div>
-        ) : st?.url ? (
-          <div className="truncate" title={st.url}>
-            {st.url}
-            {st.remoteUrl && ` · ${st.remoteUrl}`}
-          </div>
-        ) : (
-          <div>No web page</div>
-        )}
-        <div className="truncate">
-          {REACH[s.spec.exposure || "private"] ?? s.spec.exposure}
-          {spaces.length > 0 && ` · data in ${spaces.join(", ")}`}
         </div>
-      </div>
-      <div className="hidden w-28 shrink-0 text-right text-xs text-muted-foreground tabular-nums lg:block">
-        {up > 0 && <div>up {formatUptime(up)}</div>}
-        {!!st?.restarts && <div className={cn(st.restarts > 3 && "text-status-attention")}>{st.restarts} restarts</div>}
-      </div>
-      <div className="flex shrink-0 items-center">
-        <Button size="icon" variant="ghost" className="size-8" title="Open in your browser" aria-label={`Open ${s.spec.name}`} disabled={!st?.url || s.word !== "Online"} onClick={() => onAct("open")}>
-          <ExternalLink />
-        </Button>
-        {running ? (
-          <Button size="icon" variant="ghost" className="size-8" title="Stop" aria-label={`Stop ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("stop")}>
-            <Square />
+        <div className="min-w-0 flex-1 cursor-pointer text-xs text-muted-foreground" onClick={onToggle}>
+          {!s.nodeUnreachable && st?.message && s.word !== "Online" ? (
+            <div className="truncate text-foreground/80" title={st.message}>
+              {st.message}
+            </div>
+          ) : st?.url ? (
+            <div className="truncate" title={st.url}>
+              {st.url}
+              {st.remoteUrl && ` · ${st.remoteUrl}`}
+            </div>
+          ) : (
+            <div>No web page</div>
+          )}
+          <div className="truncate">
+            {REACH[s.spec.exposure || "private"] ?? s.spec.exposure}
+            {spaces.length > 0 && ` · data in ${spaces.join(", ")}`}
+          </div>
+        </div>
+        <div className="hidden w-28 shrink-0 text-right text-xs text-muted-foreground tabular-nums lg:block">
+          {up > 0 && <div>up {formatUptime(up)}</div>}
+          {!!st?.restarts && <div className={cn(st.restarts > 3 && "text-status-attention")}>{st.restarts} restarts</div>}
+        </div>
+        <div className="flex shrink-0 items-center">
+          <Button size="icon" variant="ghost" className="size-8" title="Open in your browser" aria-label={`Open ${s.spec.name}`} disabled={!st?.url || s.word !== "Online"} onClick={() => onAct("open")}>
+            <ExternalLink />
           </Button>
-        ) : (
-          <Button size="icon" variant="ghost" className="size-8" title="Start" aria-label={`Start ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("start")}>
-            <Play />
-          </Button>
-        )}
-        <Button size="icon" variant="ghost" className="size-8" title="Restart" aria-label={`Restart ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("restart")}>
-          <RotateCw />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="size-8" title="More" aria-label={`More for ${s.spec.name}`}>
-              <MoreHorizontal />
+          {running ? (
+            <Button size="icon" variant="ghost" className="size-8" title="Stop" aria-label={`Stop ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("stop")}>
+              <Square />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {items.map((it) => (
-              <div key={it.id}>
-                {it.danger && <DropdownMenuSeparator />}
-                <DropdownMenuItem disabled={it.disabled} onSelect={() => onAct(it.id)} className={cn(it.danger && "text-destructive focus:text-destructive [&_svg]:text-destructive")}>
-                  {it.icon}
-                  {it.label}
-                </DropdownMenuItem>
-              </div>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          ) : (
+            <Button size="icon" variant="ghost" className="size-8" title="Start" aria-label={`Start ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("start")}>
+              <Play />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="size-8" title="Restart" aria-label={`Restart ${s.spec.name}`} disabled={s.nodeUnreachable} onClick={() => onAct("restart")}>
+            <RotateCw />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="size-8" title="More" aria-label={`More for ${s.spec.name}`}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {items.map((it) => (
+                <div key={it.id}>
+                  {it.danger && <DropdownMenuSeparator />}
+                  <DropdownMenuItem disabled={it.disabled} onSelect={() => onAct(it.id)} className={cn(it.danger && "text-destructive focus:text-destructive [&_svg]:text-destructive")}>
+                    {it.icon}
+                    {it.label}
+                  </DropdownMenuItem>
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+      {open && <ServiceDetails service={s} snap={snap} onAct={onAct} now={now} />}
     </li>
   );
 }

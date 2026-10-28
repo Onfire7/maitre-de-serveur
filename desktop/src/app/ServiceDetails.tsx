@@ -1,0 +1,367 @@
+// A Service's every setting, shown when its row on the Services tab opens
+// (decision 192), with a contents list that stays in view beside it. Each
+// section changes through the sheet or action the flyout already has.
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { ArrowUpCircle, Copy, Eye, EyeOff, Truck, Trash2, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ago, formatUptime } from "@/lib/format";
+import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
+import { grantsOf, optionNote } from "@/fleet/grants";
+import { catalogById } from "./status";
+import type { FlyoutItem } from "./ServiceFlyout";
+
+const REACH: Record<string, [string, string]> = {
+  private: ["At home only", "Devices on your network, and this app."],
+  remote: ["From anywhere, for you", "Your devices on Tailscale, wherever they are."],
+  public: ["Public, at a Tailscale address", "Anyone on the internet with the link."],
+  direct: ["Public, at your own address", "Anyone on the internet, at a name you own."],
+};
+
+const STATE = ["Unknown", "Stopped", "Starting", "Running", "Failed", "Removing"];
+
+/** Values of settings named like these are hidden until asked for. */
+const SECRET = /pass|secret|token|key|credential/i;
+
+export function ServiceDetails({ service: s, snap, onAct, now }: { service: FleetService; snap: FleetSnapshot | undefined; onAct: (it: FlyoutItem) => void; now: number }) {
+  const spec = s.spec;
+  const st = s.status;
+  const entry = catalogById.get(spec.catalogId);
+  const spaceName = (id: string) => snap?.spaces.find((sp) => sp.spaceId === id)?.name ?? id;
+  const grants = grantsOf(snap?.records, spec.name).filter((g) => !g.grant.nodeId || g.grant.nodeId === spec.nodeId);
+  const running = st?.state === 3 || st?.state === 2;
+  const settingLabel = (k: string) => entry?.settings?.find((x) => x.key === k)?.label;
+  const [shown, setShown] = useState<Set<string>>(new Set());
+  // The Catalog's settings in its order, then any others the Service has.
+  const settingKeys = [...new Set([...(entry?.settings ?? []).map((x) => x.key), ...Object.keys(spec.settings).sort((a, b) => a.localeCompare(b))])];
+
+  const sections: { id: string; title: string; edit?: [FlyoutItem, string]; body: React.ReactNode }[] = [
+    {
+      id: "status",
+      title: "Status",
+      body: (
+        <Rows
+          rows={[
+            ["State", `${STATE[st?.state ?? 0]}${st?.state === 3 ? (st.healthy ? ", healthy" : ", not answering its health check") : ""}`],
+            ["Message", st?.message],
+            ["Runs on", s.node?.name ?? "Node unknown"],
+            ["Up for", running && st?.startedUnixMs ? formatUptime(Math.max(0, Math.floor((now - Number(st.startedUnixMs)) / 1000))) : undefined],
+            ["Restarts", st?.restarts ? String(st.restarts) : "None"],
+            ["Installed", spec.createdUnixMs ? `${new Date(Number(spec.createdUnixMs)).toLocaleDateString()} (${ago(Number(spec.createdUnixMs), now)})` : undefined],
+            ["From the Catalog", entry ? `${entry.name}: ${entry.summary}` : spec.catalogId ? `${spec.catalogId} (no longer in the Catalog)` : "No, a custom Service"],
+            ["Network infrastructure", spec.infrastructure ? "Yes: it starts before the network is up, and its Node keeps a fixed address" : undefined],
+          ]}
+        />
+      ),
+    },
+    {
+      id: "web",
+      title: "Web page",
+      body: spec.webPort ? (
+        <Rows
+          rows={[
+            ["At home", st?.url ? <Link url={st.url} /> : "Not yet"],
+            ["From anywhere", st?.remoteUrl ? <Link url={st.remoteUrl} /> : undefined],
+            ["Tailscale", st?.remoteState || undefined],
+            ["Container port", `${spec.webPort}${spec.webPath && spec.webPath !== "/" ? `, at ${spec.webPath}` : ""}`],
+            ["Health check", spec.healthHttp || spec.webPath || "/"],
+            ["Port on the Node", spec.webHostPort ? `${spec.webHostPort} (loopback only, for Caddy)` : undefined],
+          ]}
+        />
+      ) : (
+        <p className="text-muted-foreground">It has no web page.</p>
+      ),
+    },
+    {
+      id: "exposure",
+      title: "Exposure",
+      edit: ["exposure", "Change"],
+      body: (
+        <Rows
+          rows={[
+            ["Reachable", REACH[spec.exposure || "private"]?.[0] ?? spec.exposure],
+            ["", REACH[spec.exposure || "private"]?.[1]],
+            ["Address", spec.exposure === "direct" ? spec.publicHost : undefined],
+          ]}
+        />
+      ),
+    },
+    {
+      id: "ports",
+      title: "Ports",
+      edit: entry?.port_forward ? ["ports", "Port forwarding"] : undefined,
+      body: spec.hostPorts.length ? (
+        <Rows
+          rows={[
+            ["On the Node", spec.hostPorts.join(", ")],
+            ["Router forwards them", spec.forwardPorts ? "Yes, from the internet" : "No"],
+            ["Router says", st?.forwardState || undefined],
+          ]}
+        />
+      ) : (
+        <p className="text-muted-foreground">It uses no ports of the Node's own; only its web page, through Caddy.</p>
+      ),
+    },
+    {
+      id: "storage",
+      title: "Storage",
+      edit: ["storage", "Change"],
+      body: (
+        <div className="space-y-3">
+          {spec.volumes.length ? (
+            <Table
+              head={["Data", "In the container", "Space", "Folder"]}
+              rows={spec.volumes.map((v) => {
+                const space = spec.volumeSpaces[v.name] ?? "";
+                const picked = v.name in spec.volumeFolders;
+                return [v.name, <code key="p">{v.path}</code>, spaceName(space), picked ? `${spec.volumeFolders[v.name] || "(top)"}, shared` : `${spec.name}/${v.name}, its own`];
+              })}
+            />
+          ) : (
+            <p className="text-muted-foreground">It keeps no data.</p>
+          )}
+          {spec.mounts.length > 0 && (
+            <Table
+              head={["Extra folder", "In the container", "Space", "Access"]}
+              rows={spec.mounts.map((m) => [m.folder || "(top)", <code key="p">{m.path}</code>, spaceName(m.spaceId), m.readOnly ? "Read only" : "Read and write"])}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "settings",
+      title: "Settings",
+      body: settingKeys.length ? (
+        <Table
+          head={["Setting", "Value"]}
+          rows={settingKeys.map((k) => {
+            const v = spec.settings[k];
+            const hide = SECRET.test(k) && !shown.has(k);
+            return [
+              <span key="k">
+                {settingLabel(k) ?? k}
+                {settingLabel(k) && <code className="ml-1.5 text-xs text-muted-foreground">{k}</code>}
+              </span>,
+              <span key="v" className="flex items-center gap-1">
+                <code className="break-all">{v === undefined ? <span className="text-muted-foreground">not set</span> : v === "" ? <span className="text-muted-foreground">(empty)</span> : hide ? "••••••••" : v}</code>
+                {SECRET.test(k) && (
+                  <button className="rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label={hide ? `Show ${k}` : `Hide ${k}`} onClick={() => setShown((p) => (p.has(k) ? new Set([...p].filter((x) => x !== k)) : new Set([...p, k])))}>
+                    {hide ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                  </button>
+                )}
+              </span>,
+            ];
+          })}
+        />
+      ) : (
+        <p className="text-muted-foreground">It has no settings.</p>
+      ),
+    },
+    {
+      id: "image",
+      title: "Image and updates",
+      body: (
+        <div className="space-y-3">
+          <Rows
+            rows={[
+              ["Image", <Image key="i" image={spec.image} />],
+              ["Before the last update", spec.previousImage ? <Image key="p" image={spec.previousImage} /> : undefined],
+              ["Updates by itself", spec.autoUpdate ? "Yes, daily" : "No, only when you choose Update"],
+            ]}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={s.nodeUnreachable} onClick={() => onAct("update")}>
+              <ArrowUpCircle /> Update now
+            </Button>
+            {spec.previousImage && (
+              <Button size="sm" variant="outline" disabled={s.nodeUnreachable} onClick={() => onAct("rollback")}>
+                <Undo2 /> Roll back
+              </Button>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "powers",
+      title: "Root powers",
+      edit: grants.length ? ["grants", "Review"] : undefined,
+      body: grants.length ? (
+        <ul className="space-y-2">
+          {grants.map(({ grant: g }) => (
+            <li key={g.option}>
+              <code>{g.option}</code>
+              <div className="text-xs text-muted-foreground">
+                {optionNote(g.option)} Allowed {g.deviceName ? `from ${g.deviceName} ` : ""}
+                {g.grantedUnixMs ? ago(Number(g.grantedUnixMs), now) : ""}.
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">None. It runs inside the limits Maître puts on every container.</p>
+      ),
+    },
+    {
+      id: "container",
+      title: "Container definition",
+      body: (
+        <div className="relative">
+          <Button size="icon" variant="ghost" className="absolute top-1 right-1 size-7" aria-label="Copy the container definition" onClick={() => navigator.clipboard?.writeText(spec.quadlet).then(() => toast("Copied"), () => toast.error("Could not copy"))}>
+            <Copy />
+          </Button>
+          <pre className="max-h-72 overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">{spec.quadlet.trim() || "(empty)"}</pre>
+          <p className="mt-1 text-xs text-muted-foreground">The Quadlet template the Node fills in for its folders and ports.</p>
+        </div>
+      ),
+    },
+    {
+      id: "manage",
+      title: "Move or remove",
+      body: (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={s.nodeUnreachable} onClick={() => onAct("move")}>
+            <Truck /> Move to another Node…
+          </Button>
+          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => onAct("remove")}>
+            <Trash2 /> Remove…
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  // The contents list follows the section nearest the top of the view.
+  const refs = useRef(new Map<string, HTMLElement>());
+  const [active, setActive] = useState("status");
+  // A section picked from the list stays marked while the view scrolls to
+  // it, even one too near the end to reach the top.
+  const picked = useRef(0);
+  useEffect(() => {
+    const seen = new Map<string, boolean>();
+    const io = new IntersectionObserver(
+      (es) => {
+        for (const e of es) seen.set((e.target as HTMLElement).dataset.section!, e.isIntersecting);
+        const first = sections.find((x) => seen.get(x.id));
+        if (first && Date.now() > picked.current) setActive(first.id);
+      },
+      { rootMargin: "0px 0px -60% 0px" },
+    );
+    refs.current.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [spec.name]);
+
+  return (
+    <div className="flex gap-6 border-t bg-muted/20 px-4 py-4">
+      <nav aria-label={`${spec.name} settings`} className="sticky top-0 hidden w-44 shrink-0 self-start md:block">
+        <ul className="space-y-0.5 border-l text-sm">
+          {sections.map((x) => (
+            <li key={x.id}>
+              <button
+                onClick={() => {
+                  setActive(x.id);
+                  picked.current = Date.now() + 1000;
+                  refs.current.get(x.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className={cn("-ml-px block w-full border-l-2 px-3 py-1 text-left", active === x.id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+              >
+                {x.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="min-w-0 flex-1 space-y-6">
+        {sections.map((x) => (
+          <section
+            key={x.id}
+            data-section={x.id}
+            ref={(el) => {
+              if (el) refs.current.set(x.id, el);
+              else refs.current.delete(x.id);
+            }}
+            className="scroll-mt-2 text-sm"
+          >
+            <header className="mb-2 flex items-center gap-2">
+              <h3 className="font-semibold">{x.title}</h3>
+              {x.edit && (
+                <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => onAct(x.edit![0])}>
+                  {x.edit[1]}
+                </Button>
+              )}
+            </header>
+            {x.body}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Rows({ rows }: { rows: [string, React.ReactNode | undefined][] }) {
+  return (
+    <dl className="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-1">
+      {rows
+        .filter(([, v]) => v !== undefined && v !== "")
+        .map(([k, v], i) => (
+          <div key={k || i} className="contents">
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="min-w-0 break-words">{v}</dd>
+          </div>
+        ))}
+    </dl>
+  );
+}
+
+function Table({ head, rows }: { head: string[]; rows: React.ReactNode[][] }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs text-muted-foreground">
+          <tr className="border-b">
+            {head.map((h) => (
+              <th key={h} className="px-3 py-1.5 font-normal">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((c, j) => (
+                <td key={j} className="px-3 py-1.5 align-top">
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Link({ url }: { url: string }) {
+  return (
+    <span className="break-all">
+      {url}
+      <button className="ml-1 inline-flex rounded p-0.5 align-middle text-muted-foreground hover:text-foreground" aria-label={`Copy ${url}`} onClick={() => navigator.clipboard?.writeText(url).then(() => toast(`Copied ${url}`), () => toast.error("Could not copy"))}>
+        <Copy className="size-3.5" />
+      </button>
+    </span>
+  );
+}
+
+/** An image reference with its digest shortened. */
+function Image({ image }: { image: string }) {
+  const [ref, digest] = image.split("@");
+  return (
+    <code className="break-all" title={image}>
+      {ref}
+      {digest && <span className="text-muted-foreground">@{digest.replace(/^sha256:/, "").slice(0, 12)}</span>}
+    </code>
+  );
+}
