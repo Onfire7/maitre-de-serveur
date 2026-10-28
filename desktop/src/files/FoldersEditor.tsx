@@ -54,7 +54,7 @@ export function folderLabel(spaces: Space[], spaceId: string, folder: string) {
   return [spaces.find((s) => s.spaceId === spaceId)?.name ?? spaceId, ...folder.split("/").filter(Boolean)].join(" / ");
 }
 
-export function FoldersEditor({ volumes, spaces, value, onChange, source, serviceName, lockOwnSpace, ownExtra, onOpen }: { volumes: VolumeInfo[]; spaces: Space[]; value: Folders; onChange: (f: Folders) => void; source: (spaceId: string) => FolderSource; serviceName: string; lockOwnSpace?: boolean; ownExtra?: (volume: string) => React.ReactNode; onOpen?: (at: { volume: string } | { mount: string }) => void }) {
+export function FoldersEditor({ volumes, spaces, value, onChange, source, serviceName, lockOwnSpace, ownExtra, onOpen, ownSpaces }: { ownSpaces?: Space[]; volumes: VolumeInfo[]; spaces: Space[]; value: Folders; onChange: (f: Folders) => void; source: (spaceId: string) => FolderSource; serviceName: string; lockOwnSpace?: boolean; ownExtra?: (volume: string) => React.ReactNode; onOpen?: (at: { volume: string } | { mount: string }) => void }) {
   const [picking, setPicking] = useState<{ volume?: string; mount?: number; add?: boolean } | null>(null);
   const set = (patch: Partial<Folders>) => onChange({ ...value, ...patch });
   // Opens that folder on the Files tab, under the Service (195).
@@ -116,10 +116,10 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
                       <SelectValue placeholder="Space" />
                     </SelectTrigger>
                     <SelectContent>
-                      {spaces.map((s) => (
+                      {(ownSpaces ?? spaces).map((s) => (
                         <SelectItem key={s.spaceId} value={s.spaceId}>
                           {s.name}
-                          {s.defaultForNew ? " (default)" : ""} / {serviceName || "service"} / {v.name}
+                          {s.defaultForNew ? " (default)" : ""} / .Services / {serviceName || "service"} / {v.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

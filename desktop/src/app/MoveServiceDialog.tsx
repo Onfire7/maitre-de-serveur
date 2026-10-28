@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { spacesOn } from "@/files/sources";
+import { ownSpacesOn } from "@/files/sources";
 import { declined } from "@/fleet/grants";
 import { moveService, planMove, stepsFor, type Step, type StepId } from "@/fleet/moveService";
 import { nodeDown, nodeWord, type FleetService, type FleetSnapshot } from "@/fleet/useFleet";
@@ -36,7 +36,7 @@ export function MoveServiceDialog({ service, snap, state, onClose, onDone }: { s
   const fromName = service.node?.name ?? "its Node";
   const toName = others.find((n) => n.nodeId === toNodeId)?.name ?? "";
   const plan = toNodeId ? planMove(snap, service, toNodeId, choice) : undefined;
-  const reach = toNodeId ? spacesOn(snap, toNodeId) : [];
+  const reach = toNodeId ? ownSpacesOn(snap, toNodeId) : [];
   const spaceName = (id: string) => snap?.spaces.find((sp) => sp.spaceId === id)?.name ?? id;
   const busy = !!steps && !error && steps.some((s) => s.state === "todo" || s.state === "doing");
   const finished = !!steps && !busy;
@@ -134,7 +134,7 @@ export function MoveServiceDialog({ service, snap, state, onClose, onDone }: { s
                               ))}
                             </SelectContent>
                           </Select>
-                          <span className="ml-auto text-xs text-muted-foreground">{v.copy ? `copied to ${toName}` : `${toName} reaches it`}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">copied to {toName}</span>
                         </>
                       )}
                     </li>

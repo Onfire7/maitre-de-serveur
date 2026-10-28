@@ -27,6 +27,14 @@ export function folderSource(snap: FleetSnapshot | undefined, nodeId: string, sp
   };
 }
 
+/** Spaces a Service's own folders can be in on this Node (decision 208):
+ * those it has a Drive of. A spanning Space without one is out: a
+ * Service's own folders stay on its Node's Drives. */
+export function ownSpacesOn(snap: FleetSnapshot | undefined, nodeId: string): Space[] {
+  const spaces = snap?.spaces ?? [];
+  return spaces.filter((sp) => (snap?.drives ?? []).some((d) => d.nodeId === nodeId && spacesOf(d, spaces).includes(sp.spaceId)));
+}
+
 /** Spaces a Service on this Node can use (decision 176): spanning ones and
  * those with a Drive on the Node. */
 export function spacesOn(snap: FleetSnapshot | undefined, nodeId: string): Space[] {

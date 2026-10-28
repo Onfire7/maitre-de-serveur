@@ -359,7 +359,19 @@ func runAgent(args []string) error {
 		return 0
 	}
 	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
-		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf}, st, nil)
+		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf,
+		LocalPool: func(ctx context.Context, space string) (string, bool) {
+			spaces, _ := storage.Spaces(ctx, st)
+			for _, b := range spaces {
+				if b.GetSpaceId() == space && b.GetSpanNodes() {
+					if dir := filepath.Join(pool.SharedDir, space); pool.Mounted(dir) {
+						return dir, true
+					}
+					return "", true
+				}
+			}
+			return "", false
+		}}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	svc.Services = func(ctx context.Context) []*maitrev1.ServiceStatus {
 		list, err := mgr.List(ctx)

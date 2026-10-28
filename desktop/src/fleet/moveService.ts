@@ -8,7 +8,7 @@ import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { ServiceSpecSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
-import { spacesOn, volumeDir } from "@/files/sources";
+import { ownSpacesOn, spacesOn, volumeDir } from "@/files/sources";
 import type { KnownNode } from "@/state";
 import { transportFor, type Target } from "@/transport";
 import { controlService, node, removeService, services, targetFor } from "./actions";
@@ -41,11 +41,13 @@ export interface MovePlan {
 export function planMove(snap: FleetSnapshot | undefined, s: FleetService, toNodeId: string, choice: Record<string, string> = {}): MovePlan {
   const spaces = snap?.spaces ?? [];
   const reach = new Set(spacesOn(snap, toNodeId).map((sp) => sp.spaceId));
+  // Its own folders go to the new Node's own Drives (208), so they always copy.
+  const own = new Set(ownSpacesOn(snap, toNodeId).map((sp) => sp.spaceId));
   const name = (id: string) => spaces.find((sp) => sp.spaceId === id)?.name ?? id;
   const spans = (id: string) => !!spaces.find((sp) => sp.spaceId === id)?.spanNodes;
   const target = snap?.nodes.find((n) => n.nodeId === toNodeId)?.name ?? "that Node";
   const from = snap?.nodes.find((n) => n.nodeId === s.spec.nodeId)?.name ?? "its Node";
-  const def = spaces.find((sp) => sp.defaultForNew && reach.has(sp.spaceId))?.spaceId;
+  const def = spaces.find((sp) => sp.defaultForNew && own.has(sp.spaceId))?.spaceId;
   const plan: MovePlan = { volumes: [], blockers: [], warnings: [] };
 
   for (const v of s.spec.volumes) {
@@ -57,9 +59,9 @@ export function planMove(snap: FleetSnapshot | undefined, s: FleetService, toNod
       plan.volumes.push({ volume: v.name, fromSpace, toSpace: fromSpace, picked: true, copy: false });
       continue;
     }
-    const toSpace = choice[v.name] ?? (reach.has(fromSpace) ? fromSpace : (def ?? [...reach][0] ?? ""));
-    if (!toSpace) plan.blockers.push(`${target} has no Storage Space for ${v.name}.`);
-    plan.volumes.push({ volume: v.name, fromSpace, toSpace, picked: false, copy: toSpace !== fromSpace || !spans(fromSpace) });
+    const toSpace = choice[v.name] ?? (own.has(fromSpace) ? fromSpace : (def ?? [...own][0] ?? ""));
+    if (!toSpace) plan.blockers.push(`${target} has no Drive in a Storage Space for ${v.name}.`);
+    plan.volumes.push({ volume: v.name, fromSpace, toSpace, picked: false, copy: true });
   }
   for (const m of s.spec.mounts) {
     if (!reach.has(m.spaceId)) plan.blockers.push(`The extra folder ${m.folder || "(top)"} in ${name(m.spaceId)} is out of ${target}'s reach. Remove it in Storage first.`);

@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { create } from "@bufbuild/protobuf";
 import { ServiceMountSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEditor";
-import { folderSource, spacesOn } from "@/files/sources";
+import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
 import { specFor, type CatalogEntry, type CatalogIndex } from "@/services";
@@ -107,7 +107,9 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
   // Only Spaces the chosen Node has (176); folders start from the Catalog's
   // hints (175) and follow a change of Node.
   const here = spacesOn(snap, effNode);
-  const fallback = here.find((s) => s.defaultForNew)?.spaceId ?? defaultSpace?.spaceId ?? "";
+  // A Service's own folders only in Spaces with a Drive on its Node (208).
+  const ownHere = ownSpacesOn(snap, effNode);
+  const fallback = ownHere.find((s) => s.defaultForNew)?.spaceId ?? ownHere[0]?.spaceId ?? "";
   const eff = folders ?? (entry ? defaultFolders(entry.volumes, here, fallback) : { volumeSpaces: {}, volumeFolders: {}, mounts: [] });
   useEffect(() => setFolders(null), [entry?.id, effNode]);
   return (
@@ -157,7 +159,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                 {spaces.length === 0 ? (
                   <p className="text-sm text-destructive">No Storage Space exists yet; create one on the Storage page first.</p>
                 ) : (
-                  <FoldersEditor volumes={entry.volumes} spaces={here} value={eff} onChange={setFolders} source={(sp) => folderSource(snap, effNode, sp)} serviceName={effName} />
+                  <FoldersEditor volumes={entry.volumes} spaces={here} ownSpaces={ownHere} value={eff} onChange={setFolders} source={(sp) => folderSource(snap, effNode, sp)} serviceName={effName} />
                 )}
               </div>
               <details className="group rounded-lg border" open={!!entry.settings?.length}>

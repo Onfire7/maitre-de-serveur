@@ -153,3 +153,54 @@ func TestMoveVolumeFromTheOldPlace(t *testing.T) {
 		t.Fatalf("request %+v", mover.req)
 	}
 }
+
+// Decision 208: in a Space that spans Nodes, a Service's own folders live
+// on this Node's own Drives of it (its local-only Pool), and a move to such
+// a Space is refused when this Node has no Drive in it.
+func TestOwnFoldersInASpanningSpace(t *testing.T) {
+	ctx := context.Background()
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools, shared := filepath.Join(dir, "pools"), filepath.Join(dir, "shared")
+	for _, sp := range []string{"general", "media", "photos"} {
+		_ = os.MkdirAll(filepath.Join(pools, sp), 0o755)
+	}
+	_ = os.MkdirAll(filepath.Join(shared, "media"), 0o755)
+	local := func(_ context.Context, space string) (string, bool) {
+		switch space {
+		case "media":
+			return filepath.Join(shared, "media"), true
+		case "photos":
+			return "", true // spans, but no Drive of it here
+		}
+		return "", false
+	}
+	run := &fakeRunner{state: "active"}
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LocalPool: local}, st, run)
+	mover := &fakeMover{}
+	m.Mover = mover
+	spec := catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")
+	spec.VolumeSpaces = map[string]string{"config": "general", "cache": "media"}
+	if _, err := m.Install(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	unit, _ := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))
+	if !strings.Contains(string(unit), "Volume="+filepath.Join(shared, "media", ".Services", "jellyfin", "cache")+":/cache") {
+		t.Fatalf("unit:\n%s", unit)
+	}
+	if !strings.Contains(string(unit), "Volume="+filepath.Join(pools, "general", ".Services", "jellyfin", "config")+":/config") {
+		t.Fatalf("a Space that does not span keeps its Pool:\n%s", unit)
+	}
+	run.cmds = nil
+	if _, err := m.MoveVolume(ctx, "jellyfin", "config", "photos"); err == nil || !strings.Contains(err.Error(), "no Drive in Space photos") {
+		t.Fatalf("moved into a spanning Space with no Drive here: %v", err)
+	}
+	if strings.Contains(strings.Join(run.cmds, "\n"), "systemctl stop") {
+		t.Fatal("a refused move must not stop the Service")
+	}
+}

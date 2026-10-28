@@ -30,6 +30,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/layout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
@@ -583,13 +584,12 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		if !isMounted(dstBase) {
 			return fmt.Errorf("Space %s has no Pool on this Node", req.GetToSpace())
 		}
-		// A Service's own volume (keepOwner) lands on this Node's own
-		// Drives of the Space (decision 207): its local-only Pool, when it
-		// has one. Through the full Pool of a Space that spans Nodes the
-		// copy could land on a peer's Drive over NFS, where root is
-		// squashed, so keeping its container's owners failed and the
-		// volume stayed where it was.
-		if own := filepath.Join(pool.SharedDir, req.GetToSpace()); j.keepOwner && req.GetToDriveId() == "" && isMounted(own) {
+		// A Service's own folders (.Services/…) land on this Node's own
+		// Drives of the Space (decisions 207, 208), where its container
+		// mounts them: through the full Pool of a Space that spans Nodes
+		// the copy could land on a peer's Drive over NFS, where root is
+		// squashed (the move failed) and the container would not see it.
+		if own := filepath.Join(pool.SharedDir, req.GetToSpace()); strings.HasPrefix(req.GetToPath(), layout.ServicesDir+"/") && isMounted(own) {
 			dstBase = own
 		}
 	}

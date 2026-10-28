@@ -81,6 +81,11 @@ type Config struct {
 	// this Node. Nil accepts every Record (tests).
 	DeviceSigned func(ctx context.Context, rec *maitrev1.Record) bool
 	Authentic    func(rec *maitrev1.Record) bool
+	// LocalPool says whether a Space spans Nodes and, if so, where this
+	// Node's own Drives of it are pooled ("" when it has none). A
+	// Service's own folders in such a Space live there (decision 208), on
+	// its Node's Drives, never a peer's over NFS. Nil: no Space spans.
+	LocalPool func(ctx context.Context, space string) (dir string, spans bool)
 }
 
 // DefaultSuffix is the domain Services are reachable under on the LAN:
@@ -232,6 +237,24 @@ func (m *Manager) poolDir(space string) (string, error) {
 	return base, nil
 }
 
+// ownBase is where a Service's own folders of a Space go: the Space's Pool,
+// or for a Space that spans Nodes this Node's own Drives of it (decision
+// 208), so a container's data stays on its Node: a peer's Drive over NFS
+// is slow for a database and squashes root.
+func (m *Manager) ownBase(ctx context.Context, space, pool string) (string, error) {
+	if m.cfg.LocalPool == nil {
+		return pool, nil
+	}
+	dir, spans := m.cfg.LocalPool(ctx, space)
+	if !spans {
+		return pool, nil
+	}
+	if dir == "" {
+		return "", fmt.Errorf("this Node has no Drive in Space %s, and a Service's own folders stay on its Node's Drives", space)
+	}
+	return dir, nil
+}
+
 // folderIn resolves a picked folder of a Space ("" is its top), refusing
 // ".." and hidden names.
 func folderIn(base, folder string) (string, error) {
@@ -349,7 +372,11 @@ func (m *Manager) layout(ctx context.Context, spec *maitrev1.ServiceSpec) (map[s
 			extra.Shared[v.GetName()] = true
 			continue
 		}
-		vols[v.GetName()] = filepath.Join(base, layout.VolumeDir(spec.GetName(), v.GetName()))
+		own, err := m.ownBase(ctx, space, base)
+		if err != nil {
+			return nil, extra, fmt.Errorf("volume %s: %w", v.GetName(), err)
+		}
+		vols[v.GetName()] = filepath.Join(own, layout.VolumeDir(spec.GetName(), v.GetName()))
 	}
 	for _, mt := range spec.GetMounts() {
 		base, err := m.poolDir(mt.GetSpaceId())
@@ -428,6 +455,9 @@ func (m *Manager) MoveVolume(ctx context.Context, name, volume, toSpace string) 
 	if m.cfg.PoolsDir != "" {
 		if _, err := os.Stat(filepath.Join(m.cfg.PoolsDir, toSpace)); err != nil {
 			return "", fmt.Errorf("Space %q has no Pool on this Node", toSpace)
+		}
+		if _, err := m.ownBase(ctx, toSpace, filepath.Join(m.cfg.PoolsDir, toSpace)); err != nil {
+			return "", err
 		}
 	}
 	st, err := m.Status(ctx, &spec)

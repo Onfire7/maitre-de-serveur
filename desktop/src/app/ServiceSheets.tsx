@@ -30,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 import { FoldersEditor, type Folders } from "@/files/FoldersEditor";
-import { folderSource } from "@/files/sources";
+import { folderSource, ownSpacesOn } from "@/files/sources";
 
 export type SheetKind = "ports" | "grants";
 
@@ -274,6 +274,8 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
   const spaceName = (id: string) => spaces.find((s) => s.spaceId === id)?.name ?? (id ? `${id} (removed Space)` : "no Space");
   // Spaces with a Pool on the Service's Node: the ones a volume can move to.
   const here = spaces.filter((sp) => sp.spanNodes || (snap?.drives ?? []).some((d) => d.nodeId === service.spec.nodeId && spacesOf(d, spaces).includes(sp.spaceId)));
+  // Its own folders move only to Spaces with a Drive on its Node (208).
+  const ownHere = ownSpacesOn(snap, service.spec.nodeId);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [moving, setMoving] = useState<string | null>(null);
   // Each volume's move job, followed until it ends (decision 207): a move
@@ -350,7 +352,7 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
             onOpen={(at) => files({ service: service.spec.name, folder: "volume" in at ? at.volume : `mount:${at.mount}` })}
             ownExtra={(v) => {
               // An own folder changes Space by moving its data (MoveVolume).
-              if (here.length < 2 || v in folders.volumeFolders) return null;
+              if (ownHere.length < 2 || v in folders.volumeFolders) return null;
               const cur = service.spec.volumeSpaces[v];
               const to = picked[v] ?? "";
               const job = jobs[v] && jobList.data?.find((x) => x.jobId === jobs[v].jobId);
@@ -376,7 +378,7 @@ export function StorageEditor({ service, target, snap }: { service: FleetService
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="stay">Keep in {spaceName(cur)}</SelectItem>
-                      {here
+                      {ownHere
                         .filter((sp) => sp.spaceId !== cur)
                         .map((sp) => (
                           <SelectItem key={sp.spaceId} value={sp.spaceId}>
