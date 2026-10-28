@@ -1,6 +1,7 @@
 // The Remote tab (Milestone 5, decision 148): the Fleet on Tailscale. One
 // OAuth client for the whole Fleet; every Node joins the tailnet by itself.
 import { useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
@@ -22,6 +23,15 @@ import { currentRecord, putSigned } from "@/fleet/sign";
 import type { ConsoleState } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
+
+// Tailscale's admin console pages for the two steps (decision 196).
+const ACCESS_CONTROLS = "https://console.tailscale.com/admin/acls";
+const TRUST_CREDENTIALS = "https://console.tailscale.com/admin/settings/trust-credentials";
+
+/** The system browser in the app (a plain link does nothing there); a new tab in the demo. */
+function browse(url: string) {
+  openUrl(url).catch(() => window.open(url, "_blank"));
+}
 
 export function RemoteTab({ snap, state }: { snap: FleetSnapshot | undefined; state: ConsoleState }) {
   const { go } = useRoute();
@@ -70,10 +80,8 @@ export function RemoteTab({ snap, state }: { snap: FleetSnapshot | undefined; st
                       {err ? "unreachable" : !infos[i]?.data ? "…" : !ts ? "joining…" : ts.state === "Running" ? <span className="font-mono text-xs text-foreground">{ts.dnsName.replace(/\.$/, "")}</span> : ts.loginUrl ? "needs a login" : `${ts.state || "starting"}${ts.error ? ` · ${ts.error}` : ""}`}
                     </span>
                     {ts?.loginUrl && (
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={ts.loginUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink /> Log in
-                        </a>
+                      <Button size="sm" variant="outline" onClick={() => browse(ts.loginUrl)}>
+                        <ExternalLink /> Log in
                       </Button>
                     )}
                     {ts?.addresses[0] && <span className="font-mono text-xs text-muted-foreground">{ts.addresses[0]}</span>}
@@ -145,14 +153,23 @@ function ConnectDialog({ open, onClose, snap, tag: current }: { open: boolean; o
           <DialogTitle>Connect the Fleet to Tailscale</DialogTitle>
           <DialogDescription>One OAuth client for the whole Fleet. Every Node makes its own key from it and joins by itself.</DialogDescription>
         </DialogHeader>
-        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+        <ol className="list-decimal space-y-3 pl-5 text-sm text-muted-foreground">
           <li>
-            In the Tailscale admin console, under Access controls, add a tag owner: <code className="rounded bg-muted px-1 text-xs">{`"tagOwners": { "${tag || "tag:maitre"}": ["autogroup:admin"] }`}</code>
+            Make the tag the Nodes join with. In Tailscale's <b className="text-foreground">Access controls</b>, choose the visual editor's <b className="text-foreground">Tags</b> tab, then <b className="text-foreground">Add a tag</b>: name it <code className="rounded bg-muted px-1 text-xs text-foreground">{(tag || "tag:maitre").replace(/^tag:/, "")}</code> and leave the owners as they are.
+            <Button type="button" size="sm" variant="outline" className="mt-1.5 flex" onClick={() => browse(ACCESS_CONTROLS)}>
+              <ExternalLink /> Open Access controls
+            </Button>
           </li>
           <li>
-            Under Settings, OAuth clients, create a client with the <b className="text-foreground">Auth Keys</b> write scope for that tag. Copy its ID and secret here.
+            Make the credential the Nodes use. In <b className="text-foreground">Trust credentials</b>, choose <b className="text-foreground">Credential</b>, then <b className="text-foreground">OAuth</b>; set <b className="text-foreground">Auth Keys</b> to Write, pick that tag, and generate it. Copy the client ID and secret here before closing that page; the secret is shown only once.
+            <Button type="button" size="sm" variant="outline" className="mt-1.5 flex" onClick={() => browse(TRUST_CREDENTIALS)}>
+              <ExternalLink /> Open Trust credentials
+            </Button>
           </li>
         </ol>
+        <p className="text-xs text-muted-foreground">
+          Prefer the text file? The tag is <code className="rounded bg-muted px-1">{`"tagOwners": { "${tag || "tag:maitre"}": ["autogroup:admin"] }`}</code> in the policy file.
+        </p>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="ts-tag">Tag</Label>
