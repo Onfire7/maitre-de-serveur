@@ -44,6 +44,11 @@ bytes = "1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# Debug info for our own code only: dependencies' debug info made
+# target/debug about 12 GB.
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 1
 lto = true
