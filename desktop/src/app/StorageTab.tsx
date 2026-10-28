@@ -551,7 +551,7 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
                     {d.adopted && d.freeBytes > 0n ? `${formatBytes(d.freeBytes)} free / ${formatBytes(d.sizeBytes - d.freeBytes)} used / ${formatBytes(d.sizeBytes)}` : formatBytes(d.sizeBytes)}
                     {" · "}
                     {d.fstype || "no filesystem"}
-                    {d.mountPath && <> · <span className="font-mono">{d.mountPath}</span></>}
+                    {d.device && <> · <span className="font-mono">{d.device}</span></>}
                     {d.model && ` · ${d.model}`}
                     {d.serial && <> · <span className="font-mono">{d.serial}</span></>}
                   </span>
