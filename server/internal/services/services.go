@@ -799,8 +799,6 @@ func (m *Manager) AutoUpdate(ctx context.Context) {
 	}
 }
 
-// SetExposure changes where a Service is reachable. Infrastructure
-// Services never go public (the plan's rule: they bind the Node itself).
 // checkMounts refuses extra folders whose container path is not absolute or
 // is used twice (by a volume or another folder).
 func checkMounts(vols []*maitrev1.ServiceVolume, mounts []*maitrev1.ServiceMount) error {
@@ -873,6 +871,52 @@ func (m *Manager) SetFolders(ctx context.Context, req *maitrev1.SetFoldersReques
 	return m.Status(ctx, &spec)
 }
 
+// SetSettings replaces a Service's settings, and its auto update when
+// given (decision 193). The unit is rendered from the new settings before
+// anything is saved, so a setting the container definition needs cannot
+// go missing; the Service restarts if it was running.
+func (m *Manager) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequest) (*maitrev1.ServiceStatus, error) {
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, req.GetName(), &spec); err != nil {
+		return nil, ErrNotFound
+	}
+	if spec.GetNodeId() != "" && spec.GetNodeId() != m.store.NodeID() {
+		return nil, fmt.Errorf("%s runs on another Node; ask that one", req.GetName())
+	}
+	settings := map[string]string{}
+	for k, v := range req.GetSettings() {
+		// Decision 189: values land in unit file lines.
+		if !settingKey.MatchString(k) {
+			return nil, fmt.Errorf("setting name %q: use letters, digits and underscores", k)
+		}
+		if strings.ContainsAny(v, "\n\r\x00") {
+			return nil, fmt.Errorf("setting %s has a line break", k)
+		}
+		settings[k] = v
+	}
+	if tz, ok := settings["TZ"]; ok && tz == "auto" {
+		settings["TZ"] = localTimezone()
+	}
+	spec.Settings = settings
+	if req.AutoUpdate != nil {
+		spec.AutoUpdate = req.GetAutoUpdate()
+	}
+	if err := m.apply(ctx, &spec); err != nil {
+		return nil, err
+	}
+	if _, err := m.store.Put(ctx, KindService, spec.GetName(), &spec, false); err != nil {
+		return nil, err
+	}
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", spec.GetName()+".service"); err != nil {
+		return nil, err
+	}
+	return m.Status(ctx, &spec)
+}
+
+var settingKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
+
+// SetExposure changes where a Service is reachable. Infrastructure
+// Services never go public (the plan's rule: they bind the Node itself).
 func (m *Manager) SetExposure(ctx context.Context, name, exposure, publicHost string) (*maitrev1.ServiceStatus, error) {
 	switch exposure {
 	case "private", "remote", "public":

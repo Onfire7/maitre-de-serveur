@@ -200,3 +200,27 @@ describe("grants (decision 189)", () => {
     await at(A).services.controlService({ name: "jellyfin", action: ControlServiceRequest_Action.STOP });
   });
 });
+
+describe("SetSettings (decision 193)", () => {
+  it("saves settings and auto update, restarts a running Service, and refuses what the Node would", async () => {
+    const svc = at(B).services;
+    const mc = () => fleet.services.find((s) => s.spec.name === "minecraft")!;
+    const all = { ...mc().spec.settings, EULA: "true", VERSION: "LATEST", MEMORY: "2G", MOTD: "hi", TZ: "UTC" };
+    await expect(svc.setSettings({ name: "minecraft", settings: { ...all, MOTD: "a\nb" } })).rejects.toThrow(/line break/);
+    await expect(svc.setSettings({ name: "minecraft", settings: { EULA: "true" } })).rejects.toThrow(/VERSION/);
+    const before = mc().spec.autoUpdate;
+    await svc.setSettings({ name: "minecraft", settings: all });
+    expect(mc().spec.settings.EULA).toBe("true");
+    expect(mc().spec.autoUpdate).toBe(before);
+    await svc.setSettings({ name: "minecraft", settings: all, autoUpdate: !before });
+    expect(mc().spec.autoUpdate).toBe(!before);
+  });
+
+  it("tells the user an older Node needs updating", async () => {
+    const { tooOld } = await import("@/fleet/actions");
+    const old = tooOld(new ConnectError("not registered", Code.Unimplemented), "needs a newer Maître Server");
+    expect(String((old as Error).message)).toBe("needs a newer Maître Server");
+    const other = new ConnectError("nope", Code.InvalidArgument);
+    expect(tooOld(other, "x")).toBe(other);
+  });
+});

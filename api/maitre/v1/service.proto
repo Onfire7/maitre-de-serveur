@@ -35,6 +35,23 @@ service ServiceService {
   // (decisions 170, 171, 174): saved, applied, and the Service restarted if
   // it was running. A folder that is no longer used stays where it is.
   rpc SetFolders(SetFoldersRequest) returns (SetFoldersResponse) {}
+  // SetSettings replaces a Service's settings and, when given, whether it
+  // updates by itself (decision 193): saved, applied, and the Service
+  // restarted if it was running.
+  rpc SetSettings(SetSettingsRequest) returns (SetSettingsResponse) {}
+}
+
+message SetSettingsRequest {
+  string name = 1;
+  // The complete settings, key -> value, as ServiceSpec.settings; a key
+  // left out is removed. TZ=auto becomes the Node's time zone.
+  map<string, string> settings = 2;
+  // Left unset: unchanged.
+  optional bool auto_update = 3;
+}
+
+message SetSettingsResponse {
+  ServiceStatus service = 1;
 }
 
 message SetFoldersRequest {

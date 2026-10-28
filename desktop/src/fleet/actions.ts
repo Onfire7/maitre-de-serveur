@@ -1,5 +1,5 @@
 // Direct calls to the Node that owns a Service (decision 160).
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { ServiceService, ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { transportFor, type Target } from "@/transport";
@@ -25,7 +25,7 @@ const actionCode: Record<ServiceAction, ControlServiceRequest_Action> = {
 };
 
 /** The calls a Node may refuse for want of a grant (decision 189). */
-const GRANTED_CALLS = new Set(["installService", "controlService", "setFolders", "moveVolume", "setExposure", "setPortForwarding"]);
+const GRANTED_CALLS = new Set(["installService", "controlService", "setFolders", "moveVolume", "setExposure", "setPortForwarding", "setSettings"]);
 
 /**
  * A ServiceService client for one Node. The calls that may need grants ask
@@ -52,4 +52,21 @@ export async function controlService(t: Target, name: string, action: ServiceAct
 
 export async function removeService(t: Target, name: string, deleteData: boolean) {
   return (await services(t).controlService({ name, action: ControlServiceRequest_Action.REMOVE, deleteData })).service;
+}
+
+/**
+ * Change a Service's settings and, when given, whether it updates by itself
+ * (decision 193). A Node from before SetSettings says it needs updating.
+ */
+export async function setSettings(t: Target, name: string, settings: Record<string, string>, autoUpdate?: boolean, nodeName = "its Node") {
+  try {
+    return (await services(t).setSettings({ name, settings, autoUpdate })).service;
+  } catch (e) {
+    throw tooOld(e, `Changing settings needs a newer Maître Server on ${nodeName}. Update it on the Nodes tab.`);
+  }
+}
+
+/** A Node that lacks a call answers Unimplemented: say what to do instead. */
+export function tooOld(e: unknown, message: string): unknown {
+  return e instanceof ConnectError && e.code === Code.Unimplemented ? new Error(message) : e;
 }

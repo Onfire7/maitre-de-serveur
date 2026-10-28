@@ -131,6 +131,16 @@ func (s *Service) SetFolders(ctx context.Context, req *maitrev1.SetFoldersReques
 	return &maitrev1.SetFoldersResponse{Service: st}, nil
 }
 
+// SetSettings implements ServiceService (decision 193).
+func (s *Service) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequest) (*maitrev1.SetSettingsResponse, error) {
+	st, err := s.mgr.SetSettings(ctx, req)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	s.changed()
+	return &maitrev1.SetSettingsResponse{Service: st}, nil
+}
+
 // SetPortForwarding implements ServiceService (decision 115).
 func (s *Service) SetPortForwarding(ctx context.Context, req *maitrev1.SetPortForwardingRequest) (*maitrev1.SetPortForwardingResponse, error) {
 	st, err := s.mgr.SetPortForwarding(ctx, req.GetName(), req.GetEnabled())

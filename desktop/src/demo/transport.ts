@@ -5,7 +5,7 @@
 // fails with Unimplemented so a prototype never silently gets empty data.
 import { create, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
-import { ControlServiceRequest_Action, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { ControlServiceRequest_Action, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { GrantsNeededSchema } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
@@ -202,6 +202,23 @@ const handlers: Record<string, Handler> = {
     s.spec.publicHost = (i.publicHost as string) ?? "";
     f.rebuildRecords();
     return { service: f.status(s) };
+  },
+  "ServiceService/SetSettings": (f, n, i, addr) => {
+    needNode(n, addr);
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
+    const settings = (i.settings as Record<string, string>) ?? {};
+    for (const [k, v] of Object.entries(settings)) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(k)) throw fail(Code.InvalidArgument, `setting name "${k}": use letters, digits and underscores`);
+      if (/[\n\r\0]/.test(v)) throw fail(Code.InvalidArgument, `setting ${k} has a line break`);
+    }
+    // As the Node renders the unit: a setting the template needs must be there.
+    for (const m of s.spec.quadlet.matchAll(/\.Settings\.(\w+)/g)) if (!(m[1] in settings)) throw fail(Code.InvalidArgument, `container definition: map has no entry for key "${m[1]}"`);
+    s.spec.settings = settings;
+    if (i.autoUpdate !== undefined) s.spec.autoUpdate = i.autoUpdate as boolean;
+    const running = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
+    f.rebuildRecords();
+    return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
   },
   "ServiceService/SetFolders": (f, n, i, addr) => {
     needNode(n, addr);

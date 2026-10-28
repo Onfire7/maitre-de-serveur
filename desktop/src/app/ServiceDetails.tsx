@@ -1,14 +1,19 @@
 // A Service's every setting, shown when its row on the Services tab opens
 // (decision 192), with a contents list that stays in view beside it. Each
-// section changes through the sheet or action the flyout already has.
+// section changes through the sheet or action the flyout already has;
+// settings and auto update change here (193).
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowUpCircle, Copy, Eye, EyeOff, Truck, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ago, formatUptime } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
-import { grantsOf, optionNote } from "@/fleet/grants";
+import { declined, grantsOf, optionNote } from "@/fleet/grants";
+import { setSettings, targetFor } from "@/fleet/actions";
 import { catalogById } from "./status";
 import type { FlyoutItem } from "./ServiceFlyout";
 
@@ -35,8 +40,33 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
   const [shown, setShown] = useState<Set<string>>(new Set());
   // The Catalog's settings in its order, then any others the Service has.
   const settingKeys = [...new Set([...(entry?.settings ?? []).map((x) => x.key), ...Object.keys(spec.settings).sort((a, b) => a.localeCompare(b))])];
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  useEffect(() => setDraft(null), [spec.name]);
 
-  const sections: { id: string; title: string; edit?: [FlyoutItem, string]; body: React.ReactNode }[] = [
+  async function save(settings: Record<string, string>, autoUpdate?: boolean) {
+    const t = targetFor(snap, [], spec.nodeId);
+    if (!t) return toast.error(`No address for ${s.node?.name ?? "its Node"}`);
+    setSaving(true);
+    setSaveError("");
+    try {
+      await setSettings(t, spec.name, settings, autoUpdate, s.node?.name);
+      toast.success(autoUpdate === undefined ? `${spec.name}: settings saved${running ? ", restarting" : ""}` : `${spec.name} ${autoUpdate ? "updates by itself" : "updates only when you choose"}`);
+      setDraft(null);
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+    } catch (e) {
+      if (declined(e)) return;
+      const msg = String((e as Error).message ?? e);
+      if (autoUpdate === undefined) setSaveError(msg);
+      else toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const sections: { id: string; title: string; edit?: [FlyoutItem, string]; button?: React.ReactNode; body: React.ReactNode }[] = [
     {
       id: "status",
       title: "Status",
@@ -133,7 +163,50 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
     {
       id: "settings",
       title: "Settings",
-      body: settingKeys.length ? (
+      button:
+        settingKeys.length > 0 && !draft ? (
+          <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => (setSaveError(""), setDraft(Object.fromEntries(settingKeys.map((k) => [k, spec.settings[k] ?? entry?.settings?.find((x) => x.key === k)?.default ?? ""]))))}>
+            Change
+          </Button>
+        ) : undefined,
+      body: draft ? (
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save(draft);
+          }}
+        >
+          <div className="divide-y rounded-md border">
+            {settingKeys.map((k) => {
+              const type = entry?.settings?.find((x) => x.key === k)?.type ?? "text";
+              return (
+                <label key={k} className="flex items-center gap-3 px-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    {settingLabel(k) ?? k}
+                    {settingLabel(k) && <code className="ml-1.5 text-xs text-muted-foreground">{k}</code>}
+                  </span>
+                  {type === "bool" ? (
+                    <Switch checked={draft[k] === "true"} onCheckedChange={(v) => setDraft({ ...draft, [k]: v ? "true" : "false" })} aria-label={settingLabel(k) ?? k} />
+                  ) : (
+                    <Input className="h-8 w-64" type={SECRET.test(k) ? "password" : "text"} value={draft[k]} placeholder={type === "timezone" ? "auto: the Node's time zone" : undefined} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} aria-label={settingLabel(k) ?? k} />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          {saveError && <p className="rounded-md border border-destructive/60 bg-destructive/5 p-2 text-sm">{saveError}</p>}
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {running ? "Save and restart" : "Save"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+            {running && <span className="text-xs text-muted-foreground">{spec.name} restarts to use them.</span>}
+          </div>
+        </form>
+      ) : settingKeys.length ? (
         <Table
           head={["Setting", "Value"]}
           rows={settingKeys.map((k) => {
@@ -168,7 +241,13 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
             rows={[
               ["Image", <Image key="i" image={spec.image} />],
               ["Before the last update", spec.previousImage ? <Image key="p" image={spec.previousImage} /> : undefined],
-              ["Updates by itself", spec.autoUpdate ? "Yes, daily" : "No, only when you choose Update"],
+              [
+                "Updates by itself",
+                <label key="a" className="flex items-center gap-2">
+                  <Switch checked={spec.autoUpdate} disabled={saving || s.nodeUnreachable} onCheckedChange={(v) => save({ ...spec.settings }, v)} aria-label="Updates by itself" />
+                  {spec.autoUpdate ? "Yes, daily" : "No, only when you choose Update"}
+                </label>,
+              ],
             ]}
           />
           <div className="flex gap-2">
@@ -286,6 +365,7 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
           >
             <header className="mb-2 flex items-center gap-2">
               <h3 className="font-semibold">{x.title}</h3>
+              {x.button}
               {x.edit && (
                 <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => onAct(x.edit![0])}>
                   {x.edit[1]}

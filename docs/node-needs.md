@@ -90,3 +90,4 @@ Nothing.
   the image.
 - **`FilesService.Delete` (decision 186).** In `files/delete.go`. Older Nodes say they need updating.
 - **`NodeService.GetNodeLogs` (decision 187).** In `nodeservice/logs.go`. Older Nodes: the sheet says the Node needs updating.
+- **`ServiceService.SetSettings` (decision 193).** In `services.SetSettings`: replaces a Service's settings and, when given, its auto update; renders the unit before saving, so a setting the container definition needs cannot go missing; `systemctl try-restart`. Trusted Devices only (not in `gate.NodeCalls`). Older Nodes: the Console says changing settings needs a newer Maître Server.
