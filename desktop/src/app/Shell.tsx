@@ -32,6 +32,7 @@ import { CodeScreen } from "./FirstRun";
 import { Sidebar, sidebarNodes } from "./Sidebar";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
+import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
 import { FleetPage } from "./FleetPage";
 import { PreferencesDialog } from "./Preferences";
@@ -114,6 +115,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
 
   const [prefs, setPrefs] = useState(false);
   const [removing, setRemoving] = useState<FleetService | null>(null);
+  const [moving, setMoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
   const [typed, setTyped] = useState("");
   // `?sheet=exposure:minecraft` opens a sheet on load (screenshot fixture).
@@ -140,6 +142,9 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         return;
       case "remove":
         setRemoving(s);
+        return;
+      case "move":
+        setMoving(s);
         return;
       case "exposure":
       case "ports":
@@ -255,6 +260,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       {sheetService && <StorageSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
       {sheetService && <GrantsSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "grants"} onClose={() => setSheet(null)} />}
       <GrantDialogHost snap={snap} />
+      <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>
