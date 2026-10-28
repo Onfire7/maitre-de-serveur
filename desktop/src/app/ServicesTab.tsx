@@ -1,7 +1,7 @@
 // The Services tab (decision 190): every Service in the Fleet at full width,
 // under the Node that runs it, with the flyout's actions on each row and
 // Start, Stop, Restart and Update for several at once.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowUpCircle, ChevronRight, ExternalLink, MoreHorizontal, Play, Plus, RotateCw, Search, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import type { ConsoleState } from "@/state";
 import { flyoutItems, type FlyoutItem } from "./ServiceFlyout";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { ServiceDetails } from "./ServiceDetails";
-import { useRoute } from "./routes";
+import { useRoute, type ServiceEdit } from "./routes";
 
 const GROUP_KEY = "maitre.services.group";
 
@@ -33,7 +33,7 @@ type Show = "all" | "attention" | "running" | "stopped";
 type Bulk = "start" | "stop" | "restart" | "update";
 
 export function ServicesTab({ snap, state, services, onAct, now }: { snap: FleetSnapshot | undefined; state: ConsoleState; services: FleetService[]; onAct: (s: FleetService, item: FlyoutItem) => void; now: number }) {
-  const { go } = useRoute();
+  const { go, route } = useRoute();
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<Show>("all");
   const [byNode, setByNode] = useState(() => localStorage.getItem(GROUP_KEY) !== "list");
@@ -41,6 +41,18 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
   const [busy, setBusy] = useState(false);
   // One Service open at a time, with all its settings (192).
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get("expand"));
+  // Access… and Storage… from a menu land here, the row open at that
+  // section in edit mode (194); `?edit=access` does the same on load.
+  const [edit, setEdit] = useState<ServiceEdit | undefined>(() => (["access", "storage"].includes(new URLSearchParams(window.location.search).get("edit") ?? "") ? (new URLSearchParams(window.location.search).get("edit") as ServiceEdit) : undefined));
+  const asked = route.name === "fleet" ? route.open : undefined;
+  useEffect(() => {
+    if (!asked) return;
+    // Clear the filters so the row is there to open.
+    setQuery("");
+    setShow("all");
+    setOpen(asked.service);
+    setEdit(asked.edit);
+  }, [asked]);
 
   const spaceName = (id: string) => snap?.spaces.find((sp) => sp.spaceId === id)?.name ?? id;
   const shown = useMemo(() => {
@@ -104,7 +116,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
     );
 
   const row = (s: FleetService) => (
-    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "service", service: s.spec.name })} snap={snap} open={open === s.spec.name} onToggle={() => setOpen((o) => (o === s.spec.name ? null : s.spec.name))} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
+    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "service", service: s.spec.name })} snap={snap} open={open === s.spec.name} edit={open === s.spec.name ? edit : undefined} onToggle={() => (setEdit(undefined), setOpen((o) => (o === s.spec.name ? null : s.spec.name)))} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
   );
 
   return (
@@ -195,7 +207,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
   );
 }
 
-function ServiceRow({ service: s, snap, open, onToggle, picked, onPick, onAct, onOpenPage, showNode, spaces, now }: { service: FleetService; snap: FleetSnapshot | undefined; open: boolean; onToggle: () => void; picked: boolean; onPick: (on: boolean) => void; onAct: (it: FlyoutItem) => void; onOpenPage: () => void; showNode: boolean; spaces: string[]; now: number }) {
+function ServiceRow({ service: s, snap, open, edit, onToggle, picked, onPick, onAct, onOpenPage, showNode, spaces, now }: { service: FleetService; snap: FleetSnapshot | undefined; open: boolean; edit?: ServiceEdit; onToggle: () => void; picked: boolean; onPick: (on: boolean) => void; onAct: (it: FlyoutItem) => void; onOpenPage: () => void; showNode: boolean; spaces: string[]; now: number }) {
   const st = s.status;
   const running = st?.state === 3 || st?.state === 2;
   const items = flyoutItems(s);
@@ -275,7 +287,7 @@ function ServiceRow({ service: s, snap, open, onToggle, picked, onPick, onAct, o
           </DropdownMenu>
         </div>
       </div>
-      {open && <ServiceDetails service={s} snap={snap} onAct={onAct} now={now} />}
+      {open && <ServiceDetails service={s} snap={snap} onAct={onAct} now={now} edit={edit} />}
     </li>
   );
 }

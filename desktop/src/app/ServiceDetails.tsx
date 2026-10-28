@@ -1,7 +1,7 @@
 // A Service's every setting, shown when its row on the Services tab opens
-// (decision 192), with a contents list that stays in view beside it. Each
-// section changes through the sheet or action the flyout already has;
-// settings and auto update change here (193).
+// (decision 192), with a contents list that stays in view beside it.
+// Settings and auto update (193), Access and Storage (194) change here, in
+// place; ports and root powers through the flyout's sheets.
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,6 +16,8 @@ import { declined, grantsOf, optionNote } from "@/fleet/grants";
 import { setSettings, targetFor } from "@/fleet/actions";
 import { catalogById } from "./status";
 import type { FlyoutItem } from "./ServiceFlyout";
+import { AccessEditor, StorageEditor } from "./ServiceSheets";
+import type { ServiceEdit } from "./routes";
 
 const REACH: Record<string, [string, string]> = {
   private: ["At home only", "Devices on your network, and this app."],
@@ -29,7 +31,7 @@ const STATE = ["Unknown", "Stopped", "Starting", "Running", "Failed", "Removing"
 /** Values of settings named like these are hidden until asked for. */
 const SECRET = /pass|secret|token|key|credential/i;
 
-export function ServiceDetails({ service: s, snap, onAct, now }: { service: FleetService; snap: FleetSnapshot | undefined; onAct: (it: FlyoutItem) => void; now: number }) {
+export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service: FleetService; snap: FleetSnapshot | undefined; onAct: (it: FlyoutItem) => void; now: number; edit?: ServiceEdit }) {
   const spec = s.spec;
   const st = s.status;
   const entry = catalogById.get(spec.catalogId);
@@ -45,9 +47,18 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   useEffect(() => setDraft(null), [spec.name]);
+  const [editing, setEditing] = useState<ServiceEdit | undefined>(edit);
+  useEffect(() => setEditing(edit), [edit, spec.name]);
+  const target = targetFor(snap, [], spec.nodeId);
+  const change = (id: ServiceEdit) =>
+    editing === id ? undefined : (
+      <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => setEditing(id)}>
+        Change
+      </Button>
+    );
 
   async function save(settings: Record<string, string>, autoUpdate?: boolean) {
-    const t = targetFor(snap, [], spec.nodeId);
+    const t = target;
     if (!t) return toast.error(`No address for ${s.node?.name ?? "its Node"}`);
     setSaving(true);
     setSaveError("");
@@ -104,10 +115,12 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
       ),
     },
     {
-      id: "exposure",
-      title: "Exposure",
-      edit: ["exposure", "Change"],
-      body: (
+      id: "access",
+      title: "Access",
+      button: change("access"),
+      body: editing === "access" ? (
+        <AccessEditor service={s} target={target} snap={snap} onDone={() => setEditing(undefined)} />
+      ) : (
         <Rows
           rows={[
             ["Reachable", REACH[spec.exposure || "private"]?.[0] ?? spec.exposure],
@@ -136,8 +149,10 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
     {
       id: "storage",
       title: "Storage",
-      edit: ["storage", "Change"],
-      body: (
+      button: change("storage"),
+      body: editing === "storage" ? (
+        <StorageEditor service={s} target={target} snap={snap} onDone={() => setEditing(undefined)} />
+      ) : (
         <div className="space-y-3">
           {spec.volumes.length ? (
             <Table
@@ -331,6 +346,13 @@ export function ServiceDetails({ service: s, snap, onAct, now }: { service: Flee
     refs.current.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, [spec.name]);
+  // Opened to change a section: bring it into view.
+  useEffect(() => {
+    if (!edit) return;
+    setActive(edit);
+    picked.current = Date.now() + 1000;
+    requestAnimationFrame(() => refs.current.get(edit)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [edit, spec.name]);
 
   return (
     <div className="flex gap-6 border-t bg-muted/20 px-4 py-4">

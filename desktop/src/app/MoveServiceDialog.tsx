@@ -64,7 +64,7 @@ export function MoveServiceDialog({ service, snap, state, onClose, onDone }: { s
         <DialogHeader>
           <DialogTitle>Move {name} to another Node</DialogTitle>
           <DialogDescription>
-            It runs on {fromName} now. Its settings, address and exposure come along{service.grants ? "; its root powers are asked for again on the new Node" : ""}.
+            It runs on {fromName} now. Its settings, address and Access come along{service.grants ? "; its root powers are asked for again on the new Node" : ""}.
           </DialogDescription>
         </DialogHeader>
 

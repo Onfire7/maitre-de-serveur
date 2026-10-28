@@ -8,7 +8,7 @@ import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { catalogById, StatusWord } from "./status";
 
-export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "exposure" | "ports" | "storage" | "grants" | "move" | "remove";
+export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "ports" | "storage" | "grants" | "move" | "remove";
 
 export function ServiceFlyout({
   service,
@@ -109,9 +109,9 @@ export function flyoutItems(service: FleetService): FlyoutEntry[] {
     { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
     ...(service.spec.previousImage ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
     { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
-    { id: "exposure", label: "Exposure…", icon: <Globe /> },
+    { id: "access", label: "Access…", icon: <Globe /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
-    { id: "storage", label: "Storage", icon: <HardDrive /> },
+    { id: "storage", label: "Storage…", icon: <HardDrive /> },
     ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),
     { id: "move", label: "Move to another Node…", icon: <Truck />, disabled: service.nodeUnreachable },
     { id: "remove", label: "Remove…", icon: <Trash2 />, danger: true },

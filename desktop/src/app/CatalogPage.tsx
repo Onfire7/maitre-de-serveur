@@ -177,7 +177,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                           <SelectItem value="remote">from anywhere, for you (Tailscale)</SelectItem>
                         </SelectContent>
                       </Select>
-                      {exposure === "remote" && <p className="text-xs text-muted-foreground">Needs the Fleet connected to Tailscale (Remote tab). Public exposure is set from the Service's menu after install.</p>}
+                      {exposure === "remote" && <p className="text-xs text-muted-foreground">Needs the Fleet connected to Tailscale (Remote tab). Public access is set from the Service's Access after install.</p>}
                     </div>
                   )}
                   <label className="flex items-center justify-between gap-3 text-sm">

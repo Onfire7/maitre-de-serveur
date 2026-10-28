@@ -90,7 +90,7 @@ export function RemoteTab({ snap, state }: { snap: FleetSnapshot | undefined; st
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Services reachable away from home</h2>
         {remote.length === 0 ? (
-          <p className="text-sm text-muted-foreground">None yet. A Service's menu has Exposure…, where you choose who can reach it from outside.</p>
+          <p className="text-sm text-muted-foreground">None yet. A Service's menu has Access…, where you choose who can reach it from outside.</p>
         ) : (
           <ul className="divide-y rounded-xl border bg-card">
             {remote.map((s) => (

@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExposureSheet, GrantsSheet, PortForwardSheet, StorageSheet, type SheetKind } from "./ServiceSheets";
+import { GrantsSheet, PortForwardSheet, type SheetKind } from "./ServiceSheets";
 import { GrantDialogHost } from "./GrantDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createClient } from "@connectrpc/connect";
@@ -118,10 +118,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const [moving, setMoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
   const [typed, setTyped] = useState("");
-  // `?sheet=exposure:minecraft` opens a sheet on load (screenshot fixture).
+  // `?sheet=ports:minecraft` opens a sheet on load (screenshot fixture).
   const [sheet, setSheet] = useState<{ kind: SheetKind; service: string } | null>(() => {
     const v = new URLSearchParams(window.location.search).get("sheet")?.split(":");
-    return v && ["exposure", "ports", "storage", "grants"].includes(v[0]) && v[1] ? { kind: v[0] as SheetKind, service: v[1] } : null;
+    return v && ["ports", "grants"].includes(v[0]) && v[1] ? { kind: v[0] as SheetKind, service: v[1] } : null;
   });
   const sheetService = sheet ? services.find((s) => s.spec.name === sheet.service) : undefined;
 
@@ -146,9 +146,12 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "move":
         setMoving(s);
         return;
-      case "exposure":
-      case "ports":
+      case "access":
       case "storage":
+        // Changed in place, in the Service's open row (194).
+        go({ name: "fleet", tab: "services", open: { service: s.spec.name, edit: item } });
+        return;
+      case "ports":
       case "grants":
         setSheet({ kind: item, service: s.spec.name });
         return;
@@ -255,9 +258,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         </main>
       </div>
       <PreferencesDialog open={prefs} onClose={() => setPrefs(false)} device={device} onAddDev={(n) => save({ ...state, nodes: [...state.nodes.filter((x) => x.node_id !== n.node_id), n] })} />
-      {sheetService && <ExposureSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "exposure"} onClose={() => setSheet(null)} />}
       {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
-      {sheetService && <StorageSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
       {sheetService && <GrantsSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "grants"} onClose={() => setSheet(null)} />}
       <GrantDialogHost snap={snap} />
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
