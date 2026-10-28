@@ -13,7 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"syscall"
 )
 
 // Layout on the Node.
@@ -51,7 +53,8 @@ func mounted(dir string) bool {
 // Assemble mounts (or re-shapes in place) the Pool of one Space over its
 // branches: this Node's Space folders first, then peers' Pools. placement is
 // the Space's: local_first (first branch with room), most_free (most free
-// space), most_free_percent. Idempotent; an empty branch list unmounts.
+// space), most_free_percent, least_free, least_free_percent (decision
+// 201). Idempotent; an empty branch list unmounts.
 func Assemble(ctx context.Context, space string, branches []string, local int, placement string) error {
 	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, placement)
 }
@@ -74,6 +77,13 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 		return err
 	}
 	create := CreatePolicy(placement, local < len(branches))
+	if placement == "least_free_percent" {
+		// mergerfs has no such policy: order the branches fullest first
+		// (by share free) and take the first with room. The order is
+		// refreshed whenever the Pool is assembled; the fullest Drive
+		// stays fullest as it fills, so it rarely needs to change.
+		branches = ByFreeShare(branches, freeShare)
+	}
 	if mounted(mount) {
 		ctl := filepath.Join(mount, ".mergerfs")
 		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), ctl).CombinedOutput(); err != nil {
@@ -96,6 +106,10 @@ func CreatePolicy(placement string, hasRemote bool) string {
 	switch placement {
 	case "most_free_percent":
 		return "pfrd"
+	case "least_free":
+		return "lfs"
+	case "least_free_percent":
+		return "ff"
 	case "local_first":
 		if hasRemote {
 			return "ff"
@@ -104,6 +118,32 @@ func CreatePolicy(placement string, hasRemote bool) string {
 	default:
 		return "mfs"
 	}
+}
+
+// ByFreeShare orders branches by their share of free space, least first;
+// a branch whose share cannot be read goes last. Stable for equal shares.
+func ByFreeShare(branches []string, share func(string) (float64, bool)) []string {
+	out := append([]string(nil), branches...)
+	key := map[string]float64{}
+	for _, b := range out {
+		if f, ok := share(b); ok {
+			key[b] = f
+		} else {
+			key[b] = 2
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return key[out[i]] < key[out[j]] })
+	return out
+}
+
+// freeShare is the share of a branch's filesystem free to unprivileged
+// writers, 0 to 1.
+func freeShare(dir string) (float64, bool) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(dir, &st); err != nil || st.Blocks == 0 {
+		return 0, false
+	}
+	return float64(st.Bavail) / float64(st.Blocks), true
 }
 
 // Mounted reports whether dir is a mount point.

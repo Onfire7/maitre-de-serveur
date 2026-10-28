@@ -1024,6 +1024,8 @@ type Space struct {
 	//	"local_first"       this Node's Drives while any has room, then peers'
 	//	"most_free"         the Drive with the most free space, wherever it is
 	//	"most_free_percent" the Drive with the highest share of free space
+	//	"least_free"         the Drive with the least free space (decision 201)
+	//	"least_free_percent" the Drive with the lowest share of free space
 	Placement string `protobuf:"bytes,3,opt,name=placement,proto3" json:"placement,omitempty"`
 	// Every listed tag must be on the Drive (auto or user). Empty, with no
 	// node_ids: every Drive (not allowed for an exclusive Space).

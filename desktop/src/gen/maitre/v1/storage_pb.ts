@@ -526,6 +526,8 @@ export type Space = Message<"maitre.v1.Space"> & {
    *   "local_first"       this Node's Drives while any has room, then peers'
    *   "most_free"         the Drive with the most free space, wherever it is
    *   "most_free_percent" the Drive with the highest share of free space
+   *   "least_free"         the Drive with the least free space (decision 201)
+   *   "least_free_percent" the Drive with the lowest share of free space
    *
    * @generated from field: string placement = 3;
    */

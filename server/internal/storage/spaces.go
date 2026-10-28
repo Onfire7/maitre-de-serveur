@@ -26,7 +26,12 @@ const (
 	PlacementLocalFirst      = "local_first"
 	PlacementMostFree        = "most_free"
 	PlacementMostFreePercent = "most_free_percent"
+	// Decision 201: fill the fullest Drive first, by bytes or by share.
+	PlacementLeastFree        = "least_free"
+	PlacementLeastFreePercent = "least_free_percent"
 )
+
+var placements = map[string]bool{PlacementLocalFirst: true, PlacementMostFree: true, PlacementMostFreePercent: true, PlacementLeastFree: true, PlacementLeastFreePercent: true}
 
 // Spaces lists the Fleet's Spaces, highest priority first.
 func Spaces(ctx context.Context, st *store.Store) ([]*maitrev1.Space, error) {
@@ -48,8 +53,8 @@ func ValidateSpace(b *maitrev1.Space) error {
 		return errors.New("a Space needs an id and a name")
 	case !spaceIDRe.MatchString(b.GetSpaceId()):
 		return errors.New("a Space id is lower-case letters, digits and dashes")
-	case b.GetPlacement() != PlacementLocalFirst && b.GetPlacement() != PlacementMostFree && b.GetPlacement() != PlacementMostFreePercent:
-		return errors.New("placement must be local_first, most_free or most_free_percent")
+	case !placements[b.GetPlacement()]:
+		return errors.New("placement must be local_first, most_free, most_free_percent, least_free or least_free_percent")
 	case b.GetExclusive() && len(b.GetRequireTags()) == 0 && len(b.GetNodeIds()) == 0:
 		return errors.New("an exclusive Space needs at least one required tag or Node; otherwise it would claim every Drive")
 	case b.GetOwnerId() != 0 && OwnerOf(b) == 0:

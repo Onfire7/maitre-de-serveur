@@ -1,5 +1,5 @@
-// The Storage tab (decisions 121-128, docs/ui-needs.md): Storage Spaces,
-// the Fleet map, and every Node's Drives with Adopt, Format and Remove.
+// The Storage tab (decisions 121-128, 201, docs/ui-needs.md): Storage
+// Spaces, and every Node's Drives with Adopt, Format and Remove.
 // Spaces and Drive records come from the anchor; a Node's live Drive list
 // is a direct call to it (decision 160).
 import { useMemo, useState } from "react";
@@ -7,7 +7,8 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
-import { ChevronRight, HardDrive, Lock, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, HardDrive, Lock, Pencil, Plus, Trash2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,7 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
-import { StorageService, SpaceSchema, type Drive, type DriveRecord, type Space } from "@/gen/maitre/v1/storage_pb";
+import { StorageService, SpaceSchema, DriveRecordSchema, type Drive, type DriveRecord, type Space } from "@/gen/maitre/v1/storage_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
@@ -32,9 +33,10 @@ import { nextOwnerId } from "@/fleet/owners";
 import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 
-const PLACEMENTS: Record<string, string> = { local_first: "local Drives first", most_free: "most free space", most_free_percent: "highest free share" };
+// Decision 201 adds the least free ones: fill the fullest Drive first.
+const PLACEMENTS: Record<string, string> = { local_first: "local Drives first", most_free: "most free space", most_free_percent: "most free share", least_free: "least free space", least_free_percent: "least free share" };
 
-/** One colour per Space, by position (highest priority first); the Fleet map's stripes. */
+/** One colour per Space, by position (highest priority first). */
 export function spaceColor(i: number): string {
   const palette = ["oklch(0.62 0.14 250)", "oklch(0.72 0.17 55)", "oklch(0.65 0.15 145)", "oklch(0.65 0.15 320)", "oklch(0.62 0.2 25)", "oklch(0.7 0.1 195)", "oklch(0.8 0.15 95)", "oklch(0.75 0.12 350)"];
   return palette[i % palette.length];
@@ -43,16 +45,16 @@ export function spaceColor(i: number): string {
 export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; state: ConsoleState }) {
   const qc = useQueryClient();
   const { go } = useRoute();
+  // Colours follow priority, as on the Files tab; the list is by name (201).
   const spaces = useMemo(() => [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority), [snap?.spaces]);
+  const listed = useMemo(() => [...spaces].sort((a, b) => a.name.localeCompare(b.name)), [spaces]);
+  const [editingTags, setEditingTags] = useState<Space | null>(null);
   const drives = snap?.drives ?? [];
   const nodes = snap?.nodes ?? [];
-  const [hover, setHover] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Space | null>(null);
-  const [previewTags, setPreviewTags] = useState<string[] | null>(null);
   const nodeName = (id: string) => nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   const members = (s: Space) => drives.filter((d) => spacesOf(d, spaces).includes(s.spaceId));
-  const lit = previewTags ? new Set(drives.filter((d) => previewTags.every((x) => [...d.autoTags, ...d.tags].includes(x))).map((d) => d.driveId + d.nodeId)) : hover ? new Set(members(spaces.find((s) => s.spaceId === hover)!).map((d) => d.driveId + d.nodeId)) : null;
 
   async function put(s: Space, del = false) {
     if (!snap) throw new Error("no Node of the Fleet can be reached");
@@ -61,7 +63,8 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
     await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "space", id: s.spaceId, body: toBinary(SpaceSchema, s), deleted: del }, currentRecord(snap.records, "space", s.spaceId));
     await qc.invalidateQueries({ queryKey: ["fleet"] });
   }
-  const tryPut = (s: Space, del = false) => put(s, del).catch((e) => toast.error(String((e as Error).message ?? e)));
+  // An older anchor refuses a placement it does not know (201).
+  const tryPut = (s: Space, del = false) => put(s, del).catch((e) => toast.error(/placement must be local_first, most_free or most_free_percent/.test(String((e as Error).message)) ? `Filling the fullest Drive first needs a newer Maître Server on ${nodeName(snap!.anchor.nodeId)}. Update it on the Nodes tab.` : String((e as Error).message ?? e)));
   // Decision 123: exactly one Space is the default; making one so clears the others.
   const makeDefault = async (s: Space) => {
     try {
@@ -129,24 +132,33 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
         )}
         {spaces.length > 0 && !spaces.some((s) => s.defaultForNew) && <p className="rounded-lg border border-status-attention/60 bg-status-attention/10 p-3 text-sm">No Space is marked as the default for new volumes; installing a Service will fail until one is.</p>}
         <ul className="space-y-2">
-          {spaces.map((s, i) => {
+          {listed.map((s) => {
             const cap = capacity(s);
+            const color = spaceColor(spaces.indexOf(s));
             return (
-              <li key={s.spaceId} className={cn("flex items-start gap-3 rounded-xl border bg-card p-3 transition-colors", hover === s.spaceId && "bg-accent/40")} style={{ borderLeftWidth: 4, borderLeftColor: spaceColor(i) }} onMouseEnter={() => setHover(s.spaceId)} onMouseLeave={() => setHover(null)}>
+              <li key={s.spaceId} className="flex items-start gap-3 rounded-xl border bg-card p-3" style={{ borderLeftWidth: 4, borderLeftColor: color }}>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{s.name}</span>
-                    {s.defaultForNew && <Badge className="border-transparent bg-neutral-500 text-white">default for new volumes</Badge>}
+                    {s.requireTags.length === 0 && s.nodeIds.length === 0 && (
+                      <Badge variant="outline" className="text-muted-foreground" title="No tag rule: it takes every Drive">
+                        any Drive
+                      </Badge>
+                    )}
+                    {s.requireTags.map((t) => (
+                      <Badge key={t} variant="secondary" title={`Takes Drives tagged ${t}`}>
+                        {t}
+                      </Badge>
+                    ))}
+                    {s.nodeIds.length > 0 && <Badge variant="outline">on {s.nodeIds.map(nodeName).join(", ")}</Badge>}
                     {s.exclusive && (
-                      <Badge variant="outline">
+                      <Badge variant="outline" title="Its Drives belong to this Space only">
                         <Lock className="size-3" /> exclusive
                       </Badge>
                     )}
-                    {s.spanNodes && <Badge variant="outline">spans Nodes</Badge>}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.requireTags.length ? `Drives tagged ${s.requireTags.join(" + ")}` : "every Drive"}
-                    {s.nodeIds.length ? ` on ${s.nodeIds.map(nodeName).join(", ")}` : ""} · {PLACEMENTS[s.placement] ?? s.placement}
+                    <Button size="icon" variant="ghost" className="size-6" aria-label={`Change the tags ${s.name} takes`} title="Change which tags it takes" onClick={() => setEditingTags(s)}>
+                      <Pencil className="size-3.5" />
+                    </Button>
                   </div>
                   {cap.count === 0 ? (
                     <div className="mt-1 text-sm text-muted-foreground">no Drives yet</div>
@@ -172,26 +184,34 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                     </details>
                   )}
                   <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
+                    <RadioGroup value={s.defaultForNew ? s.spaceId : ""} onValueChange={() => makeDefault(s)} className="flex">
+                      <label className="flex items-center gap-1.5" title="New Services put their volumes here unless told otherwise. One Space is the default.">
+                        <RadioGroupItem value={s.spaceId} aria-label={`${s.name} is the default for new volumes`} /> Default
+                      </label>
+                    </RadioGroup>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label className="flex items-center gap-1.5">
+                          <Switch checked={s.spanNodes} onCheckedChange={(v) => tryPut(create(SpaceSchema, { ...s, spanNodes: v }))} /> Spans Nodes
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">On: one Pool across every Node with a Drive of this Space, shared over the network, so every Node sees the same files. Off: each Node has its own Pool of its own Drives.</TooltipContent>
+                    </Tooltip>
                     <label className="flex items-center gap-1.5">
-                      <Switch checked={s.spanNodes} onCheckedChange={(v) => tryPut(create(SpaceSchema, { ...s, spanNodes: v }))} /> spans Nodes
+                      New files go to
+                      <Select value={s.placement} onValueChange={(v) => tryPut(create(SpaceSchema, { ...s, placement: v }))}>
+                        <SelectTrigger size="sm" className="h-7 text-xs" aria-label={`Where new files in ${s.name} go`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(PLACEMENTS).map(([k, v]) => (
+                            <SelectItem key={k} value={k}>
+                              {v}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </label>
-                    <Select value={s.placement} onValueChange={(v) => tryPut(create(SpaceSchema, { ...s, placement: v }))}>
-                      <SelectTrigger size="sm" className="h-7 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(PLACEMENTS).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>
-                            new files go to {v}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {!s.defaultForNew && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => makeDefault(s)}>
-                        Make default for new volumes
-                      </Button>
-                    )}
                   </div>
                 </div>
                 <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setRemoving(s)}>
@@ -204,18 +224,14 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Fleet map</h2>
-        <FleetMap snap={snap} spaces={spaces} lit={lit} />
-      </section>
-
-      <section className="space-y-3">
         <h2 className="text-base font-semibold">Drives</h2>
         {nodes.map((n) => (
-          <NodeDrives key={n.nodeId} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()))} spaces={spaces} />
+          <NodeDrives key={n.nodeId} allDrives={drives} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()))} spaces={spaces} />
         ))}
       </section>
 
-      <AddSpaceDialog open={adding} onClose={() => (setAdding(false), setPreviewTags(null))} spaces={spaces} drives={drives} nodeName={nodeName} onPreview={setPreviewTags} onAdd={(s) => put(s)} />
+      <AddSpaceDialog open={adding} onClose={() => setAdding(false)} spaces={spaces} drives={drives} nodeName={nodeName} onAdd={(s) => put(s)} />
+      {editingTags && <SpaceTagsDialog space={editingTags} spaces={spaces} drives={drives} nodeName={nodeName} onClose={() => setEditingTags(null)} onSave={(s) => put(s)} />}
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -323,55 +339,7 @@ function useLiveFree(snap: FleetSnapshot | undefined, state: ConsoleState) {
   return q.data ?? new Map<string, bigint>();
 }
 
-function FleetMap({ snap, spaces, lit }: { snap: FleetSnapshot | undefined; spaces: Space[]; lit: Set<string> | null }) {
-  const nodes = [...(snap?.nodes ?? [])].sort((a, b) => a.letter.localeCompare(b.letter));
-  const drives = snap?.drives ?? [];
-  return (
-    <div className="flex flex-wrap gap-3">
-      {nodes.map((n) => {
-        const mine = drives.filter((d) => d.nodeId === n.nodeId).sort((a, b) => a.name.localeCompare(b.name));
-        return (
-          <div key={n.nodeId} className="min-w-44 rounded-2xl border-2 bg-card p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{n.letter}</span>
-              <span className="font-semibold">{n.name}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {mine.length === 0 && <span className="py-1 text-xs text-muted-foreground">no Drives</span>}
-              {mine.map((d) => {
-                const on = lit === null || lit.has(d.driveId + d.nodeId);
-                const idx = spacesOf(d, spaces)
-                  .map((id) => spaces.findIndex((s) => s.spaceId === id))
-                  .filter((i) => i >= 0);
-                const colors = idx.map(spaceColor);
-                const exclusive = idx.some((i) => spaces[i].exclusive);
-                return (
-                  <Tooltip key={d.driveId}>
-                    <TooltipTrigger asChild>
-                      <div className={cn("relative min-w-24 rounded-xl border-2 px-2.5 py-1.5 text-xs transition-opacity", !on && "opacity-30")} style={{ borderColor: colors[0] ?? "var(--border)", background: colors[0] ? `color-mix(in oklch, ${colors[0]} 12%, transparent)` : undefined }}>
-                        {colors.length > 1 && <div className="absolute inset-x-1 top-0 h-1 rounded-b" style={{ background: `linear-gradient(90deg, ${colors.map((c, k) => `${c} ${(k * 100) / colors.length}% ${((k + 1) * 100) / colors.length}%`).join(", ")})` }} />}
-                        <div className="flex items-center gap-1 font-semibold">
-                          {d.name}
-                          {exclusive && <Lock className="size-3 text-muted-foreground" />}
-                        </div>
-                        <div className="text-muted-foreground">{formatBytes(d.sizeBytes)}</div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {d.model} · {[...d.autoTags, ...d.tags].join(", ") || "no tags"} · {idx.length ? idx.map((i) => spaces[i].name).join(", ") : "no Space"}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onPreview, onAdd }: { open: boolean; onClose: () => void; spaces: Space[]; drives: DriveRecord[]; nodeName: (id: string) => string; onPreview: (tags: string[] | null) => void; onAdd: (s: Space) => Promise<void> }) {
+function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { open: boolean; onClose: () => void; spaces: Space[]; drives: DriveRecord[]; nodeName: (id: string) => string; onAdd: (s: Space) => Promise<void> }) {
   const [name, setName] = useState("");
   const [tags, setTags] = useState("");
   const [placement, setPlacement] = useState("local_first");
@@ -409,7 +377,6 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onPreview, on
               value={tags}
               onChange={(e) => {
                 setTags(e.target.value);
-                onPreview(e.target.value.split(/[,\s]+/).filter(Boolean));
               }}
               placeholder="empty = every Drive"
             />
@@ -423,7 +390,6 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onPreview, on
                     onClick={() => {
                       const next = tagList.includes(t) ? tagList.filter((x) => x !== t) : [...tagList, t];
                       setTags(next.join(", "));
-                      onPreview(next);
                     }}
                   >
                     {t}
@@ -492,7 +458,7 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onPreview, on
   );
 }
 
-function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: string; name: string; target: Target | undefined; unreachable: boolean; spaces: Space[] }) {
+function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { nodeId: string; name: string; target: Target | undefined; unreachable: boolean; spaces: Space[]; allDrives: DriveRecord[] }) {
   const qc = useQueryClient();
   const { go } = useRoute();
   const client = useMemo(() => (target ? createClient(StorageService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
@@ -504,6 +470,9 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: str
     queryFn: async () => (await client!.listDrives({})).drives.filter((d) => !d.system),
   });
   const [dialog, setDialog] = useState<{ kind: "adopt" | "format" | "forget"; drive: Drive } | null>(null);
+  const [tagging, setTagging] = useState<Drive | null>(null);
+  const allTags = [...new Set(allDrives.flatMap((d) => [...d.autoTags, ...d.tags]))];
+  const openDrive = (d: Drive) => go({ name: "fleet", tab: "files", files: { nodeId, driveId: d.driveId } });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["drives", nodeId] });
     qc.invalidateQueries({ queryKey: ["fleet"] });
@@ -523,10 +492,22 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: str
           const idx = d.record ? spacesOf(d.record, spaces).map((id) => spaces.findIndex((s) => s.spaceId === id)) : [];
           return (
             <li key={d.device} className="flex items-center gap-3 px-4 py-2.5">
-              <HardDrive className={cn("size-5 shrink-0", d.adopted ? "text-foreground" : "text-muted-foreground")} />
+              {d.adopted ? (
+                <button className="rounded p-0.5 hover:bg-accent" title="Open in Files" aria-label={`Open ${d.record?.name || d.model} in Files`} onClick={() => openDrive(d)}>
+                  <HardDrive className="size-5 shrink-0 text-foreground" />
+                </button>
+              ) : (
+                <HardDrive className="size-5 shrink-0 text-muted-foreground" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">{d.record?.name || d.label || d.model}</span>
+                  {d.adopted ? (
+                    <button className="font-medium hover:underline" title="Open in Files" onClick={() => openDrive(d)}>
+                      {d.record?.name || d.label || d.model}
+                    </button>
+                  ) : (
+                    <span className="font-medium">{d.record?.name || d.label || d.model}</span>
+                  )}
                   {d.adopted ? idx.length ? idx.map((i) => (
                         <Badge key={i} variant="secondary">
                           <span className="size-2 rounded-full" style={{ background: spaceColor(i) }} /> {spaces[i].name}
@@ -534,10 +515,30 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: str
                       )) : <Badge variant="outline">no Space</Badge> : <Badge variant="outline">not used</Badge>}
                   {d.record?.origin === "internal" && <span className="text-xs text-muted-foreground">built in</span>}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {d.model} · {formatBytes(d.sizeBytes)} · {d.fstype || "no filesystem"} · {d.device}
-                  {d.adopted && d.freeBytes > 0n && ` · ${formatBytes(d.freeBytes)} free`}
-                  {[...d.autoTags, ...(d.record?.tags ?? [])].length > 0 && ` · ${[...d.autoTags, ...(d.record?.tags ?? [])].join(", ")}`}
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>
+                    {d.adopted && d.freeBytes > 0n ? `${formatBytes(d.freeBytes)} free / ${formatBytes(d.sizeBytes - d.freeBytes)} used / ${formatBytes(d.sizeBytes)}` : formatBytes(d.sizeBytes)}
+                    {" · "}
+                    {d.fstype || "no filesystem"}
+                    {d.mountPath && <> · <span className="font-mono">{d.mountPath}</span></>}
+                    {d.model && ` · ${d.model}`}
+                    {d.serial && <> · <span className="font-mono">{d.serial}</span></>}
+                  </span>
+                  {d.autoTags.map((t) => (
+                    <Badge key={`a-${t}`} variant="outline" className="h-4 px-1.5 text-[10px] text-muted-foreground" title="Found by the Node">
+                      {t}
+                    </Badge>
+                  ))}
+                  {(d.record?.tags ?? []).map((t) => (
+                    <Badge key={`u-${t}`} variant="secondary" className="h-4 px-1.5 text-[10px]" title="Your tag">
+                      {t}
+                    </Badge>
+                  ))}
+                  {d.adopted && d.record && (
+                    <Button size="icon" variant="ghost" className="size-5" aria-label={`Change ${d.record.name}'s tags`} title="Add or change your tags" onClick={() => setTagging(d)}>
+                      <Pencil className="size-3" />
+                    </Button>
+                  )}
                 </div>
                 {d.folders.some((f) => f.kind !== "space") && (
                   <div className="flex flex-wrap gap-1 pt-0.5 text-xs">
@@ -572,6 +573,26 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces }: { nodeId: str
           );
         })}
       </ul>
+      {client && tagging?.record && (
+        <TagsDialog
+          title={`Tags for ${tagging.record.name}`}
+          description="Spaces take Drives by tag. The Node's own tags stay; add yours."
+          initial={tagging.record.tags}
+          fixed={tagging.autoTags}
+          suggestions={allTags}
+          preview={(tags) => {
+            const rec = create(DriveRecordSchema, { ...tagging.record!, tags });
+            const ids = spacesOf(rec, spaces);
+            return `It would be in: ${ids.length ? ids.map((id) => spaces.find((s) => s.spaceId === id)?.name ?? id).join(", ") : "no Space"}.`;
+          }}
+          onSave={async (tags) => {
+            await client.setDriveTags({ driveId: tagging.driveId, tags, name: "" });
+            toast.success(`${tagging.record!.name}'s tags saved`);
+            refresh();
+          }}
+          onClose={() => setTagging(null)}
+        />
+      )}
       {client && dialog && <DriveDialog kind={dialog.kind} drive={dialog.drive} client={client} onDone={() => (setDialog(null), refresh())} />}
     </div>
   );
@@ -659,5 +680,113 @@ function DriveDialog({ kind, drive, client, onDone }: { kind: "adopt" | "format"
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Edit a list of tags (decision 201): chips for the tags the Fleet's Drives
+ * have, toggled with a click, and a field for new ones. `preview` says what
+ * the tags would mean.
+ */
+function TagsDialog({ title, description, initial, suggestions, fixed = [], preview, problem, onSave, onClose }: { title: string; description: string; initial: string[]; suggestions: string[]; fixed?: string[]; preview?: (tags: string[]) => React.ReactNode; problem?: (tags: string[]) => string; onSave: (tags: string[]) => Promise<void>; onClose: () => void }) {
+  const [tags, setTags] = useState<string[]>(initial);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const add = (raw: string) => {
+    const t = raw.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-|-$/g, "");
+    if (t && !tags.includes(t) && !fixed.includes(t)) setTags([...tags, t]);
+    setTyped("");
+  };
+  const all = [...new Set([...suggestions, ...tags])].filter((t) => !fixed.includes(t)).sort();
+  const why = problem?.(tags) ?? "";
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {fixed.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              Automatic:
+              {fixed.map((t) => (
+                <Badge key={t} variant="outline" className="text-muted-foreground">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {all.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {all.map((t) => (
+                <button key={t} type="button" aria-pressed={tags.includes(t)} className={cn("rounded-full border px-2 py-0.5 text-xs", tags.includes(t) ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")} onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add(typed);
+            }}
+          >
+            <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="A new tag, such as backups" aria-label="New tag" />
+            <Button type="submit" variant="outline" disabled={!typed.trim()}>
+              Add
+            </Button>
+          </form>
+          {preview && <p className="text-xs text-muted-foreground">{preview(tags)}</p>}
+          {why && <p className="text-xs text-destructive">{why}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={busy || !!why || JSON.stringify([...tags].sort()) === JSON.stringify([...initial].sort())}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onSave(tags);
+                onClose();
+              } catch (e) {
+                toast.error(String((e as Error).message ?? e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Which tags a Space takes its Drives by. */
+function SpaceTagsDialog({ space, spaces, drives, nodeName, onClose, onSave }: { space: Space; spaces: Space[]; drives: DriveRecord[]; nodeName: (id: string) => string; onClose: () => void; onSave: (s: Space) => Promise<void> }) {
+  // The same rule the Nodes apply, with the tags changed.
+  const taking = (tags: string[]) => {
+    const next = spaces.map((x) => (x.spaceId === space.spaceId ? create(SpaceSchema, { ...space, requireTags: tags }) : x));
+    return drives.filter((d) => spacesOf(d, next).includes(space.spaceId));
+  };
+  return (
+    <TagsDialog
+      title={`Drives for ${space.name}`}
+      description="It takes every Drive that has all of these tags, on any Node. No tags: every Drive."
+      initial={space.requireTags}
+      suggestions={[...new Set(drives.flatMap((d) => [...d.autoTags, ...d.tags]))]}
+      preview={(tags) => {
+        const ds = taking(tags);
+        return `Would take: ${ds.length === 0 ? "no Drive" : ds.map((d) => `${d.name} on ${nodeName(d.nodeId)}`).join(", ")}.`;
+      }}
+      problem={(tags) => (space.exclusive && tags.length === 0 && space.nodeIds.length === 0 ? "An exclusive Space needs a tag; otherwise it would take every Drive from the others." : "")}
+      onSave={(tags) => onSave(create(SpaceSchema, { ...space, requireTags: tags }))}
+      onClose={onClose}
+    />
   );
 }
