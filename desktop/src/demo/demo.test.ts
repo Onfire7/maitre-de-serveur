@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
-import { NodeSchema } from "@/gen/maitre/v1/fleet_pb";
+import { GrantSchema, GrantsNeededSchema, NodeSchema } from "@/gen/maitre/v1/fleet_pb";
 import { InstallerService, Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { gapLine, nodeDown, nodeWord, provisioningLine, syncGaps } from "@/fleet/useFleet";
 import { notices } from "@/app/notices";
@@ -39,7 +39,7 @@ describe("demo Fleet", () => {
     const recs = (await at(B).node.listRecords({ kind: "node" })).records;
     expect(recs.map((r) => fromBinary(NodeSchema, r.body).name).sort()).toEqual(["Alder", "Basalt"]);
     const all = (await at(A).node.listRecords({})).records;
-    expect(new Set(all.map((r) => r.kind))).toEqual(new Set(["fleet", "node", "trusted_device", "space", "drive", "service", "update_policy", "tailscale", "public_settings"]));
+    expect(new Set(all.map((r) => r.kind))).toEqual(new Set(["fleet", "grant", "node", "trusted_device", "space", "drive", "service", "update_policy", "tailscale", "public_settings"]));
   });
 
   it("makes a switched-off Node unreachable directly and in the anchor's view", async () => {
@@ -175,5 +175,28 @@ describe("MoveVolume", () => {
     expect(st.spec?.volumeSpaces.media).toBe("general");
     expect(st.state).toBe(ServiceStatus_State.RUNNING);
     await expect(svc.moveVolume({ name: "jellyfin", volume: "media", toSpace: "general" })).rejects.toThrow(/already in/);
+  });
+});
+
+describe("grants (decision 189)", () => {
+  it("lets jellyfin restart with its granted GPU, and asks again once the grant is revoked", async () => {
+    const grant = fleet.records.find((r) => r.kind === "grant" && !r.deleted)!;
+    expect(fromBinary(GrantSchema, grant.body).option).toBe("AddDevice=/dev/dri");
+    await at(A).services.controlService({ name: "jellyfin", action: ControlServiceRequest_Action.RESTART });
+    // A replay of an older signature is refused.
+    await expect(at(A).node.putRecord({ record: { kind: "grant", id: grant.id, deleted: true, signedUnixMs: grant.signedUnixMs } })).rejects.toThrow(/signed before/);
+    await at(A).node.putRecord({ record: { kind: "grant", id: grant.id, deleted: true, signedUnixMs: grant.signedUnixMs + 1n } });
+    fleet.rebuildRecords();
+    expect(fleet.records.find((r) => r.id === grant.id)?.deleted).toBe(true);
+    const err = await at(A)
+      .services.controlService({ name: "jellyfin", action: ControlServiceRequest_Action.RESTART })
+      .then(() => undefined, (e) => ConnectError.from(e));
+    expect(err?.code).toBe(Code.FailedPrecondition);
+    const need = err!.findDetails(GrantsNeededSchema)[0];
+    expect(need.options).toEqual(["AddDevice=/dev/dri"]);
+    expect(need.grantIds).toEqual([grant.id]);
+    expect(need.imageRepository).not.toMatch(/[:@]/);
+    // Stopping needs no grant.
+    await at(A).services.controlService({ name: "jellyfin", action: ControlServiceRequest_Action.STOP });
   });
 });

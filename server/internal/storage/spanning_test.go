@@ -20,7 +20,7 @@ func TestWriteExportsStartsTheServerWhenUnchanged(t *testing.T) {
 	hosts := []string{"192.168.4.74"}
 
 	run := &fakeRunner{}
-	if err := WriteExports(ctx, run, []string{"media"}, hosts); err != nil {
+	if err := WriteExports(ctx, run, []string{"media"}, map[string]uint32{"media": 61001}, hosts); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(run.cmds, []string{"systemctl start --no-block nfs-server.service", "exportfs -ra"}) {
@@ -28,7 +28,7 @@ func TestWriteExportsStartsTheServerWhenUnchanged(t *testing.T) {
 	}
 
 	run = &fakeRunner{} // the Node rebooted; the list is the same
-	if err := WriteExports(ctx, run, []string{"media"}, hosts); err != nil {
+	if err := WriteExports(ctx, run, []string{"media"}, map[string]uint32{"media": 61001}, hosts); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(run.cmds, []string{"systemctl start --no-block nfs-server.service"}) {
@@ -37,9 +37,9 @@ func TestWriteExportsStartsTheServerWhenUnchanged(t *testing.T) {
 
 	run = &fakeRunner{} // nothing to export, and nothing was before
 	mountedDirs = map[string]bool{}
-	_ = WriteExports(ctx, run, []string{"media"}, hosts)
+	_ = WriteExports(ctx, run, []string{"media"}, map[string]uint32{"media": 61001}, hosts)
 	run = &fakeRunner{}
-	if err := WriteExports(ctx, run, []string{"media"}, hosts); err != nil {
+	if err := WriteExports(ctx, run, []string{"media"}, map[string]uint32{"media": 61001}, hosts); err != nil {
 		t.Fatal(err)
 	}
 	if len(run.cmds) != 0 {

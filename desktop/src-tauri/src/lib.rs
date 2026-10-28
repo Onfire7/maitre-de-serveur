@@ -7,6 +7,7 @@ pub mod proxy;
 pub mod transfer;
 mod recovery;
 mod rpc;
+pub mod sign;
 
 use discovery::{Discovery, Found};
 use identity::Identity;
@@ -329,6 +330,28 @@ async fn recover_with_phrase(_state: State<'_, AppState>, phrase: String, addr: 
     Ok(pem)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignedRecord {
+    pub signer_key: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub signed_unix_ms: i64,
+}
+
+/// Sign a record's content (decision 189) with this device's key, or with
+/// the Recovery Phrase's key when a phrase is given. The webview passes the
+/// fields; the bytes signed are always built here.
+#[tauri::command]
+fn sign_record(state: State<'_, AppState>, kind: String, id: String, body: Vec<u8>, deleted: bool, signed_unix_ms: i64, phrase: Option<String>) -> Result<SignedRecord, String> {
+    let der = match phrase.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+        Some(p) => recovery::key_pair(&recovery::parse(p)?)?.serialize_der(),
+        None => state.identity.pkcs8_der(),
+    };
+    let key = sign::key_of_pkcs8(&der)?;
+    let s = sign::sign(&key, &kind, &id, &body, deleted, signed_unix_ms);
+    Ok(SignedRecord { signer_key: s.signer_key, signature: s.signature, signed_unix_ms })
+}
+
 #[tauri::command]
 fn media_image(state: State<'_, AppState>) -> media::ImageStatus {
     media::Media::image_status(&state.data_dir)
@@ -397,6 +420,7 @@ pub fn run() {
             announce_join,
             withdraw_join,
             recover_with_phrase,
+            sign_record,
             media_image,
             media_download,
             media_disks,

@@ -12,6 +12,7 @@ import { HoldButton } from "@/components/hold-button";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeDown, nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { node as nodeClient, targetFor } from "@/fleet/actions";
+import { currentRecord, putSigned } from "@/fleet/sign";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import type { ConsoleState, Found } from "@/state";
@@ -147,7 +148,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
     for (const n of state.nodes.filter((x) => x.node_id !== node.nodeId))
       for (const a of n.addresses) {
         try {
-          await nodeClient({ addr: a, fingerprint: n.node_id }).putRecord({ record: { kind: "node", id: node.nodeId, deleted: true } });
+          await putSigned({ addr: a, fingerprint: n.node_id }, { kind: "node", id: node.nodeId, deleted: true }, currentRecord(snap.records, "node", node.nodeId));
           break;
         } catch {
           /* next */

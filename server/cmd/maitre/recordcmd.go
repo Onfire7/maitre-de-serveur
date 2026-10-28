@@ -71,7 +71,7 @@ func runRecord(args []string) error {
 		}
 		return fmt.Errorf("no record %s/%s", *kind, *rid)
 	case "put", "delete":
-		res, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: &maitrev1.Record{Kind: *kind, Id: *rid, Body: []byte(*body), Deleted: fs.Arg(0) == "delete"}})
+		res, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: signed(id, &maitrev1.Record{Kind: *kind, Id: *rid, Body: []byte(*body), Deleted: fs.Arg(0) == "delete"})})
 		if err != nil {
 			return err
 		}

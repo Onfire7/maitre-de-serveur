@@ -13,6 +13,7 @@ import (
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 )
 
 // ContentPath is where file contents are read and written (decision 183).
@@ -45,7 +46,11 @@ func (m *Manager) Handler(allow func(*http.Request) bool) http.Handler {
 		case http.MethodGet, http.MethodHead:
 			m.serveGet(w, r, full, p)
 		case http.MethodPut:
-			m.servePut(w, r, base, p, q.Get("mkdirs") == "1")
+			// Decision 189: an upload writes as the Space's owner.
+			_ = owner.As(m.ownerOf(sc.GetSpaceId()), func() error {
+				m.servePut(w, r, base, p, q.Get("mkdirs") == "1")
+				return nil
+			})
 		default:
 			w.Header().Set("Allow", "GET, HEAD, PUT")
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

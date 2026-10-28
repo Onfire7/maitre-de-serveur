@@ -27,6 +27,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
@@ -34,6 +35,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
@@ -91,6 +93,11 @@ func runAgent(args []string) error {
 		return err
 	}
 	defer st.Close()
+	// Decision 189: this Node signs what it writes, and takes a Record
+	// from a peer only when the right key signed it.
+	st.SignWith(id)
+	policy := authz.New(st, id.Fingerprint())
+	st.Admit = policy.Admit
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -111,14 +118,22 @@ func runAgent(args []string) error {
 	// Trust list: devices that may manage this Node, and the Fleet's other
 	// Nodes (Milestone 3). Refreshed whenever those records change.
 	refreshTrust := func() {
-		full, limited, err := peers.TrustedFingerprints(ctx, st, id.Fingerprint())
+		devices, limited, nodes, err := peers.TrustedRoles(ctx, st, id.Fingerprint())
 		if err != nil {
 			log.Error("load trust list", "err", err)
 			return
 		}
-		list.ReplaceWithLimited(full, limited)
+		list.ReplaceRoles(devices, limited, nodes)
 	}
 	refreshTrust()
+	// Decision 189: our own Records from before signing get signed, so
+	// peers keep taking their changes. Device-signed kinds stay as they
+	// are here until a Trusted Device saves them again.
+	if recs, err := st.ResignOwn(ctx, func(kind string) bool { return !authz.DeviceOnly(kind) }); err != nil {
+		log.Warn("sign own records", "err", err)
+	} else if len(recs) > 0 {
+		log.Info("signed own records from before decision 189", "count", len(recs))
+	}
 	log.Info("maitre agent", "node_id", id.Fingerprint(), "name", self.GetName(), "fleet", fleet.GetName(), "trusted_devices", list.Len())
 
 	// Decision 101: a reboot into recovery (chosen at the keyboard) runs
@@ -178,6 +193,7 @@ func runAgent(args []string) error {
 	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
 	svc.Peers = pm
 	svc.Limited = list.Limited
+	svc.Authz = policy
 	svc.OnChange = func(r *maitrev1.Record) {
 		switch r.GetKind() {
 		case store.KindTrustedDevice:
@@ -337,12 +353,13 @@ func runAgent(args []string) error {
 		spaces, _ := storage.Spaces(ctx, st)
 		for _, sp := range spaces {
 			if sp.GetSpaceId() == id {
-				return sp.GetOwnerId()
+				return storage.OwnerOf(sp)
 			}
 		}
 		return 0
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State}, st, nil)
+	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
+		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
 	svc.Services = func(ctx context.Context) []*maitrev1.ServiceStatus {
 		list, err := mgr.List(ctx)
@@ -484,7 +501,11 @@ func runAgent(args []string) error {
 			peerSet[id] = true
 		}
 		storage.UnmountStale(ctx, run, peerSet)
-		if err := storage.WriteExports(ctx, run, spaceIDs, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
+		owners := map[string]uint32{}
+		for _, id := range spaceIDs {
+			owners[id] = spaceOwner(ctx, id)
+		}
+		if err := storage.WriteExports(ctx, run, spaceIDs, owners, storage.PeerHosts(pm.Status(ctx), addrs)); err != nil {
 			log.Warn("nfs exports", "err", err)
 		}
 	}
@@ -614,6 +635,21 @@ func runAgent(args []string) error {
 		withPublicApplied()
 		publish()
 	}
+	// Decision 189: a Service with protected options runs only while each
+	// has a grant; a revoked grant stops it.
+	mgr.EnforceGrants(ctx)
+	withGrants := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withGrants(r)
+		if r.GetKind() == services.KindGrant {
+			mgr.EnforceGrants(ctx)
+		}
+	}
+	withGrantsApplied := pm.OnApplied
+	pm.OnApplied = func() {
+		withGrantsApplied()
+		mgr.EnforceGrants(ctx)
+	}
 	// Milestone 6: Services that opted in check for a newer image daily,
 	// an hour after boot and every 24 hours after that.
 	go func() {
@@ -660,7 +696,9 @@ func runAgent(args []string) error {
 	}
 	fm.PeerHTTP = pm.HTTPClient
 	go fm.Run(ctx)
-	maitrev1connect.RegisterFilesServiceHandler(rpc, filesservice.New(fm))
+	fsvc := filesservice.New(fm)
+	fsvc.IsNode = list.Node
+	maitrev1connect.RegisterFilesServiceHandler(rpc, fsvc)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 	// Decision 183: file contents for the file manager, same callers as RPCs.
@@ -721,7 +759,7 @@ func runAgent(args []string) error {
 				}
 			}
 			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)
-			srv := &http.Server{Handler: peer.Middleware(svcproxy.Handler(st, mux)), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
+			srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
 			go func() { <-ctx.Done(); _ = srv.Close() }()
 			if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Warn("tailscale serve", "err", err)
@@ -841,7 +879,7 @@ func runAgent(args []string) error {
 			go plainStatusPage(ctx, src)
 		}
 	}
-	return serve(ctx, log, *listen, peer.Middleware(svcproxy.Handler(st, mux)), mtls.ServerConfig(id, list))
+	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), mtls.ServerConfig(id, list))
 }
 
 // runInstaller is `maitre installer`: the mode booted from installer media.

@@ -105,6 +105,12 @@ message ProvisionRequest {
   string restore_node_id = 7;
   // Create a data partition from the remaining space. Default off on USB.
   bool data_partition = 5;
+  // Decision 189: signed records the new Node stores as they are: the
+  // Fleet's Trusted Devices and other Device-signed records copied from a
+  // Node, or for a new Fleet the Console's own device and the Recovery
+  // Phrase, signed by the Console. When set, trusted_devices and nodes are
+  // ignored.
+  repeated Record records = 8;
 }
 
 message ProvisionResponse {}

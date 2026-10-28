@@ -24,6 +24,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -422,7 +423,7 @@ func (m *Manager) Forward(ctx context.Context, owner string, rec *maitrev1.Recor
 		// The owner answered and refused: that is the caller's problem, not a queue's.
 		return nil, false, ferr
 	}
-	if err := m.st.Enqueue(ctx, owner, rec.GetKind(), rec.GetId(), rec.GetBody(), rec.GetDeleted()); err != nil {
+	if err := m.st.Enqueue(ctx, owner, rec); err != nil {
 		return nil, false, err
 	}
 	m.log.Info("write queued for offline owner", "owner", owner, "kind", rec.GetKind(), "id", rec.GetId())
@@ -560,7 +561,12 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		// push back or the queued writes.
 		ok, err := m.st.Apply(ctx, r)
 		if err != nil {
-			m.log.Warn("could not apply a peer's record", "peer", id, "kind", r.GetKind(), "id", r.GetId(), "err", err)
+			// A refused signature (decision 189) shows as a gap (168).
+			lvl := slog.LevelWarn
+			if errors.Is(err, authz.ErrDenied) {
+				lvl = slog.LevelDebug
+			}
+			m.log.Log(ctx, lvl, "could not apply a peer's record", "peer", id, "kind", r.GetKind(), "id", r.GetId(), "err", err)
 			continue
 		}
 		changed = changed || ok
@@ -600,7 +606,7 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		return err
 	}
 	for _, q := range pending {
-		rec := &maitrev1.Record{Kind: q.Kind, Id: q.ID, Body: q.Body, Deleted: q.Deleted}
+		rec := q.Record
 		err := m.call(ctx, id, "PutRecord", func(ctx context.Context, c maitrev1connect.NodeServiceClient) error {
 			_, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: rec})
 			return err
@@ -608,13 +614,13 @@ func (m *Manager) reconcile(ctx context.Context, id string) error {
 		if err != nil {
 			var cerr *connect.Error
 			if errors.As(err, &cerr) && cerr.Code() != connect.CodeUnavailable {
-				m.log.Warn("queued write refused by owner; dropping it", "owner", id, "kind", q.Kind, "id", q.ID, "err", err)
+				m.log.Warn("queued write refused by owner; dropping it", "owner", id, "kind", rec.GetKind(), "id", rec.GetId(), "err", err)
 				_ = m.st.Dequeue(ctx, q.Seq)
 			}
 			break
 		}
 		_ = m.st.Dequeue(ctx, q.Seq)
-		m.log.Info("queued write delivered", "owner", id, "kind", q.Kind, "id", q.ID)
+		m.log.Info("queued write delivered", "owner", id, "kind", rec.GetKind(), "id", rec.GetId())
 	}
 	if changed && m.OnApplied != nil {
 		m.OnApplied()
@@ -696,12 +702,20 @@ func newer(a, b *maitrev1.Record) bool {
 // Devices that are not recovery-only, plus every other Node of the Fleet.
 // Recovery-only keys come back separately (decision 100).
 func TrustedFingerprints(ctx context.Context, st *store.Store, self string) (full, limited []string, err error) {
+	devices, limited, nodes, err := TrustedRoles(ctx, st, self)
+	return append(devices, nodes...), limited, err
+}
+
+// TrustedRoles is TrustedFingerprints by role: Trusted Devices, recovery-only
+// keys, and the Fleet's other Nodes, which may make Node-to-Node calls only
+// (decision 189).
+func TrustedRoles(ctx context.Context, st *store.Store, self string) (devices, limited, nodes []string, err error) {
 	var fps []string
-	devices, err := store.ListLive(ctx, st, store.KindTrustedDevice, func() *maitrev1.TrustedDevice { return &maitrev1.TrustedDevice{} })
+	devs, err := store.ListLive(ctx, st, store.KindTrustedDevice, func() *maitrev1.TrustedDevice { return &maitrev1.TrustedDevice{} })
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	for _, d := range devices {
+	for _, d := range devs {
 		switch {
 		case d.GetNodeScope() != "" && d.GetNodeScope() != self:
 			// Decision 120: trusted by another Node only, not by us.
@@ -711,14 +725,14 @@ func TrustedFingerprints(ctx context.Context, st *store.Store, self string) (ful
 			fps = append(fps, d.GetDeviceId())
 		}
 	}
-	nodes, err := store.ListLive(ctx, st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
+	ns, err := store.ListLive(ctx, st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	for _, n := range nodes {
+	for _, n := range ns {
 		if n.GetNodeId() != self {
-			fps = append(fps, n.GetNodeId())
+			nodes = append(nodes, n.GetNodeId())
 		}
 	}
-	return fps, limited, nil
+	return fps, limited, nodes, nil
 }

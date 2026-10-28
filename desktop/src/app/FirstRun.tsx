@@ -17,6 +17,7 @@ import { PutRecordRequestSchema } from "@/gen/maitre/v1/node_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found } from "@/state";
 import { adoptFleet, firstTrustingNode } from "@/fleet/join";
+import { signedRecord } from "@/fleet/sign";
 
 export type FirstRunScreen = "welcome" | "join" | "recover" | "code";
 
@@ -205,7 +206,9 @@ export function RecoverScreen({ device, onJoined, onCancel }: { device: DeviceIn
       for (const n of nodes)
         for (const addr of n.addresses) {
           const body = toBinary(TrustedDeviceSchema, create(TrustedDeviceSchema, { deviceId: device.fingerprint, name: device.name, publicKeyPem: device.public_key_pem, addedUnixMs: BigInt(Date.now()) }));
-          const req = toBinary(PutRecordRequestSchema, create(PutRecordRequestSchema, { record: { kind: "trusted_device", id: device.fingerprint, body } }));
+          // Decision 189: signed by the phrase's key, which is what the Node trusts here.
+          const record = await signedRecord({ kind: "trusted_device", id: device.fingerprint, body }, { phrase: words.join(" ") });
+          const req = toBinary(PutRecordRequestSchema, create(PutRecordRequestSchema, { record }));
           try {
             await invoke<string>("recover_with_phrase", { phrase: words.join(" "), addr, fingerprint: n.id, body: Array.from(req) });
             onJoined(await adoptFleet({ addr, fingerprint: n.id }, found));

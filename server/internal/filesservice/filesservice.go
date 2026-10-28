@@ -9,13 +9,27 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 )
 
 // Service answers FilesService.
-type Service struct{ m *files.Manager }
+type Service struct {
+	m *files.Manager
+	// IsNode reports whether a caller is one of the Fleet's Nodes, whose
+	// moves are limited (decision 189); nil treats no caller as a Node.
+	IsNode func(fingerprint string) bool
+}
 
 // New wraps a Manager.
 func New(m *files.Manager) *Service { return &Service{m: m} }
+
+// node returns the calling Node's id, or "" when the caller is not a Node.
+func (s *Service) node(ctx context.Context) string {
+	if p, ok := peer.From(ctx); ok && s.IsNode != nil && s.IsNode(p.Fingerprint) {
+		return p.Fingerprint
+	}
+	return ""
+}
 
 func (s *Service) ListDir(ctx context.Context, req *maitrev1.ListDirRequest) (*maitrev1.ListDirResponse, error) {
 	entries, err := s.m.ListDir(ctx, req.GetScope(), req.GetPath())
@@ -34,6 +48,12 @@ func (s *Service) Usage(ctx context.Context, req *maitrev1.UsageRequest) (*maitr
 }
 
 func (s *Service) Move(ctx context.Context, req *maitrev1.MoveRequest) (*maitrev1.MoveResponse, error) {
+	if n := s.node(ctx); n != "" {
+		// A Node hands us a move a person started on it (files.forward).
+		if err := s.m.CheckPeerMove(ctx, n, req); err != nil {
+			return nil, connect.Errorf(connect.CodePermissionDenied, "%v", err)
+		}
+	}
 	j, err := s.m.Move(ctx, req)
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
@@ -45,7 +65,17 @@ func (s *Service) ListJobs(context.Context, *maitrev1.ListJobsRequest) (*maitrev
 	return &maitrev1.ListJobsResponse{Jobs: s.m.Jobs()}, nil
 }
 
-func (s *Service) CancelJob(_ context.Context, req *maitrev1.CancelJobRequest) (*maitrev1.CancelJobResponse, error) {
+func (s *Service) CancelJob(ctx context.Context, req *maitrev1.CancelJobRequest) (*maitrev1.CancelJobResponse, error) {
+	if n := s.node(ctx); n != "" {
+		// A Node may cancel only the moves it handed us.
+		mine := false
+		for _, j := range s.m.Jobs() {
+			mine = mine || (j.GetJobId() == req.GetJobId() && j.GetRequest().GetFromNodeId() == n)
+		}
+		if !mine {
+			return nil, connect.Errorf(connect.CodePermissionDenied, "a Node may cancel only its own moves")
+		}
+	}
 	if err := s.m.Cancel(req.GetJobId()); err != nil {
 		return nil, connect.Errorf(connect.CodeNotFound, "%v", err)
 	}

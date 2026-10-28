@@ -18,6 +18,8 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pairing"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/recsig"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
 // Options configure an Installer.
@@ -157,6 +159,21 @@ func (in *Installer) Provision(ctx context.Context, req *maitrev1.ProvisionReque
 	if !callerIncluded {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "trusted_devices must include the calling device")
 	}
+	// Decision 189: signed records are stored as they are; the caller
+	// paired by code vouches for them, but each must be intact and the
+	// caller must be among the Trusted Devices they carry.
+	if recs := req.GetRecords(); len(recs) > 0 {
+		callerSigned := false
+		for _, r := range recs {
+			if _, err := recsig.Verify(r); err != nil {
+				return nil, connect.Errorf(connect.CodeInvalidArgument, "record %s %s: %v", r.GetKind(), r.GetId(), err)
+			}
+			callerSigned = callerSigned || (r.GetKind() == store.KindTrustedDevice && r.GetId() == p.Fingerprint && !r.GetDeleted())
+		}
+		if !callerSigned {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "records must include the calling device")
+		}
+	}
 	disks, err := in.opts.Disks(ctx)
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
@@ -203,6 +220,7 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		NodeName:      req.GetNodeName(),
 		Nodes:         req.GetNodes(),
 		Trusted:       req.GetTrustedDevices(),
+		Records:       req.GetRecords(),
 		NodeIdentity:  in.id,
 		RestoreDevice: in.restoreDevice,
 		RestoreNodeID: req.GetRestoreNodeId(),

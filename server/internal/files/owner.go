@@ -37,7 +37,7 @@ func (m *Manager) ownerOf(space string) uint32 {
 	spaces, _ := storage.Spaces(context.Background(), m.st)
 	for _, s := range spaces {
 		if s.GetSpaceId() == space {
-			return s.GetOwnerId()
+			return storage.OwnerOf(s)
 		}
 	}
 	return 0

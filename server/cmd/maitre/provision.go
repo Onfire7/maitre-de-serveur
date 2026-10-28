@@ -22,6 +22,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pairing"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recovery"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/recsig"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
@@ -115,6 +116,10 @@ func runProvision(args []string) error {
 			return fmt.Errorf("read the Fleet from %s: %w", *joinFrom, err)
 		}
 		for _, r := range recs.GetRecords() {
+			// Decision 189: signed records travel as they are.
+			if len(r.GetSignature()) > 0 && provisionKinds[r.GetKind()] {
+				req.Records = append(req.Records, r)
+			}
 			if r.GetDeleted() {
 				continue
 			}
@@ -164,6 +169,13 @@ func runProvision(args []string) error {
 			{Name: hostname(), PublicKeyPem: string(id.PublicKeyPEM())},
 			{Name: "Recovery Phrase", PublicKeyPem: string(recID.PublicKeyPEM()), RecoveryOnly: true},
 		}
+		// Decision 189: the same devices as records this device signs.
+		now := time.Now().UnixMilli()
+		for i, who := range []*identity.Identity{id, recID} {
+			d := req.TrustedDevices[i]
+			body, _ := proto.Marshal(&maitrev1.TrustedDevice{DeviceId: who.Fingerprint(), Name: d.GetName(), PublicKeyPem: d.GetPublicKeyPem(), RecoveryOnly: d.GetRecoveryOnly(), AddedUnixMs: now})
+			req.Records = append(req.Records, signed(id, &maitrev1.Record{Kind: store.KindTrustedDevice, Id: who.Fingerprint(), Body: body}))
+		}
 	}
 	if _, err := c.Provision(ctx, req); err != nil {
 		return err
@@ -177,7 +189,7 @@ func runProvision(args []string) error {
 			return err
 		}
 		body, _ := proto.Marshal(&maitrev1.Node{NodeId: instID.Fingerprint(), Name: *nodeName, PublicKeyPem: string(instID.PublicKeyPEM()), ProvisionedUnixMs: time.Now().UnixMilli()})
-		if _, err := joined.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: &maitrev1.Record{Kind: store.KindNode, Id: instID.Fingerprint(), Body: body}}); err != nil {
+		if _, err := joined.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: signed(id, &maitrev1.Record{Kind: store.KindNode, Id: instID.Fingerprint(), Body: body})}); err != nil {
 			return fmt.Errorf("introduce the new Node to %s: %w", *joinFrom, err)
 		}
 		fmt.Println("introduced to the Fleet")
@@ -210,4 +222,19 @@ func runProvision(args []string) error {
 			return fmt.Errorf("install failed: %s", p.GetMessage())
 		}
 	}
+}
+
+// provisionKinds are the Record kinds a joining Node receives with its
+// provisioning (decision 189); the rest it pulls from its peers.
+var provisionKinds = map[string]bool{
+	store.KindTrustedDevice: true, store.KindNode: true, store.KindFleet: true,
+	"space": true, "update_policy": true, "tailscale": true, "public_settings": true, "grant": true,
+}
+
+// signed signs rec as id, now (decision 189).
+func signed(id *identity.Identity, rec *maitrev1.Record) *maitrev1.Record {
+	if err := recsig.Sign(id, rec, time.Now().UnixMilli()); err != nil {
+		panic(err) // only for a key that is not Ed25519
+	}
+	return rec
 }

@@ -5,7 +5,8 @@
 // fails with Unimplemented so a prototype never silently gets empty data.
 import { create, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
-import { ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
+import { ControlServiceRequest_Action, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { GrantsNeededSchema } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
@@ -19,6 +20,12 @@ function needNode(node: DemoNode | undefined, addr: string): DemoNode {
   if (!node) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
   if (!node.reachable) throw fail(Code.Unavailable, `dial tcp ${node.addr}: no route to host`);
   return node;
+}
+
+/** FailedPrecondition with a GrantsNeeded detail, as a Node refuses an ungranted option (decision 189). */
+function needGrants(f: DemoFleet, spec: ServiceSpec, nodeId: string) {
+  const need = f.grantsNeeded(spec, nodeId);
+  if (need) throw new ConnectError(`${spec.name} needs ${need.options.length === 1 ? "a grant" : "grants"} for ${need.options.join(", ")}`, Code.FailedPrecondition, undefined, [{ desc: GrantsNeededSchema, value: need }]);
 }
 
 const actions: Record<number, "start" | "stop" | "restart" | "remove" | "update" | "rollback"> = {
@@ -56,11 +63,15 @@ const handlers: Record<string, Handler> = {
   },
   "NodeService/PutRecord": (f, n, i, addr) => {
     needNode(n, addr);
-    const r = i.record as { kind: string; id: string; body?: Uint8Array; deleted?: boolean };
+    const r = i.record as { kind: string; id: string; body?: Uint8Array; deleted?: boolean; signedUnixMs?: bigint };
     const owner = f.records.find((x) => x.kind === r.kind && x.id === r.id)?.ownerNodeId;
     const ownerNode = owner ? f.nodes.find((x) => x.nodeId === owner) : undefined;
     if (ownerNode && !ownerNode.reachable) return { record: { ...r, ownerNodeId: owner }, queued: true };
-    return { record: f.putRecord(r), queued: false };
+    try {
+      return { record: f.putRecord(r), queued: false };
+    } catch (e) {
+      throw fail(Code.FailedPrecondition, (e as Error).message);
+    }
   },
   "NodeService/GetNodeLogs": (f, n, i, addr) => {
     const me = needNode(n, addr);
@@ -159,6 +170,8 @@ const handlers: Record<string, Handler> = {
   "ServiceService/ListServices": (f, n, _i, addr) => ({ services: f.servicesOn(needNode(n, addr).nodeId) }),
   "ServiceService/InstallService": (f, n, i, addr) => {
     const me = needNode(n, addr);
+    const spec = i.spec as { name: string; quadlet: string; image: string };
+    if (!f.services.some((s) => s.spec.name === spec.name)) needGrants(f, spec as never, me.nodeId);
     try {
       return { service: f.install(i.spec as never, me.nodeId) };
     } catch (e) {
@@ -169,6 +182,8 @@ const handlers: Record<string, Handler> = {
     needNode(n, addr);
     const a = actions[i.action as number];
     if (!a) throw fail(Code.InvalidArgument, "unknown action");
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (s && (a === "start" || a === "restart" || a === "update")) needGrants(f, s.spec, s.spec.nodeId);
     try {
       return { service: f.control(i.name as string, a) };
     } catch (e) {

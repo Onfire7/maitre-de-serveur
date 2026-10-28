@@ -59,7 +59,12 @@ func PeerHosts(peers []*maitrev1.PeerStatus, extra map[string][]string) []string
 // WriteExports exports every mounted Pool to the given hosts and makes sure
 // the NFS server runs while anything is exported. No hosts means nothing is
 // exported.
-func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []string) error {
+//
+// Decision 189: root on a peer is squashed to the Space's owner (owners,
+// by Space id), so a container running as root writes to this Node's half
+// of a spanning Space as that owner and nothing more; a Space without an
+// owner squashes root to nobody.
+func WriteExports(ctx context.Context, run Runner, spaces []string, owners map[string]uint32, hosts []string) error {
 	var b strings.Builder
 	b.WriteString("# Written by maitre: this Node's Pools, for the Fleet's other Nodes only.\n")
 	sort.Strings(spaces)
@@ -83,9 +88,13 @@ func WriteExports(ctx context.Context, run Runner, spaces []string, hosts []stri
 			b.WriteString("\n")
 		}
 		exported++
+		squash := "root_squash"
+		if id := owners[space]; id != 0 {
+			squash = fmt.Sprintf("root_squash,anonuid=%d,anongid=%d", id, id)
+		}
 		b.WriteString(mount)
 		for _, h := range hosts {
-			fmt.Fprintf(&b, " %s(rw,sync,no_subtree_check,no_root_squash,xprtsec=mtls,fsid=%d)", h, 1000+i)
+			fmt.Fprintf(&b, " %s(rw,sync,no_subtree_check,%s,xprtsec=mtls,fsid=%d)", h, squash, 1000+i)
 		}
 		b.WriteString("\n")
 	}
@@ -191,7 +200,7 @@ func MountRemotePool(ctx context.Context, run Runner, nodeID, space string) (str
 	}
 	// Relative to the peer's NFSv4 root, its SharedDir (WriteExports).
 	src := fmt.Sprintf("%s:/%s", identity.NFSName(nodeID), space)
-	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,xprtsec=mtls", src, dir); err != nil {
+	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,nosuid,nodev,noexec,xprtsec=mtls", src, dir); err != nil {
 		return "", err
 	}
 	return dir, nil

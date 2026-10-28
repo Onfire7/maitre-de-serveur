@@ -11,7 +11,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExposureSheet, PortForwardSheet, StorageSheet, type SheetKind } from "./ServiceSheets";
+import { ExposureSheet, GrantsSheet, PortForwardSheet, StorageSheet, type SheetKind } from "./ServiceSheets";
+import { GrantDialogHost } from "./GrantDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { createClient } from "@connectrpc/connect";
 import { fromBinary } from "@bufbuild/protobuf";
@@ -22,6 +23,7 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
+import { declined } from "@/fleet/grants";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -61,7 +63,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     const missing = (snap?.spaces ?? []).filter((sp) => !sp.ownerId && !owning.current.has(sp.spaceId));
     if (!snap || missing.length === 0) return;
     missing.forEach((sp) => owning.current.add(sp.spaceId));
-    assignOwners({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, snap.spaces).catch(() => missing.forEach((sp) => owning.current.delete(sp.spaceId)));
+    assignOwners({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, snap.spaces, snap.records).catch(() => missing.forEach((sp) => owning.current.delete(sp.spaceId)));
   }, [snap?.spaces]);
 
   const discover = useQuery({ queryKey: ["discover"], queryFn: () => api.discover(), refetchInterval: 2000, retry: false });
@@ -117,7 +119,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   // `?sheet=exposure:minecraft` opens a sheet on load (screenshot fixture).
   const [sheet, setSheet] = useState<{ kind: SheetKind; service: string } | null>(() => {
     const v = new URLSearchParams(window.location.search).get("sheet")?.split(":");
-    return v && ["exposure", "ports", "storage"].includes(v[0]) && v[1] ? { kind: v[0] as SheetKind, service: v[1] } : null;
+    return v && ["exposure", "ports", "storage", "grants"].includes(v[0]) && v[1] ? { kind: v[0] as SheetKind, service: v[1] } : null;
   });
   const sheetService = sheet ? services.find((s) => s.spec.name === sheet.service) : undefined;
 
@@ -142,6 +144,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "exposure":
       case "ports":
       case "storage":
+      case "grants":
         setSheet({ kind: item, service: s.spec.name });
         return;
       default:
@@ -151,7 +154,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           toast.success(`${s.spec.name}: ${item === "update" ? "updating" : item === "rollback" ? "rolling back" : item === "restart" ? "restarting" : item === "stop" ? "stopped" : "starting"}`);
           fleet.refresh();
         } catch (e) {
-          toast.error(String((e as Error).message ?? e));
+          if (!declined(e)) toast.error(String((e as Error).message ?? e));
         }
     }
   }
@@ -250,6 +253,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       {sheetService && <ExposureSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "exposure"} onClose={() => setSheet(null)} />}
       {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
       {sheetService && <StorageSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "storage"} onClose={() => setSheet(null)} />}
+      {sheetService && <GrantsSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "grants"} onClose={() => setSheet(null)} />}
+      <GrantDialogHost snap={snap} />
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>

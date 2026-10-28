@@ -15,6 +15,7 @@ import { UpdatePolicySchema, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb"
 import { transportFor } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
+import { currentRecord, putSigned } from "@/fleet/sign";
 import type { ConsoleState } from "@/state";
 import { useRoute } from "./routes";
 
@@ -31,7 +32,7 @@ export function UpdatesTab({ snap, state }: { snap: FleetSnapshot | undefined; s
     setPolicy(p);
     if (!snap) return;
     try {
-      await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "update_policy", id: "fleet", body: toBinary(UpdatePolicySchema, p) } });
+      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "update_policy", id: "fleet", body: toBinary(UpdatePolicySchema, p) }, currentRecord(snap.records, "update_policy", "fleet"));
       qc.invalidateQueries({ queryKey: ["fleet"] });
     } catch (e) {
       toast.error(String((e as Error).message ?? e));

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connectproto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
@@ -159,6 +160,15 @@ func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLo
 }
 
 func mapErr(err error) error {
+	// Decision 189: the Console asks a Trusted Device for these and retries.
+	var ge *services.GrantsError
+	if errors.As(err, &ge) {
+		ce := connect.NewError(connect.CodeFailedPrecondition, err.Error())
+		if d, derr := connectproto.NewErrorDetail(ge.Needed); derr == nil {
+			ce = ce.WithDetail(d)
+		}
+		return ce
+	}
 	switch {
 	case errors.Is(err, services.ErrExists):
 		return connect.Errorf(connect.CodeAlreadyExists, "%v", err)

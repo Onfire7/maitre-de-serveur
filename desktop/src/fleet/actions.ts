@@ -5,6 +5,7 @@ import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "./useFleet";
 import type { KnownNode } from "@/state";
+import { withGrants } from "./grants";
 
 /** Where to reach a Node: the synced record's first address, else the Console's own list. */
 export function targetFor(snap: FleetSnapshot | undefined, known: KnownNode[], nodeId: string): Target | undefined {
@@ -23,8 +24,22 @@ const actionCode: Record<ServiceAction, ControlServiceRequest_Action> = {
   rollback: ControlServiceRequest_Action.ROLLBACK,
 };
 
+/** The calls a Node may refuse for want of a grant (decision 189). */
+const GRANTED_CALLS = new Set(["installService", "controlService", "setFolders", "moveVolume", "setExposure", "setPortForwarding"]);
+
+/**
+ * A ServiceService client for one Node. The calls that may need grants ask
+ * for them and retry once (withGrants); declining throws GrantsDeclined.
+ */
 export function services(t: Target) {
-  return createClient(ServiceService, transportFor(t));
+  const client = createClient(ServiceService, transportFor(t));
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const v = Reflect.get(target, prop, receiver);
+      if (typeof prop !== "string" || !GRANTED_CALLS.has(prop) || typeof v !== "function") return v;
+      return (...args: unknown[]) => withGrants(t, () => v.apply(target, args));
+    },
+  });
 }
 
 export function node(t: Target) {

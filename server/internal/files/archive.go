@@ -68,7 +68,7 @@ func (m *Manager) Zip(ctx context.Context, req *maitrev1.ZipRequest) (*maitrev1.
 		what = req.GetNames()[0]
 	}
 	names := append([]string(nil), req.GetNames()...)
-	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "zip", Summary: fmt.Sprintf("Zip %s into %s", what, name), BytesTotal: total, Current: filepath.Join(folder, name)}}
+	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "zip", Summary: fmt.Sprintf("Zip %s into %s", what, name), BytesTotal: total, Current: filepath.Join(folder, name)}, owner: m.ownerOf(req.GetScope().GetSpaceId())}
 	j.run = func(ctx context.Context, j *job) error { return m.zip(ctx, j, dir, names, name) }
 	return m.enqueue(j), name, nil
 }
@@ -186,7 +186,7 @@ func (m *Manager) Unzip(ctx context.Context, req *maitrev1.UnzipRequest) (*maitr
 	}
 	dir := filepath.Dir(src)
 	folder := freeName(dir, stem, "")
-	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "unzip", Summary: fmt.Sprintf("Unzip %s into %s", filepath.Base(src), folder), BytesTotal: uint64(info.Size()), Current: r}}
+	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "unzip", Summary: fmt.Sprintf("Unzip %s into %s", filepath.Base(src), folder), BytesTotal: uint64(info.Size()), Current: r}, owner: m.ownerOf(req.GetScope().GetSpaceId())}
 	j.run = func(ctx context.Context, j *job) error { return m.unzip(ctx, j, src, kind, dir, folder) }
 	return m.enqueue(j), folder, nil
 }

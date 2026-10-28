@@ -55,7 +55,7 @@ func runRecover(args []string) error {
 	body, _ := proto.Marshal(&maitrev1.TrustedDevice{DeviceId: me.Fingerprint(), Name: *name, PublicKeyPem: string(me.PublicKeyPEM()), AddedUnixMs: time.Now().UnixMilli()})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if _, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: &maitrev1.Record{Kind: store.KindTrustedDevice, Id: me.Fingerprint(), Body: body}}); err != nil {
+	if _, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: signed(recID, &maitrev1.Record{Kind: store.KindTrustedDevice, Id: me.Fingerprint(), Body: body})}); err != nil {
 		return fmt.Errorf("the Node refused the phrase: %w", err)
 	}
 	fmt.Printf("this device (%s) is now trusted by the Fleet\n", me.Fingerprint()[:8])

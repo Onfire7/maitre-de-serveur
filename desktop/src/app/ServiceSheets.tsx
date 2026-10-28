@@ -20,6 +20,8 @@ import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { services as serviceClient } from "@/fleet/actions";
+import { currentRecord, putSigned } from "@/fleet/sign";
+import { declined, grantsOf, optionNote, revokeGrant } from "@/fleet/grants";
 import { ServiceIcon, StatusWord } from "./status";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { spacesOf } from "@/spaces";
@@ -27,7 +29,7 @@ import { useRoute } from "./routes";
 import { FoldersEditor, type Folders } from "@/files/FoldersEditor";
 import { folderSource } from "@/files/sources";
 
-export type SheetKind = "exposure" | "ports" | "storage";
+export type SheetKind = "exposure" | "ports" | "storage" | "grants";
 
 function Head({ service, title, description }: { service: FleetService; title: string; description: string }) {
   return (
@@ -73,7 +75,7 @@ export function ExposureSheet({ service, target, snap, open, onClose }: { servic
   async function saveEmail() {
     if (!snap) return;
     try {
-      await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "public_settings", id: "fleet", body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: email.trim() })) } });
+      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "public_settings", id: "fleet", body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: email.trim() })) }, currentRecord(snap.records, "public_settings", "fleet"));
       toast.success("Certificate notices go to " + (email.trim() || "nobody"));
       qc.invalidateQueries({ queryKey: ["fleet"] });
     } catch (e) {
@@ -175,7 +177,7 @@ export function ExposureSheet({ service, target, snap, open, onClose }: { servic
                 qc.invalidateQueries({ queryKey: ["fleet"] });
                 onClose();
               } catch (e) {
-                toast.error(String((e as Error).message ?? e));
+                if (!declined(e)) toast.error(String((e as Error).message ?? e));
               } finally {
                 setBusy(false);
               }
@@ -246,7 +248,7 @@ export function PortForwardSheet({ service, target, open, onClose }: { service: 
                 qc.invalidateQueries({ queryKey: ["fleet"] });
                 onClose();
               } catch (e) {
-                toast.error(String((e as Error).message ?? e));
+                if (!declined(e)) toast.error(String((e as Error).message ?? e));
               } finally {
                 setBusy(false);
               }
@@ -288,6 +290,7 @@ export function StorageSheet({ service, target, snap, open, onClose }: { service
       toast.success(`${service.spec.name}'s folders saved`, { description: "It restarts with them if it was running." });
       qc.invalidateQueries({ queryKey: ["fleet"] });
     } catch (e) {
+      if (declined(e)) return;
       toast.error(e instanceof ConnectError && e.code === Code.Unimplemented ? `${service.node?.name ?? "Its Node"} runs an older Maître Server; update it to change folders.` : String((e as Error).message ?? e));
     } finally {
       setSaving(false);
@@ -304,7 +307,7 @@ export function StorageSheet({ service, target, snap, open, onClose }: { service
       qc.invalidateQueries({ queryKey: ["fleet"] });
       setPicked((p) => ({ ...p, [volume]: "" }));
     } catch (e) {
-      toast.error(String((e as Error).message ?? e));
+      if (!declined(e)) toast.error(String((e as Error).message ?? e));
     } finally {
       setMoving(null);
     }
@@ -366,6 +369,60 @@ export function StorageSheet({ service, target, snap, open, onClose }: { service
             Open in Files
           </Button>
         </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/**
+ * The protected options a Service was granted (decision 189), each with
+ * Revoke: a signed tombstone. The Node then refuses to start the Service
+ * with that option until it is granted again.
+ */
+export function GrantsSheet({ service, target, snap, open, onClose }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined; open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState("");
+  const grants = grantsOf(snap?.records, service.spec.name);
+  const via = target ?? (snap ? { addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId } : undefined);
+  const nodeName = (id: string) => snap?.nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
+  async function revoke(g: (typeof grants)[number]) {
+    if (!via) return toast.error("no Node of the Fleet can be reached");
+    setBusy(g.record.id);
+    try {
+      await revokeGrant(via, g.record);
+      toast.success(`${service.spec.name} no longer has ${g.grant.option}`, { description: "It keeps running until it restarts; then its Node refuses it without that option." });
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+    } catch (e) {
+      toast.error(String((e as Error).message ?? e));
+    } finally {
+      setBusy("");
+    }
+  }
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="flex w-[480px] flex-col sm:max-w-[480px]">
+        <Head service={service} title={`What ${service.spec.name} may do to its Node`} description="Options that reach past the container's sandbox, each allowed by a Trusted Device." />
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+          {grants.length === 0 && <p className="text-sm text-muted-foreground">Nothing: {service.spec.name} runs with Maître's limits on containers.</p>}
+          <ul className="space-y-2">
+            {grants.map((g) => (
+              <li key={g.record.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <code className="block break-all font-mono text-xs">{g.grant.option}</code>
+                    <span className="mt-1 block text-muted-foreground">{optionNote(g.grant.option)}</span>
+                  </div>
+                  <Button size="sm" variant="outline" disabled={busy === g.record.id} onClick={() => revoke(g)}>
+                    Revoke
+                  </Button>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  On {nodeName(g.grant.nodeId)} for {g.grant.imageRepository} · allowed by {g.grant.deviceName || "a Trusted Device"} on {new Date(Number(g.grant.grantedUnixMs)).toLocaleDateString()}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </SheetContent>
     </Sheet>
   );

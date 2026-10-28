@@ -21,25 +21,48 @@ type List struct {
 	mu      sync.RWMutex
 	keys    map[string]struct{}
 	limited map[string]struct{} // recovery-only keys: may add a Trusted Device, nothing else
+	nodes   map[string]struct{} // the Fleet's Nodes: Node-to-Node calls only (decision 189)
 }
 
 // New returns an empty list.
-func New() *List { return &List{keys: map[string]struct{}{}, limited: map[string]struct{}{}} }
+func New() *List {
+	return &List{keys: map[string]struct{}{}, limited: map[string]struct{}{}, nodes: map[string]struct{}{}}
+}
 
 // ReplaceWithLimited swaps the whole list: full keys and recovery-only keys.
 func (l *List) ReplaceWithLimited(full, limited []string) {
-	nf := make(map[string]struct{}, len(full)+len(limited))
+	l.ReplaceRoles(full, limited, nil)
+}
+
+// ReplaceRoles swaps the whole list: Trusted Devices, recovery-only keys,
+// and Nodes (decision 189).
+func (l *List) ReplaceRoles(devices, limited, nodes []string) {
+	nf := make(map[string]struct{}, len(devices)+len(limited)+len(nodes))
 	nl := make(map[string]struct{}, len(limited))
-	for _, fp := range full {
+	nn := make(map[string]struct{}, len(nodes))
+	for _, fp := range devices {
 		nf[fp] = struct{}{}
 	}
 	for _, fp := range limited {
 		nf[fp] = struct{}{}
 		nl[fp] = struct{}{}
 	}
+	for _, fp := range nodes {
+		nf[fp] = struct{}{}
+		nn[fp] = struct{}{}
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.keys, l.limited = nf, nl
+	l.keys, l.limited, l.nodes = nf, nl, nn
+}
+
+// Node reports whether fingerprint is one of the Fleet's Nodes, which may
+// make Node-to-Node calls only (decision 189).
+func (l *List) Node(fingerprint string) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	_, ok := l.nodes[fingerprint]
+	return ok
 }
 
 // Limited reports whether fingerprint is trusted for adding a Trusted
@@ -70,6 +93,7 @@ func (l *List) Replace(fingerprints []string) {
 	defer l.mu.Unlock()
 	l.keys = next
 	l.limited = map[string]struct{}{}
+	l.nodes = map[string]struct{}{}
 }
 
 // Fingerprints returns the trusted fingerprints in no particular order.

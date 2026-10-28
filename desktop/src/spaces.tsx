@@ -3,7 +3,8 @@ import { createClient } from "@connectrpc/connect";
 import { fromBinary, toBinary } from "@bufbuild/protobuf";
 import { NodeService } from "./gen/maitre/v1/node_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "./gen/maitre/v1/storage_pb";
-import { NodeSchema, type Node as FleetNode } from "./gen/maitre/v1/fleet_pb";
+import { NodeSchema, type Node as FleetNode, type Record as Rec } from "./gen/maitre/v1/fleet_pb";
+import { currentRecord, putSigned } from "./fleet/sign";
 import { transportFor } from "./transport";
 import type { ConsoleState } from "./state";
 
@@ -16,12 +17,14 @@ export function useSpaces(state: ConsoleState) {
   const [drives, setDrives] = useState<DriveRecord[]>([]);
   const [nodes, setNodes] = useState<FleetNode[]>([]);
   const [via, setVia] = useState<{ addr: string; fingerprint: string } | null>(null);
+  const [records, setRecords] = useState<Rec[]>([]);
   const load = async () => {
     for (const n of state.nodes)
       for (const addr of n.addresses) {
         try {
           const c = createClient(NodeService, transportFor({ addr, fingerprint: n.node_id }));
           const recs = (await c.listRecords({ kind: "space" })).records;
+          setRecords(recs);
           setSpaces(recs.filter((r) => !r.deleted).map((r) => fromBinary(SpaceSchema, r.body)).sort((a, b) => b.priority - a.priority));
           const dr = (await c.listRecords({ kind: "drive" })).records;
           setDrives(dr.filter((r) => !r.deleted).map((r) => fromBinary(DriveRecordSchema, r.body)));
@@ -41,7 +44,7 @@ export function useSpaces(state: ConsoleState) {
   }, [state.nodes.map((n) => n.node_id).join(",")]);
   const put = async (b: Space, del = false) => {
     if (!via) throw new Error("no Node of the Fleet can be reached");
-    await createClient(NodeService, transportFor(via)).putRecord({ record: { kind: "space", id: b.spaceId, body: toBinary(SpaceSchema, b), deleted: del } });
+    await putSigned(via, { kind: "space", id: b.spaceId, body: toBinary(SpaceSchema, b), deleted: del }, currentRecord(records, "space", b.spaceId));
     await load();
   };
   return { spaces, drives, nodes, put };

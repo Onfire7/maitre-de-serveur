@@ -21,12 +21,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import { StorageService, SpaceSchema, type Drive, type DriveRecord, type Space } from "@/gen/maitre/v1/storage_pb";
-import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
+import { currentRecord, putSigned } from "@/fleet/sign";
 import type { ConsoleState } from "@/state";
 import { nextOwnerId } from "@/fleet/owners";
 import { spacesOf } from "@/spaces";
@@ -58,7 +58,7 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
     if (!snap) throw new Error("no Node of the Fleet can be reached");
     // Decision 182: every Space the Console writes has an owner.
     if (!s.ownerId && !del) s = create(SpaceSchema, { ...s, ownerId: nextOwnerId(spaces) });
-    await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "space", id: s.spaceId, body: toBinary(SpaceSchema, s), deleted: del } });
+    await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "space", id: s.spaceId, body: toBinary(SpaceSchema, s), deleted: del }, currentRecord(snap.records, "space", s.spaceId));
     await qc.invalidateQueries({ queryKey: ["fleet"] });
   }
   const tryPut = (s: Space, del = false) => put(s, del).catch((e) => toast.error(String((e as Error).message ?? e)));

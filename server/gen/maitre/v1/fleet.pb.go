@@ -44,7 +44,18 @@ type Record struct {
 	// Serialized message of the type named by `kind`.
 	Body []byte `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
 	// Tombstone. Deleted Records keep their row so the deletion propagates.
-	Deleted       bool `protobuf:"varint,7,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	Deleted bool `protobuf:"varint,7,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	// Decision 189: who wrote this content, and their Ed25519 signature over
+	// kind, id, body, deleted and signed_unix_ms (server/internal/recsig).
+	// Owner, version and updated_unix_ms are the storing Node's and are not
+	// signed. Which keys may sign which kinds is server/internal/authz.
+	// signer_key is the raw 32-byte public key; empty on records from before
+	// 189, which a Node keeps but no longer accepts from others.
+	SignerKey []byte `protobuf:"bytes,8,opt,name=signer_key,json=signerKey,proto3" json:"signer_key,omitempty"`
+	Signature []byte `protobuf:"bytes,9,opt,name=signature,proto3" json:"signature,omitempty"`
+	// When the signer wrote it. A replacement must be signed later than what
+	// it replaces, so an old signed body cannot be replayed over a newer one.
+	SignedUnixMs  int64 `protobuf:"varint,10,opt,name=signed_unix_ms,json=signedUnixMs,proto3" json:"signed_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -126,6 +137,27 @@ func (x *Record) GetDeleted() bool {
 		return x.Deleted
 	}
 	return false
+}
+
+func (x *Record) GetSignerKey() []byte {
+	if x != nil {
+		return x.SignerKey
+	}
+	return nil
+}
+
+func (x *Record) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *Record) GetSignedUnixMs() int64 {
+	if x != nil {
+		return x.SignedUnixMs
+	}
+	return 0
 }
 
 // Fleet is the kind "fleet" record. There is exactly one.
@@ -421,7 +453,11 @@ type TrustedDevice struct {
 	// Node's recovery code in a Fleet of two or more Nodes. Only that Node
 	// trusts it until a recovery code at another Node, within a day, clears
 	// this and makes the trust Fleet-wide. Empty: trusted by every Node.
-	NodeScope     string `protobuf:"bytes,6,opt,name=node_scope,json=nodeScope,proto3" json:"node_scope,omitempty"`
+	NodeScope string `protobuf:"bytes,6,opt,name=node_scope,json=nodeScope,proto3" json:"node_scope,omitempty"`
+	// Decision 189: a Node may only sign a device scoped to itself. The
+	// promotion of decision 120 is signed by the second Node and carries the
+	// first Node's signed, scoped record as proof of presence at two machines.
+	Voucher       *RecoveryVoucher `protobuf:"bytes,7,opt,name=voucher,proto3" json:"voucher,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,11 +534,264 @@ func (x *TrustedDevice) GetNodeScope() string {
 	return ""
 }
 
+func (x *TrustedDevice) GetVoucher() *RecoveryVoucher {
+	if x != nil {
+		return x.Voucher
+	}
+	return nil
+}
+
+// RecoveryVoucher is another Node's signed record of the same device, scoped
+// to that Node (decision 189).
+type RecoveryVoucher struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The signing Node's raw public key, signature, and signing time.
+	SignerKey    []byte `protobuf:"bytes,1,opt,name=signer_key,json=signerKey,proto3" json:"signer_key,omitempty"`
+	Signature    []byte `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	SignedUnixMs int64  `protobuf:"varint,3,opt,name=signed_unix_ms,json=signedUnixMs,proto3" json:"signed_unix_ms,omitempty"`
+	// The scoped TrustedDevice record's body as that Node signed it.
+	Body          []byte `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecoveryVoucher) Reset() {
+	*x = RecoveryVoucher{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecoveryVoucher) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecoveryVoucher) ProtoMessage() {}
+
+func (x *RecoveryVoucher) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecoveryVoucher.ProtoReflect.Descriptor instead.
+func (*RecoveryVoucher) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RecoveryVoucher) GetSignerKey() []byte {
+	if x != nil {
+		return x.SignerKey
+	}
+	return nil
+}
+
+func (x *RecoveryVoucher) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *RecoveryVoucher) GetSignedUnixMs() int64 {
+	if x != nil {
+		return x.SignedUnixMs
+	}
+	return 0
+}
+
+func (x *RecoveryVoucher) GetBody() []byte {
+	if x != nil {
+		return x.Body
+	}
+	return nil
+}
+
+// Grant is the kind "grant" record (decision 189): a Trusted Device's
+// consent, from a warning dialog, to one protected option of one Service on
+// one Node. The record id is GrantID(node_id, service, option). A Node runs
+// a Service with a protected option only when a live grant signed by a
+// Trusted Device names it, the Service, this Node, and the image's
+// repository; a different image needs a new grant, a new tag does not.
+type Grant struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	NodeId  string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Service string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	// The option as server/internal/services.Protected words it, such as
+	// "AddCapability=NET_ADMIN" or "Volume=/etc".
+	Option string `protobuf:"bytes,3,opt,name=option,proto3" json:"option,omitempty"`
+	// The image without tag or digest, such as "docker.io/jellyfin/jellyfin".
+	ImageRepository string `protobuf:"bytes,4,opt,name=image_repository,json=imageRepository,proto3" json:"image_repository,omitempty"`
+	GrantedUnixMs   int64  `protobuf:"varint,5,opt,name=granted_unix_ms,json=grantedUnixMs,proto3" json:"granted_unix_ms,omitempty"`
+	// The device that granted it, for the Console's list.
+	DeviceName    string `protobuf:"bytes,6,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Grant) Reset() {
+	*x = Grant{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Grant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Grant) ProtoMessage() {}
+
+func (x *Grant) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Grant.ProtoReflect.Descriptor instead.
+func (*Grant) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Grant) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *Grant) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *Grant) GetOption() string {
+	if x != nil {
+		return x.Option
+	}
+	return ""
+}
+
+func (x *Grant) GetImageRepository() string {
+	if x != nil {
+		return x.ImageRepository
+	}
+	return ""
+}
+
+func (x *Grant) GetGrantedUnixMs() int64 {
+	if x != nil {
+		return x.GrantedUnixMs
+	}
+	return 0
+}
+
+func (x *Grant) GetDeviceName() string {
+	if x != nil {
+		return x.DeviceName
+	}
+	return ""
+}
+
+// GrantsNeeded is the detail of a FailedPrecondition error from a Service
+// call when the Service's container definition has protected options
+// without grants (decision 189). The Console asks for each and retries.
+type GrantsNeeded struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	NodeId          string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Service         string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	ImageRepository string                 `protobuf:"bytes,3,opt,name=image_repository,json=imageRepository,proto3" json:"image_repository,omitempty"`
+	Options         []string               `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty"`
+	// The grant record id for each option, in the same order.
+	GrantIds      []string `protobuf:"bytes,5,rep,name=grant_ids,json=grantIds,proto3" json:"grant_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantsNeeded) Reset() {
+	*x = GrantsNeeded{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantsNeeded) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantsNeeded) ProtoMessage() {}
+
+func (x *GrantsNeeded) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantsNeeded.ProtoReflect.Descriptor instead.
+func (*GrantsNeeded) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GrantsNeeded) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *GrantsNeeded) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *GrantsNeeded) GetImageRepository() string {
+	if x != nil {
+		return x.ImageRepository
+	}
+	return ""
+}
+
+func (x *GrantsNeeded) GetOptions() []string {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *GrantsNeeded) GetGrantIds() []string {
+	if x != nil {
+		return x.GrantIds
+	}
+	return nil
+}
+
 var File_maitre_v1_fleet_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\n" +
-	"\x15maitre/v1/fleet.proto\x12\tmaitre.v1\"\xc0\x01\n" +
+	"\x15maitre/v1/fleet.proto\x12\tmaitre.v1\"\xa3\x02\n" +
 	"\x06Record\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\"\n" +
@@ -510,7 +799,12 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\aversion\x18\x04 \x01(\x04R\aversion\x12&\n" +
 	"\x0fupdated_unix_ms\x18\x05 \x01(\x03R\rupdatedUnixMs\x12\x12\n" +
 	"\x04body\x18\x06 \x01(\fR\x04body\x12\x18\n" +
-	"\adeleted\x18\a \x01(\bR\adeleted\"^\n" +
+	"\adeleted\x18\a \x01(\bR\adeleted\x12\x1d\n" +
+	"\n" +
+	"signer_key\x18\b \x01(\fR\tsignerKey\x12\x1c\n" +
+	"\tsignature\x18\t \x01(\fR\tsignature\x12$\n" +
+	"\x0esigned_unix_ms\x18\n" +
+	" \x01(\x03R\fsignedUnixMs\"^\n" +
 	"\x05Fleet\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
@@ -534,7 +828,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x0fwindow_end_hour\x18\x03 \x01(\x05R\rwindowEndHour\x12\x1f\n" +
 	"\vstage_hours\x18\x04 \x01(\x05R\n" +
 	"stageHours\x12\x16\n" +
-	"\x06paused\x18\x05 \x01(\bR\x06paused\"\xce\x01\n" +
+	"\x06paused\x18\x05 \x01(\bR\x06paused\"\x84\x02\n" +
 	"\rTrustedDevice\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
@@ -542,7 +836,28 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\rrecovery_only\x18\x04 \x01(\bR\frecoveryOnly\x12\"\n" +
 	"\radded_unix_ms\x18\x05 \x01(\x03R\vaddedUnixMs\x12\x1d\n" +
 	"\n" +
-	"node_scope\x18\x06 \x01(\tR\tnodeScopeBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"node_scope\x18\x06 \x01(\tR\tnodeScope\x124\n" +
+	"\avoucher\x18\a \x01(\v2\x1a.maitre.v1.RecoveryVoucherR\avoucher\"\x88\x01\n" +
+	"\x0fRecoveryVoucher\x12\x1d\n" +
+	"\n" +
+	"signer_key\x18\x01 \x01(\fR\tsignerKey\x12\x1c\n" +
+	"\tsignature\x18\x02 \x01(\fR\tsignature\x12$\n" +
+	"\x0esigned_unix_ms\x18\x03 \x01(\x03R\fsignedUnixMs\x12\x12\n" +
+	"\x04body\x18\x04 \x01(\fR\x04body\"\xc6\x01\n" +
+	"\x05Grant\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x16\n" +
+	"\x06option\x18\x03 \x01(\tR\x06option\x12)\n" +
+	"\x10image_repository\x18\x04 \x01(\tR\x0fimageRepository\x12&\n" +
+	"\x0fgranted_unix_ms\x18\x05 \x01(\x03R\rgrantedUnixMs\x12\x1f\n" +
+	"\vdevice_name\x18\x06 \x01(\tR\n" +
+	"deviceName\"\xa3\x01\n" +
+	"\fGrantsNeeded\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12)\n" +
+	"\x10image_repository\x18\x03 \x01(\tR\x0fimageRepository\x12\x18\n" +
+	"\aoptions\x18\x04 \x03(\tR\aoptions\x12\x1b\n" +
+	"\tgrant_ids\x18\x05 \x03(\tR\bgrantIdsBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_fleet_proto_rawDescOnce sync.Once
@@ -556,20 +871,24 @@ func file_maitre_v1_fleet_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_fleet_proto_rawDescData
 }
 
-var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_maitre_v1_fleet_proto_goTypes = []any{
-	(*Record)(nil),        // 0: maitre.v1.Record
-	(*Fleet)(nil),         // 1: maitre.v1.Fleet
-	(*Node)(nil),          // 2: maitre.v1.Node
-	(*UpdatePolicy)(nil),  // 3: maitre.v1.UpdatePolicy
-	(*TrustedDevice)(nil), // 4: maitre.v1.TrustedDevice
+	(*Record)(nil),          // 0: maitre.v1.Record
+	(*Fleet)(nil),           // 1: maitre.v1.Fleet
+	(*Node)(nil),            // 2: maitre.v1.Node
+	(*UpdatePolicy)(nil),    // 3: maitre.v1.UpdatePolicy
+	(*TrustedDevice)(nil),   // 4: maitre.v1.TrustedDevice
+	(*RecoveryVoucher)(nil), // 5: maitre.v1.RecoveryVoucher
+	(*Grant)(nil),           // 6: maitre.v1.Grant
+	(*GrantsNeeded)(nil),    // 7: maitre.v1.GrantsNeeded
 }
 var file_maitre_v1_fleet_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	5, // 0: maitre.v1.TrustedDevice.voucher:type_name -> maitre.v1.RecoveryVoucher
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_fleet_proto_init() }
@@ -583,7 +902,7 @@ func file_maitre_v1_fleet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_fleet_proto_rawDesc), len(file_maitre_v1_fleet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

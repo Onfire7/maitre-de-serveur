@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,8 +52,26 @@ func ValidateSpace(b *maitrev1.Space) error {
 		return errors.New("placement must be local_first, most_free or most_free_percent")
 	case b.GetExclusive() && len(b.GetRequireTags()) == 0 && len(b.GetNodeIds()) == 0:
 		return errors.New("an exclusive Space needs at least one required tag or Node; otherwise it would claim every Drive")
+	case b.GetOwnerId() != 0 && OwnerOf(b) == 0:
+		return fmt.Errorf("a Space's owner id is between %d and %d", MinOwnerID, MaxOwnerID)
 	}
 	return nil
+}
+
+// Owner ids a Space may have (decision 189): never a system account, and
+// never root, which NFS would otherwise map a peer's root to.
+const (
+	MinOwnerID = 1000
+	MaxOwnerID = 65533
+)
+
+// OwnerOf is a Space's owner id, 0 when it has none or one outside
+// MinOwnerID..MaxOwnerID.
+func OwnerOf(b *maitrev1.Space) uint32 {
+	if id := b.GetOwnerId(); id >= MinOwnerID && id <= MaxOwnerID {
+		return id
+	}
+	return 0
 }
 
 // matches reports whether a Space's rule selects a Drive. An empty rule

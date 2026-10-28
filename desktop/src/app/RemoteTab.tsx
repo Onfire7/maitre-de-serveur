@@ -18,6 +18,7 @@ import { transportFor } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { useFleetServices } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
+import { currentRecord, putSigned } from "@/fleet/sign";
 import type { ConsoleState } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
@@ -125,7 +126,7 @@ function ConnectDialog({ open, onClose, snap, tag: current }: { open: boolean; o
     setBusy(true);
     try {
       const body = toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: id.trim(), oauthClientSecret: secret.trim(), tag: tag.trim(), addedUnixMs: BigInt(Date.now()) }));
-      await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "tailscale", id: "fleet", body } });
+      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "tailscale", id: "fleet", body }, currentRecord(snap.records, "tailscale", "fleet"));
       toast.success("Saved. Each Node joins within a minute.");
       qc.invalidateQueries({ queryKey: ["fleet"] });
       setId("");

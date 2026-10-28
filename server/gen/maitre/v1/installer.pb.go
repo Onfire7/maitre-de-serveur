@@ -545,6 +545,12 @@ type ProvisionRequest struct {
 	RestoreNodeId string `protobuf:"bytes,7,opt,name=restore_node_id,json=restoreNodeId,proto3" json:"restore_node_id,omitempty"`
 	// Create a data partition from the remaining space. Default off on USB.
 	DataPartition bool `protobuf:"varint,5,opt,name=data_partition,json=dataPartition,proto3" json:"data_partition,omitempty"`
+	// Decision 189: signed records the new Node stores as they are: the
+	// Fleet's Trusted Devices and other Device-signed records copied from a
+	// Node, or for a new Fleet the Console's own device and the Recovery
+	// Phrase, signed by the Console. When set, trusted_devices and nodes are
+	// ignored.
+	Records       []*Record `protobuf:"bytes,8,rep,name=records,proto3" json:"records,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -626,6 +632,13 @@ func (x *ProvisionRequest) GetDataPartition() bool {
 		return x.DataPartition
 	}
 	return false
+}
+
+func (x *ProvisionRequest) GetRecords() []*Record {
+	if x != nil {
+		return x.Records
+	}
+	return nil
 }
 
 type ProvisionResponse struct {
@@ -712,7 +725,7 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x10PHASE_INSTALLING\x10\x02\x12\x15\n" +
 	"\x11PHASE_CONFIGURING\x10\x03\x12\x13\n" +
 	"\x0fPHASE_REBOOTING\x10\x04\x12\x10\n" +
-	"\fPHASE_FAILED\x10\x05\"\xb1\x02\n" +
+	"\fPHASE_FAILED\x10\x05\"\xde\x02\n" +
 	"\x10ProvisionRequest\x12&\n" +
 	"\x05fleet\x18\x01 \x01(\v2\x10.maitre.v1.FleetR\x05fleet\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x1f\n" +
@@ -721,7 +734,8 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x0ftrusted_devices\x18\x04 \x03(\v2\x18.maitre.v1.TrustedDeviceR\x0etrustedDevices\x12%\n" +
 	"\x05nodes\x18\x06 \x03(\v2\x0f.maitre.v1.NodeR\x05nodes\x12&\n" +
 	"\x0frestore_node_id\x18\a \x01(\tR\rrestoreNodeId\x12%\n" +
-	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\"\x13\n" +
+	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\x12+\n" +
+	"\arecords\x18\b \x03(\v2\x11.maitre.v1.RecordR\arecords\"\x13\n" +
 	"\x11ProvisionResponse2\xc1\x01\n" +
 	"\x10InstallerService\x12c\n" +
 	"\x12GetInstallerStatus\x12$.maitre.v1.GetInstallerStatusRequest\x1a%.maitre.v1.GetInstallerStatusResponse\"\x00\x12H\n" +
@@ -754,6 +768,7 @@ var file_maitre_v1_installer_proto_goTypes = []any{
 	(*Fleet)(nil),                      // 9: maitre.v1.Fleet
 	(*TrustedDevice)(nil),              // 10: maitre.v1.TrustedDevice
 	(*Node)(nil),                       // 11: maitre.v1.Node
+	(*Record)(nil),                     // 12: maitre.v1.Record
 }
 var file_maitre_v1_installer_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetInstallerStatusResponse.status:type_name -> maitre.v1.InstallerStatus
@@ -764,15 +779,16 @@ var file_maitre_v1_installer_proto_depIdxs = []int32{
 	9,  // 5: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
 	10, // 6: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
 	11, // 7: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
-	1,  // 8: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
-	7,  // 9: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
-	2,  // 10: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
-	8,  // 11: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	12, // 8: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
+	1,  // 9: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
+	7,  // 10: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
+	2,  // 11: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
+	8,  // 12: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
+	11, // [11:13] is the sub-list for method output_type
+	9,  // [9:11] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_installer_proto_init() }

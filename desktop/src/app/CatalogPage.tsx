@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
 import { specFor, type CatalogEntry, type CatalogIndex } from "@/services";
 import type { FleetSnapshot } from "@/fleet/useFleet";
+import { declined } from "@/fleet/grants";
 import { ServiceIcon } from "./status";
 
 const catalog = bundledCatalog as CatalogIndex;
@@ -233,7 +234,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                     onClose();
                     reset();
                   } catch (e) {
-                    setError(String((e as Error).message ?? e));
+                    if (!declined(e)) setError(String((e as Error).message ?? e));
                   } finally {
                     setBusy(false);
                   }

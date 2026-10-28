@@ -74,6 +74,11 @@ impl Identity {
     pub fn key_pem(&self) -> String {
         self.key_pair.serialize_pem()
     }
+
+    /// The private key as PKCS#8 DER, for signing records (decision 189).
+    pub fn pkcs8_der(&self) -> Vec<u8> {
+        self.key_pair.serialize_der()
+    }
 }
 
 pub fn fingerprint_of_raw_key(raw: &[u8]) -> String {

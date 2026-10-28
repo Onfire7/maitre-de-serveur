@@ -23,6 +23,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -41,7 +42,7 @@ const (
 	Port = 7444
 	// PromoteWithin is how long a Node-only device has to bring a recovery
 	// code to a second Node for Fleet-wide trust (decision 120).
-	PromoteWithin = 24 * time.Hour
+	PromoteWithin = authz.PromoteWithin
 )
 
 type codeRecord struct {
@@ -187,9 +188,12 @@ func (s *Service) Authorize(ctx context.Context, req *maitrev1.AuthorizeRequest)
 	nodes, _ := store.ListLive(ctx, s.st, store.KindNode, func() *maitrev1.Node { return &maitrev1.Node{} })
 	if len(nodes) > 1 {
 		var prev maitrev1.TrustedDevice
-		if _, err := s.st.Get(ctx, store.KindTrustedDevice, p.Fingerprint, &prev); err == nil && prev.GetNodeScope() != "" && prev.GetNodeScope() != s.self && time.Since(time.UnixMilli(prev.GetAddedUnixMs())) < PromoteWithin {
+		if raw, err := s.st.Get(ctx, store.KindTrustedDevice, p.Fingerprint, &prev); err == nil && prev.GetNodeScope() != "" && prev.GetNodeScope() != s.self && time.Since(time.UnixMilli(prev.GetAddedUnixMs())) < PromoteWithin {
 			device.Name = prev.GetName()
 			device.AddedUnixMs = prev.GetAddedUnixMs()
+			// Decision 189: the first Node's signed record proves the
+			// second code; a Node alone may only trust a device itself.
+			device.Voucher = &maitrev1.RecoveryVoucher{SignerKey: raw.GetSignerKey(), Signature: raw.GetSignature(), SignedUnixMs: raw.GetSignedUnixMs(), Body: raw.GetBody()}
 		} else {
 			device.NodeScope = s.self
 		}

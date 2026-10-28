@@ -14,11 +14,24 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { InstallerService, Provisioning_Phase, type InstallerStatus } from "@/gen/maitre/v1/installer_pb";
-import { NodeSchema, TrustedDeviceSchema, type Node as FleetNode, type TrustedDevice } from "@/gen/maitre/v1/fleet_pb";
+import { NodeSchema, TrustedDeviceSchema, type Node as FleetNode, type Record as Rec, type TrustedDevice } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nextLetter, randomNodeName } from "@/names";
+import { fingerprintOfPem, putSigned, signedRecord } from "@/fleet/sign";
+
+/** The Device-signed kinds a new Node of an existing Fleet starts with, copied from a Node of it. */
+const PROVISION_KINDS = new Set(["trusted_device", "node", "fleet", "space", "update_policy", "tailscale", "public_settings", "grant"]);
+
+/** A new Fleet's Trusted Devices: this device and the Recovery Phrase, both signed by this device. */
+export async function firstDevices(device: DeviceInfo, recoveryPem: string): Promise<Rec[]> {
+  const now = BigInt(Date.now());
+  const recoveryId = await fingerprintOfPem(recoveryPem);
+  const own = create(TrustedDeviceSchema, { deviceId: device.fingerprint, name: device.name, publicKeyPem: device.public_key_pem, recoveryOnly: false, addedUnixMs: now });
+  const phrase = create(TrustedDeviceSchema, { deviceId: recoveryId, name: "Recovery Phrase", publicKeyPem: recoveryPem, recoveryOnly: true, addedUnixMs: now });
+  return [await signedRecord({ kind: "trusted_device", id: own.deviceId, body: toBinary(TrustedDeviceSchema, own) }), await signedRecord({ kind: "trusted_device", id: phrase.deviceId, body: toBinary(TrustedDeviceSchema, phrase) })];
+}
 
 export interface Provisioning {
   name: string;
@@ -132,12 +145,17 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
         create(TrustedDeviceSchema, { name: "Recovery Phrase", publicKeyPem: state.fleet.recovery_public_key_pem, recoveryOnly: true }),
       ];
       let nodes: FleetNode[] = [];
+      // Decision 189: what the new Node stores as it is. Older Installers
+      // read only trustedDevices and nodes, so those are still filled.
+      let records: Rec[] = [];
       let sponsor: { addr: string; fingerprint: string } | null = null;
       for (const n of state.nodes) {
         for (const a of n.addresses) {
           try {
             const nc = createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id }));
-            const recs = (await nc.listRecords({})).records.filter((r) => !r.deleted);
+            const all = (await nc.listRecords({})).records;
+            const recs = all.filter((r) => !r.deleted);
+            records = all.filter((r) => PROVISION_KINDS.has(r.kind));
             trustedDevices = recs.filter((r) => r.kind === "trusted_device").map((r) => fromBinary(TrustedDeviceSchema, r.body));
             nodes = recs.filter((r) => r.kind === "node").map((r) => fromBinary(NodeSchema, r.body));
             sponsor = { addr: a, fingerprint: n.node_id };
@@ -149,17 +167,18 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
         if (sponsor) break;
       }
       if (state.nodes.length > 0 && !sponsor) throw new Error("none of the Fleet's Nodes can be reached to add this one; bring one online first");
+      if (!sponsor && !restore) records = await firstDevices(device, state.fleet.recovery_public_key_pem);
       if (!restore && nodes.some((n) => n.name === name.trim())) throw new Error(`the Fleet already has a Node named "${name.trim()}"`);
       if (restore) {
         await client.provision({ targetDisk: chosen.path, dataPartition: dataPart, restoreNodeId: restore, fleet: { fleetId: state.fleet.fleet_id }, nodeName: "restore" });
       } else {
-        await client.provision({ fleet: { fleetId: state.fleet.fleet_id, name: state.fleet.name, createdUnixMs: BigInt(state.fleet.created_unix_ms) }, nodeName: name.trim(), targetDisk: chosen.path, dataPartition: dataPart, trustedDevices, nodes });
+        await client.provision({ fleet: { fleetId: state.fleet.fleet_id, name: state.fleet.name, createdUnixMs: BigInt(state.fleet.created_unix_ms) }, nodeName: name.trim(), targetDisk: chosen.path, dataPartition: dataPart, trustedDevices, nodes, records });
       }
       setStarted(true);
       onProgress({ name: restore ? (status?.backups.find((b) => b.nodeId === restore)?.nodeName ?? name) : name, percent: 0, message: "starting" });
       if (!restore && sponsor) {
         const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: fp, name: name.trim(), publicKeyPem: pem, addresses: [addr], provisionedUnixMs: BigInt(Date.now()) }));
-        await createClient(NodeService, transportFor(sponsor)).putRecord({ record: { kind: "node", id: fp, body } });
+        await putSigned(sponsor, { kind: "node", id: fp, body });
       }
     } catch (e) {
       setError(String((e as Error).message ?? e));

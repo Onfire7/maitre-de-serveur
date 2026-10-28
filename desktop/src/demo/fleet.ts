@@ -6,6 +6,9 @@
 import { create, toBinary, fromBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   FleetSchema,
+  GrantSchema,
+  GrantsNeededSchema,
+  type GrantsNeeded,
   NodeSchema,
   TrustedDeviceSchema,
   UpdatePolicySchema,
@@ -28,6 +31,29 @@ export const INSTALLER_ID = "e5".repeat(32);
 export const FLEET_ID = "f6".repeat(16);
 
 const GiB = 1024 ** 3;
+
+/** The demo Node's grant record id; the real one is the server's GrantID. */
+export const grantId = (nodeId: string, service: string, option: string) => `${nodeId.slice(0, 8)}/${service}/${option}`;
+
+const PROTECTED = /^(AddCapability|AddDevice|PodmanArgs|GlobalArgs|SecurityLabelDisable|SeccompProfile|Sysctl|Privileged|Pid|Ipc|UserNS)=|^Network=host$|^Volume=\//;
+
+/**
+ * The protected options of a Quadlet (decision 189), worded as the Node
+ * words them, roughly: the demo has no classifier of its own.
+ */
+export function protectedOptions(quadlet: string): string[] {
+  const out: string[] = [];
+  let section = "";
+  for (const raw of quadlet.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const head = /^\[(\w+)\]$/.exec(line);
+    if (head) section = head[1];
+    else if (section !== "Container" && section !== "Unit" && section !== "Install") out.push(`[${section}] ${line}`);
+    else if (section === "Container" && PROTECTED.test(line) && !line.includes("{{")) out.push(line);
+  }
+  return out;
+}
 const TiB = 1024 ** 4;
 
 export interface DemoNode {
@@ -252,14 +278,25 @@ export class DemoFleet {
       drive(NODE_B, "sda", "Basin", "Seagate IronWolf 8TB", 8 * TiB, 0.55 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }, { name: "old-backups", kind: "unsorted", spaceId: "" }], record: { origin: "adopted", tags: [] } as unknown as DriveRecord }),
     ];
     this.services = [
-      this.service(specFromCatalog("jellyfin", "jellyfin", NODE_A, 20001), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
+      this.service(specFromCatalog("jellyfin", "jellyfin", NODE_A, 20001, { quadlet: catalogEntries.find((c) => c.id === "jellyfin")!.quadlet.replace("[Container]\n", "[Container]\nAddDevice=/dev/dri\n") }), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
       this.service(specFromCatalog("adguard-home", "adguard", NODE_A, 20002), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
       this.service(specFromCatalog("uptime-kuma", "uptime", NODE_B, 20001), ServiceStatus_State.STARTING, { readyAt: 25, message: "pulling image" }),
       this.service(specFromCatalog("minecraft", "minecraft", NODE_B, 0, { settings: { EULA: "false" }, forwardPorts: true }), ServiceStatus_State.FAILED, { restarts: 7, looping: true, message: "exited with code 1: you must accept the EULA (setting EULA=true)", forwardState: "25565/tcp forwarded by eero" }),
       this.service(create(ServiceSpecSchema, { name: "paperless", catalogId: "paperless-ngx", image: "ghcr.io/paperless-ngx/paperless-ngx:2.14@sha256:" + "9b".repeat(32), nodeId: NODE_A, exposure: "remote", volumeSpaces: { data: "general", media: "general" }, createdUnixMs: BigInt(t - 40 * 86400_000), webHostPort: 20003, webPort: 8000, webPath: "/", quadlet: "[Container]\nImage={{ .Image }}\n", volumes: [{ name: "data", path: "/usr/src/paperless/data", size: "" }, { name: "media", path: "/usr/src/paperless/media", size: "" }], autoUpdate: false }), ServiceStatus_State.STOPPED, { message: "stopped by you" }),
     ];
     this.seedFiles();
+    // Jellyfin transcodes on the GPU, granted when it was installed.
+    const dri = "AddDevice=/dev/dri";
+    this.records.push(this.rec("grant", grantId(NODE_A, "jellyfin", dri), NODE_A, toBinary(GrantSchema, create(GrantSchema, { nodeId: NODE_A, service: "jellyfin", option: dri, imageRepository: "docker.io/jellyfin/jellyfin", grantedUnixMs: BigInt(t - 14 * 86400_000), deviceName: "Sean's laptop" })), false, BigInt(t - 14 * 86400_000)));
     this.rebuildRecords();
+  }
+
+  /** The protected options of a spec without a live grant, as a Node would refuse them. */
+  grantsNeeded(spec: ServiceSpec, nodeId: string): GrantsNeeded | undefined {
+    const live = new Set(this.records.filter((r) => r.kind === "grant" && !r.deleted).map((r) => r.id));
+    const options = protectedOptions(spec.quadlet).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
+    if (options.length === 0) return undefined;
+    return create(GrantsNeededSchema, { nodeId, service: spec.name, imageRepository: spec.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), options, grantIds: options.map((o) => grantId(nodeId, spec.name, o)) });
   }
 
   private service(spec: ServiceSpec, state: ServiceStatus_State, init: Partial<DemoService>): DemoService {
@@ -268,9 +305,9 @@ export class DemoFleet {
 
   // --- records -----------------------------------------------------------
 
-  private rec(kind: string, id: string, owner: string, body: Uint8Array, deleted = false): Rec {
+  private rec(kind: string, id: string, owner: string, body: Uint8Array, deleted = false, signedUnixMs?: bigint): Rec {
     const old = this.records.find((r) => r.kind === kind && r.id === id);
-    return create(RecordSchema, { kind, id, ownerNodeId: owner, version: BigInt(Number(old?.version ?? 0n) + 1), updatedUnixMs: BigInt(this.now), body, deleted });
+    return create(RecordSchema, { kind, id, ownerNodeId: owner, version: BigInt(Number(old?.version ?? 0n) + 1), updatedUnixMs: BigInt(this.now), body, deleted, signedUnixMs: signedUnixMs || old?.signedUnixMs || BigInt(this.now) });
   }
 
   /** Rebuild the synced database from the model. Versions bump on every call. */
@@ -289,16 +326,19 @@ export class DemoFleet {
     out.push(this.rec("update_policy", "fleet", NODE_A, toBinary(UpdatePolicySchema, create(UpdatePolicySchema, { automatic: true, windowStartHour: 3, windowEndHour: 5, stageHours: 24, paused: false }))));
     out.push(this.rec("tailscale", "fleet", NODE_A, toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: "k7Hs2demoClientId", oauthClientSecret: "tskey-client-demo", tag: "tag:maitre", addedUnixMs: BigInt(this.now - 12 * 86400_000) }))));
     out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
-    // Keep tombstones.
-    for (const r of this.records) if (r.deleted && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
+    // Keep tombstones, and grants, which the model does not hold.
+    for (const r of this.records) if ((r.deleted || r.kind === "grant") && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
     this.records = out;
     this.changed();
   }
 
   /** PutRecord as the owner would apply it: body replaces, version bumps, model follows for kinds it knows. */
-  putRecord(r: { kind: string; id: string; body?: Uint8Array; deleted?: boolean }): Rec {
-    const owner = this.records.find((x) => x.kind === r.kind && x.id === r.id)?.ownerNodeId ?? NODE_A;
-    const rec = this.rec(r.kind, r.id, owner, r.body ?? new Uint8Array(), !!r.deleted);
+  putRecord(r: { kind: string; id: string; body?: Uint8Array; deleted?: boolean; signedUnixMs?: bigint }): Rec {
+    const old = this.records.find((x) => x.kind === r.kind && x.id === r.id);
+    // Decision 189's replay rule; the demo checks no signature.
+    if (old && r.signedUnixMs && r.signedUnixMs <= old.signedUnixMs) throw new Error(`this change to ${r.kind} ${r.id} was signed before the version it would replace`);
+    const owner = old?.ownerNodeId ?? NODE_A;
+    const rec = this.rec(r.kind, r.id, owner, r.deleted ? new Uint8Array() : (r.body ?? new Uint8Array()), !!r.deleted, r.signedUnixMs);
     this.records = [...this.records.filter((x) => !(x.kind === r.kind && x.id === r.id)), rec];
     if (r.kind === "space") {
       this.spaces = this.spaces.filter((s) => s.spaceId !== r.id);

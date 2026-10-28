@@ -2,13 +2,13 @@
 // (decisions 131, 142, 143). It follows the pointer from row to row.
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, ShieldAlert, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { catalogById, StatusWord } from "./status";
 
-export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "exposure" | "ports" | "storage" | "remove";
+export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "exposure" | "ports" | "storage" | "grants" | "remove";
 
 export function ServiceFlyout({
   service,
@@ -39,6 +39,7 @@ export function ServiceFlyout({
     { id: "exposure", label: "Exposure…", icon: <Globe /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
     { id: "storage", label: "Storage", icon: <HardDrive /> },
+    ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),
     { id: "remove", label: "Remove…", icon: <Trash2 />, danger: true },
   ];
   return (

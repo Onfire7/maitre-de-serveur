@@ -1,15 +1,13 @@
 // Trusted Devices and devices asking to join (decisions 148, 150).
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
 import { Laptop, KeyRound, Smartphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { TrustedDeviceSchema } from "@/gen/maitre/v1/fleet_pb";
-import { transportFor } from "@/transport";
+import { currentRecord, putSigned } from "@/fleet/sign";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import type { DeviceInfo, Found } from "@/state";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,7 +25,7 @@ export function DevicesTab({ snap, device, found, onPromote, scoped }: { snap: F
     if (!snap) return toast.error("no Node of the Fleet can be reached");
     const body = toBinary(TrustedDeviceSchema, create(TrustedDeviceSchema, { deviceId: d.id, name: d.name, publicKeyPem: d.key_pem, addedUnixMs: BigInt(Date.now()) }));
     try {
-      await createClient(NodeService, transportFor({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId })).putRecord({ record: { kind: "trusted_device", id: d.id, body } });
+      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "trusted_device", id: d.id, body }, currentRecord(snap.records, "trusted_device", d.id));
       setDone((m) => ({ ...m, [d.id]: true }));
       toast.success(`${d.name} can now manage the Fleet`);
       qc.invalidateQueries({ queryKey: ["fleet"] });

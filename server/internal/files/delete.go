@@ -76,7 +76,7 @@ func (m *Manager) Delete(ctx context.Context, req *maitrev1.DeleteRequest) (*mai
 	if len(paths) == 1 {
 		what = req.GetNames()[0]
 	}
-	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "delete", Summary: "Delete " + what, BytesTotal: total, Current: folder}}
+	j := &job{pb: &maitrev1.Job{State: "queued", Kind: "delete", Summary: "Delete " + what, BytesTotal: total, Current: folder}, owner: m.ownerOf(req.GetScope().GetSpaceId())}
 	j.run = func(ctx context.Context, j *job) error { return m.remove(ctx, j, paths) }
 	return m.enqueue(j), nil
 }

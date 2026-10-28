@@ -14,6 +14,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
@@ -60,6 +61,9 @@ type Service struct {
 	// Limited reports whether a caller key is recovery-only (decision 100):
 	// such a caller may only add a Trusted Device.
 	Limited func(fingerprint string) bool
+	// Authz checks the signatures of changes (decision 189); nil accepts
+	// unsigned ones (dev mode, tests).
+	Authz *authz.Policy
 	// Tailscale reports the Node's tsnet state; nil when not joined.
 	Tailscale func() *maitrev1.TailscaleStatus
 	// Rollout reports the staged rollout's last decision; nil if none.
@@ -138,7 +142,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings":
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", authz.KindGrant:
 		return true
 	}
 	return false
@@ -156,6 +160,14 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 	in := req.GetRecord()
 	if in.GetKind() == "" || in.GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "record needs kind and id")
+	}
+	// Decision 189: a change must be signed by a Trusted Device (or the
+	// Recovery Phrase, for a new device), whoever delivers it: the Console
+	// itself, or a Node forwarding it to the Record's owner.
+	if s.Authz != nil {
+		if _, err := s.Authz.AdmitFromDevice(ctx, in); err != nil {
+			return nil, connect.NewError(connect.CodePermissionDenied, err.Error())
+		}
 	}
 	if p, ok := peer.From(ctx); ok && s.Limited != nil && s.Limited(p.Fingerprint) {
 		if in.GetKind() != store.KindTrustedDevice || in.GetDeleted() {
@@ -181,7 +193,7 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && in.GetDeleted() {
 		// Removing a Node from the Fleet (guard on the Console side): a
 		// tombstone in the Node's own name, so it wins everywhere.
-		rec, err := s.store.Tombstone(ctx, store.KindNode, in.GetId())
+		rec, err := s.store.Tombstone(ctx, store.KindNode, in.GetId(), in)
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, "no such Node")
 		} else if err != nil {
@@ -200,7 +212,7 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		if err := proto.Unmarshal(in.GetBody(), &n); err != nil || n.GetNodeId() != in.GetId() || n.GetPublicKeyPem() == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, "node record must carry node_id and public_key_pem")
 		}
-		added, err := s.store.Introduce(ctx, &n)
+		added, err := s.store.IntroduceSigned(ctx, in)
 		if err != nil {
 			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
 		}
@@ -242,12 +254,17 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		rec *maitrev1.Record
 		err error
 	)
-	if in.GetDeleted() {
+	switch {
+	case len(in.GetSignature()) > 0:
+		rec, err = s.store.PutSigned(ctx, in, fleetWide)
+	case in.GetDeleted():
 		rec, err = s.store.Delete(ctx, in.GetKind(), in.GetId(), fleetWide)
-	} else {
+	default:
 		rec, err = s.store.PutRaw(ctx, in.GetKind(), in.GetId(), in.GetBody(), fleetWide)
 	}
 	switch {
+	case errors.Is(err, store.ErrStale):
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
 	case errors.Is(err, store.ErrNotOwner):
 		return nil, connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
 	case err != nil:

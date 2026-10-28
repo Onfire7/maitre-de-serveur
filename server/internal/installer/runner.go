@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -28,6 +30,9 @@ type Plan struct {
 	Fleet         *maitrev1.Fleet
 	NodeName      string
 	Trusted       []*maitrev1.TrustedDevice
+	// Records are signed Records stored as they are (decision 189); when
+	// set, Trusted and Nodes are not used.
+	Records []*maitrev1.Record
 	// Nodes are the Fleet's existing Nodes, introduced into the new database.
 	Nodes []*maitrev1.Node
 	// RestoreDevice and RestoreNodeID, when set, restore that Node's backup
@@ -282,13 +287,32 @@ func SeedConfig(ctx context.Context, dir string, plan Plan) error {
 		return err
 	}
 	defer st.Close()
+	st.SignWith(plan.NodeIdentity)
+	self := plan.NodeIdentity.Fingerprint()
+	seeded := map[string]bool{}
+	for _, r := range plan.Records {
+		if r.GetKind() == store.KindNode && r.GetId() == self {
+			continue // written below, by this Node
+		}
+		if r.GetOwnerNodeId() == "" {
+			// Signed by the Console for a new Fleet: nobody stored it yet.
+			r = proto.Clone(r).(*maitrev1.Record)
+			r.OwnerNodeId, r.Version, r.UpdatedUnixMs = self, 1, time.Now().UnixMilli()
+		}
+		if err := st.Seed(ctx, r); err != nil {
+			return fmt.Errorf("record %s %s: %w", r.GetKind(), r.GetId(), err)
+		}
+		seeded[r.GetKind()+"/"+r.GetId()] = true
+	}
 	now := time.Now().UnixMilli()
 	fleet := plan.Fleet
 	if fleet.GetCreatedUnixMs() == 0 {
 		fleet = &maitrev1.Fleet{FleetId: fleet.GetFleetId(), Name: fleet.GetName(), CreatedUnixMs: now}
 	}
-	if _, err := st.Put(ctx, store.KindFleet, fleet.GetFleetId(), fleet, true); err != nil {
-		return err
+	if !seeded[store.KindFleet+"/"+fleet.GetFleetId()] {
+		if _, err := st.Put(ctx, store.KindFleet, fleet.GetFleetId(), fleet, true); err != nil {
+			return err
+		}
 	}
 	node := &maitrev1.Node{
 		NodeId:            plan.NodeIdentity.Fingerprint(),
@@ -298,6 +322,9 @@ func SeedConfig(ctx context.Context, dir string, plan Plan) error {
 	}
 	if _, err := st.Put(ctx, store.KindNode, node.NodeId, node, false); err != nil {
 		return err
+	}
+	if len(plan.Records) > 0 {
+		return nil
 	}
 	for _, d := range plan.Trusted {
 		pub, err := identity.ParsePublicKeyPEM([]byte(d.GetPublicKeyPem()))

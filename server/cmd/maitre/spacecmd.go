@@ -97,7 +97,7 @@ func runSpace(args []string) error {
 			return err
 		}
 		body, _ := proto.Marshal(s)
-		if _, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: &maitrev1.Record{Kind: storage.KindSpace, Id: s.GetSpaceId(), Body: body}}); err != nil {
+		if _, err := c.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: signed(ident, &maitrev1.Record{Kind: storage.KindSpace, Id: s.GetSpaceId(), Body: body})}); err != nil {
 			return err
 		}
 		fmt.Printf("created Space %s\n", s.GetSpaceId())

@@ -40,23 +40,23 @@ diff "$STATE/a.list" "$STATE/b.list"
 "$MAITRE" info $DEV --addr "127.0.0.1:$PA" | grep -q "^name      a"
 
 # A write on A reaches B by push.
-"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind service --id demo --body "owned by a" put | grep -q "^applied"
-for _ in $(seq 1 50); do "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get 2>/dev/null | grep -q "owned by a" && break; sleep 0.2; done
-"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get | grep -q "owned by a"
+"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind note --id demo --body "owned by a" put | grep -q "^applied"
+for _ in $(seq 1 50); do "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo get 2>/dev/null | grep -q "owned by a" && break; sleep 0.2; done
+"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo get | grep -q "owned by a"
 
 # A write on B for a record A owns is forwarded to A.
-"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo --body "edited on b" put | grep -q "^applied"
-"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind service --id demo get | grep -q "edited on b"
+"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo --body "edited on b" put | grep -q "^applied"
+"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind note --id demo get | grep -q "edited on b"
 
 # A goes offline: the same write is queued on B, delivered when A returns.
 kill $A_PID; wait $A_PID 2>/dev/null || true
-"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo --body "edited while a was off" put | grep -q "^queued"
+"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo --body "edited while a was off" put | grep -q "^queued"
 "$MAITRE" info $DEV --addr "127.0.0.1:$PB" >/dev/null
 start_node a "$PA"; A_PID=$!
-for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind service --id demo get 2>/dev/null | grep -q "edited while a was off" && break; sleep 0.3; done
-"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind service --id demo get | grep -q "edited while a was off"
-for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get 2>/dev/null | grep -q "edited while a was off" && break; sleep 0.3; done
-"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind service --id demo get | grep -q "edited while a was off"
+for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind note --id demo get 2>/dev/null | grep -q "edited while a was off" && break; sleep 0.3; done
+"$MAITRE" record $DEV --addr "127.0.0.1:$PA" --kind note --id demo get | grep -q "edited while a was off"
+for _ in $(seq 1 100); do "$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo get 2>/dev/null | grep -q "edited while a was off" && break; sleep 0.3; done
+"$MAITRE" record $DEV --addr "127.0.0.1:$PB" --kind note --id demo get | grep -q "edited while a was off"
 # Decision 100: a brand-new device gets in with the Recovery Phrase, and
 # the phrase's key can do nothing else.
 PHRASE=$(sed -n '/Recovery Phrase/{n;n;p}' "$STATE/prov-a.log" | sed 's/^ *//')

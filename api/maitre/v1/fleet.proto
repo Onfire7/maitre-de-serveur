@@ -27,6 +27,17 @@ message Record {
   bytes body = 6;
   // Tombstone. Deleted Records keep their row so the deletion propagates.
   bool deleted = 7;
+  // Decision 189: who wrote this content, and their Ed25519 signature over
+  // kind, id, body, deleted and signed_unix_ms (server/internal/recsig).
+  // Owner, version and updated_unix_ms are the storing Node's and are not
+  // signed. Which keys may sign which kinds is server/internal/authz.
+  // signer_key is the raw 32-byte public key; empty on records from before
+  // 189, which a Node keeps but no longer accepts from others.
+  bytes signer_key = 8;
+  bytes signature = 9;
+  // When the signer wrote it. A replacement must be signed later than what
+  // it replaces, so an old signed body cannot be replayed over a newer one.
+  int64 signed_unix_ms = 10;
 }
 
 // Fleet is the kind "fleet" record. There is exactly one.
@@ -90,4 +101,50 @@ message TrustedDevice {
   // trusts it until a recovery code at another Node, within a day, clears
   // this and makes the trust Fleet-wide. Empty: trusted by every Node.
   string node_scope = 6;
+  // Decision 189: a Node may only sign a device scoped to itself. The
+  // promotion of decision 120 is signed by the second Node and carries the
+  // first Node's signed, scoped record as proof of presence at two machines.
+  RecoveryVoucher voucher = 7;
+}
+
+// RecoveryVoucher is another Node's signed record of the same device, scoped
+// to that Node (decision 189).
+message RecoveryVoucher {
+  // The signing Node's raw public key, signature, and signing time.
+  bytes signer_key = 1;
+  bytes signature = 2;
+  int64 signed_unix_ms = 3;
+  // The scoped TrustedDevice record's body as that Node signed it.
+  bytes body = 4;
+}
+
+// Grant is the kind "grant" record (decision 189): a Trusted Device's
+// consent, from a warning dialog, to one protected option of one Service on
+// one Node. The record id is GrantID(node_id, service, option). A Node runs
+// a Service with a protected option only when a live grant signed by a
+// Trusted Device names it, the Service, this Node, and the image's
+// repository; a different image needs a new grant, a new tag does not.
+message Grant {
+  string node_id = 1;
+  string service = 2;
+  // The option as server/internal/services.Protected words it, such as
+  // "AddCapability=NET_ADMIN" or "Volume=/etc".
+  string option = 3;
+  // The image without tag or digest, such as "docker.io/jellyfin/jellyfin".
+  string image_repository = 4;
+  int64 granted_unix_ms = 5;
+  // The device that granted it, for the Console's list.
+  string device_name = 6;
+}
+
+// GrantsNeeded is the detail of a FailedPrecondition error from a Service
+// call when the Service's container definition has protected options
+// without grants (decision 189). The Console asks for each and retries.
+message GrantsNeeded {
+  string node_id = 1;
+  string service = 2;
+  string image_repository = 3;
+  repeated string options = 4;
+  // The grant record id for each option, in the same order.
+  repeated string grant_ids = 5;
 }

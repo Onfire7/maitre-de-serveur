@@ -30,6 +30,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -89,6 +90,8 @@ type job struct {
 	// its container gave it; file manager moves take the destination
 	// Space's owner (decision 173).
 	keepOwner bool
+	// owner is who run acts as (owner.As, decision 189): the Space's owner.
+	owner uint32
 }
 
 // New builds a Manager. self is this Node's id.
@@ -219,7 +222,9 @@ func (m *Manager) MakeDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	if name := filepath.Base(r); strings.HasPrefix(name, ".") {
 		return fmt.Errorf("%q: folder names cannot start with a dot", name)
 	}
-	if err := os.Mkdir(filepath.Join(base, r), 0o775); err == nil {
+	// Decision 189: as the Space's owner, like every change the file
+	// manager makes for a person.
+	if err := owner.As(m.ownerOf(sc.GetSpaceId()), func() error { return os.Mkdir(filepath.Join(base, r), 0o775) }); err == nil {
 		m.own(filepath.Join(base, r))
 	} else {
 		if errors.Is(err, fs.ErrExist) {
@@ -371,6 +376,32 @@ func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done 
 	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done, keepOwner: done != nil}), nil
 }
 
+// CheckPeerMove limits a move another Node hands us (decision 189): it
+// must pull from that Node's own Pool, into this Node, between Spaces that
+// span Nodes, whose files the Node already reaches over NFS. So a
+// compromised Node cannot use moves to read or plant files in Spaces it
+// does not share, such as a Service's private data.
+func (m *Manager) CheckPeerMove(ctx context.Context, caller string, req *maitrev1.MoveRequest) error {
+	if req.GetFromNodeId() != caller {
+		return errors.New("a Node may only move files from its own Pool")
+	}
+	if to := req.GetToNodeId(); to != "" && to != m.self {
+		return errors.New("a Node may only move files to this Node")
+	}
+	spaces, err := storage.Spaces(ctx, m.st)
+	if err != nil {
+		return err
+	}
+	spans := map[string]bool{}
+	for _, b := range spaces {
+		spans[b.GetSpaceId()] = b.GetSpanNodes()
+	}
+	if !spans[req.GetFrom().GetSpaceId()] || !spans[req.GetToSpace()] {
+		return errors.New("a Node may only move files between Spaces that span Nodes")
+	}
+	return nil
+}
+
 // enqueue gives j an id and queues it behind the other jobs.
 func (m *Manager) enqueue(j *job) *maitrev1.Job {
 	m.mu.Lock()
@@ -459,7 +490,7 @@ func (m *Manager) execute(parent context.Context, j *job) {
 	m.setState(j, "running", "")
 	var err error
 	if j.run != nil {
-		err = j.run(ctx, j)
+		err = owner.As(j.owner, func() error { return j.run(ctx, j) })
 	} else {
 		err = m.move(ctx, j, req)
 	}
@@ -474,7 +505,12 @@ func (m *Manager) execute(parent context.Context, j *job) {
 		m.setState(j, "cancelled", "stopped"+untouched+", a partial result may remain")
 		err = context.Canceled
 	default:
-		m.setState(j, "failed", err.Error()+untouched)
+		msg := err.Error()
+		if errors.Is(err, fs.ErrPermission) {
+			// Decision 189: the file manager acts as the Space's owner.
+			msg += " (the Space's owner may not change this; a Service's container may own it)"
+		}
+		m.setState(j, "failed", msg+untouched)
 		m.log.Warn("job failed", "job", j.pb.JobId, "kind", j.pb.Kind, "err", err)
 	}
 	if j.done != nil {
@@ -531,7 +567,14 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	if strings.HasPrefix(dst+"/", src+"/") {
 		return errors.New("cannot move a folder into itself")
 	}
-	if err := m.mkdirs(dstBase, filepath.Dir(req.GetToPath())); err != nil {
+	// Decision 189: a person's move writes as the destination Space's
+	// owner and removes as the source's; a Service's own volume (keepOwner)
+	// moves as root, keeping the owners its container gave its files.
+	srcOwner, dstOwner := m.ownerOf(req.GetFrom().GetSpaceId()), m.ownerOf(req.GetToSpace())
+	if j.keepOwner {
+		srcOwner, dstOwner = 0, 0
+	}
+	if err := owner.As(dstOwner, func() error { return m.mkdirs(dstBase, filepath.Dir(req.GetToPath())) }); err != nil {
 		return err
 	}
 	bytes, _ := walk(src)
@@ -546,7 +589,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	// EXDEV (the Pool would have to cross Drives) falls back to the copy.
 	if req.GetFromNodeId() == "" && req.GetToDriveId() == "" && req.GetFrom().GetSpaceId() != "" && req.GetFrom().GetSpaceId() == req.GetToSpace() {
 		if _, err := os.Lstat(dst); errors.Is(err, fs.ErrNotExist) {
-			err := os.Rename(src, dst)
+			err := owner.As(srcOwner, func() error { return os.Rename(src, dst) })
 			if err == nil {
 				j.mu.Lock()
 				j.pb.BytesDone = bytes
@@ -560,7 +603,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	}
 	// Same filesystem and not across the Pool: a rename is instant. Only
 	// for Drive-to-Drive within one Drive; everything else copies.
-	if err := m.rsync(ctx, j, src, dst, info.IsDir()); err != nil {
+	if err := m.rsync(ctx, j, src, dst, info.IsDir(), dstOwner); err != nil {
 		return err
 	}
 	if !j.keepOwner && req.GetFrom().GetSpaceId() != req.GetToSpace() {
@@ -571,7 +614,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	if req.GetFromNodeId() != "" && req.GetFromNodeId() != m.self {
 		return nil // the forwarding Node removes its own source
 	}
-	return os.RemoveAll(src)
+	return owner.As(srcOwner, func() error { return os.RemoveAll(src) })
 }
 
 func samePath(a, b string) (bool, error) {
@@ -589,7 +632,8 @@ func samePath(a, b string) (bool, error) {
 var progressRe = regexp.MustCompile(`^\s*([\d,]+)\s+\d+%`)
 
 // rsync copies src to dst with progress, then verifies with a checksum pass.
-func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool) error {
+// It runs as as (owner.Credential), root for 0.
+func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool, as uint32) error {
 	s, d := src, dst
 	if dir {
 		s, d = src+"/", dst+"/"
@@ -599,6 +643,7 @@ func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool) 
 		args = append(args, s, d)
 		cmd := exec.CommandContext(ctx, m.Rsync, args...)
 		cmd.SysProcAttr = sysProcAttr()
+		cmd.SysProcAttr.Credential = owner.Credential(as)
 		out, err := cmd.StdoutPipe()
 		if err != nil {
 			return err
@@ -705,7 +750,7 @@ func (m *Manager) forward(ctx context.Context, j *job, req *maitrev1.MoveRequest
 			j.mu.Unlock()
 			switch rj.GetState() {
 			case "done":
-				return os.RemoveAll(src)
+				return owner.As(m.ownerOf(req.GetFrom().GetSpaceId()), func() error { return os.RemoveAll(src) })
 			case "failed", "cancelled":
 				return fmt.Errorf("%s: %s", req.GetToNodeId(), rj.GetMessage())
 			}

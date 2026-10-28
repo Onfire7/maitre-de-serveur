@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSKCAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMi/gEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgiigEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAlCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSLBAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgSEgoKc2lnbmVyX2tleRgIIAEoDBIRCglzaWduYXR1cmUYCSABKAwSFgoOc2lnbmVkX3VuaXhfbXMYCiABKAMiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMi/gEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgitwEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAkSKwoHdm91Y2hlchgHIAEoCzIaLm1haXRyZS52MS5SZWNvdmVyeVZvdWNoZXIiXgoPUmVjb3ZlcnlWb3VjaGVyEhIKCnNpZ25lcl9rZXkYASABKAwSEQoJc2lnbmF0dXJlGAIgASgMEhYKDnNpZ25lZF91bml4X21zGAMgASgDEgwKBGJvZHkYBCABKAwigQEKBUdyYW50Eg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIOCgZvcHRpb24YAyABKAkSGAoQaW1hZ2VfcmVwb3NpdG9yeRgEIAEoCRIXCg9ncmFudGVkX3VuaXhfbXMYBSABKAMSEwoLZGV2aWNlX25hbWUYBiABKAkibgoMR3JhbnRzTmVlZGVkEg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIYChBpbWFnZV9yZXBvc2l0b3J5GAMgASgJEg8KB29wdGlvbnMYBCADKAkSEQoJZ3JhbnRfaWRzGAUgAygJQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -73,6 +73,31 @@ export type Record = Message<"maitre.v1.Record"> & {
    * @generated from field: bool deleted = 7;
    */
   deleted: boolean;
+
+  /**
+   * Decision 189: who wrote this content, and their Ed25519 signature over
+   * kind, id, body, deleted and signed_unix_ms (server/internal/recsig).
+   * Owner, version and updated_unix_ms are the storing Node's and are not
+   * signed. Which keys may sign which kinds is server/internal/authz.
+   * signer_key is the raw 32-byte public key; empty on records from before
+   * 189, which a Node keeps but no longer accepts from others.
+   *
+   * @generated from field: bytes signer_key = 8;
+   */
+  signerKey: Uint8Array;
+
+  /**
+   * @generated from field: bytes signature = 9;
+   */
+  signature: Uint8Array;
+
+  /**
+   * When the signer wrote it. A replacement must be signed later than what
+   * it replaces, so an old signed body cannot be replayed over a newer one.
+   *
+   * @generated from field: int64 signed_unix_ms = 10;
+   */
+  signedUnixMs: bigint;
 };
 
 /**
@@ -285,6 +310,15 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
    * @generated from field: string node_scope = 6;
    */
   nodeScope: string;
+
+  /**
+   * Decision 189: a Node may only sign a device scoped to itself. The
+   * promotion of decision 120 is signed by the second Node and carries the
+   * first Node's signed, scoped record as proof of presence at two machines.
+   *
+   * @generated from field: maitre.v1.RecoveryVoucher voucher = 7;
+   */
+  voucher?: RecoveryVoucher | undefined;
 };
 
 /**
@@ -293,4 +327,142 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
  */
 export const TrustedDeviceSchema: GenMessage<TrustedDevice> = /*@__PURE__*/
   messageDesc(file_maitre_v1_fleet, 4);
+
+/**
+ * RecoveryVoucher is another Node's signed record of the same device, scoped
+ * to that Node (decision 189).
+ *
+ * @generated from message maitre.v1.RecoveryVoucher
+ */
+export type RecoveryVoucher = Message<"maitre.v1.RecoveryVoucher"> & {
+  /**
+   * The signing Node's raw public key, signature, and signing time.
+   *
+   * @generated from field: bytes signer_key = 1;
+   */
+  signerKey: Uint8Array;
+
+  /**
+   * @generated from field: bytes signature = 2;
+   */
+  signature: Uint8Array;
+
+  /**
+   * @generated from field: int64 signed_unix_ms = 3;
+   */
+  signedUnixMs: bigint;
+
+  /**
+   * The scoped TrustedDevice record's body as that Node signed it.
+   *
+   * @generated from field: bytes body = 4;
+   */
+  body: Uint8Array;
+};
+
+/**
+ * Describes the message maitre.v1.RecoveryVoucher.
+ * Use `create(RecoveryVoucherSchema)` to create a new message.
+ */
+export const RecoveryVoucherSchema: GenMessage<RecoveryVoucher> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 5);
+
+/**
+ * Grant is the kind "grant" record (decision 189): a Trusted Device's
+ * consent, from a warning dialog, to one protected option of one Service on
+ * one Node. The record id is GrantID(node_id, service, option). A Node runs
+ * a Service with a protected option only when a live grant signed by a
+ * Trusted Device names it, the Service, this Node, and the image's
+ * repository; a different image needs a new grant, a new tag does not.
+ *
+ * @generated from message maitre.v1.Grant
+ */
+export type Grant = Message<"maitre.v1.Grant"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string service = 2;
+   */
+  service: string;
+
+  /**
+   * The option as server/internal/services.Protected words it, such as
+   * "AddCapability=NET_ADMIN" or "Volume=/etc".
+   *
+   * @generated from field: string option = 3;
+   */
+  option: string;
+
+  /**
+   * The image without tag or digest, such as "docker.io/jellyfin/jellyfin".
+   *
+   * @generated from field: string image_repository = 4;
+   */
+  imageRepository: string;
+
+  /**
+   * @generated from field: int64 granted_unix_ms = 5;
+   */
+  grantedUnixMs: bigint;
+
+  /**
+   * The device that granted it, for the Console's list.
+   *
+   * @generated from field: string device_name = 6;
+   */
+  deviceName: string;
+};
+
+/**
+ * Describes the message maitre.v1.Grant.
+ * Use `create(GrantSchema)` to create a new message.
+ */
+export const GrantSchema: GenMessage<Grant> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 6);
+
+/**
+ * GrantsNeeded is the detail of a FailedPrecondition error from a Service
+ * call when the Service's container definition has protected options
+ * without grants (decision 189). The Console asks for each and retries.
+ *
+ * @generated from message maitre.v1.GrantsNeeded
+ */
+export type GrantsNeeded = Message<"maitre.v1.GrantsNeeded"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string service = 2;
+   */
+  service: string;
+
+  /**
+   * @generated from field: string image_repository = 3;
+   */
+  imageRepository: string;
+
+  /**
+   * @generated from field: repeated string options = 4;
+   */
+  options: string[];
+
+  /**
+   * The grant record id for each option, in the same order.
+   *
+   * @generated from field: repeated string grant_ids = 5;
+   */
+  grantIds: string[];
+};
+
+/**
+ * Describes the message maitre.v1.GrantsNeeded.
+ * Use `create(GrantsNeededSchema)` to create a new message.
+ */
+export const GrantsNeededSchema: GenMessage<GrantsNeeded> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 7);
 

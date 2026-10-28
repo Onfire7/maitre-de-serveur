@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { create, fromBinary } from "@bufbuild/protobuf";
 import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus, type SyncGap } from "@/gen/maitre/v1/node_pb";
-import { NodeSchema, FleetSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
+import { NodeSchema, FleetSchema, GrantSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
 import { transportFor, type Target } from "@/transport";
@@ -194,6 +194,8 @@ export interface FleetService {
   status?: ServiceStatus;
   node?: Node;
   nodeStatus?: FleetNodeStatus;
+  /** How many protected options it was granted (decision 189). */
+  grants?: number;
   /** Decision 135 words. */
   word: "Online" | "Starting" | "Stopped" | "Attention";
   nodeUnreachable: boolean;
@@ -252,7 +254,8 @@ export function useFleetServices(snap: FleetSnapshot | undefined, now = Date.now
         const nodeStatus = snap.status.get(spec.nodeId);
         const status = nodeStatus?.services.find((s) => s.spec?.name === spec.name);
         const unreachable = nodeDown(nodeWord(nodeStatus, now));
-        return { spec, status, node, nodeStatus, word: unreachable ? "Stopped" : serviceWord(status), nodeUnreachable: unreachable } as FleetService;
+        const grants = snap.records.filter((r) => r.kind === "grant" && !r.deleted && fromBinary(GrantSchema, r.body).service === spec.name).length;
+        return { spec, status, node, nodeStatus, grants, word: unreachable ? "Stopped" : serviceWord(status), nodeUnreachable: unreachable } as FleetService;
       })
       .sort((a, b) => a.spec.name.localeCompare(b.spec.name));
   }, [snap, now]);
