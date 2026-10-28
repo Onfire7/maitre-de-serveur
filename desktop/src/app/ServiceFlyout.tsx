@@ -26,22 +26,8 @@ export function ServiceFlyout({
   onLeave: () => void;
 }) {
   const s = service.status;
-  const running = s?.state === 3 || s?.state === 2;
-  const entry = catalogById.get(service.spec.catalogId);
   const nw = nodeWord(service.nodeStatus, Date.now());
-  const items: { id: FlyoutItem; label: string; icon: React.ReactNode; disabled?: boolean; danger?: boolean }[] = [
-    { id: "open", label: "Open in your browser", icon: <ExternalLink />, disabled: !s?.url || service.word !== "Online" },
-    running ? { id: "stop", label: "Stop", icon: <Square />, disabled: service.nodeUnreachable } : { id: "start", label: "Start", icon: <Play />, disabled: service.nodeUnreachable },
-    { id: "restart", label: "Restart", icon: <RotateCw />, disabled: service.nodeUnreachable },
-    { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
-    ...(service.spec.previousImage ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
-    { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
-    { id: "exposure", label: "Exposure…", icon: <Globe /> },
-    ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
-    { id: "storage", label: "Storage", icon: <HardDrive /> },
-    ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),
-    { id: "remove", label: "Remove…", icon: <Trash2 />, danger: true },
-  ];
+  const items = flyoutItems(service);
   return (
     <motion.div
       role="menu"
@@ -101,4 +87,32 @@ export function ServiceFlyout({
       </ul>
     </motion.div>
   );
+}
+
+export interface FlyoutEntry {
+  id: FlyoutItem;
+  label: string;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  danger?: boolean;
+}
+
+/** A Service's actions, shared by the flyout and the Services tab's menu. */
+export function flyoutItems(service: FleetService): FlyoutEntry[] {
+  const s = service.status;
+  const running = s?.state === 3 || s?.state === 2;
+  const entry = catalogById.get(service.spec.catalogId);
+  return [
+    { id: "open", label: "Open in your browser", icon: <ExternalLink />, disabled: !s?.url || service.word !== "Online" },
+    running ? { id: "stop", label: "Stop", icon: <Square />, disabled: service.nodeUnreachable } : { id: "start", label: "Start", icon: <Play />, disabled: service.nodeUnreachable },
+    { id: "restart", label: "Restart", icon: <RotateCw />, disabled: service.nodeUnreachable },
+    { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
+    ...(service.spec.previousImage ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
+    { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
+    { id: "exposure", label: "Exposure…", icon: <Globe /> },
+    ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
+    { id: "storage", label: "Storage", icon: <HardDrive /> },
+    ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),
+    { id: "remove", label: "Remove…", icon: <Trash2 />, danger: true },
+  ];
 }

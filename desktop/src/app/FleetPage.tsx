@@ -4,7 +4,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { CircleAlert, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FleetSnapshot } from "@/fleet/useFleet";
+import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
+import type { FlyoutItem } from "./ServiceFlyout";
+import { ServicesTab } from "./ServicesTab";
 import type { ConsoleState, DeviceInfo, Found } from "@/state";
 import { LogsTab } from "./LogsTab";
 import { FLEET_TABS, FLEET_TAB_LABEL, useRoute, type FleetTab } from "./routes";
@@ -29,6 +31,9 @@ export function FleetPage({
   onState,
   onPromote,
   scoped,
+  services,
+  onAct,
+  now,
 }: {
   tab: FleetTab;
   nodeId?: string;
@@ -42,6 +47,9 @@ export function FleetPage({
   onState: (s: ConsoleState) => Promise<void>;
   onPromote: () => void;
   scoped: boolean;
+  services: FleetService[];
+  onAct: (s: FleetService, item: FlyoutItem) => void;
+  now: number;
 }) {
   const { go } = useRoute();
   const anchorName = snap ? snap.nodes.find((n) => n.nodeId === snap.anchor.nodeId)?.name : undefined;
@@ -69,6 +77,7 @@ export function FleetPage({
       <div className={cn("min-h-0 flex-1 overflow-y-auto p-6", tab !== "files" && tab !== "logs" && "[&_section]:mb-6")}>
         {tab === "overview" && <Overview snap={snap} device={device} notices={notices} state={state} onPromote={onPromote} />}
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
+        {tab === "services" && <ServicesTab snap={snap} state={state} services={services} onAct={onAct} now={now} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}
         {tab === "files" && <FilesTab snap={snap} state={state} initial={files} />}
         {tab === "logs" && <LogsTab snap={snap} state={state} initial={logs} />}
