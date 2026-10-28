@@ -59,7 +59,7 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
   // Opens that folder on the Files tab, under the Service (195).
   const open = (at: { volume: string } | { mount: string }, what: string) =>
     onOpen && (
-      <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 text-xs" title={`Open ${what} in Files`} aria-label={`Open ${what} in Files`} onClick={() => onOpen(at)}>
+      <Button type="button" size="sm" variant="outline" className="shrink-0" title={`Open ${what} in Files`} aria-label={`Open ${what} in Files`} onClick={() => onOpen(at)}>
         <FolderSearch /> Open in Files
       </Button>
     );
@@ -132,7 +132,7 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">Extra folders</span>
-          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setPicking({ add: true })} disabled={spaces.length === 0}>
+          <Button type="button" size="sm" variant="outline" onClick={() => setPicking({ add: true })} disabled={spaces.length === 0}>
             <Plus /> Add a folder
           </Button>
         </div>
