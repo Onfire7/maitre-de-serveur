@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Package, Server, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Package, Server, Eye, EyeOff, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,6 +36,9 @@ import { spacesOf } from "@/spaces";
 import { colorOf } from "./StorageTab";
 import type { FleetService } from "@/fleet/useFleet";
 import { serviceFolders, type ServiceFolder } from "@/files/sources";
+import { hidden } from "@/files/layout";
+
+const HIDDEN_KEY = "maitre.files.hidden";
 import { ServiceIcon } from "./status";
 
 export interface FileScope {
@@ -168,7 +171,12 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
     retry: false,
     queryFn: async () => (await client!.listDir({ scope: { spaceId: scope!.spaceId ?? "", driveId: scope!.driveId ?? "" }, path })).entries,
   });
-  const entries = useMemo(() => [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data]);
+  // Names starting with a dot are hidden unless asked for (205), as
+  // .Services, where Services keep their own folders.
+  const [showHidden, setShowHidden] = useState(() => localStorage.getItem(HIDDEN_KEY) === "1");
+  const toggleHidden = () => setShowHidden((v) => (localStorage.setItem(HIDDEN_KEY, v ? "0" : "1"), !v));
+  const entries = useMemo(() => [...(list.data ?? [])].filter((e) => showHidden || !hidden(e.name)).sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data, showHidden]);
+  const hiddenCount = showHidden ? 0 : (list.data ?? []).filter((e) => hidden(e.name)).length;
   useEffect(() => setSelected(new Set(moveFixture && list.data ? [moveFixture] : [])), [scope && scopeKey(scope), path, !!list.data]);
   const fleetName = state.fleet?.name ?? "Fleet";
   // Free space from the Drives' gossiped usage (decision 199): a place's
@@ -424,6 +432,9 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
           </nav>
           {!listing && (
           <>
+          <Button size="sm" variant="ghost" onClick={toggleHidden} title={showHidden ? "Hide names starting with a dot" : `Show hidden${hiddenCount ? ` (${hiddenCount} here)` : ""}`} aria-pressed={showHidden} aria-label="Show hidden">
+            {showHidden ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => list.refetch()} title="Refresh">
             <RefreshCw className={cn("size-4", list.isFetching && "animate-spin")} />
           </Button>
@@ -492,7 +503,17 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
           ) : !list.data ? (
             <p className="p-4 text-sm text-muted-foreground">Reading…</p>
           ) : entries.length === 0 && crumbs.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Empty.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Empty.
+              {hiddenCount > 0 && (
+                <>
+                  {" "}
+                  <button className="underline" onClick={toggleHidden}>
+                    {hiddenCount} hidden
+                  </button>
+                </>
+              )}
+            </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
@@ -578,7 +599,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
             const t = targetFor(snap, state.nodes, nodeId);
             if (!t) throw new Error("no address");
             const res = await createClient(FilesService, transportFor(t)).listDir({ scope: { spaceId, driveId: "" }, path: p });
-            return res.entries.filter((e) => e.dir).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+            return res.entries.filter((e) => e.dir && !hidden(e.name)).map((e) => e.name).sort((a, b) => a.localeCompare(b));
           }}
           makeFolder={async (nodeId, spaceId, p) => {
             const t = targetFor(snap, state.nodes, nodeId);
@@ -750,7 +771,7 @@ function Row({ e, client, scope, path, selected, previewing, onSelect, onOpen, n
   });
   const where = whereOf(e, nodeName, driveName);
   return (
-    <tr className={cn("border-b last:border-0 hover:bg-accent/40", selected && "bg-accent/60", previewing && "bg-primary/10")}>
+    <tr className={cn("border-b last:border-0 hover:bg-accent/40", selected && "bg-accent/60", previewing && "bg-primary/10", hidden(e.name) && "opacity-60")}>
       <td className="px-3 py-1.5">
         <Checkbox checked={selected} onCheckedChange={(v) => onSelect(v === true)} aria-label={`Select ${e.name}`} />
       </td>

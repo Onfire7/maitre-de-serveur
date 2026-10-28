@@ -167,7 +167,7 @@ func TestDelete(t *testing.T) {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go m.Run(runCtx)
-	// Jellyfin uses Media/Movies (picked) and its own General/jellyfin/config.
+	// Jellyfin uses Media/Movies (picked) and its own General/.Services/jellyfin/config.
 	m.st.Put(ctx, "service", "jellyfin", &maitrev1.ServiceSpec{Name: "jellyfin", Volumes: []*maitrev1.ServiceVolume{{Name: "config"}, {Name: "media"}}, VolumeSpaces: map[string]string{"config": "general", "media": "media"}, VolumeFolders: map[string]string{"media": "Library/Movies"}}, false)
 	os.MkdirAll(filepath.Join(dir, "pools/media/Library/Movies"), 0o755)
 	os.MkdirAll(filepath.Join(dir, "pools/media/Old/a"), 0o755)
@@ -179,10 +179,11 @@ func TestDelete(t *testing.T) {
 		folder string
 		name   string
 	}{
-		{media, "", "Library"},                                // holds a picked folder
-		{media, "Library", "Movies"},                          // is one
-		{&maitrev1.Scope{SpaceId: "general"}, "", "jellyfin"}, // holds its own volume
-		{&maitrev1.Scope{DriveId: "d1"}, "", "media"},         // a Drive's Space folder
+		{media, "", "Library"},                                         // holds a picked folder
+		{media, "Library", "Movies"},                                   // is one
+		{&maitrev1.Scope{SpaceId: "general"}, "", ".Services"},         // holds its own volume (205)
+		{&maitrev1.Scope{SpaceId: "general"}, ".Services", "jellyfin"}, // holds its own volume
+		{&maitrev1.Scope{DriveId: "d1"}, "", "media"},                  // a Drive's Space folder
 		{media, "", "nope"},
 	} {
 		if _, err := m.Delete(ctx, &maitrev1.DeleteRequest{Scope: c.scope, Folder: c.folder, Names: []string{c.name}}); err == nil {

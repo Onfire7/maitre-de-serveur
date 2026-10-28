@@ -62,7 +62,7 @@ func TestMoveVolumeStopsMovesRewritesRestarts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "job-1" || mover.req.GetFrom().GetSpaceId() != "general" || mover.req.GetToSpace() != "media" || mover.req.GetPath() != "jellyfin/media" || mover.req.GetToPath() != "jellyfin/media" {
+	if id != "job-1" || mover.req.GetFrom().GetSpaceId() != "general" || mover.req.GetToSpace() != "media" || mover.req.GetPath() != ".Services/jellyfin/media" || mover.req.GetToPath() != ".Services/jellyfin/media" {
 		t.Fatalf("job %s, request %+v", id, mover.req)
 	}
 	joined := strings.Join(run.cmds, "\n")
@@ -81,7 +81,7 @@ func TestMoveVolumeStopsMovesRewritesRestarts(t *testing.T) {
 		t.Fatalf("volume_spaces after the move: %v", spec.GetVolumeSpaces())
 	}
 	unit, _ := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))
-	if !strings.Contains(string(unit), filepath.Join(pools, "media", "jellyfin", "media")) {
+	if !strings.Contains(string(unit), filepath.Join(pools, "media", ".Services", "jellyfin", "media")) {
 		t.Fatalf("unit does not mount the new place:\n%s", unit)
 	}
 	if !strings.Contains(strings.Join(run.cmds, "\n"), "systemctl start --no-block jellyfin.service") {
@@ -118,5 +118,38 @@ func TestMoveVolumeFailureLeavesSpecAndRestarts(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(run.cmds, "\n"), "systemctl start --no-block jellyfin.service") {
 		t.Fatalf("the Service restarts on the old place: %v", run.cmds)
+	}
+}
+
+// Decision 205: a Service installed before keeps its volume at
+// <Space>/<Service>/<volume> until it moves; MoveVolume takes it from there
+// to <Space>/.Services/<Service>/<volume> in the new Space.
+func TestMoveVolumeFromTheOldPlace(t *testing.T) {
+	ctx := context.Background()
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	for _, sp := range []string{"general", "media"} {
+		_ = os.MkdirAll(filepath.Join(pools, sp), 0o755)
+	}
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
+	mover := &fakeMover{}
+	m.Mover = mover
+	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
+		t.Fatal(err)
+	}
+	// As a Node before 205 left it: the data at the old place only.
+	_ = os.RemoveAll(filepath.Join(pools, "general", ".Services"))
+	_ = os.MkdirAll(filepath.Join(pools, "general", "jellyfin", "config"), 0o755)
+	if _, err := m.MoveVolume(ctx, "jellyfin", "config", "media"); err != nil {
+		t.Fatal(err)
+	}
+	if mover.req.GetPath() != "jellyfin/config" || mover.req.GetToPath() != ".Services/jellyfin/config" {
+		t.Fatalf("request %+v", mover.req)
 	}
 }

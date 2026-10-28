@@ -25,6 +25,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/layout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -348,7 +349,7 @@ func (m *Manager) layout(ctx context.Context, spec *maitrev1.ServiceSpec) (map[s
 			extra.Shared[v.GetName()] = true
 			continue
 		}
-		vols[v.GetName()] = filepath.Join(base, spec.GetName(), v.GetName())
+		vols[v.GetName()] = filepath.Join(base, layout.VolumeDir(spec.GetName(), v.GetName()))
 	}
 	for _, mt := range spec.GetMounts() {
 		base, err := m.poolDir(mt.GetSpaceId())
@@ -438,8 +439,18 @@ func (m *Manager) MoveVolume(ctx context.Context, name, volume, toSpace string) 
 	if _, err := m.run.Run(ctx, "systemctl", "stop", unit); err != nil {
 		return "", fmt.Errorf("stop %s: %w", name, err)
 	}
-	path := filepath.Join(name, volume)
-	req := &maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: from}, Path: path, ToSpace: toSpace, ToPath: path}
+	// To <Space>/.Services/<Service>/<volume> (205), from there or, for a
+	// Service installed before, from <Space>/<Service>/<volume>.
+	to := layout.VolumeDir(name, volume)
+	path := to
+	if m.cfg.PoolsDir != "" {
+		if _, err := os.Stat(filepath.Join(m.cfg.PoolsDir, from, to)); err != nil {
+			if _, err := os.Stat(filepath.Join(m.cfg.PoolsDir, from, layout.LegacyVolumeDir(name, volume))); err == nil {
+				path = layout.LegacyVolumeDir(name, volume)
+			}
+		}
+	}
+	req := &maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: from}, Path: path, ToSpace: toSpace, ToPath: to}
 	bg := context.WithoutCancel(ctx)
 	job, err := m.Mover.MoveThen(ctx, req, func(moveErr error) {
 		if moveErr == nil {
@@ -733,10 +744,10 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 					continue // a folder the user picked is never deleted (174)
 				}
 				base := filepath.Join(m.cfg.PoolsDir, spec.GetVolumeSpaces()[v.GetName()])
-				if err := os.RemoveAll(filepath.Join(base, spec.GetName(), v.GetName())); err != nil {
+				if err := os.RemoveAll(filepath.Join(base, layout.VolumeDir(spec.GetName(), v.GetName()))); err != nil {
 					return nil, err
 				}
-				_ = os.Remove(filepath.Join(base, spec.GetName()))
+				_ = os.Remove(filepath.Join(base, layout.ServiceDir(spec.GetName())))
 			}
 		}
 		if _, err := m.store.Delete(ctx, KindService, spec.Name, false); err != nil {

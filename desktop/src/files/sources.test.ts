@@ -16,7 +16,7 @@ describe("serviceFolders (decision 195)", () => {
       mounts: [{ spaceId: "media", folder: "Music/Live", path: "/mnt/live", readOnly: true }],
     });
     expect(serviceFolders(spec).map((f) => [f.key, f.spaceId, f.path, f.shared, f.readOnly])).toEqual([
-      ["config", "general", "jellyfin/config", false, false],
+      ["config", "general", ".Services/jellyfin/config", false, false],
       ["media", "media", "", true, false],
       ["mount:/mnt/live", "media", "Music/Live", true, true],
     ]);

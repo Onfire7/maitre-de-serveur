@@ -604,10 +604,19 @@ export class DemoFleet {
       // One file of each kind the preview shows (decision 178).
       d("Documents", [f("README.md", 1.2e3, ["sdb"], NODE_A, 2), f("notes.txt", 820, ["sdb"], NODE_A, 5), f("jellyfin.yaml", 610, ["sdb"], NODE_A, 8), f("running-costs.xlsx", 18e3, ["sdb"], NODE_A, 3), f("letter.docx", 24e3, ["sdb"], NODE_A, 12), f("manual.pdf", 1.1e3, ["sdb"], NODE_A, 30), f("lake.jpg", 2.4e6, ["sda"], NODE_B, 60), f("chime.wav", 88e3, ["sda"], NODE_B, 1), f("trailer.mp4", 48e6, ["sda"], NODE_B, 14), f("photos-2023.zip", 1.4 * GiB, ["sda"], NODE_B, 200)], ["sda", "sdb"], NODE_A),
     ]);
+    // Services' own folders under .Services (decision 205).
     this.files.set("space:general", [
-      d("jellyfin", [d("config", [f("system.xml", 12e3, ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A),
-      d("paperless", [d("data", [f("index.db", 220e6, ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A),
-      d("uptime", [f("kuma.db", 9e6, ["nvme0n1"], NODE_B)], ["nvme0n1"], NODE_B),
+      d(
+        ".Services",
+        [
+          d("jellyfin", [d("config", [f("system.xml", 12e3, ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A),
+          d("paperless", [d("data", [f("index.db", 220e6, ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A)], ["nvme0n1"], NODE_A),
+          d("uptime", [f("kuma.db", 9e6, ["nvme0n1"], NODE_B)], ["nvme0n1"], NODE_B),
+        ],
+        ["nvme0n1"],
+        NODE_A,
+      ),
+      d("Scans", [f("2026-10-02.pdf", 310e3, ["nvme0n1"], NODE_A, 26), f(".DS_Store", 6e3, ["nvme0n1"], NODE_A, 26)], ["nvme0n1"], NODE_A),
     ]);
     this.files.set("drive:sda@" + NODE_B, [
       d("media", [], ["sda"], NODE_B),
@@ -620,6 +629,21 @@ export class DemoFleet {
   private tree(scope: { spaceId?: string; driveId?: string }, nodeId: string): FileNode[] {
     if (scope.spaceId) return this.files.get("space:" + scope.spaceId) ?? [];
     return this.files.get(`drive:${scope.driveId}@${nodeId}`) ?? [];
+  }
+
+  /** The folder at parts under root, made where missing (a move's destination parents). */
+  private mkdirs(root: FileNode[], parts: string[], nodeId: string): FileNode[] {
+    let cur = root;
+    for (const part of parts) {
+      let next = cur.find((n) => n.name === part && n.dir);
+      if (!next) {
+        next = { name: part, dir: true, size: 0, modified: this.now, drives: [], nodeId, children: [] } as FileNode;
+        cur.push(next);
+      }
+      next.children ??= [];
+      cur = next.children;
+    }
+    return cur;
   }
 
   private walk(root: FileNode[], path: string): FileNode[] | undefined {
@@ -752,7 +776,7 @@ export class DemoFleet {
     // to_path names the item itself: walk to its parent, take its name.
     const toParts = (req.toPath || req.path).split("/").filter(Boolean);
     item.name = toParts.pop() ?? item.name;
-    const dest = this.walk(this.tree({ spaceId: req.toSpace }, toNode), toParts.join("/"));
+    const dest = this.mkdirs(this.tree({ spaceId: req.toSpace }, toNode), toParts, toNode);
     const retarget = (n: FileNode) => {
       n.nodeId = toNode;
       n.drives = req.toDriveId ? [req.toDriveId] : [this.drives.find((d) => d.nodeId === toNode && d.spaces.includes(req.toSpace))?.driveId ?? "nvme0n1"];
@@ -777,7 +801,7 @@ export class DemoFleet {
     s.readyAt = undefined;
     s.message = `stopped while ${volume} moves to ${toSpace}`;
     s.statusUnixMs = this.now;
-    const path = `${name}/${volume}`;
+    const path = `.Services/${name}/${volume}`;
     const req = { from: { spaceId: from, driveId: "" }, path, toSpace, toPath: path, toNodeId: "", toDriveId: "", fromNodeId: "" } as MoveRequest;
     const job: DemoJob = { jobId: `job-${this.nextJob++}`, state: "running", message: "copying", bytesDone: 0n, bytesTotal: BigInt(Math.round(1.5 * GiB)), current: path, startedUnixMs: BigInt(this.now), finishedUnixMs: 0n, kind: "", summary: "", request: req, nodeId, onDone: () => {
       s.spec.volumeSpaces[volume] = toSpace;

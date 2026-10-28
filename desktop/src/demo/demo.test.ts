@@ -98,7 +98,8 @@ describe("demo Fleet", () => {
   });
 
   it("deletes as a job, but never a folder a Service uses", async () => {
-    await expect(at(A).files.delete({ scope: { spaceId: "general" }, names: ["jellyfin"] })).rejects.toThrow(/jellyfin uses general\/jellyfin\/config/);
+    await expect(at(A).files.delete({ scope: { spaceId: "general" }, names: [".Services"] })).rejects.toThrow(/jellyfin uses general\/\.Services\/jellyfin\/config/);
+    await expect(at(A).files.delete({ scope: { spaceId: "general" }, folder: ".Services", names: ["jellyfin"] })).rejects.toThrow(/jellyfin uses/);
     const { jobId } = await at(A).files.delete({ scope: { spaceId: "media" }, folder: "Documents", names: ["notes.txt"] });
     for (let i = 0; i < 5; i++) fleet.tick(fleet.now + 1000);
     expect((await at(A).files.listJobs({})).jobs.find((j) => j.jobId === jobId)?.kind).toBe("delete");

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import type { Space } from "@/gen/maitre/v1/storage_pb";
 import { FolderBrowser, type FolderSource } from "./FolderBrowser";
+import { volumeDir } from "./layout";
 
 export interface MountChoice {
   spaceId: string;
@@ -99,7 +100,7 @@ export function FoldersEditor({ volumes, spaces, value, onChange, source, servic
                 ) : lockOwnSpace ? (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      {folderLabel(spaces, space, `${serviceName}/${v.name}`)}
+                      {folderLabel(spaces, space, volumeDir(serviceName, v.name))}
                       {v.size ? ` · ${v.size}` : ""}
                     </p>
                     {(ownExtra || onOpen) && (

@@ -475,3 +475,8 @@ Made while building 170-181 (2026-10-27)
 
 - 204 (user, 2026-10-28): Prefer local Drives comes after New files go to. A Space's coloured left edge on the Storage tab opens a choice of colours: fourteen swatches, any colour, or Automatic (the one its place in the list gives it, as before). The colour is kept in the Space record (new field `Space.color`, #rrggbb, which the Node checks; older Nodes keep it as written) and used wherever Spaces are coloured: the Storage tab, the Files tab and a Node's flyout.
 - Built (2026-10-28): `colorOf` and `ColorEdge` in `desktop/src/app/StorageTab.tsx`; `storage.ValidateSpace`.
+
+### .Services, and hidden names in Files (decision 205, 2026-10-28)
+
+- 205 (user, 2026-10-28): a Service's own folders move from `<Space>/<Service>/<volume>` to `<Space>/.Services/<Service>/<volume>`, out of the way of the user's folders. The Files tab hides names starting with a dot unless Show hidden (the eye beside Refresh, remembered) is on, when they show dimmed; "Empty." says how many are hidden. Folder pickers leave them out. No migration (one Service exists): moving a volume to another Space and back brings it to the new place (docs/node-needs.md). Until then, anything that re-renders the Service, including an automatic update, points it at the new, empty folders.
+- Built (2026-10-28): `server/internal/layout`, its use in `services` and `files`, `TestMoveVolumeFromTheOldPlace`; `desktop/src/files/layout.ts`, `volumeDir` in `serviceFolders`, the Service move and the Storage editor; Show hidden in `FilesTab.tsx`; the demo keeps its Services' folders under .Services.

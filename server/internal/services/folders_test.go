@@ -77,7 +77,7 @@ func TestSetFolders(t *testing.T) {
 	for _, want := range []string{
 		"Volume=" + filepath.Join(pools, "media", "Movies") + ":/media:z\n",
 		"Volume=" + filepath.Join(pools, "media", "Shows") + ":/media/shows:z,ro\n",
-		"Volume=" + filepath.Join(pools, "general", "jellyfin", "config") + ":/config:Z\n",
+		"Volume=" + filepath.Join(pools, "general", ".Services", "jellyfin", "config") + ":/config:Z\n",
 		"GroupAdd=61001\n",
 	} {
 		if !strings.Contains(u, want) {
@@ -94,7 +94,7 @@ func TestSetFolders(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(pools, "media", "Movies")); err != nil {
 		t.Fatal("removing the Service deleted a picked folder")
 	}
-	if _, err := os.Stat(filepath.Join(pools, "general", "jellyfin", "config")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(pools, "general", ".Services", "jellyfin", "config")); !os.IsNotExist(err) {
 		t.Fatal("its own volume was not deleted")
 	}
 }

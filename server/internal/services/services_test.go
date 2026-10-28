@@ -85,7 +85,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	for _, want := range []string{
 		"Image=docker.io/jellyfin/jellyfin:10.10.7@sha256:",
 		"Environment=TZ=Europe/Paris",
-		"Volume=" + filepath.Join(pools, "general", "jellyfin", "media") + ":/media:Z",
+		"Volume=" + filepath.Join(pools, "general", ".Services", "jellyfin", "media") + ":/media:Z",
 		"Network=maitre.network",
 		"PublishPort=127.0.0.1:" + itoa(int(s.GetSpec().GetWebHostPort())) + ":8096",
 		"[Install]",
@@ -94,7 +94,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 			t.Errorf("unit missing %q:\n%s", want, unit)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(pools, "general", "jellyfin", "config")); err != nil {
+	if _, err := os.Stat(filepath.Join(pools, "general", ".Services", "jellyfin", "config")); err != nil {
 		t.Fatal("volume dir not created")
 	}
 	if !strings.Contains(strings.Join(run.cmds, "\n"), "systemctl daemon-reload") || !strings.Contains(strings.Join(run.cmds, "\n"), "systemctl start --no-block jellyfin.service") {
@@ -144,7 +144,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "units", "jellyfin.container")); !os.IsNotExist(err) {
 		t.Fatal("unit not removed")
 	}
-	if _, err := os.Stat(filepath.Join(pools, "general", "jellyfin")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(pools, "general", ".Services", "jellyfin")); !os.IsNotExist(err) {
 		t.Fatal("data not deleted")
 	}
 	if list, _ = m.List(ctx); len(list) != 1 {

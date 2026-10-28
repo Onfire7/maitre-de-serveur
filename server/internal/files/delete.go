@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/layout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -143,7 +144,7 @@ func (m *Manager) usedFolders(ctx context.Context) (map[string][]usedFolder, err
 			if f, ok := s.GetVolumeFolders()[v.GetName()]; ok {
 				add(space, s.GetName(), f)
 			} else {
-				add(space, s.GetName(), s.GetName()+"/"+v.GetName())
+				add(space, s.GetName(), layout.VolumeDir(s.GetName(), v.GetName()))
 			}
 		}
 		for _, mt := range s.GetMounts() {

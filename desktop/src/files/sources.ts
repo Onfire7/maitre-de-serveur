@@ -7,6 +7,9 @@ import { targetFor } from "@/fleet/actions";
 import { spacesOf } from "@/spaces";
 import { transportFor } from "@/transport";
 import type { FolderSource } from "./FolderBrowser";
+import { hidden, volumeDir } from "./layout";
+
+export { volumeDir };
 
 /** Browse and make folders of a Space's Pool on one Node. */
 export function folderSource(snap: FleetSnapshot | undefined, nodeId: string, spaceId: string): FolderSource {
@@ -17,7 +20,7 @@ export function folderSource(snap: FleetSnapshot | undefined, nodeId: string, sp
   };
   return {
     key: `${nodeId}:${spaceId}`,
-    list: async (path) => (await client().listDir({ scope: { spaceId, driveId: "" }, path })).entries.filter((e) => e.dir).map((e) => e.name).sort((a, b) => a.localeCompare(b)),
+    list: async (path) => (await client().listDir({ scope: { spaceId, driveId: "" }, path })).entries.filter((e) => e.dir && !hidden(e.name)).map((e) => e.name).sort((a, b) => a.localeCompare(b)),
     make: async (path) => {
       await client().makeDir({ scope: { spaceId, driveId: "" }, path });
     },
@@ -30,6 +33,7 @@ export function spacesOn(snap: FleetSnapshot | undefined, nodeId: string): Space
   const spaces = snap?.spaces ?? [];
   return spaces.filter((sp) => sp.spanNodes || (snap?.drives ?? []).some((d) => d.nodeId === nodeId && spacesOf(d, spaces).includes(sp.spaceId)));
 }
+
 
 /** One folder a Service uses: a volume (its own folder or a shared one) or
  * an extra folder, where it is in its Space, and where the container sees
@@ -48,7 +52,7 @@ export interface ServiceFolder {
 export function serviceFolders(spec: ServiceSpec): ServiceFolder[] {
   const vols = spec.volumes.map((v) => {
     const shared = v.name in spec.volumeFolders;
-    return { key: v.name, label: v.name, inContainer: v.path, spaceId: spec.volumeSpaces[v.name] ?? "", path: shared ? spec.volumeFolders[v.name] : `${spec.name}/${v.name}`, shared, readOnly: false };
+    return { key: v.name, label: v.name, inContainer: v.path, spaceId: spec.volumeSpaces[v.name] ?? "", path: shared ? spec.volumeFolders[v.name] : volumeDir(spec.name, v.name), shared, readOnly: false };
   });
   const mounts = spec.mounts.map((m) => ({ key: `mount:${m.path}`, label: m.path.split("/").filter(Boolean).pop() ?? m.path, inContainer: m.path, spaceId: m.spaceId, path: m.folder, shared: true, readOnly: m.readOnly }));
   return [...vols, ...mounts];

@@ -8,7 +8,7 @@ import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { ServiceSpecSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
-import { spacesOn } from "@/files/sources";
+import { spacesOn, volumeDir } from "@/files/sources";
 import type { KnownNode } from "@/state";
 import { transportFor, type Target } from "@/transport";
 import { controlService, node, removeService, services, targetFor } from "./actions";
@@ -99,8 +99,12 @@ async function copyFolders(from: Target, name: string, list: { fromSpace: string
   const files = createClient(FilesService, transportFor(from));
   let moved = 0;
   for (const v of list) {
-    const path = `${name}/${v.volume}`;
-    const { jobId } = await files.move({ from: { spaceId: v.fromSpace, driveId: "" }, path, toSpace: v.toSpace, toPath: path, toNodeId });
+    // To .Services/<Service>/<volume> (205); a Service from before has it
+    // at <Service>/<volume>, which the move takes it from.
+    const to = volumeDir(name, v.volume);
+    const there = await files.listDir({ scope: { spaceId: v.fromSpace, driveId: "" }, path: volumeDir(name, v.volume).split("/").slice(0, -1).join("/") }).then((r) => r.entries.some((e) => e.dir && e.name === v.volume), () => false);
+    const path = there ? to : `${name}/${v.volume}`;
+    const { jobId } = await files.move({ from: { spaceId: v.fromSpace, driveId: "" }, path, toSpace: v.toSpace, toPath: to, toNodeId });
     for (;;) {
       await sleep(1000);
       const job = (await files.listJobs({})).jobs.find((j) => j.jobId === jobId);

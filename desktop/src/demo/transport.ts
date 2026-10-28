@@ -3,6 +3,7 @@
 // anchor logic, unreachable Nodes and per-Node calls behave as they would
 // against real machines. Every RPC the Console uses is here; an unknown one
 // fails with Unimplemented so a prototype never silently gets empty data.
+import { volumeDir } from "@/files/layout";
 import { create, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
 import { ControlServiceRequest_Action, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -347,7 +348,7 @@ const handlers: Record<string, Handler> = {
     for (const n of names) {
       const p = [folder, n].filter(Boolean).join("/");
       for (const s of f.services) {
-        const used = s.spec.volumes.map((v) => (v.name in s.spec.volumeFolders ? { space: s.spec.volumeSpaces[v.name], dir: s.spec.volumeFolders[v.name] } : { space: s.spec.volumeSpaces[v.name], dir: `${s.spec.name}/${v.name}` }));
+        const used = s.spec.volumes.map((v) => (v.name in s.spec.volumeFolders ? { space: s.spec.volumeSpaces[v.name], dir: s.spec.volumeFolders[v.name] } : { space: s.spec.volumeSpaces[v.name], dir: volumeDir(s.spec.name, v.name) }));
         const hit = used.find((u) => u.space === scope.spaceId && (u.dir === p || u.dir.startsWith(p + "/")));
         if (hit) throw fail(Code.FailedPrecondition, `${s.spec.name} uses ${[scope.spaceId, hit.dir].filter(Boolean).join("/")}; change its folders first`);
       }
