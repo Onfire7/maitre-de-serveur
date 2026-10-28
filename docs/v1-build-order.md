@@ -451,3 +451,8 @@ Made while building 170-181 (2026-10-27)
 
 - 199 (user, 2026-10-28): the Files tab's side list shows how much space is free at the right of the Fleet, each Node, each Space and each Drive, replacing the "Drive" label (the icon already says so); the Fleet and Node views get a Free column ("4.1 TB free of 8.8 TB"). It comes from the Drive usage each Node gossips with its metrics, so nothing new is asked of the Nodes: a Space's is that of its Drives (on that Node, or every Node for a spanning one), a Node's that of its Drives, the Fleet's that of all. It turns amber under 15% free and red under 5%; when some Drives have not reported yet it reads "≥".
 - Built (2026-10-28): `Free` and `freeOf` in `desktop/src/app/FilesTab.tsx`.
+
+### Space a Service uses (decision 200, 2026-10-28)
+
+- 200 (user, 2026-10-28): the Files tab's Services list shows how much space each Service's folders use in place of how many folders it has, and a Service's folder list gets a Size column. Each folder's size comes from `FilesService.Usage` on the Node that runs the Service (worked out there in the background and kept, so it is asked again while still counting); the total adds its own folders and its shared ones (hovering splits them), reads "≥" while some are still counting, and is left out when the Node has no Usage or is out of reach. A shared folder counts in full for every Service using it. Nothing new on the Node.
+- Built (2026-10-28): `useFolderSizes` and `ServiceUsed` in `desktop/src/app/FilesTab.tsx`.

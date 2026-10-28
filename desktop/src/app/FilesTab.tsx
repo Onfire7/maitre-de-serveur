@@ -350,7 +350,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
                   <button onClick={() => showService(s.spec.name)} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", svc === s.spec.name && "bg-accent")}>
                     <ServiceIcon catalogId={s.spec.catalogId} word={s.word} size={16} />
                     <span className="truncate">{s.spec.name}</span>
-                    <span className="ml-auto text-[10px] text-muted-foreground">{serviceFolders(s.spec).length || ""}</span>
+                    <ServiceUsed service={s} snap={snap} state={state} className="ml-auto" />
                   </button>
                 </li>
               ))}
@@ -482,7 +482,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
           {overview ? (
             <Places rows={overview.nodeId ? nodeRows(overview.nodeId) : fleetRows()} empty={overview.nodeId ? `${nodeName(overview.nodeId)} has no Space or Drive to browse yet.` : "Create a Storage Space or adopt a Drive first; then there is something to browse."} />
           ) : listing ? (
-            <ServiceFolders service={shownSvc!} folders={svcFolders} spaceLabel={spaceLabel} nodeName={nodeName} onOpen={(f) => openFolder(shownSvc!, f)} />
+            <ServiceFolders service={shownSvc!} snap={snap} state={state} folders={svcFolders} spaceLabel={spaceLabel} nodeName={nodeName} onOpen={(f) => openFolder(shownSvc!, f)} />
           ) : !scope ? (
             <p className="p-4 text-sm text-muted-foreground">Create a Storage Space or adopt a Drive first; then there is something to browse.</p>
           ) : unreachable ? (
@@ -663,20 +663,59 @@ function Places({ rows, empty }: { rows: PlaceRow[]; empty: string }) {
   );
 }
 
+/**
+ * How big each of a Service's folders is (decision 200), through the Node
+ * that runs it: Usage is worked out there in the background and kept, so
+ * the first answer may still be counting and is asked again until done. A
+ * Node without Usage, or one out of reach, leaves the size unknown.
+ */
+function useFolderSizes(service: FleetService, snap: FleetSnapshot | undefined, state: ConsoleState) {
+  const t = targetFor(snap, state.nodes, service.spec.nodeId);
+  const folders = serviceFolders(service.spec);
+  return useQueries({
+    queries: folders.map((f) => ({
+      queryKey: ["folder-usage", service.spec.nodeId, f.spaceId, f.path],
+      enabled: !!t && !service.nodeUnreachable,
+      retry: false,
+      staleTime: 5 * 60_000,
+      refetchInterval: (q: { state: { data?: { inProgress: boolean } } }) => (q.state.data?.inProgress ? 2000 : false),
+      queryFn: () => createClient(FilesService, transportFor(t!)).usage({ scope: { spaceId: f.spaceId, driveId: "" }, path: f.path }),
+    })),
+  }).map((q, i) => ({ folder: folders[i], bytes: q.data && !q.data.inProgress ? Number(q.data.bytes) : undefined, counting: q.isLoading || !!q.data?.inProgress, files: q.data ? Number(q.data.files) : undefined }));
+}
+
+/** The space a Service's folders use, own and shared, beside its name. */
+function ServiceUsed({ service, snap, state, className }: { service: FleetService; snap: FleetSnapshot | undefined; state: ConsoleState; className?: string }) {
+  const sizes = useFolderSizes(service, snap, state);
+  if (sizes.length === 0) return null;
+  const known = sizes.filter((x) => x.bytes !== undefined);
+  if (known.length === 0) return sizes.some((x) => x.counting) ? <Loader2 className={cn("size-3 animate-spin text-muted-foreground", className)} /> : null;
+  const sum = (own: boolean) => known.filter((x) => x.folder.shared !== own).reduce((a, x) => a + x.bytes!, 0);
+  const all = sum(true) + sum(false);
+  return (
+    <span className={cn("shrink-0 whitespace-nowrap text-[10px] tabular-nums text-muted-foreground", className)} title={`Its own folders: ${formatBytes(sum(true))}; shared folders: ${formatBytes(sum(false))}${known.length < sizes.length ? "; some folders are still being counted" : ""}`}>
+      {known.length < sizes.length ? "≥ " : ""}
+      {formatBytes(all)}
+    </span>
+  );
+}
+
 /** A Service's folders as rows, each opening where it really is. */
-function ServiceFolders({ service, folders, spaceLabel, nodeName, onOpen }: { service: FleetService; folders: ServiceFolder[]; spaceLabel: (id: string) => string; nodeName: (id: string) => string; onOpen: (f: ServiceFolder) => void }) {
+function ServiceFolders({ service, snap, state, folders, spaceLabel, nodeName, onOpen }: { service: FleetService; snap: FleetSnapshot | undefined; state: ConsoleState; folders: ServiceFolder[]; spaceLabel: (id: string) => string; nodeName: (id: string) => string; onOpen: (f: ServiceFolder) => void }) {
+  const sizes = useFolderSizes(service, snap, state);
   if (folders.length === 0) return <p className="p-4 text-sm text-muted-foreground">{service.spec.name} keeps no data and uses no folders.</p>;
   return (
     <table className="w-full text-sm">
       <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
         <tr className="border-b">
           <th className="px-3 py-2 text-left font-medium">Folder</th>
+          <th className="px-2 py-2 text-right font-medium">Size</th>
           <th className="px-2 py-2 text-left font-medium">In the container</th>
           <th className="px-3 py-2 text-left font-medium">Where</th>
         </tr>
       </thead>
       <tbody>
-        {folders.map((f) => (
+        {folders.map((f, i) => (
           <tr key={f.key} className="border-b last:border-0 hover:bg-accent/40">
             <td className="px-3 py-1.5">
               <button className="flex items-center gap-2 text-left hover:underline" onClick={() => onOpen(f)}>
@@ -685,6 +724,9 @@ function ServiceFolders({ service, folders, spaceLabel, nodeName, onOpen }: { se
                 {f.key.startsWith("mount:") && <Badge variant="secondary">extra</Badge>}
                 {f.readOnly && <Badge variant="outline">read only</Badge>}
               </button>
+            </td>
+            <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+              {sizes[i]?.bytes !== undefined ? <span title={`${sizes[i].files} files`}>{formatBytes(sizes[i].bytes!)}</span> : sizes[i]?.counting ? <Loader2 className="ml-auto size-3.5 animate-spin" /> : "—"}
             </td>
             <td className="px-2 py-1.5 font-mono text-xs">{f.inContainer}</td>
             <td className="px-3 py-1.5 text-xs text-muted-foreground">
