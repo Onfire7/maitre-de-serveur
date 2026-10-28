@@ -37,6 +37,10 @@
   --status-starting: oklch(0.62 0.19 255);
   --status-attention: oklch(0.78 0.17 75);
   --status-stopped: oklch(0.7 0 0);
+  /* Charts on the Overview (decision 209): one blue, validated with the
+     dataviz checks against this surface; its track a light step of it. */
+  --chart-1: #2a78d6;
+  --chart-track: #cde2fb;
 }
 
 .dark {
@@ -66,6 +70,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --chart-1: #3987e5;
+  --chart-track: #184f95;
 }
 
 @theme inline {
@@ -103,6 +109,8 @@
   --color-status-starting: var(--status-starting);
   --color-status-attention: var(--status-attention);
   --color-status-stopped: var(--status-stopped);
+  --color-chart-1: var(--chart-1);
+  --color-chart-track: var(--chart-track);
 }
 
 @layer base {

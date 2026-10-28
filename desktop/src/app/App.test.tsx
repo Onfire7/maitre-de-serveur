@@ -20,7 +20,8 @@ describe("Console on the demo Fleet", () => {
         <App />
       </QueryClientProvider>,
     );
-    for (const name of ["adguard", "jellyfin", "minecraft", "paperless", "uptime"]) expect(await screen.findByText(name, {}, { timeout: 5000 })).toBeTruthy();
+    // Each in the sidebar, and again among the Overview's Services (209).
+    for (const name of ["adguard", "jellyfin", "minecraft", "paperless", "uptime"]) expect((await screen.findAllByText(name, {}, { timeout: 5000 })).length).toBeGreaterThan(0);
     expect(await screen.findByText(/connected through Alder/, {}, { timeout: 5000 })).toBeTruthy();
     expect(await screen.findByText(/Kitchen tablet is asking to join/)).toBeTruthy();
     // The Nodes tab shows both Nodes with their gauges.
