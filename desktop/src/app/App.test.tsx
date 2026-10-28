@@ -51,6 +51,9 @@ describe("Console on the demo Fleet", () => {
     // Files: a new folder in Movies, then inside it only ".." (not "Empty.").
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Files/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
+    // Files opens on the whole Fleet (198): its places, Media first.
+    expect(await within(main).findByRole("columnheader", { name: "Holds" }, { timeout: 5000 })).toBeTruthy();
+    fireEvent.click((await within(main).findAllByRole("button", { name: /^Media$/ }))[0]);
     fireEvent.click(await within(main).findByRole("button", { name: /Movies/ }, { timeout: 5000 }));
     expect(await within(main).findByRole("button", { name: ".." })).toBeTruthy();
     fireEvent.click(within(main).getByRole("button", { name: /New folder/ }));

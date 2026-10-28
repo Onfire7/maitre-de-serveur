@@ -3,11 +3,12 @@
 // queue moves between Spaces, Drives and Nodes. Every call goes straight to
 // the Node that holds the files (160); jobs live on that Node. Under
 // Services, each Service shows the folders it uses, wherever they are (195).
+// The Fleet and each Node open too, as the places they hold (198).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { toast } from "sonner";
-import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Package, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
+import { Folder, File, ChevronRight, HardDrive, Layers, MoveRight, X, Loader2, RefreshCw, Boxes, FolderPlus, CornerLeftUp, Package, Server, Upload, Download, FileArchive, PackageOpen, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,10 +90,27 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
   // `?files-service=<name>` opens one on load (screenshot fixture).
   const [svc, setSvc] = useState<string | null>(() => initial?.service ?? new URLSearchParams(window.location.search).get("files-service"));
   const [via, setVia] = useState<Via | null>(null);
+  // The Fleet ({}) or a Node ({ nodeId }) shown as the places it holds
+  // (198); where the tab opens unless asked for a place. `?files-view=fleet`
+  // or `?files-view=<node name>` opens one (screenshot fixture).
+  const [overview, setOverview] = useState<{ nodeId?: string } | null>(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (initial || q.get("path") || q.get("files-service")) return null;
+    const v = q.get("files-view");
+    const n = v && v !== "fleet" ? nodes.find((x) => x.name.toLowerCase() === v.toLowerCase()) : undefined;
+    return n ? { nodeId: n.nodeId } : {};
+  });
+  function showOverview(o: { nodeId?: string }) {
+    setOverview(o);
+    setSvc(null);
+    setVia(null);
+    setPreview(null);
+  }
   const svcOf = (name: string | null) => services.find((s) => s.spec.name === name);
   const shownSvc = svcOf(svc);
   const svcFolders = shownSvc ? serviceFolders(shownSvc.spec) : [];
   function openFolder(service: FleetService, f: ServiceFolder) {
+    setOverview(null);
     setSvc(service.spec.name);
     setVia({ service: service.spec.name, folder: f });
     setScope({ nodeId: service.spec.nodeId, spaceId: f.spaceId });
@@ -100,6 +118,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
     setPreview(null);
   }
   function showService(name: string) {
+    setOverview(null);
     setSvc(name);
     setVia(null);
     setPreview(null);
@@ -107,10 +126,11 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
   // `?path=` opens that folder of the first place on load (screenshot fixture).
   const [path, setPath] = useState(initial?.path ?? new URLSearchParams(window.location.search).get("path") ?? "");
   useEffect(() => {
-    if (!scope && !svc && scopes[0]) setScope(scopes[0]);
-  }, [scopes, scope, svc]);
+    if (!scope && !svc && !overview && scopes[0]) setScope(scopes[0]);
+  }, [scopes, scope, svc, overview]);
   useEffect(() => {
     if (!initial) return;
+    setOverview(null);
     if (initial.service) {
       const s = svcOf(initial.service);
       const f = s && initial.folder ? serviceFolders(s.spec).find((x) => x.key === initial.folder) : undefined;
@@ -124,7 +144,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
     setPath(initial.path ?? "");
   }, [initial]);
   // Listing a Service's folders, none open yet: nothing to read.
-  const listing = !!shownSvc && !via;
+  const listing = (!!shownSvc && !via) || !!overview;
   // `?move=<name>` opens Move for that entry of `?path=` (screenshot fixture).
   const moveFixture = useState(() => new URLSearchParams(window.location.search).get("move"))[0];
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -150,6 +170,44 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
   });
   const entries = useMemo(() => [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name)), [list.data]);
   useEffect(() => setSelected(new Set(moveFixture && list.data ? [moveFixture] : [])), [scope && scopeKey(scope), path, !!list.data]);
+  const fleetName = state.fleet?.name ?? "Fleet";
+  // The Fleet's and each Node's places, as rows that open them (198).
+  const drivesOf = (spaceId: string, nodeId?: string) => drives.filter((d) => (!nodeId || d.nodeId === nodeId) && spacesOf(d, spaces).includes(spaceId));
+  const bytes = (ds: { sizeBytes: bigint }[]) => formatBytes(ds.reduce((a, d) => a + Number(d.sizeBytes), 0));
+  const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const openPlace = (s: (typeof scopes)[number]) => {
+    setOverview(null);
+    setSvc(null);
+    setVia(null);
+    setScope(s);
+    setPath("");
+    setPreview(null);
+  };
+  const placeRow = (s: (typeof scopes)[number], nodeId?: string): PlaceRow => {
+    if (s.kind === "drive") {
+      const d = drives.find((x) => x.nodeId === s.nodeId && x.driveId === s.driveId);
+      return { key: scopeKey(s), icon: <HardDrive className="size-4 text-muted-foreground" />, label: s.label, kind: "Drive", detail: d ? `${bytes([d])}${d.model ? ` · ${d.model}` : ""}` : "", open: () => openPlace(s) };
+    }
+    // Inside a Node, a spanning Space counts that Node's Drives of it.
+    const ds = drivesOf(s.spaceId!, nodeId ?? (s.group === "fleet" ? undefined : s.nodeId));
+    const here = s.group === "fleet" && nodeId ? ` on ${nodeName(nodeId)}` : "";
+    return { key: scopeKey(s), icon: <Layers className="size-4" style={{ color: s.color }} />, label: s.label, kind: s.group === "fleet" ? "Space, spans Nodes" : "Space", detail: `${count(ds.length, "Drive")} · ${bytes(ds)}${here}`, open: () => openPlace(s) };
+  };
+  const fleetRows = (): PlaceRow[] => [
+    ...scopes.filter((s) => s.group === "fleet").map((s) => placeRow(s)),
+    ...nodes.map((n) => {
+      const own = scopes.filter((s) => s.group === n.nodeId);
+      const mine = drives.filter((d) => d.nodeId === n.nodeId);
+      const down = nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()));
+      return { key: `node:${n.nodeId}`, icon: <Server className="size-4 text-muted-foreground" />, label: n.name, kind: "Node", detail: `${count(own.filter((s) => s.kind === "space").length, "Space")} · ${count(mine.length, "Drive")} · ${bytes(mine)}${down ? " · unreachable" : ""}`, open: () => showOverview({ nodeId: n.nodeId }) };
+    }),
+  ];
+  // A Node's own Spaces, the spanning ones it holds a Drive of, its Drives.
+  const nodeRows = (nodeId: string): PlaceRow[] => [
+    ...scopes.filter((s) => s.group === "fleet" && drivesOf(s.spaceId!, nodeId).length > 0).map((s) => placeRow(s, nodeId)),
+    ...scopes.filter((s) => s.group === nodeId && s.kind === "space").map((s) => placeRow(s)),
+    ...scopes.filter((s) => s.group === nodeId && s.kind === "drive").map((s) => placeRow(s)),
+  ];
   const spaceLabel = (id: string) => spaces.find((s) => s.spaceId === id)?.name ?? id;
   const nodeName = (id: string) => nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);
   const driveName = (nid: string, did: string) => drives.find((d) => d.nodeId === nid && d.driveId === did)?.name ?? did;
@@ -236,9 +294,13 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
       <aside className="space-y-4 overflow-y-auto pr-2">
         {[{ id: "fleet", letter: "", name: state.fleet?.name ?? "Fleet" }, ...nodes.map((n) => ({ id: n.nodeId, letter: n.letter, name: n.name }))].map((n) => (
           <div key={n.id}>
-            <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <button
+              onClick={() => showOverview(n.id === "fleet" ? {} : { nodeId: n.id })}
+              title={n.id === "fleet" ? "Everything in the Fleet" : `Everything on ${n.name}`}
+              className={cn("mb-1 flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground", overview && (overview.nodeId ?? "fleet") === n.id && "bg-accent text-foreground")}
+            >
               {n.id === "fleet" ? <Boxes className="size-4" /> : <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{n.letter}</span>} {n.name}
-            </div>
+            </button>
             <ul className="space-y-0.5">
               {scopes
                 .filter((s) => s.group === n.id)
@@ -246,12 +308,13 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
                   <li key={scopeKey(s)}>
                     <button
                       onClick={() => {
+                        setOverview(null);
                         setSvc(null);
                         setVia(null);
                         setScope(s);
                         setPath("");
                       }}
-                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", !svc && scope && sameScope(scope, s) && "bg-accent")}
+                      className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent", !svc && !overview && scope && sameScope(scope, s) && "bg-accent")}
                     >
                       {s.kind === "space" ? <Layers className="size-4 shrink-0" style={{ color: s.color }} /> : <HardDrive className="size-4 shrink-0 text-muted-foreground" />}
                       <span className="truncate">{s.label}</span>
@@ -304,12 +367,40 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
                   </span>
                 )}
               </>
+            ) : overview ? (
+              <>
+                <button className="flex items-center gap-1.5 rounded px-1 font-medium hover:bg-accent" onClick={() => showOverview({})}>
+                  <Boxes className="size-4" /> {fleetName}
+                </button>
+                {overview.nodeId && (
+                  <span className="flex items-center gap-1">
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                    <span className="flex items-center gap-1.5 px-1 font-medium">
+                      <Server className="size-4 text-muted-foreground" /> {nodeName(overview.nodeId)}
+                    </span>
+                  </span>
+                )}
+              </>
             ) : current && (
+              <>
+              <button className="flex items-center gap-1 rounded px-1 text-muted-foreground hover:bg-accent hover:text-foreground" onClick={() => showOverview({})} title={`Everything in ${fleetName}`}>
+                <Boxes className="size-4" /> {fleetName}
+              </button>
+              <ChevronRight className="size-3.5 text-muted-foreground" />
+              {current.group !== "fleet" && (
+                <>
+                  <button className="flex items-center gap-1 rounded px-1 text-muted-foreground hover:bg-accent hover:text-foreground" onClick={() => showOverview({ nodeId: current.nodeId })} title={`Everything on ${nodeName(current.nodeId)}`}>
+                    <Server className="size-4" /> {nodeName(current.nodeId)}
+                  </button>
+                  <ChevronRight className="size-3.5 text-muted-foreground" />
+                </>
+              )}
               <button className="flex items-center gap-1.5 rounded px-1 font-medium hover:bg-accent" onClick={() => go("")}>
                 {current.kind === "space" ? <Layers className="size-4" style={{ color: current.color }} /> : <HardDrive className="size-4 text-muted-foreground" />}
                 {current.label}
-                <span className="text-xs font-normal text-muted-foreground">{current.group === "fleet" ? `spans Nodes · via ${nodeName(current.nodeId)}` : `on ${nodeName(current.nodeId)}`}</span>
+                {current.group === "fleet" && <span className="text-xs font-normal text-muted-foreground">spans Nodes · via {nodeName(current.nodeId)}</span>}
               </button>
+              </>
             )}
             {!listing && rel.map((c, i) => (
               <span key={i} className="flex items-center gap-1">
@@ -377,7 +468,9 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
         <div className={cn("grid min-h-0 flex-1 gap-3", shown && !full ? "grid-cols-[minmax(0,1fr)_minmax(320px,45%)]" : "grid-cols-1")}>
         <div className={cn("relative min-h-0 overflow-y-auto rounded-xl border bg-card", dropping && "ring-2 ring-primary")}>
           {dropping && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm font-medium">Drop to upload into {[current?.label, ...crumbs].join(" / ")}</div>}
-          {listing ? (
+          {overview ? (
+            <Places rows={overview.nodeId ? nodeRows(overview.nodeId) : fleetRows()} empty={overview.nodeId ? `${nodeName(overview.nodeId)} has no Space or Drive to browse yet.` : "Create a Storage Space or adopt a Drive first; then there is something to browse."} />
+          ) : listing ? (
             <ServiceFolders service={shownSvc!} folders={svcFolders} spaceLabel={spaceLabel} nodeName={nodeName} onOpen={(f) => openFolder(shownSvc!, f)} />
           ) : !scope ? (
             <p className="p-4 text-sm text-muted-foreground">Create a Storage Space or adopt a Drive first; then there is something to browse.</p>
@@ -493,6 +586,45 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
         />
       )}
     </div>
+  );
+}
+
+interface PlaceRow {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  kind: string;
+  detail: string;
+  open: () => void;
+}
+
+/** The Fleet's or a Node's places as rows, each opening it (198). */
+function Places({ rows, empty }: { rows: PlaceRow[]; empty: string }) {
+  if (rows.length === 0) return <p className="p-4 text-sm text-muted-foreground">{empty}</p>;
+  return (
+    <table className="w-full text-sm">
+      <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
+        <tr className="border-b">
+          <th className="px-3 py-2 text-left font-medium">Name</th>
+          <th className="px-2 py-2 text-left font-medium">Kind</th>
+          <th className="px-3 py-2 text-left font-medium">Holds</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key} className="border-b last:border-0 hover:bg-accent/40">
+            <td className="px-3 py-1.5">
+              <button className="flex items-center gap-2 text-left hover:underline" onClick={r.open} onDoubleClick={r.open}>
+                {r.icon}
+                {r.label}
+              </button>
+            </td>
+            <td className="px-2 py-1.5 text-xs text-muted-foreground">{r.kind}</td>
+            <td className="px-3 py-1.5 text-xs text-muted-foreground">{r.detail}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
