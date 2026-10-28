@@ -1,6 +1,6 @@
 // Package tui is the Node's screen (decision 72 revised, 2026-10-25): a
 // text interface on tty1 with no login. Pages: Status (banner, network,
-// discovery, CPU and memory), Containers (sortable table with load), Logs
+// discovery, CPU and memory over the last day), Containers (sortable table with load), Logs
 // (journal of the agent or a Service). Keys: 1 2 3 pages, r reboot.
 package tui
 
@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -95,6 +96,12 @@ type containersMsg struct {
 	rows []Container
 	err  error
 }
+
+// historyMsg carries the stored CPU and memory series, by name, at 10 s
+// (fine) and 1 minute (coarse).
+type historyMsg struct {
+	fine, coarse map[string]*maitrev1.MetricSeries
+}
 type logsMsg struct {
 	unit  string
 	lines []string
@@ -123,6 +130,10 @@ type model struct {
 	message    string
 	cpuHist    []float64 // percent, oldest first
 	memHist    []float64
+	// The stored series (decision 211); nil until the Node answers, or
+	// when it keeps none, and then the charts show cpuHist and memHist.
+	fine, coarse map[string]*maitrev1.MetricSeries
+	histAt       time.Time
 }
 
 const histLen = 32
@@ -160,7 +171,7 @@ func newModel(src Source) *model {
 }
 
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(tick(), m.fetchContainers(), m.fetchLogs())
+	return tea.Batch(tick(), m.fetchContainers(), m.fetchLogs(), m.fetchHistory(time.Now()))
 }
 
 func tick() tea.Cmd {
@@ -174,6 +185,37 @@ func (m *model) fetchContainers() tea.Cmd {
 		defer cancel()
 		rows, err := src.Containers(ctx)
 		return containersMsg{rows, err}
+	}
+}
+
+// historyEvery is how often the charts re-read the stored series; the
+// newest column follows every tick regardless.
+const historyEvery = 10 * time.Second
+
+func (m *model) fetchHistory(now time.Time) tea.Cmd {
+	hs, ok := m.src.(HistorySource)
+	if !ok || now.Sub(m.histAt) < historyEvery {
+		return nil
+	}
+	m.histAt = now
+	return func() tea.Msg {
+		names := []string{"node/cpu", "node/memory"}
+		fine, err := hs.History(names, now.Add(-fineSpan), now, 5000)
+		if err != nil {
+			return historyMsg{}
+		}
+		coarse, err := hs.History(names, now.Add(-logSpan), now, 5000)
+		if err != nil {
+			return historyMsg{}
+		}
+		byName := func(ss []*maitrev1.MetricSeries) map[string]*maitrev1.MetricSeries {
+			out := map[string]*maitrev1.MetricSeries{}
+			for _, s := range ss {
+				out[s.GetName()] = s
+			}
+			return out
+		}
+		return historyMsg{byName(fine), byName(coarse)}
 	}
 }
 
@@ -204,7 +246,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.metrics = m.src.Metrics()
 		m.record()
 		m.units = m.src.Units()
-		cmds := []tea.Cmd{tick()}
+		cmds := []tea.Cmd{tick(), m.fetchHistory(time.Time(msg))}
 		// The console's size is read again each tick: the kernel changes
 		// the VT geometry after boot and a service does not get SIGWINCH.
 		// A WindowSizeMsg also repaints every line, which rubs out
@@ -219,6 +261,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.fetchLogs())
 		}
 		return m, tea.Batch(cmds...)
+	case historyMsg:
+		m.fine, m.coarse = msg.fine, msg.coarse
 	case containersMsg:
 		m.containers, m.cErr = msg.rows, msg.err
 		m.layoutTable()
@@ -505,15 +549,25 @@ func (m *model) viewStatus() string {
 	var res strings.Builder
 	res.WriteString(bold.Render("Resources") + "\n")
 	if mt := m.metrics; mt != nil {
-		rows := sparkline(m.cpuHist)
-		res.WriteString(row("CPU", rows[0]))
-		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   load %.2f", rows[1], mt.GetCpuPercent(), mt.GetLoad_1M())))
-		res.WriteString(row("", rows[2]))
-		res.WriteString("\n")
 		memPct := 0.0
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
+		cpuCols, memCols, axis := m.cpuHist, m.memHist, ""
+		if m.coarse != nil {
+			now := time.Now()
+			cpuCols = logColumns(m.fine["node/cpu"], m.coarse["node/cpu"], now, mt.GetCpuPercent())
+			memCols = logColumns(m.fine["node/memory"], m.coarse["node/memory"], now, memPct)
+			axis = dim.Render(logAxis())
+		}
+		rows := sparkline(cpuCols)
+		res.WriteString(row("CPU", rows[0]))
+		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   load %.2f", rows[1], mt.GetCpuPercent(), mt.GetLoad_1M())))
+		res.WriteString(row("", rows[2]))
+		if axis != "" {
+			res.WriteString(row("", axis))
+		}
+		res.WriteString("\n")
 		// Memory and Pool sizes: whole units, padded to the widest so the
 		// columns line up.
 		sizes := []string{wholeBytes(mt.GetMemoryUsedBytes()), wholeBytes(mt.GetMemoryTotalBytes()), wholeBytes(mt.GetPoolUsedBytes()), wholeBytes(mt.GetPoolTotalBytes())}
@@ -522,10 +576,13 @@ func (m *model) viewStatus() string {
 			w = max(w, len([]rune(x)))
 		}
 		pad := func(x string) string { return strings.Repeat(" ", w-len([]rune(x))) + x }
-		rows = sparkline(m.memHist)
+		rows = sparkline(memCols)
 		res.WriteString(row("Memory", rows[0]))
 		res.WriteString(row("", fmt.Sprintf("%s %3.0f%%   %s of %s", rows[1], memPct, pad(sizes[0]), pad(sizes[1]))))
 		res.WriteString(row("", rows[2]))
+		if axis != "" {
+			res.WriteString(row("", axis))
+		}
 		res.WriteString("\n")
 		if mt.GetPoolTotalBytes() > 0 {
 			poolPct := 100 * float64(mt.GetPoolUsedBytes()) / float64(mt.GetPoolTotalBytes())
@@ -570,6 +627,9 @@ func sparkline(hist []float64) [3]string {
 	}
 	off := cols - len(hist)
 	for i, v := range hist {
+		if math.IsNaN(v) {
+			continue // no readings then: left blank
+		}
 		lvl := int(v/100*6 + 0.5)
 		lvl = max(0, min(6, lvl))
 		// Fill from the bottom row (2) upwards, two levels per row.

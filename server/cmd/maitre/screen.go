@@ -13,6 +13,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 )
@@ -21,7 +22,16 @@ import (
 type agentSource struct {
 	status   func() tui.Status
 	metrics  func() *maitrev1.NodeMetrics
+	history  *history.Store
 	stateDir string
+}
+
+// History reads the stored metrics for the charts (decision 211).
+func (a *agentSource) History(names []string, from, to time.Time, points int) ([]*maitrev1.MetricSeries, error) {
+	if a.history == nil {
+		return nil, errors.New("no metrics history")
+	}
+	return a.history.Query(names, from.UnixMilli(), to.UnixMilli(), points)
 }
 
 func (a *agentSource) Status() tui.Status { return a.status() }
@@ -142,6 +152,33 @@ func (demoSource) Metrics() *maitrev1.NodeMetrics {
 	cpu := 20 + 60*math.Abs(math.Sin(float64(time.Now().Unix())/7))
 	return &maitrev1.NodeMetrics{CpuPercent: cpu, MemoryTotalBytes: 16 << 30, MemoryUsedBytes: 5 << 30, PoolTotalBytes: 2 << 40, PoolUsedBytes: 700 << 30, NetRxBytesPerSec: 1.2e6, NetTxBytesPerSec: 3.4e5, TemperatureC: 48, Load_1M: 0.71}
 }
+// History makes up a day: busy evenings, a quiet night, a gap where the
+// Node was off.
+func (demoSource) History(names []string, from, to time.Time, _ int) ([]*maitrev1.MetricSeries, error) {
+	step := int64(10_000)
+	if to.Sub(from) > 6*time.Hour {
+		step = 60_000
+	}
+	start := from.UnixMilli() - from.UnixMilli()%step
+	var out []*maitrev1.MetricSeries
+	for _, name := range names {
+		s := &maitrev1.MetricSeries{Name: name, StartUnixMs: start, StepMs: step}
+		for t := start; t < to.UnixMilli(); t += step {
+			h := float64(t%86_400_000) / 3_600_000
+			v := 25 + 20*math.Sin(h/24*2*math.Pi) + 10*math.Abs(math.Sin(float64(t)/4e6))
+			if name == "node/memory" {
+				v = 32 + 3*math.Sin(h/5)
+			}
+			if age := time.Since(time.UnixMilli(t)); age > 3*time.Hour && age < 4*time.Hour {
+				v = math.NaN()
+			}
+			s.Avg, s.Max = append(s.Avg, v), append(s.Max, v)
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 func (demoSource) Containers(context.Context) ([]tui.Container, error) {
 	return []tui.Container{
 		{Name: "jellyfin", State: "running", Status: "Up 2 hours (healthy)", Image: "docker.io/jellyfin/jellyfin:10.10.7", CPUPct: 18.2, MemBytes: 900 << 20},

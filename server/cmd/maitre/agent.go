@@ -924,11 +924,14 @@ func runAgent(args []string) error {
 			names := []string{}
 			if specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} }); err == nil {
 				for _, sp := range specs {
-					names = append(names, sp.GetName())
+					// This Node's own: the Logs page reads their journals.
+					if sp.GetNodeId() == id.Fingerprint() {
+						names = append(names, sp.GetName())
+					}
 				}
 			}
 			return tui.Status{Version: version, Node: self.GetName(), Fleet: fleet.GetName(), Addresses: installer.Addresses(), Discovery: mdnsState, Trusted: list.Len(), Services: names, Started: started}
-		}, metrics: svc.Metrics, stateDir: *state}
+		}, metrics: svc.Metrics, history: svc.History, stateDir: *state}
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			go func() {
 				if err := tui.Run(ctx, src); err != nil {
