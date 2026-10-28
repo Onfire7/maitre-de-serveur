@@ -563,6 +563,16 @@ func runAgent(args []string) error {
 		var routes, public []caddy.Route
 		var names []string
 		var wants []portmap.Mapping
+		// The Fleet database holds every Node's Services; this Node routes,
+		// announces and exposes only its own. A peer's name answered here
+		// would reach nothing (a 502), and two Nodes would claim it on mDNS.
+		mine := specs[:0]
+		for _, sp := range specs {
+			if sp.GetNodeId() == id.Fingerprint() {
+				mine = append(mine, sp)
+			}
+		}
+		specs = mine
 		for _, sp := range specs {
 			if sp.GetForwardPorts() && !sp.GetInfrastructure() {
 				for _, hp := range sp.GetHostPorts() {
