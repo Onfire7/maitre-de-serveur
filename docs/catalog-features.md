@@ -35,6 +35,8 @@ No entry has a required grant yet.
 | Homarr | The Docker socket | Dropped; its container view does not work |
 | Plex | `/dev/dvb` (TV tuners) | Dropped until other devices are supported |
 | Mosquitto | A config file the user writes | The image's own `/mosquitto-no-auth.conf`; no passwords |
+| Ollama | AMD GPU devices (`/dev/kfd`, `/dev/dri`) | Runs on the processor |
+| Open WebUI | The NVIDIA runtime (CasaOS's file, `GlobalArgs=--runtime nvidia`) | Converted from Big Bear's file instead, which has none |
 
 ## Waiting on support
 
@@ -44,5 +46,7 @@ Each of these fails `catalog-check` with what Maître needs, all of it SELinux w
 |---|---|
 | Serial devices (`container_use_devices`, off on Fedora, or a narrower rule) | Zigbee2MQTT, Z-Wave JS UI, Home Assistant's radio sticks, ESPHome flashing over USB from the Node |
 | `/dev/net/tun` (the same rule) | WireGuard, Tailscale, Gluetun |
+| `/dev/kfd` (the same rule) | Ollama on AMD GPUs |
+| NVIDIA's container runtime or CDI devices (a design, and drivers in the image) | Ollama, Open WebUI, Jellyfin, Plex and Immich on NVIDIA GPUs |
 | The Podman socket (SELinux without `label=disable`) | Dozzle, Portainer, Homarr's and Homepage's container views |
 | Bluetooth over the system bus (BlueZ in the image, and SELinux to the bus) | Home Assistant's Bluetooth |

@@ -230,13 +230,21 @@ services:
 // A service on the host's network gets no network of Maître's beside it.
 func TestHostNetworkMode(t *testing.T) {
 	dir := t.TempDir()
-	compose := "name: hostnet\nservices:\n  app:\n    image: docker.io/x/app:1\n    network_mode: host\n"
+	compose := "name: hostnet\nservices:\n  app:\n    image: docker.io/x/app:1\n    network_mode: host\n  torrent:\n    image: docker.io/x/t:1\n    ports:\n      - 51413:51413/UDP\n"
 	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(compose), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	e := run(t, "hostnet", convert.Options{Compose: filepath.Join(dir, "compose.yaml"), Licence: "MIT"}).Entry
-	if !strings.Contains(e.Quadlet, "Network=host") || strings.Contains(e.Quadlet, "{{ .Network }}") {
-		t.Errorf("template:\n%s", e.Quadlet)
+	for _, c := range e.Components {
+		if c.Name == "app" && (!strings.Contains(c.Quadlet, "Network=host") || strings.Contains(c.Quadlet, "{{ .Network }}")) {
+			t.Errorf("template:\n%s", c.Quadlet)
+		}
+		if c.Name == "torrent" && !strings.Contains(c.Quadlet, "PublishPort=51413:51413/udp") {
+			t.Errorf("an upper-case protocol:\n%s", c.Quadlet)
+		}
+	}
+	if len(e.HostPorts) != 1 || e.HostPorts[0] != "51413/udp" {
+		t.Errorf("host ports %v", e.HostPorts)
 	}
 }
 

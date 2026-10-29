@@ -720,7 +720,8 @@ func (c *conv) template(name string, svc types.ServiceConfig, web bool, webPort 
 
 	// Ports: the web port is Maître's, behind Caddy; others are the Node's.
 	for _, p := range svc.Ports {
-		proto := p.Protocol
+		// Compose takes TCP and tcp alike; Podman and host_ports want lowercase.
+		proto := strings.ToLower(p.Protocol)
 		if proto == "" {
 			proto = "tcp"
 		}
