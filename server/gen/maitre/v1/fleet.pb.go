@@ -21,6 +21,65 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type UpdateRun_Outcome int32
+
+const (
+	UpdateRun_OUTCOME_UNSPECIFIED UpdateRun_Outcome = 0
+	// Running the new image.
+	UpdateRun_OUTCOME_UPDATED UpdateRun_Outcome = 1
+	// Booted, failed its health checks, back on the previous image.
+	UpdateRun_OUTCOME_ROLLED_BACK UpdateRun_Outcome = 2
+	// Never reached the reboot (staging failed, or the agent stopped).
+	UpdateRun_OUTCOME_FAILED UpdateRun_Outcome = 3
+	// Staged without a reboot: it applies at the next restart.
+	UpdateRun_OUTCOME_STAGED UpdateRun_Outcome = 4
+)
+
+// Enum value maps for UpdateRun_Outcome.
+var (
+	UpdateRun_Outcome_name = map[int32]string{
+		0: "OUTCOME_UNSPECIFIED",
+		1: "OUTCOME_UPDATED",
+		2: "OUTCOME_ROLLED_BACK",
+		3: "OUTCOME_FAILED",
+		4: "OUTCOME_STAGED",
+	}
+	UpdateRun_Outcome_value = map[string]int32{
+		"OUTCOME_UNSPECIFIED": 0,
+		"OUTCOME_UPDATED":     1,
+		"OUTCOME_ROLLED_BACK": 2,
+		"OUTCOME_FAILED":      3,
+		"OUTCOME_STAGED":      4,
+	}
+)
+
+func (x UpdateRun_Outcome) Enum() *UpdateRun_Outcome {
+	p := new(UpdateRun_Outcome)
+	*p = x
+	return p
+}
+
+func (x UpdateRun_Outcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UpdateRun_Outcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_maitre_v1_fleet_proto_enumTypes[0].Descriptor()
+}
+
+func (UpdateRun_Outcome) Type() protoreflect.EnumType {
+	return &file_maitre_v1_fleet_proto_enumTypes[0]
+}
+
+func (x UpdateRun_Outcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UpdateRun_Outcome.Descriptor instead.
+func (UpdateRun_Outcome) EnumDescriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{4, 0}
+}
+
 // Record is the unit of the Fleet database and of the sync layer (ADR 0003).
 // Every Node holds every Record. Exactly one Node owns each Record and is the
 // only writer; other Nodes and Trusted Devices forward writes to the owner.
@@ -245,8 +304,15 @@ type Node struct {
 	// signature over its DER bytes, checks out.
 	NfsCertificatePem       string `protobuf:"bytes,10,opt,name=nfs_certificate_pem,json=nfsCertificatePem,proto3" json:"nfs_certificate_pem,omitempty"`
 	NfsCertificateSignature []byte `protobuf:"bytes,11,opt,name=nfs_certificate_signature,json=nfsCertificateSignature,proto3" json:"nfs_certificate_signature,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Set by the Node itself just before an update starts and cleared when it
+	// is back up (decision 214), so every Node and the Console see it as
+	// updating while it is offline. Only the Node (or a Trusted Device) may
+	// write its record; peers never change it.
+	Updating *NodeUpdate `protobuf:"bytes,12,opt,name=updating,proto3" json:"updating,omitempty"`
+	// Its updates, oldest first, at most 20: for how long they take.
+	Updates       []*UpdateRun `protobuf:"bytes,13,rep,name=updates,proto3" json:"updates,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
@@ -356,6 +422,188 @@ func (x *Node) GetNfsCertificateSignature() []byte {
 	return nil
 }
 
+func (x *Node) GetUpdating() *NodeUpdate {
+	if x != nil {
+		return x.Updating
+	}
+	return nil
+}
+
+func (x *Node) GetUpdates() []*UpdateRun {
+	if x != nil {
+		return x.Updates
+	}
+	return nil
+}
+
+// NodeUpdate is an update in progress.
+type NodeUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartedUnixMs int64                  `protobuf:"varint,1,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
+	// The image reference it is updating to.
+	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	// The image it ran when it started.
+	FromDigest string `protobuf:"bytes,3,opt,name=from_digest,json=fromDigest,proto3" json:"from_digest,omitempty"`
+	// The kernel's boot id when it started: still the same at the next start
+	// means the agent restarted without the reboot (the update was cut short).
+	BootId        string `protobuf:"bytes,4,opt,name=boot_id,json=bootId,proto3" json:"boot_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeUpdate) Reset() {
+	*x = NodeUpdate{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeUpdate) ProtoMessage() {}
+
+func (x *NodeUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeUpdate.ProtoReflect.Descriptor instead.
+func (*NodeUpdate) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *NodeUpdate) GetStartedUnixMs() int64 {
+	if x != nil {
+		return x.StartedUnixMs
+	}
+	return 0
+}
+
+func (x *NodeUpdate) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *NodeUpdate) GetFromDigest() string {
+	if x != nil {
+		return x.FromDigest
+	}
+	return ""
+}
+
+func (x *NodeUpdate) GetBootId() string {
+	if x != nil {
+		return x.BootId
+	}
+	return ""
+}
+
+// UpdateRun is one finished update.
+type UpdateRun struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartedUnixMs int64                  `protobuf:"varint,1,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
+	// When it was back up, or when staging failed or finished without a reboot.
+	EndedUnixMs int64  `protobuf:"varint,2,opt,name=ended_unix_ms,json=endedUnixMs,proto3" json:"ended_unix_ms,omitempty"`
+	Target      string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	FromDigest  string `protobuf:"bytes,4,opt,name=from_digest,json=fromDigest,proto3" json:"from_digest,omitempty"`
+	// What it booted afterwards.
+	ToDigest      string            `protobuf:"bytes,5,opt,name=to_digest,json=toDigest,proto3" json:"to_digest,omitempty"`
+	Outcome       UpdateRun_Outcome `protobuf:"varint,6,opt,name=outcome,proto3,enum=maitre.v1.UpdateRun_Outcome" json:"outcome,omitempty"`
+	Message       string            `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRun) Reset() {
+	*x = UpdateRun{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRun) ProtoMessage() {}
+
+func (x *UpdateRun) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRun.ProtoReflect.Descriptor instead.
+func (*UpdateRun) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UpdateRun) GetStartedUnixMs() int64 {
+	if x != nil {
+		return x.StartedUnixMs
+	}
+	return 0
+}
+
+func (x *UpdateRun) GetEndedUnixMs() int64 {
+	if x != nil {
+		return x.EndedUnixMs
+	}
+	return 0
+}
+
+func (x *UpdateRun) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *UpdateRun) GetFromDigest() string {
+	if x != nil {
+		return x.FromDigest
+	}
+	return ""
+}
+
+func (x *UpdateRun) GetToDigest() string {
+	if x != nil {
+		return x.ToDigest
+	}
+	return ""
+}
+
+func (x *UpdateRun) GetOutcome() UpdateRun_Outcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return UpdateRun_OUTCOME_UNSPECIFIED
+}
+
+func (x *UpdateRun) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
 // how Maître Server updates roll across the Fleet by themselves.
 type UpdatePolicy struct {
@@ -376,7 +624,7 @@ type UpdatePolicy struct {
 
 func (x *UpdatePolicy) Reset() {
 	*x = UpdatePolicy{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +636,7 @@ func (x *UpdatePolicy) String() string {
 func (*UpdatePolicy) ProtoMessage() {}
 
 func (x *UpdatePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[3]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +649,7 @@ func (x *UpdatePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePolicy.ProtoReflect.Descriptor instead.
 func (*UpdatePolicy) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpdatePolicy) GetAutomatic() bool {
@@ -464,7 +712,7 @@ type TrustedDevice struct {
 
 func (x *TrustedDevice) Reset() {
 	*x = TrustedDevice{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +724,7 @@ func (x *TrustedDevice) String() string {
 func (*TrustedDevice) ProtoMessage() {}
 
 func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[4]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +737,7 @@ func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustedDevice.ProtoReflect.Descriptor instead.
 func (*TrustedDevice) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TrustedDevice) GetDeviceId() string {
@@ -557,7 +805,7 @@ type RecoveryVoucher struct {
 
 func (x *RecoveryVoucher) Reset() {
 	*x = RecoveryVoucher{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +817,7 @@ func (x *RecoveryVoucher) String() string {
 func (*RecoveryVoucher) ProtoMessage() {}
 
 func (x *RecoveryVoucher) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +830,7 @@ func (x *RecoveryVoucher) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecoveryVoucher.ProtoReflect.Descriptor instead.
 func (*RecoveryVoucher) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RecoveryVoucher) GetSignerKey() []byte {
@@ -637,7 +885,7 @@ type Grant struct {
 
 func (x *Grant) Reset() {
 	*x = Grant{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -649,7 +897,7 @@ func (x *Grant) String() string {
 func (*Grant) ProtoMessage() {}
 
 func (x *Grant) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -662,7 +910,7 @@ func (x *Grant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Grant.ProtoReflect.Descriptor instead.
 func (*Grant) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Grant) GetNodeId() string {
@@ -724,7 +972,7 @@ type GrantsNeeded struct {
 
 func (x *GrantsNeeded) Reset() {
 	*x = GrantsNeeded{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -736,7 +984,7 @@ func (x *GrantsNeeded) String() string {
 func (*GrantsNeeded) ProtoMessage() {}
 
 func (x *GrantsNeeded) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -749,7 +997,7 @@ func (x *GrantsNeeded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantsNeeded.ProtoReflect.Descriptor instead.
 func (*GrantsNeeded) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GrantsNeeded) GetNodeId() string {
@@ -808,7 +1056,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x05Fleet\x12\x19\n" +
 	"\bfleet_id\x18\x01 \x01(\tR\afleetId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\x91\x03\n" +
+	"\x0fcreated_unix_ms\x18\x03 \x01(\x03R\rcreatedUnixMs\"\xf4\x03\n" +
 	"\x04Node\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12$\n" +
@@ -821,7 +1069,31 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x06letter\x18\t \x01(\tR\x06letter\x12.\n" +
 	"\x13nfs_certificate_pem\x18\n" +
 	" \x01(\tR\x11nfsCertificatePem\x12:\n" +
-	"\x19nfs_certificate_signature\x18\v \x01(\fR\x17nfsCertificateSignature\"\xb9\x01\n" +
+	"\x19nfs_certificate_signature\x18\v \x01(\fR\x17nfsCertificateSignature\x121\n" +
+	"\bupdating\x18\f \x01(\v2\x15.maitre.v1.NodeUpdateR\bupdating\x12.\n" +
+	"\aupdates\x18\r \x03(\v2\x14.maitre.v1.UpdateRunR\aupdates\"\x86\x01\n" +
+	"\n" +
+	"NodeUpdate\x12&\n" +
+	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\x12\x1f\n" +
+	"\vfrom_digest\x18\x03 \x01(\tR\n" +
+	"fromDigest\x12\x17\n" +
+	"\aboot_id\x18\x04 \x01(\tR\x06bootId\"\xf9\x02\n" +
+	"\tUpdateRun\x12&\n" +
+	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\"\n" +
+	"\rended_unix_ms\x18\x02 \x01(\x03R\vendedUnixMs\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1f\n" +
+	"\vfrom_digest\x18\x04 \x01(\tR\n" +
+	"fromDigest\x12\x1b\n" +
+	"\tto_digest\x18\x05 \x01(\tR\btoDigest\x126\n" +
+	"\aoutcome\x18\x06 \x01(\x0e2\x1c.maitre.v1.UpdateRun.OutcomeR\aoutcome\x12\x18\n" +
+	"\amessage\x18\a \x01(\tR\amessage\"x\n" +
+	"\aOutcome\x12\x17\n" +
+	"\x13OUTCOME_UNSPECIFIED\x10\x00\x12\x13\n" +
+	"\x0fOUTCOME_UPDATED\x10\x01\x12\x17\n" +
+	"\x13OUTCOME_ROLLED_BACK\x10\x02\x12\x12\n" +
+	"\x0eOUTCOME_FAILED\x10\x03\x12\x12\n" +
+	"\x0eOUTCOME_STAGED\x10\x04\"\xb9\x01\n" +
 	"\fUpdatePolicy\x12\x1c\n" +
 	"\tautomatic\x18\x01 \x01(\bR\tautomatic\x12*\n" +
 	"\x11window_start_hour\x18\x02 \x01(\x05R\x0fwindowStartHour\x12&\n" +
@@ -871,24 +1143,31 @@ func file_maitre_v1_fleet_proto_rawDescGZIP() []byte {
 	return file_maitre_v1_fleet_proto_rawDescData
 }
 
-var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_maitre_v1_fleet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_maitre_v1_fleet_proto_goTypes = []any{
-	(*Record)(nil),          // 0: maitre.v1.Record
-	(*Fleet)(nil),           // 1: maitre.v1.Fleet
-	(*Node)(nil),            // 2: maitre.v1.Node
-	(*UpdatePolicy)(nil),    // 3: maitre.v1.UpdatePolicy
-	(*TrustedDevice)(nil),   // 4: maitre.v1.TrustedDevice
-	(*RecoveryVoucher)(nil), // 5: maitre.v1.RecoveryVoucher
-	(*Grant)(nil),           // 6: maitre.v1.Grant
-	(*GrantsNeeded)(nil),    // 7: maitre.v1.GrantsNeeded
+	(UpdateRun_Outcome)(0),  // 0: maitre.v1.UpdateRun.Outcome
+	(*Record)(nil),          // 1: maitre.v1.Record
+	(*Fleet)(nil),           // 2: maitre.v1.Fleet
+	(*Node)(nil),            // 3: maitre.v1.Node
+	(*NodeUpdate)(nil),      // 4: maitre.v1.NodeUpdate
+	(*UpdateRun)(nil),       // 5: maitre.v1.UpdateRun
+	(*UpdatePolicy)(nil),    // 6: maitre.v1.UpdatePolicy
+	(*TrustedDevice)(nil),   // 7: maitre.v1.TrustedDevice
+	(*RecoveryVoucher)(nil), // 8: maitre.v1.RecoveryVoucher
+	(*Grant)(nil),           // 9: maitre.v1.Grant
+	(*GrantsNeeded)(nil),    // 10: maitre.v1.GrantsNeeded
 }
 var file_maitre_v1_fleet_proto_depIdxs = []int32{
-	5, // 0: maitre.v1.TrustedDevice.voucher:type_name -> maitre.v1.RecoveryVoucher
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 0: maitre.v1.Node.updating:type_name -> maitre.v1.NodeUpdate
+	5, // 1: maitre.v1.Node.updates:type_name -> maitre.v1.UpdateRun
+	0, // 2: maitre.v1.UpdateRun.outcome:type_name -> maitre.v1.UpdateRun.Outcome
+	8, // 3: maitre.v1.TrustedDevice.voucher:type_name -> maitre.v1.RecoveryVoucher
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_fleet_proto_init() }
@@ -901,13 +1180,14 @@ func file_maitre_v1_fleet_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_fleet_proto_rawDesc), len(file_maitre_v1_fleet_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   8,
+			NumEnums:      1,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_maitre_v1_fleet_proto_goTypes,
 		DependencyIndexes: file_maitre_v1_fleet_proto_depIdxs,
+		EnumInfos:         file_maitre_v1_fleet_proto_enumTypes,
 		MessageInfos:      file_maitre_v1_fleet_proto_msgTypes,
 	}.Build()
 	File_maitre_v1_fleet_proto = out.File

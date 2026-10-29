@@ -2,15 +2,15 @@
 // @generated from file maitre/v1/fleet.proto (package maitre.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSLBAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgSEgoKc2lnbmVyX2tleRgIIAEoDBIRCglzaWduYXR1cmUYCSABKAwSFgoOc2lnbmVkX3VuaXhfbXMYCiABKAMiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMi/gEKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgitwEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAkSKwoHdm91Y2hlchgHIAEoCzIaLm1haXRyZS52MS5SZWNvdmVyeVZvdWNoZXIiXgoPUmVjb3ZlcnlWb3VjaGVyEhIKCnNpZ25lcl9rZXkYASABKAwSEQoJc2lnbmF0dXJlGAIgASgMEhYKDnNpZ25lZF91bml4X21zGAMgASgDEgwKBGJvZHkYBCABKAwigQEKBUdyYW50Eg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIOCgZvcHRpb24YAyABKAkSGAoQaW1hZ2VfcmVwb3NpdG9yeRgEIAEoCRIXCg9ncmFudGVkX3VuaXhfbXMYBSABKAMSEwoLZGV2aWNlX25hbWUYBiABKAkibgoMR3JhbnRzTmVlZGVkEg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIYChBpbWFnZV9yZXBvc2l0b3J5GAMgASgJEg8KB29wdGlvbnMYBCADKAkSEQoJZ3JhbnRfaWRzGAUgAygJQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSLBAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgSEgoKc2lnbmVyX2tleRgIIAEoDBIRCglzaWduYXR1cmUYCSABKAwSFgoOc2lnbmVkX3VuaXhfbXMYCiABKAMiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMizgIKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDBInCgh1cGRhdGluZxgMIAEoCzIVLm1haXRyZS52MS5Ob2RlVXBkYXRlEiUKB3VwZGF0ZXMYDSADKAsyFC5tYWl0cmUudjEuVXBkYXRlUnVuIlsKCk5vZGVVcGRhdGUSFwoPc3RhcnRlZF91bml4X21zGAEgASgDEg4KBnRhcmdldBgCIAEoCRITCgtmcm9tX2RpZ2VzdBgDIAEoCRIPCgdib290X2lkGAQgASgJIq0CCglVcGRhdGVSdW4SFwoPc3RhcnRlZF91bml4X21zGAEgASgDEhUKDWVuZGVkX3VuaXhfbXMYAiABKAMSDgoGdGFyZ2V0GAMgASgJEhMKC2Zyb21fZGlnZXN0GAQgASgJEhEKCXRvX2RpZ2VzdBgFIAEoCRItCgdvdXRjb21lGAYgASgOMhwubWFpdHJlLnYxLlVwZGF0ZVJ1bi5PdXRjb21lEg8KB21lc3NhZ2UYByABKAkieAoHT3V0Y29tZRIXChNPVVRDT01FX1VOU1BFQ0lGSUVEEAASEwoPT1VUQ09NRV9VUERBVEVEEAESFwoTT1VUQ09NRV9ST0xMRURfQkFDSxACEhIKDk9VVENPTUVfRkFJTEVEEAMSEgoOT1VUQ09NRV9TVEFHRUQQBCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgitwEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAkSKwoHdm91Y2hlchgHIAEoCzIaLm1haXRyZS52MS5SZWNvdmVyeVZvdWNoZXIiXgoPUmVjb3ZlcnlWb3VjaGVyEhIKCnNpZ25lcl9rZXkYASABKAwSEQoJc2lnbmF0dXJlGAIgASgMEhYKDnNpZ25lZF91bml4X21zGAMgASgDEgwKBGJvZHkYBCABKAwigQEKBUdyYW50Eg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIOCgZvcHRpb24YAyABKAkSGAoQaW1hZ2VfcmVwb3NpdG9yeRgEIAEoCRIXCg9ncmFudGVkX3VuaXhfbXMYBSABKAMSEwoLZGV2aWNlX25hbWUYBiABKAkibgoMR3JhbnRzTmVlZGVkEg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIYChBpbWFnZV9yZXBvc2l0b3J5GAMgASgJEg8KB29wdGlvbnMYBCADKAkSEQoJZ3JhbnRfaWRzGAUgAygJQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -210,6 +210,23 @@ export type Node = Message<"maitre.v1.Node"> & {
    * @generated from field: bytes nfs_certificate_signature = 11;
    */
   nfsCertificateSignature: Uint8Array;
+
+  /**
+   * Set by the Node itself just before an update starts and cleared when it
+   * is back up (decision 214), so every Node and the Console see it as
+   * updating while it is offline. Only the Node (or a Trusted Device) may
+   * write its record; peers never change it.
+   *
+   * @generated from field: maitre.v1.NodeUpdate updating = 12;
+   */
+  updating?: NodeUpdate | undefined;
+
+  /**
+   * Its updates, oldest first, at most 20: for how long they take.
+   *
+   * @generated from field: repeated maitre.v1.UpdateRun updates = 13;
+   */
+  updates: UpdateRun[];
 };
 
 /**
@@ -218,6 +235,144 @@ export type Node = Message<"maitre.v1.Node"> & {
  */
 export const NodeSchema: GenMessage<Node> = /*@__PURE__*/
   messageDesc(file_maitre_v1_fleet, 2);
+
+/**
+ * NodeUpdate is an update in progress.
+ *
+ * @generated from message maitre.v1.NodeUpdate
+ */
+export type NodeUpdate = Message<"maitre.v1.NodeUpdate"> & {
+  /**
+   * @generated from field: int64 started_unix_ms = 1;
+   */
+  startedUnixMs: bigint;
+
+  /**
+   * The image reference it is updating to.
+   *
+   * @generated from field: string target = 2;
+   */
+  target: string;
+
+  /**
+   * The image it ran when it started.
+   *
+   * @generated from field: string from_digest = 3;
+   */
+  fromDigest: string;
+
+  /**
+   * The kernel's boot id when it started: still the same at the next start
+   * means the agent restarted without the reboot (the update was cut short).
+   *
+   * @generated from field: string boot_id = 4;
+   */
+  bootId: string;
+};
+
+/**
+ * Describes the message maitre.v1.NodeUpdate.
+ * Use `create(NodeUpdateSchema)` to create a new message.
+ */
+export const NodeUpdateSchema: GenMessage<NodeUpdate> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 3);
+
+/**
+ * UpdateRun is one finished update.
+ *
+ * @generated from message maitre.v1.UpdateRun
+ */
+export type UpdateRun = Message<"maitre.v1.UpdateRun"> & {
+  /**
+   * @generated from field: int64 started_unix_ms = 1;
+   */
+  startedUnixMs: bigint;
+
+  /**
+   * When it was back up, or when staging failed or finished without a reboot.
+   *
+   * @generated from field: int64 ended_unix_ms = 2;
+   */
+  endedUnixMs: bigint;
+
+  /**
+   * @generated from field: string target = 3;
+   */
+  target: string;
+
+  /**
+   * @generated from field: string from_digest = 4;
+   */
+  fromDigest: string;
+
+  /**
+   * What it booted afterwards.
+   *
+   * @generated from field: string to_digest = 5;
+   */
+  toDigest: string;
+
+  /**
+   * @generated from field: maitre.v1.UpdateRun.Outcome outcome = 6;
+   */
+  outcome: UpdateRun_Outcome;
+
+  /**
+   * @generated from field: string message = 7;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message maitre.v1.UpdateRun.
+ * Use `create(UpdateRunSchema)` to create a new message.
+ */
+export const UpdateRunSchema: GenMessage<UpdateRun> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 4);
+
+/**
+ * @generated from enum maitre.v1.UpdateRun.Outcome
+ */
+export enum UpdateRun_Outcome {
+  /**
+   * @generated from enum value: OUTCOME_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Running the new image.
+   *
+   * @generated from enum value: OUTCOME_UPDATED = 1;
+   */
+  UPDATED = 1,
+
+  /**
+   * Booted, failed its health checks, back on the previous image.
+   *
+   * @generated from enum value: OUTCOME_ROLLED_BACK = 2;
+   */
+  ROLLED_BACK = 2,
+
+  /**
+   * Never reached the reboot (staging failed, or the agent stopped).
+   *
+   * @generated from enum value: OUTCOME_FAILED = 3;
+   */
+  FAILED = 3,
+
+  /**
+   * Staged without a reboot: it applies at the next restart.
+   *
+   * @generated from enum value: OUTCOME_STAGED = 4;
+   */
+  STAGED = 4,
+}
+
+/**
+ * Describes the enum maitre.v1.UpdateRun.Outcome.
+ */
+export const UpdateRun_OutcomeSchema: GenEnum<UpdateRun_Outcome> = /*@__PURE__*/
+  enumDesc(file_maitre_v1_fleet, 4, 0);
 
 /**
  * UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
@@ -266,7 +421,7 @@ export type UpdatePolicy = Message<"maitre.v1.UpdatePolicy"> & {
  * Use `create(UpdatePolicySchema)` to create a new message.
  */
 export const UpdatePolicySchema: GenMessage<UpdatePolicy> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 3);
+  messageDesc(file_maitre_v1_fleet, 5);
 
 /**
  * TrustedDevice is the kind "trusted_device" record, keyed by device_id
@@ -326,7 +481,7 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
  * Use `create(TrustedDeviceSchema)` to create a new message.
  */
 export const TrustedDeviceSchema: GenMessage<TrustedDevice> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 4);
+  messageDesc(file_maitre_v1_fleet, 6);
 
 /**
  * RecoveryVoucher is another Node's signed record of the same device, scoped
@@ -365,7 +520,7 @@ export type RecoveryVoucher = Message<"maitre.v1.RecoveryVoucher"> & {
  * Use `create(RecoveryVoucherSchema)` to create a new message.
  */
 export const RecoveryVoucherSchema: GenMessage<RecoveryVoucher> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 5);
+  messageDesc(file_maitre_v1_fleet, 7);
 
 /**
  * Grant is the kind "grant" record (decision 189): a Trusted Device's
@@ -421,7 +576,7 @@ export type Grant = Message<"maitre.v1.Grant"> & {
  * Use `create(GrantSchema)` to create a new message.
  */
 export const GrantSchema: GenMessage<Grant> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 6);
+  messageDesc(file_maitre_v1_fleet, 8);
 
 /**
  * GrantsNeeded is the detail of a FailedPrecondition error from a Service
@@ -464,5 +619,5 @@ export type GrantsNeeded = Message<"maitre.v1.GrantsNeeded"> & {
  * Use `create(GrantsNeededSchema)` to create a new message.
  */
 export const GrantsNeededSchema: GenMessage<GrantsNeeded> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 7);
+  messageDesc(file_maitre_v1_fleet, 9);
 

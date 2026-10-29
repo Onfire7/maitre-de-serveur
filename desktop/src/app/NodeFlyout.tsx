@@ -14,6 +14,7 @@ import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { colorOf } from "./StorageTab";
 import { useNodeLogs } from "./LogsTab";
 import { useRoute } from "./routes";
+import { averageUpdateMs, formatDuration, updatingLine } from "@/fleet/updateTimes";
 
 const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
 const fillColor = (p: number) => (p >= 90 ? "bg-destructive" : p >= 75 ? "bg-status-attention" : "bg-status-online");
@@ -26,6 +27,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
   const now = Date.now();
   const st = snap.status.get(nodeId);
   const word = nodeWord(st, now);
+  const avgUpdate = averageUpdateMs(node);
   const m = st?.metrics;
   const stale = !m || now - Number(st?.metricsUnixMs ?? 0) > STALE_MS;
   const spaces = [...snap.spaces].sort((a, b) => b.priority - a.priority);
@@ -70,7 +72,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
             <StatusWord word={word} />
             {word === "Unreachable" && st && st.lastSeenUnixMs > 0n && <span className="text-muted-foreground"> · last heard {ago(Number(st.lastSeenUnixMs), now)}</span>}
             {word === "Provisioning" && <span className="text-muted-foreground"> · {provisioningLine(st)}</span>}
-            {word === "Updating" && st?.updateMessage && <span className="text-muted-foreground"> · {st.updateMessage}</span>}
+            {word === "Updating" && <span className="text-muted-foreground">{[st?.reachable && st.updateMessage, updatingLine(node, st?.updatingSince, now)].filter(Boolean).map((x) => ` · ${x}`)}</span>}
           </div>
         </div>
       </div>
@@ -89,7 +91,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
       )}
       {st?.updateAvailable && !st.updateStaged && st.updateState !== 2 && (
         <div className="flex items-center gap-1.5 border-b px-3 py-1.5 text-xs text-muted-foreground">
-          <ArrowUpCircle className="size-3.5" /> A newer Maître Server is available.
+          <ArrowUpCircle className="size-3.5" /> A newer Maître Server is available{avgUpdate !== undefined ? `; updates take it about ${formatDuration(avgUpdate)}` : ""}.
         </div>
       )}
 

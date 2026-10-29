@@ -70,6 +70,49 @@ message Node {
   // signature over its DER bytes, checks out.
   string nfs_certificate_pem = 10;
   bytes nfs_certificate_signature = 11;
+  // Set by the Node itself just before an update starts and cleared when it
+  // is back up (decision 214), so every Node and the Console see it as
+  // updating while it is offline. Only the Node (or a Trusted Device) may
+  // write its record; peers never change it.
+  NodeUpdate updating = 12;
+  // Its updates, oldest first, at most 20: for how long they take.
+  repeated UpdateRun updates = 13;
+}
+
+// NodeUpdate is an update in progress.
+message NodeUpdate {
+  int64 started_unix_ms = 1;
+  // The image reference it is updating to.
+  string target = 2;
+  // The image it ran when it started.
+  string from_digest = 3;
+  // The kernel's boot id when it started: still the same at the next start
+  // means the agent restarted without the reboot (the update was cut short).
+  string boot_id = 4;
+}
+
+// UpdateRun is one finished update.
+message UpdateRun {
+  int64 started_unix_ms = 1;
+  // When it was back up, or when staging failed or finished without a reboot.
+  int64 ended_unix_ms = 2;
+  string target = 3;
+  string from_digest = 4;
+  // What it booted afterwards.
+  string to_digest = 5;
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    // Running the new image.
+    OUTCOME_UPDATED = 1;
+    // Booted, failed its health checks, back on the previous image.
+    OUTCOME_ROLLED_BACK = 2;
+    // Never reached the reboot (staging failed, or the agent stopped).
+    OUTCOME_FAILED = 3;
+    // Staged without a reboot: it applies at the next restart.
+    OUTCOME_STAGED = 4;
+  }
+  Outcome outcome = 6;
+  string message = 7;
 }
 
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):

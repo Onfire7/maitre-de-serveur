@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -230,5 +231,47 @@ func TestSameReferenceUpgrades(t *testing.T) {
 	wait(t, m2, maitrev1.UpdateStatus_STATE_IDLE)
 	if f2.upgraded || f2.switched == "" {
 		t.Errorf("other reference: upgraded=%v switched=%q", f2.upgraded, f2.switched)
+	}
+}
+
+func TestHooks(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		fail   bool
+		reboot bool
+		want   maitrev1.UpdateRun_Outcome // unspecified: none before the reboot
+	}{
+		{"reboots", false, true, maitrev1.UpdateRun_OUTCOME_UNSPECIFIED},
+		{"staged", false, false, maitrev1.UpdateRun_OUTCOME_STAGED},
+		{"fails", true, true, maitrev1.UpdateRun_OUTCOME_FAILED},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := New(&fakeRunner{fail: c.fail}, nil)
+			var mu sync.Mutex
+			var started string
+			var ended maitrev1.UpdateRun_Outcome
+			m.OnStart = func(image string) { mu.Lock(); started = image; mu.Unlock() }
+			m.OnEnd = func(o maitrev1.UpdateRun_Outcome, _ string) { mu.Lock(); ended = o; mu.Unlock() }
+			if err := m.Start("ghcr.io/onfire7/maitre-server:main", c.reboot, false); err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			if started != "ghcr.io/onfire7/maitre-server:main" {
+				t.Errorf("OnStart not called before Start returned: %q", started)
+			}
+			mu.Unlock()
+			state := map[maitrev1.UpdateRun_Outcome]maitrev1.UpdateStatus_State{
+				maitrev1.UpdateRun_OUTCOME_UNSPECIFIED: maitrev1.UpdateStatus_STATE_REBOOTING,
+				maitrev1.UpdateRun_OUTCOME_STAGED:      maitrev1.UpdateStatus_STATE_IDLE,
+				maitrev1.UpdateRun_OUTCOME_FAILED:      maitrev1.UpdateStatus_STATE_FAILED,
+			}[c.want]
+			wait(t, m, state)
+			time.Sleep(20 * time.Millisecond)
+			mu.Lock()
+			defer mu.Unlock()
+			if ended != c.want {
+				t.Errorf("ended %v, want %v", ended, c.want)
+			}
+		})
 	}
 }

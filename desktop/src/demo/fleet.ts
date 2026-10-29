@@ -10,10 +10,12 @@ import {
   GrantsNeededSchema,
   type GrantsNeeded,
   NodeSchema,
+  UpdateRun_Outcome,
   TrustedDeviceSchema,
   UpdatePolicySchema,
   type Record as Rec,
   RecordSchema,
+  UpdateRunSchema,
 } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceSpecSchema, ServiceStatus_State, type ServiceSpec, type ServiceStatus, PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import { DriveRecordSchema, SpaceSchema, type Drive, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
@@ -56,6 +58,14 @@ export function protectedOptions(quadlet: string): string[] {
 }
 const TiB = 1024 ** 4;
 
+/** Past updates that took these many seconds, a week apart, ending before `until`. */
+function pastRuns(until: number, secs: number[]): MessageInitShape<typeof UpdateRunSchema>[] {
+  return secs.map((d, i) => {
+    const end = until - (secs.length - 1 - i) * 7 * 86400_000;
+    return { startedUnixMs: BigInt(end - d * 1000), endedUnixMs: BigInt(end), target: "ghcr.io/onfire7/maitre-server:stable", outcome: UpdateRun_Outcome.UPDATED };
+  });
+}
+
 export interface DemoNode {
   nodeId: string;
   name: string;
@@ -76,6 +86,9 @@ export interface DemoNode {
   portMapping: string;
   /** What the other Node has trouble calling on this one (ADR 0007). */
   problems?: string[];
+  /** Decision 214: when its record says it started updating, and its past updates. */
+  updatingSince?: number;
+  runs: MessageInitShape<typeof UpdateRunSchema>[];
 }
 
 export interface DemoService {
@@ -224,6 +237,7 @@ export class DemoFleet {
         bootedUnixMs: t - 6 * 86400_000,
         publicIp: "203.0.113.5",
         portMapping: "router: eero",
+        runs: pastRuns(t - 6 * 86400_000, [262, 301, 248]),
       },
       {
         nodeId: NODE_B,
@@ -241,6 +255,7 @@ export class DemoFleet {
         bootedUnixMs: t - 2 * 3600_000,
         publicIp: "203.0.113.5",
         portMapping: "router: eero",
+        runs: pastRuns(t - 2 * 3600_000, [412, 377]),
       },
     ];
     this.spaces = [
@@ -315,7 +330,7 @@ export class DemoFleet {
     const out: Rec[] = [];
     out.push(this.rec("fleet", FLEET_ID, NODE_A, toBinary(FleetSchema, create(FleetSchema, { fleetId: FLEET_ID, name: this.fleetName, createdUnixMs: BigInt(this.now - 30 * 86400_000) }))));
     for (const n of this.nodes) {
-      out.push(this.rec("node", n.nodeId, n.nodeId, toBinary(NodeSchema, create(NodeSchema, { nodeId: n.nodeId, name: n.name, publicKeyPem: `-----BEGIN PUBLIC KEY-----\ndemo ${n.letter}\n-----END PUBLIC KEY-----\n`, addresses: [n.addr, `${n.name.toLowerCase()}.local:7443`], provisionedUnixMs: BigInt(this.now - 30 * 86400_000), imageRef: n.imageRef, imageDigest: n.imageDigest, bootedUnixMs: BigInt(n.bootedUnixMs), letter: n.letter }))));
+      out.push(this.rec("node", n.nodeId, n.nodeId, toBinary(NodeSchema, create(NodeSchema, { nodeId: n.nodeId, name: n.name, publicKeyPem: `-----BEGIN PUBLIC KEY-----\ndemo ${n.letter}\n-----END PUBLIC KEY-----\n`, addresses: [n.addr, `${n.name.toLowerCase()}.local:7443`], provisionedUnixMs: BigInt(this.now - 30 * 86400_000), imageRef: n.imageRef, imageDigest: n.imageDigest, bootedUnixMs: BigInt(n.bootedUnixMs), letter: n.letter, updating: n.updatingSince ? { startedUnixMs: BigInt(n.updatingSince), target: n.update.target } : undefined, updates: n.runs }))));
     }
     for (const d of this.trustedDevices) {
       out.push(this.rec("trusted_device", d.deviceId, NODE_A, toBinary(TrustedDeviceSchema, create(TrustedDeviceSchema, { deviceId: d.deviceId, name: d.name, publicKeyPem: "demo", recoveryOnly: d.recoveryOnly, addedUnixMs: BigInt(d.addedUnixMs), nodeScope: d.nodeScope }))));
@@ -435,6 +450,7 @@ export class DemoFleet {
         n.rebootAt = undefined;
         n.reachable = true;
         n.bootedUnixMs = this.now;
+        this.endUpdate(n, UpdateRun_Outcome.UPDATED);
         for (const s of this.services) if (s.spec.nodeId === n.nodeId && s.state === ServiceStatus_State.RUNNING) s.startedUnixMs = this.now;
       }
       if (!n.reachable) continue;
@@ -453,6 +469,8 @@ export class DemoFleet {
         u.message = u.progress < 1 ? `downloading ${Math.round(u.progress * 100)}%` : "staged; reboot to apply";
         if (u.progress >= 1) {
           u.state = UpdateStatus_State.IDLE;
+          // Staged with no restart asked for: the update ends here.
+          if (!n.rebootAt) this.endUpdate(n, UpdateRun_Outcome.STAGED);
           u.staged = { image: u.target, digest: "sha256:" + "4b".repeat(32), version: "0.9.4", timestamp: "2026-10-26T03:00:00Z" } as UpdateStatus["staged"];
           if (u.available === u.staged!.digest) u.available = "";
         }
@@ -564,8 +582,16 @@ export class DemoFleet {
     return out;
   }
 
+  /** Decision 214: the Node closes its update in its own record. */
+  endUpdate(n: DemoNode, outcome: UpdateRun_Outcome) {
+    if (!n.updatingSince) return;
+    n.runs = [...n.runs, { startedUnixMs: BigInt(n.updatingSince), endedUnixMs: BigInt(this.now), target: n.update.target, outcome }].slice(-20);
+    n.updatingSince = undefined;
+  }
+
   startUpdate(nodeId: string, image: string) {
     const n = this.node(nodeId);
+    n.updatingSince = this.now;
     n.update.state = UpdateStatus_State.UPDATING;
     n.update.target = image;
     n.update.progress = 0;

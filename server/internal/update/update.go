@@ -55,6 +55,12 @@ type Manager struct {
 	// RegistriesDir receives insecure-registry drop-ins
 	// (default /etc/containers/registries.conf.d).
 	RegistriesDir string
+	// OnStart runs before an update starts, so the Node can mark itself
+	// as updating in its record first (decision 214); OnEnd when one ends
+	// without the reboot (it failed, or was only staged). Both optional; a
+	// reboot's end is recorded at the next start (Back).
+	OnStart func(image string)
+	OnEnd   func(outcome maitrev1.UpdateRun_Outcome, msg string)
 
 	mu       sync.Mutex
 	state    maitrev1.UpdateStatus_State
@@ -122,8 +128,19 @@ func (m *Manager) Start(image string, reboot, insecure bool) error {
 	}
 	m.state, m.message, m.progress, m.target = maitrev1.UpdateStatus_STATE_UPDATING, "starting", 0, image
 	m.mu.Unlock()
+	if m.OnStart != nil {
+		m.OnStart(image)
+	}
 	go m.stage(image, reboot, insecure)
 	return nil
+}
+
+// fail ends an update before its reboot.
+func (m *Manager) fail(msg string, progress float64) {
+	m.set(maitrev1.UpdateStatus_STATE_FAILED, msg, progress)
+	if m.OnEnd != nil {
+		m.OnEnd(maitrev1.UpdateRun_OUTCOME_FAILED, msg)
+	}
 }
 
 func (m *Manager) set(state maitrev1.UpdateStatus_State, msg string, progress float64) {
@@ -136,14 +153,14 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 	ctx := context.Background()
 	if insecure {
 		if err := m.allowInsecure(image); err != nil {
-			m.set(maitrev1.UpdateStatus_STATE_FAILED, err.Error(), 0)
+			m.fail(err.Error(), 0)
 			return
 		}
 	} else {
 		_ = os.Remove(filepath.Join(m.RegistriesDir, InsecureDropIn))
 	}
 	if !refRE.MatchString(image) {
-		m.set(maitrev1.UpdateStatus_STATE_FAILED, fmt.Sprintf("%q is not an image reference", image), 0)
+		m.fail(fmt.Sprintf("%q is not an image reference", image), 0)
 		return
 	}
 	same := false
@@ -179,17 +196,20 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 	}
 	if err != nil {
 		m.log.Error("update failed", "image", image, "err", err)
-		m.set(maitrev1.UpdateStatus_STATE_FAILED, err.Error(), 0)
+		m.fail(err.Error(), 0)
 		return
 	}
 	if !reboot {
 		m.log.Info("update: staged, reboot pending", "image", image)
 		m.set(maitrev1.UpdateStatus_STATE_IDLE, "staged; reboot to apply", 1)
+		if m.OnEnd != nil {
+			m.OnEnd(maitrev1.UpdateRun_OUTCOME_STAGED, "staged; applies at the next restart")
+		}
 		return
 	}
 	m.set(maitrev1.UpdateStatus_STATE_REBOOTING, "staged; rebooting", 1)
 	if err := m.Reboot(ctx); err != nil {
-		m.set(maitrev1.UpdateStatus_STATE_FAILED, "staged, but reboot failed: "+err.Error(), 1)
+		m.fail("staged, but reboot failed: "+err.Error(), 1)
 	}
 }
 

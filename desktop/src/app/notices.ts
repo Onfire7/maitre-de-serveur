@@ -4,6 +4,7 @@ import type { FleetSnapshot } from "@/fleet/useFleet";
 import { gapLine, nodeWord, provisioningLine, syncGaps } from "@/fleet/useFleet";
 import type { Found } from "@/state";
 import type { FleetTab } from "./routes";
+import { ago } from "@/lib/format";
 
 export interface Notice {
   id: string;
@@ -25,6 +26,9 @@ export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: 
   for (const n of snap.nodes) {
     const st = snap.status.get(n.nodeId);
     if (st?.provisioning?.phase === 5) out.push({ id: `install-failed:${n.nodeId}`, title: `${n.name}'s install failed`, detail: provisioningLine(st), tab: "nodes", nodeId: n.nodeId, severity: "attention" });
+    else if (nodeWord(st, now) === "Unreachable" && st?.updatingSince)
+      // Decision 214: it said it was updating and has not come back.
+      out.push({ id: `update-stuck:${n.nodeId}`, title: `${n.name} has not come back from its update`, detail: `It started updating ${ago(st.updatingSince, now)}. Check its screen.`, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (nodeWord(st, now) === "Unreachable") out.push({ id: `unreachable:${n.nodeId}`, title: `${n.name} is unreachable`, detail: "Its Services are unavailable until it is back.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.updateState === 3) out.push({ id: `update-failed:${n.nodeId}`, title: `${n.name}'s update failed`, detail: st.updateMessage || "See the Node's details.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.lastRollback) out.push({ id: `rolled-back:${n.nodeId}`, title: `${n.name} rolled back its last update`, detail: st.lastRollback, tab: "nodes", nodeId: n.nodeId, severity: "attention" });

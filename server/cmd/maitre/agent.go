@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/term"
 	"log/slog"
 	"net"
 	"net/http"
@@ -18,12 +17,15 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
+	"golang.org/x/term"
+	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
@@ -177,6 +179,29 @@ func runAgent(args []string) error {
 	}
 	if err := pm.Refresh(ctx); err != nil {
 		log.Warn("peers", "err", err)
+	}
+	// editSelf changes this Node's own record from what is stored now (not
+	// a copy read at start, which would undo other changes), then pushes it.
+	var selfMu sync.Mutex
+	editSelf := func(change func(*maitrev1.Node) bool) {
+		selfMu.Lock()
+		defer selfMu.Unlock()
+		var cur maitrev1.Node
+		if _, err := st.Get(ctx, store.KindNode, id.Fingerprint(), &cur); err != nil {
+			log.Warn("own node record", "err", err)
+			return
+		}
+		if !change(&cur) {
+			return
+		}
+		rec, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &cur, false)
+		if err != nil {
+			log.Warn("own node record", "err", err)
+			return
+		}
+		proto.Reset(&self)
+		proto.Merge(&self, &cur)
+		pm.Push(context.WithoutCancel(ctx), rec)
 	}
 	// Decision 104: one letter per Node; its Drives are named after it.
 	assignLetter := func() {
@@ -336,6 +361,25 @@ func runAgent(args []string) error {
 			log.Warn("own node record", "err", err)
 		}
 	}
+	// Decision 214: the Node says in its own record that it is updating,
+	// before the update starts and until it is back, so peers and the
+	// Console show it as updating while it is offline; only it writes that.
+	svc.Updates.OnStart = func(image string) {
+		_, from := current()
+		editSelf(func(n *maitrev1.Node) bool {
+			update.Begin(n, image, from, update.BootID(), time.Now())
+			return true
+		})
+	}
+	svc.Updates.OnEnd = func(outcome maitrev1.UpdateRun_Outcome, msg string) {
+		_, digest := current()
+		editSelf(func(n *maitrev1.Node) bool { return update.End(n, outcome, digest, msg, time.Now()) })
+	}
+	// Back up: close the update this Node was in, if any.
+	_, booted := current()
+	editSelf(func(n *maitrev1.Node) bool {
+		return update.Back(n, update.BootID(), booted, update.RolledBackAt(), time.Now())
+	})
 	ro := rollout.New(st, svc.Updates, log, id.Fingerprint())
 	ro.Current = current
 	svc.Rollout = func() string { return ro.Last.Reason }
@@ -812,12 +856,13 @@ func runAgent(args []string) error {
 			}
 			stt := ts.Status()
 			addr := net.JoinHostPort(stt.GetAddresses()[0], fmt.Sprint(listenPort(*listen)))
-			if !slices.Contains(self.GetAddresses(), addr) {
-				self.Addresses = append(self.Addresses, addr)
-				if rec, err := st.Put(ctx, store.KindNode, id.Fingerprint(), &self, false); err == nil {
-					pm.Push(context.WithoutCancel(ctx), rec)
+			editSelf(func(n *maitrev1.Node) bool {
+				if slices.Contains(n.GetAddresses(), addr) {
+					return false
 				}
-			}
+				n.Addresses = append(n.Addresses, addr)
+				return true
+			})
 			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)
 			srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
 			go func() { <-ctx.Done(); _ = srv.Close() }()

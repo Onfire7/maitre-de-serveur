@@ -19,6 +19,18 @@ export const FLEET_POLL_MS = 3000;
 export const STALE_MS = 30_000;
 /** A Node the anchor has not heard from for this long is Unreachable (decision 162). */
 export const UNREACHABLE_MS = 60_000;
+/**
+ * A Node that says it is updating is shown as Updating, reachable or not,
+ * for this long (decision 214); after that, as whatever it is.
+ */
+export const UPDATE_LIMIT_MS = 60 * 60_000;
+
+/**
+ * A Node's gossiped status, plus when it started updating if its own
+ * record says it is (decision 214): it writes that before the update and
+ * clears it when it is back, and no one else may change it.
+ */
+export type NodeStatus = FleetNodeStatus & { updatingSince?: number };
 
 export interface FleetSnapshot {
   anchor: AnchorPick;
@@ -31,7 +43,7 @@ export interface FleetSnapshot {
   drives: DriveRecord[];
   specs: ServiceSpec[];
   policy?: UpdatePolicy;
-  status: Map<string, FleetNodeStatus>;
+  status: Map<string, NodeStatus>;
   records: Rec[];
   /**
    * The anchor runs a Maître Server from before GetFleetStatus (ADR 0006),
@@ -74,6 +86,18 @@ async function legacyStatus(anchor: AnchorPick, nodes: Node[], known: KnownNode[
   );
 }
 
+/** The status map, with each updating Node's start from its record (decision 214). */
+function withUpdating(statuses: FleetNodeStatus[], nodes: Node[]): Map<string, NodeStatus> {
+  const out = new Map<string, NodeStatus>(statuses.map((n) => [n.nodeId, n]));
+  for (const n of nodes) {
+    const since = Number(n.updating?.startedUnixMs ?? 0n);
+    if (!since) continue;
+    const st = out.get(n.nodeId) ?? create(FleetNodeStatusSchema, { nodeId: n.nodeId });
+    out.set(n.nodeId, { ...st, updatingSince: since });
+  }
+  return out;
+}
+
 export async function readFleet(anchor: AnchorPick, known: KnownNode[] = [], tf: TransportFor = transportFor): Promise<Omit<FleetSnapshot, "anchor" | "at">> {
   const client = createClient(NodeService, tf({ addr: anchor.addr, fingerprint: anchor.nodeId }));
   const records = (await client.listRecords({})).records;
@@ -97,7 +121,7 @@ export async function readFleet(anchor: AnchorPick, known: KnownNode[] = [], tf:
     drives: decode<DriveRecord>(records, "drive", DriveRecordSchema),
     specs: decode<ServiceSpec>(records, "service", ServiceSpecSchema),
     policy: decode<UpdatePolicy>(records, "update_policy", UpdatePolicySchema)[0],
-    status: new Map(statuses.map((n) => [n.nodeId, n])),
+    status: withUpdating(statuses, nodes),
     records,
   };
 }
@@ -203,10 +227,13 @@ export interface FleetService {
 
 export type NodeWord = "Healthy" | "Unreachable" | "Provisioning" | "Updating" | "Attention";
 
-export function nodeWord(n: FleetNodeStatus | undefined, now: number): NodeWord {
+export function nodeWord(n: NodeStatus | undefined, now: number): NodeWord {
   // A Node still being installed is reported by the anchor from its
   // Installer until it first talks.
   if (n?.provisioning && !n.reachable) return "Provisioning";
+  // Its own record says it is updating (decision 214): so it is, even while
+  // it restarts and nobody can reach it.
+  if (n?.updatingSince && now - n.updatingSince < UPDATE_LIMIT_MS) return "Updating";
   if (!n || !n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) return "Unreachable";
   // UpdateStatus.State: 2 updating, 3 failed, 4 rebooting.
   if (n.updateState === 2 || n.updateState === 4) return "Updating";

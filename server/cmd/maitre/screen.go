@@ -152,6 +152,7 @@ func (demoSource) Metrics() *maitrev1.NodeMetrics {
 	cpu := 20 + 60*math.Abs(math.Sin(float64(time.Now().Unix())/7))
 	return &maitrev1.NodeMetrics{CpuPercent: cpu, MemoryTotalBytes: 16 << 30, MemoryUsedBytes: 5 << 30, PoolTotalBytes: 2 << 40, PoolUsedBytes: 700 << 30, NetRxBytesPerSec: 1.2e6, NetTxBytesPerSec: 3.4e5, TemperatureC: 48, Load_1M: 0.71}
 }
+
 // History makes up a day: busy evenings, a quiet night, a gap where the
 // Node was off.
 func (demoSource) History(names []string, from, to time.Time, _ int) ([]*maitrev1.MetricSeries, error) {
