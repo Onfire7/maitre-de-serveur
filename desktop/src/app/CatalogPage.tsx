@@ -240,9 +240,10 @@ function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; 
   if (entries.length === 0) return null;
   return (
     <div className="@container overflow-hidden rounded-xl border bg-card">
-      <div className="grid grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_1fr_8rem_6rem_7rem] items-center gap-3 border-b bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+      <div className="grid grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_4rem_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_4rem_1fr_8rem_6rem_7rem] items-center gap-3 border-b bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
         <span />
         <span>Name</span>
+        <span className="hidden text-right @xl:block" title="Stars of each app's project: the popularity the Catalog sorts by">Stars</span>
         <span className="hidden @xl:block">What it does</span>
         <span className="hidden @4xl:block">Category</span>
         <span>Version</span>
@@ -251,21 +252,17 @@ function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; 
       <ul className="divide-y">
         {entries.map((e) => (
           <li key={catalogKey(e)} className="[content-visibility:auto] [contain-intrinsic-size:auto_41px]">
-            <button onClick={() => onPick(e)} className="grid w-full grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_1fr_8rem_6rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent/50">
+            <button onClick={() => onPick(e)} className="grid w-full grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_4rem_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_4rem_1fr_8rem_6rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent/50">
               <ServiceIcon catalogId={catalogKey(e)} word="Online" size={24} />
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate font-medium">{e.name}</span>
-                {e.stars ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    <Stars n={e.stars} bare />
-                  </span>
-                ) : null}
                 {installed.has(catalogKey(e)) && (
                   <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px]">
                     installed
                   </Badge>
                 )}
               </span>
+              <span className="hidden text-right text-xs tabular-nums text-muted-foreground @xl:block">{e.stars ? <Stars n={e.stars} bare /> : "–"}</span>
               <span className="hidden truncate text-muted-foreground @xl:block" title={e.summary}>
                 {e.summary}
                 {e.unfinished?.length ? " · unfinished" : ""}
