@@ -27,6 +27,8 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/layout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet/parser"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -35,6 +37,11 @@ const KindService = "service"
 
 // Network is the Quadlet network unit every Service joins (image/maitre.network).
 const Network = "maitre.network"
+
+// maitreNetworkStub stands in for image/maitre.network when the Node checks a
+// unit with the Quadlet generator: the container references the network by
+// name, so the generator needs a unit of that name present to resolve it.
+const maitreNetworkStub = "[Network]\nNetworkName=maitre\nOptions=isolate=true\n"
 
 // Runner executes systemd and podman commands; swapped for a fake in tests.
 type Runner interface {
@@ -86,6 +93,10 @@ type Config struct {
 	// Service's own folders in such a Space live there (decision 208), on
 	// its Node's Drives, never a peer's over NFS. Nil: no Space spans.
 	LocalPool func(ctx context.Context, space string) (dir string, spans bool)
+	// ValidateUnits runs podman's Quadlet generator over each rendered unit
+	// before writing it (plan C6). The agent sets it true; tests leave it
+	// off so they do not depend on a generator being installed.
+	ValidateUnits bool
 }
 
 // DefaultSuffix is the domain Services are reachable under on the LAN:
@@ -149,23 +160,14 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if !nameRe.MatchString(name) {
 		return nil, fmt.Errorf("service name %q: use lowercase letters, digits and dashes", name)
 	}
-	if spec.GetImage() == "" {
-		return nil, errors.New("service spec has no image")
-	}
-	// Decision 189: values land in unit file lines.
-	if strings.ContainsAny(spec.GetImage(), "\n\r") {
-		return nil, errors.New("the image name has a line break")
-	}
+	// Decision 189: settings land in unit file lines.
 	for k, v := range spec.GetSettings() {
 		if strings.ContainsAny(k+v, "\n\r") {
 			return nil, fmt.Errorf("setting %s has a line break", k)
 		}
 	}
-	if strings.TrimSpace(spec.GetQuadlet()) == "" {
-		return nil, errors.New("service spec has no quadlet")
-	}
-	if _, err := template.New(name).Option("missingkey=error").Parse(spec.GetQuadlet()); err != nil {
-		return nil, fmt.Errorf("quadlet template: %w", err)
+	if err := validateContainers(spec); err != nil {
+		return nil, err
 	}
 	if _, err := m.store.Get(ctx, KindService, name, nil); err == nil {
 		return nil, ErrExists
@@ -219,7 +221,7 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if _, err := m.store.Put(ctx, KindService, name, spec, false); err != nil {
 		return nil, err
 	}
-	if _, err := m.run.Run(ctx, "systemctl", "start", "--no-block", name+".service"); err != nil {
+	if _, err := m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(spec)); err != nil {
 		return nil, fmt.Errorf("start: %w", err)
 	}
 	return m.Status(ctx, spec)
@@ -294,11 +296,7 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	if err != nil {
 		return err
 	}
-	body, err := renderBody(spec, vols)
-	if err != nil {
-		return err
-	}
-	if err := m.checkGrants(ctx, spec, body, managedDirs(vols, extra)); err != nil {
+	if err := m.checkGrants(ctx, spec, vols, managedDirs(vols, extra)); err != nil {
 		return err
 	}
 	share := func(space, dir string) error {
@@ -326,18 +324,60 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 			return err
 		}
 	}
-	unit, err := RenderWith(spec, vols, extra)
+	set, err := m.renderUnits(spec, vols, extra)
 	if err != nil {
 		return err
+	}
+	if m.cfg.ValidateUnits {
+		if err := validateUnits(ctx, spec.GetName(), set); err != nil && !errors.Is(err, quadlet.ErrNoGenerator) {
+			return err
+		}
 	}
 	if err := os.MkdirAll(m.cfg.UnitsDir, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(m.cfg.UnitsDir, spec.Name+".container"), unit, 0o644); err != nil {
-		return err
+	for name, body := range set {
+		if err := os.WriteFile(filepath.Join(m.cfg.UnitsDir, name), []byte(body), 0o644); err != nil {
+			return err
+		}
 	}
 	if _, err := m.run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload: %w", err)
+	}
+	return nil
+}
+
+// renderUnits is every unit file of a Service, by file name. A
+// single-container Service is one <name>.container as before; a
+// multi-container one is a unit per component plus its network and grouping
+// target (plan C1).
+func (m *Manager) renderUnits(spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra) (map[string]string, error) {
+	if isMulti(spec) {
+		return m.renderMulti(spec, vols, extra)
+	}
+	unit, err := RenderWith(spec, vols, extra)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{spec.GetName() + ".container": string(unit)}, nil
+}
+
+// validateUnits checks rendered units with podman's own Quadlet generator
+// before they are written, so a unit Podman would reject fails with
+// Podman's message instead of silently never starting (plan C6). It returns
+// quadlet.ErrNoGenerator where none is installed (dev and test hosts, not
+// the Node). The shared maitre.network is a real file on the Node; a stub
+// lets the generator resolve the reference during the check.
+func validateUnits(ctx context.Context, name string, set map[string]string) error {
+	check := map[string]string{Network: maitreNetworkStub}
+	for k, v := range set {
+		check[k] = v
+	}
+	if err := quadlet.DryRun(ctx, check); err != nil {
+		if errors.Is(err, quadlet.ErrNoGenerator) {
+			return err
+		}
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
 }
@@ -414,9 +454,15 @@ func managedDirs(vols map[string]string, extra Extra) []string {
 
 // uninstallUnit stops a Service and removes its unit, keeping its Record
 // and data, so it does not start again until it is fixed.
-func (m *Manager) uninstallUnit(ctx context.Context, name string) {
-	_, _ = m.run.Run(ctx, "systemctl", "stop", name+".service")
-	if err := os.Remove(filepath.Join(m.cfg.UnitsDir, name+".container")); err == nil {
+func (m *Manager) uninstallUnit(ctx context.Context, spec *maitrev1.ServiceSpec) {
+	_, _ = m.run.Run(ctx, "systemctl", "stop", lifecycleUnit(spec))
+	removed := false
+	for _, f := range unitFiles(spec) {
+		if err := os.Remove(filepath.Join(m.cfg.UnitsDir, f)); err == nil {
+			removed = true
+		}
+	}
+	if removed {
 		_, _ = m.run.Run(ctx, "systemctl", "daemon-reload")
 	}
 }
@@ -468,7 +514,7 @@ func (m *Manager) MoveVolume(ctx context.Context, name, volume, toSpace string) 
 		return "", err
 	}
 	wasRunning := st.GetState() == maitrev1.ServiceStatus_STATE_RUNNING || st.GetState() == maitrev1.ServiceStatus_STATE_STARTING
-	unit := spec.GetName() + ".service"
+	unit := lifecycleUnit(&spec)
 	if _, err := m.run.Run(ctx, "systemctl", "stop", unit); err != nil {
 		return "", fmt.Errorf("stop %s: %w", name, err)
 	}
@@ -545,15 +591,22 @@ type Mount struct {
 
 // renderBody executes a Service's Catalog template: its [Container] body.
 func renderBody(spec *maitrev1.ServiceSpec, volumes map[string]string) (string, error) {
-	tmpl, err := template.New(spec.GetName()).Option("missingkey=error").Parse(spec.GetQuadlet())
+	return renderTemplate(spec.GetName(), spec.GetQuadlet(), spec.GetImage(), spec.GetSettings(), volumes)
+}
+
+// renderTemplate executes a [Container] Go template with the data a Catalog
+// entry may use (catalog/FORMAT.md). Shared by single-container Services and
+// by each component of a multi-container one.
+func renderTemplate(name, quadletTmpl, image string, settings, volumes map[string]string) (string, error) {
+	tmpl, err := template.New(name).Option("missingkey=error").Parse(quadletTmpl)
 	if err != nil {
 		return "", fmt.Errorf("quadlet template: %w", err)
 	}
 	data := map[string]any{
-		"Image":    spec.GetImage(),
-		"Name":     spec.GetName(),
+		"Image":    image,
+		"Name":     name,
 		"Volumes":  volumes,
-		"Settings": spec.GetSettings(),
+		"Settings": settings,
 		"Network":  Network,
 		"Env":      map[string]string{},
 	}
@@ -577,6 +630,12 @@ func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Ext
 		}
 		rendered = shareVolumes(rendered, hosts)
 	}
+	// Read the rendered template the way Quadlet does, so decisions below
+	// (NoNewPrivileges, HostName) see continuations and quoting correctly.
+	parsed := parser.NewUnitFile()
+	if err := parsed.Parse(rendered); err != nil {
+		return nil, fmt.Errorf("quadlet unit: %w", err)
+	}
 	// Maître's own [Container] lines go with the template's [Container]
 	// lines; any other section the template has (granted, decision 189)
 	// follows them.
@@ -597,14 +656,14 @@ func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Ext
 	}
 	// Decision 189: no gaining privileges through setuid programs, unless
 	// the template says otherwise (a protected option).
-	if !hasKey(container, "NoNewPrivileges") {
+	if !parsed.HasKey("Container", "NoNewPrivileges") {
 		out.WriteString("NoNewPrivileges=true\n")
 	}
 	// The container's hostname is the Service's name, not Podman's random
 	// id, so apps that name themselves after it (Jellyfin's server name)
 	// keep one name across restarts. Not where the template names it or
 	// shares the host's or a pod's UTS namespace.
-	if !hasKey(container, "HostName") && !hasKey(container, "Pod") && !hasValue(container, "Network", "host") && !hasValue(container, "UTS", "host") {
+	if !parsed.HasKey("Container", "HostName") && !parsed.HasKey("Container", "Pod") && !lookupIs(parsed, "Network", "host") && !lookupIs(parsed, "UTS", "host") {
 		fmt.Fprintf(&out, "HostName=%s\n", spec.GetName())
 	}
 	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
@@ -651,24 +710,11 @@ func splitContainer(body string) (container, rest string) {
 	return strings.Join(c, "\n"), strings.TrimSpace(strings.Join(r, "\n"))
 }
 
-// hasKey reports whether a unit body sets key.
-func hasKey(body, key string) bool {
-	for _, l := range strings.Split(body, "\n") {
-		if k, _, ok := strings.Cut(strings.TrimSpace(l), "="); ok && strings.TrimSpace(k) == key {
-			return true
-		}
-	}
-	return false
-}
-
-// hasValue reports whether a unit body sets key to value.
-func hasValue(body, key, value string) bool {
-	for _, l := range strings.Split(body, "\n") {
-		if k, v, ok := strings.Cut(strings.TrimSpace(l), "="); ok && strings.TrimSpace(k) == key && strings.TrimSpace(v) == value {
-			return true
-		}
-	}
-	return false
+// lookupIs reports whether the [Container] group sets key to value, read as
+// Quadlet reads it (last instance wins, continuations and quoting handled).
+func lookupIs(unit *parser.UnitFile, key, value string) bool {
+	v, ok := unit.Lookup("Container", key)
+	return ok && strings.TrimSpace(v) == value
 }
 
 // shareVolumes turns the private SELinux label (:Z) of Volume= lines whose
@@ -721,7 +767,7 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 	if _, err := m.store.Get(ctx, KindService, req.GetName(), &spec); err != nil {
 		return nil, ErrNotFound
 	}
-	unit := spec.Name + ".service"
+	unit := lifecycleUnit(&spec)
 	switch req.GetAction() {
 	case maitrev1.ControlServiceRequest_ACTION_START:
 		_, err := m.run.Run(ctx, "systemctl", "start", "--no-block", unit)
@@ -749,10 +795,17 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 			return st, err
 		}
 	case maitrev1.ControlServiceRequest_ACTION_ROLLBACK:
-		if spec.GetPreviousImage() == "" {
+		rolled := false
+		for _, h := range imageHolders(&spec) {
+			if *h.prev == "" {
+				continue
+			}
+			*h.image, *h.prev = *h.prev, *h.image
+			rolled = true
+		}
+		if !rolled {
 			return nil, fmt.Errorf("%s has no previous image to go back to", spec.GetName())
 		}
-		spec.Image, spec.PreviousImage = spec.GetPreviousImage(), spec.GetImage()
 		if err := m.apply(ctx, &spec); err != nil {
 			return nil, err
 		}
@@ -764,8 +817,10 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		}
 	case maitrev1.ControlServiceRequest_ACTION_REMOVE:
 		_, _ = m.run.Run(ctx, "systemctl", "stop", unit)
-		if err := os.Remove(filepath.Join(m.cfg.UnitsDir, spec.Name+".container")); err != nil && !os.IsNotExist(err) {
-			return nil, err
+		for _, f := range unitFiles(&spec) {
+			if err := os.Remove(filepath.Join(m.cfg.UnitsDir, f)); err != nil && !os.IsNotExist(err) {
+				return nil, err
+			}
 		}
 		if _, err := m.run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
 			return nil, err
@@ -798,28 +853,38 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 // and restarted, with the old digest kept for Rollback. Returns whether
 // anything changed.
 func (m *Manager) Update(ctx context.Context, spec *maitrev1.ServiceSpec) (bool, error) {
-	tagRef, _, _ := strings.Cut(spec.GetImage(), "@")
-	if _, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef); err != nil {
-		return false, fmt.Errorf("pull %s: %w", tagRef, err)
+	changed := false
+	for _, h := range imageHolders(spec) {
+		tagRef, _, _ := strings.Cut(*h.image, "@")
+		if tagRef == "" {
+			continue
+		}
+		if _, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef); err != nil {
+			return false, fmt.Errorf("pull %s: %w", tagRef, err)
+		}
+		out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", tagRef)
+		if err != nil {
+			return false, err
+		}
+		digest := strings.TrimSpace(out)
+		newRef := tagRef + "@" + digest
+		if newRef == *h.image || digest == "" {
+			continue
+		}
+		*h.prev = *h.image
+		*h.image = newRef
+		changed = true
 	}
-	out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", tagRef)
-	if err != nil {
-		return false, err
-	}
-	digest := strings.TrimSpace(out)
-	newRef := tagRef + "@" + digest
-	if newRef == spec.GetImage() || digest == "" {
+	if !changed {
 		return false, nil
 	}
-	spec.PreviousImage = spec.GetImage()
-	spec.Image = newRef
 	if err := m.apply(ctx, spec); err != nil {
 		return false, err
 	}
 	if _, err := m.store.Put(ctx, KindService, spec.GetName(), spec, false); err != nil {
 		return false, err
 	}
-	if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", spec.GetName()+".service"); err != nil {
+	if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", lifecycleUnit(spec)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -909,7 +974,7 @@ func (m *Manager) SetFolders(ctx context.Context, req *maitrev1.SetFoldersReques
 		return nil, err
 	}
 	// try-restart: only if it was running (a stopped Service stays stopped).
-	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", spec.GetName()+".service"); err != nil {
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", lifecycleUnit(&spec)); err != nil {
 		return nil, err
 	}
 	return m.Status(ctx, &spec)
@@ -951,7 +1016,7 @@ func (m *Manager) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 	if _, err := m.store.Put(ctx, KindService, spec.GetName(), &spec, false); err != nil {
 		return nil, err
 	}
-	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", spec.GetName()+".service"); err != nil {
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", lifecycleUnit(&spec)); err != nil {
 		return nil, err
 	}
 	return m.Status(ctx, &spec)
@@ -962,7 +1027,7 @@ func (m *Manager) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 // the old image kept for Rollback, and the Service restarted if it was
 // running. Another repository needs its own grants (189); the render
 // refuses until a Trusted Device allows them, and nothing changes.
-func (m *Manager) SetImage(ctx context.Context, name, image string) (*maitrev1.ServiceStatus, error) {
+func (m *Manager) SetImage(ctx context.Context, name, image, component string) (*maitrev1.ServiceStatus, error) {
 	image = strings.TrimSpace(image)
 	if !imageRef.MatchString(image) {
 		return nil, fmt.Errorf("%q is not an image reference such as docker.io/library/nginx:1.27", image)
@@ -973,6 +1038,33 @@ func (m *Manager) SetImage(ctx context.Context, name, image string) (*maitrev1.S
 	}
 	if spec.GetNodeId() != "" && spec.GetNodeId() != m.store.NodeID() {
 		return nil, fmt.Errorf("%s runs on another Node; ask that one", name)
+	}
+	// Which container(s) the new image applies to: the one named, or in a
+	// multi-container Service every component already on the same repository.
+	var targets []imageHolder
+	holders := imageHolders(&spec)
+	switch {
+	case component != "":
+		for _, h := range holders {
+			if h.name == component {
+				targets = append(targets, h)
+			}
+		}
+		if len(targets) == 0 {
+			return nil, fmt.Errorf("%s has no component %q", name, component)
+		}
+	case isMulti(&spec):
+		repo := ImageRepository(image)
+		for _, h := range holders {
+			if ImageRepository(*h.image) == repo {
+				targets = append(targets, h)
+			}
+		}
+		if len(targets) == 0 {
+			return nil, fmt.Errorf("%s has no component running %s; name one with component", name, repo)
+		}
+	default:
+		targets = holders
 	}
 	pinned := image
 	if !strings.Contains(image, "@") {
@@ -991,18 +1083,25 @@ func (m *Manager) SetImage(ctx context.Context, name, image string) (*maitrev1.S
 	} else if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
 		return nil, fmt.Errorf("pull %s: %w", image, err)
 	}
-	if pinned == spec.GetImage() {
+	changed := false
+	for _, h := range targets {
+		if *h.image == pinned {
+			continue
+		}
+		*h.prev = *h.image
+		*h.image = pinned
+		changed = true
+	}
+	if !changed {
 		return m.Status(ctx, &spec)
 	}
-	spec.PreviousImage = spec.GetImage()
-	spec.Image = pinned
 	if err := m.apply(ctx, &spec); err != nil {
 		return nil, err
 	}
 	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
 		return nil, err
 	}
-	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", name+".service"); err != nil {
+	if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", lifecycleUnit(&spec)); err != nil {
 		return nil, err
 	}
 	return m.Status(ctx, &spec)
@@ -1100,12 +1199,6 @@ func (m *Manager) SetPortForwarding(ctx context.Context, name string, enabled bo
 }
 
 func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*maitrev1.ServiceStatus, error) {
-	out, err := m.run.Run(ctx, "systemctl", "show", spec.GetName()+".service",
-		"-p", "ActiveState", "-p", "SubState", "-p", "NRestarts", "-p", "Result", "-p", "ExecMainStartTimestamp")
-	if err != nil {
-		return nil, fmt.Errorf("systemctl show: %w", err)
-	}
-	props := parseProps(out)
 	st := &maitrev1.ServiceStatus{Spec: spec}
 	if m.cfg.Forward != nil {
 		if spec.GetForwardPorts() {
@@ -1114,24 +1207,16 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 			st.ForwardState = m.cfg.Forward(direct.ForwardOwner)
 		}
 	}
-	switch props["ActiveState"] {
-	case "active":
-		st.State = maitrev1.ServiceStatus_STATE_RUNNING
-	case "activating", "reloading":
-		st.State = maitrev1.ServiceStatus_STATE_STARTING
-	case "failed":
-		st.State = maitrev1.ServiceStatus_STATE_FAILED
-		st.Message = "failed (" + props["Result"] + ")"
-	case "deactivating":
-		st.State = maitrev1.ServiceStatus_STATE_REMOVING
-	default:
-		st.State = maitrev1.ServiceStatus_STATE_STOPPED
-	}
-	if n, err := strconv.Atoi(props["NRestarts"]); err == nil {
-		st.Restarts = uint32(n)
-	}
-	if t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", props["ExecMainStartTimestamp"]); err == nil {
-		st.StartedUnixMs = t.UnixMilli()
+	if isMulti(spec) {
+		if err := m.multiStatus(ctx, spec, st); err != nil {
+			return nil, err
+		}
+	} else {
+		state, restarts, started, msg, err := m.showUnit(ctx, spec.GetName()+".service")
+		if err != nil {
+			return nil, fmt.Errorf("systemctl show: %w", err)
+		}
+		st.State, st.Restarts, st.StartedUnixMs, st.Message = state, restarts, started, msg
 	}
 	if m.cfg.Remote != nil && spec.GetWebPort() != 0 {
 		if u, state := m.cfg.Remote(spec.GetName()); u != "" || state != "" {
@@ -1148,6 +1233,83 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 		}
 	}
 	return st, nil
+}
+
+// showUnit reads one systemd unit's state, restart count, start time and, on
+// failure, a reason.
+func (m *Manager) showUnit(ctx context.Context, unit string) (state maitrev1.ServiceStatus_State, restarts uint32, startedUnixMs int64, message string, err error) {
+	out, err := m.run.Run(ctx, "systemctl", "show", unit,
+		"-p", "ActiveState", "-p", "SubState", "-p", "NRestarts", "-p", "Result", "-p", "ExecMainStartTimestamp")
+	if err != nil {
+		return 0, 0, 0, "", err
+	}
+	props := parseProps(out)
+	switch props["ActiveState"] {
+	case "active":
+		state = maitrev1.ServiceStatus_STATE_RUNNING
+	case "activating", "reloading":
+		state = maitrev1.ServiceStatus_STATE_STARTING
+	case "failed":
+		state = maitrev1.ServiceStatus_STATE_FAILED
+		message = "failed (" + props["Result"] + ")"
+	case "deactivating":
+		state = maitrev1.ServiceStatus_STATE_REMOVING
+	default:
+		state = maitrev1.ServiceStatus_STATE_STOPPED
+	}
+	if n, e := strconv.Atoi(props["NRestarts"]); e == nil {
+		restarts = uint32(n)
+	}
+	if t, e := time.Parse("Mon 2006-01-02 15:04:05 MST", props["ExecMainStartTimestamp"]); e == nil {
+		startedUnixMs = t.UnixMilli()
+	}
+	return state, restarts, startedUnixMs, message, nil
+}
+
+// multiStatus fills a multi-container Service's per-component statuses and
+// rolls them up into the Service-wide state (plan C1). Failed wins and names
+// the component; otherwise starting, then running only when every component
+// runs. Restarts sum; the Service's start is its latest component's.
+func (m *Manager) multiStatus(ctx context.Context, spec *maitrev1.ServiceSpec, st *maitrev1.ServiceStatus) error {
+	anyFailed, anyStarting, allRunning := false, false, true
+	for _, c := range components(spec) {
+		state, restarts, started, msg, err := m.showUnit(ctx, unitBase(spec.GetName(), c)+".service")
+		if err != nil {
+			return fmt.Errorf("systemctl show %s: %w", c.Name, err)
+		}
+		st.Components = append(st.Components, &maitrev1.ComponentStatus{
+			Name: c.Name, State: state, Restarts: restarts, Message: msg,
+			Healthy: state == maitrev1.ServiceStatus_STATE_RUNNING,
+		})
+		st.Restarts += restarts
+		if started > st.StartedUnixMs {
+			st.StartedUnixMs = started
+		}
+		switch state {
+		case maitrev1.ServiceStatus_STATE_FAILED:
+			anyFailed = true
+			if st.Message == "" {
+				st.Message = c.Name + " " + msg
+			}
+		case maitrev1.ServiceStatus_STATE_STARTING:
+			anyStarting = true
+			allRunning = false
+		case maitrev1.ServiceStatus_STATE_RUNNING:
+		default:
+			allRunning = false
+		}
+	}
+	switch {
+	case anyFailed:
+		st.State = maitrev1.ServiceStatus_STATE_FAILED
+	case anyStarting:
+		st.State = maitrev1.ServiceStatus_STATE_STARTING
+	case allRunning:
+		st.State = maitrev1.ServiceStatus_STATE_RUNNING
+	default:
+		st.State = maitrev1.ServiceStatus_STATE_STOPPED
+	}
+	return nil
 }
 
 func (m *Manager) probe(ctx context.Context, hostPort uint32, spec *maitrev1.ServiceSpec) bool {
@@ -1169,15 +1331,26 @@ func (m *Manager) probe(ctx context.Context, hostPort uint32, spec *maitrev1.Ser
 	return res.StatusCode < 500
 }
 
-// Logs returns the last n journal lines for a Service.
-func (m *Manager) Logs(ctx context.Context, name string, n uint32) ([]string, error) {
-	if _, err := m.store.Get(ctx, KindService, name, nil); err != nil {
+// Logs returns the last n journal lines for a Service. For a multi-container
+// Service, component selects one container's journal; empty interleaves them
+// all (journalctl merges multiple -u by time).
+func (m *Manager) Logs(ctx context.Context, name, component string, n uint32) ([]string, error) {
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
 		return nil, ErrNotFound
 	}
 	if n == 0 {
 		n = 200
 	}
-	out, err := m.run.Run(ctx, "journalctl", "-u", name+".service", "-n", strconv.Itoa(int(n)), "--no-pager", "-o", "short-iso")
+	args := []string{"-n", strconv.Itoa(int(n)), "--no-pager", "-o", "short-iso"}
+	units, err := LogUnits(&spec, component)
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range units {
+		args = append(args, "-u", u)
+	}
+	out, err := m.run.Run(ctx, "journalctl", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1186,6 +1359,23 @@ func (m *Manager) Logs(ctx context.Context, name string, n uint32) ([]string, er
 		return nil, nil
 	}
 	return lines, nil
+}
+
+// LogUnits is the journal unit(s) for a Logs request: the one Service unit,
+// one named component, or every component.
+func LogUnits(spec *maitrev1.ServiceSpec, component string) ([]string, error) {
+	if !isMulti(spec) {
+		return []string{spec.GetName() + ".service"}, nil
+	}
+	if component != "" {
+		for _, c := range spec.GetComponents() {
+			if c.GetName() == component {
+				return []string{spec.GetName() + "-" + component + ".service"}, nil
+			}
+		}
+		return nil, fmt.Errorf("%s has no component %q", spec.GetName(), component)
+	}
+	return componentServiceUnits(spec), nil
 }
 
 // WebHostPort returns the loopback port Caddy should proxy to for a Service.

@@ -2307,7 +2307,11 @@ type NodeInfo struct {
 	Tailscale *TailscaleStatus `protobuf:"bytes,8,opt,name=tailscale,proto3" json:"tailscale,omitempty"`
 	// The address the internet sees this Node from (decision 112), looked up
 	// through a public IP service; empty when unknown or offline.
-	PublicIp      string `protobuf:"bytes,9,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	PublicIp string `protobuf:"bytes,9,opt,name=public_ip,json=publicIp,proto3" json:"public_ip,omitempty"`
+	// Capabilities this Node's agent supports, so the Console can offer only
+	// what will work and otherwise say the Node needs updating (plan C5).
+	// "components" means multi-container Services (plan C1).
+	Features      []string `protobuf:"bytes,11,rep,name=features,proto3" json:"features,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2410,6 +2414,13 @@ func (x *NodeInfo) GetPublicIp() string {
 		return x.PublicIp
 	}
 	return ""
+}
+
+func (x *NodeInfo) GetFeatures() []string {
+	if x != nil {
+		return x.Features
+	}
+	return nil
 }
 
 type GetNodeLogsRequest struct {
@@ -2732,7 +2743,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06queued\x18\x02 \x01(\bR\x06queued\"\x14\n" +
 	"\x12GetNodeInfoRequest\">\n" +
 	"\x13GetNodeInfoResponse\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xd5\x02\n" +
+	"\x04node\x18\x01 \x01(\v2\x13.maitre.v1.NodeInfoR\x04node\"\xf1\x02\n" +
 	"\bNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -2744,7 +2755,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\fport_mapping\x18\n" +
 	" \x01(\tR\vportMapping\x128\n" +
 	"\ttailscale\x18\b \x01(\v2\x1a.maitre.v1.TailscaleStatusR\ttailscale\x12\x1b\n" +
-	"\tpublic_ip\x18\t \x01(\tR\bpublicIp\"B\n" +
+	"\tpublic_ip\x18\t \x01(\tR\bpublicIp\x12\x1a\n" +
+	"\bfeatures\x18\v \x03(\tR\bfeatures\"B\n" +
 	"\x12GetNodeLogsRequest\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x14\n" +
 	"\x05lines\x18\x02 \x01(\rR\x05lines\"1\n" +

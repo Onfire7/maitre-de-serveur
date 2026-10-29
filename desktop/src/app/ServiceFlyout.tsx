@@ -6,6 +6,7 @@ import { Copy, ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, Scrol
 import { cn } from "@/lib/utils";
 import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
+import { canRollBack } from "@/fleet/components";
 import { catalogById, StatusWord } from "./status";
 
 export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "ports" | "storage" | "grants" | "move" | "remove";
@@ -107,7 +108,7 @@ export function flyoutItems(service: FleetService): FlyoutEntry[] {
     running ? { id: "stop", label: "Stop", icon: <Square />, disabled: service.nodeUnreachable } : { id: "start", label: "Start", icon: <Play />, disabled: service.nodeUnreachable },
     { id: "restart", label: "Restart", icon: <RotateCw />, disabled: service.nodeUnreachable },
     { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
-    ...(service.spec.previousImage ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
+    ...(canRollBack(service.spec) ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
     { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
     { id: "access", label: "Access…", icon: <Globe /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),

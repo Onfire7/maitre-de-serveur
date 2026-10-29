@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet/parser"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -49,27 +50,28 @@ var safeKeys = map[string]bool{
 // managed are the host folders Maître itself mounts for the Service (its
 // volumes and the folders picked for it); other host paths are protected.
 func Protected(body string, managed []string) []string {
+	unit := parser.NewUnitFile()
+	if err := unit.Parse(body); err != nil {
+		// A body Quadlet cannot parse is wholly protected: the Node does
+		// not get to run a Service it cannot read. apply also runs the
+		// Quadlet dry run, which reports the parse error itself.
+		return []string{"(unit could not be parsed)"}
+	}
 	seen := map[string]bool{}
-	section := "Container"
-	for _, raw := range strings.Split(body, "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+	for _, group := range unit.ListGroups() {
+		if group == "Container" {
+			for _, o := range protectedContainer(unit, managed) {
+				seen[o] = true
+			}
 			continue
 		}
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			section = strings.Trim(line, "[]")
-			continue
-		}
-		if section != "Container" {
-			// Anything in [Service], [Unit] and the like runs on the Node
-			// itself, such as ExecStartPre= as root.
-			seen["["+section+"] "+line] = true
-			continue
-		}
-		key, value, _ := strings.Cut(line, "=")
-		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
-		for _, o := range protectedLine(key, value, managed) {
-			seen[o] = true
+		// Anything in [Service], [Unit] and the like runs on the Node
+		// itself, such as ExecStartPre= as root. Read each key's values the
+		// way Quadlet does (continuations applied, quoting handled).
+		for _, key := range unit.ListKeys(group) {
+			for _, v := range unit.LookupAll(group, key) {
+				seen["["+group+"] "+key+"="+strings.TrimSpace(v)] = true
+			}
 		}
 	}
 	out := make([]string, 0, len(seen))
@@ -80,63 +82,88 @@ func Protected(body string, managed []string) []string {
 	return out
 }
 
-func protectedLine(key, value string, managed []string) []string {
-	switch key {
-	case "AddCapability", "AddDevice", "Sysctl", "Mask", "Unmask":
-		// One grant per capability, device or setting.
-		var out []string
-		for _, f := range strings.Fields(value) {
-			out = append(out, key+"="+f)
-		}
-		return out
-	case "Network":
-		switch {
-		case value == "host", strings.HasPrefix(value, "container:"), strings.HasPrefix(value, "ns:"):
-			return []string{"Network=" + value}
-		}
-		return nil
-	case "UserNS":
-		if value == "host" {
-			return []string{"UserNS=host"}
-		}
-		return nil
-	case "NoNewPrivileges":
-		if value == "false" || value == "no" || value == "0" {
-			return []string{"NoNewPrivileges=false"}
-		}
-		return nil
-	case "Volume":
-		src, _, _ := strings.Cut(value, ":")
-		if hostPath(src) && !under(src, managed) {
-			return []string{"Volume=" + filepath.Clean(src)}
-		}
-		return nil
-	case "Mount":
-		typ, src := "volume", ""
-		for _, kv := range strings.Split(value, ",") {
-			k, v, _ := strings.Cut(kv, "=")
-			switch strings.TrimSpace(k) {
-			case "type":
-				typ = strings.TrimSpace(v)
-			case "source", "src":
-				src = strings.TrimSpace(v)
+// protectedContainer classifies the [Container] group's keys, reading each
+// the way Quadlet's own converter reads it.
+func protectedContainer(unit *parser.UnitFile, managed []string) []string {
+	const g = "Container"
+	var out []string
+	for _, key := range unit.ListKeys(g) {
+		switch key {
+		case "AddCapability", "AddDevice", "Sysctl", "Mask", "Unmask":
+			// Space-separated, quote-aware, like Quadlet; one grant each.
+			for _, f := range unit.LookupAllStrv(g, key) {
+				out = append(out, key+"="+f)
+			}
+		case "Network":
+			for _, v := range unit.LookupAll(g, key) {
+				v = strings.TrimSpace(v)
+				if v == "host" || strings.HasPrefix(v, "container:") || strings.HasPrefix(v, "ns:") {
+					out = append(out, "Network="+v)
+				}
+			}
+		case "UserNS":
+			for _, v := range unit.LookupAll(g, key) {
+				if strings.TrimSpace(v) == "host" {
+					out = append(out, "UserNS=host")
+				}
+			}
+		case "NoNewPrivileges":
+			if v, ok := unit.Lookup(g, key); ok {
+				switch strings.TrimSpace(v) {
+				case "false", "no", "0", "off":
+					out = append(out, "NoNewPrivileges=false")
+				}
+			}
+		case "Volume":
+			for _, v := range unit.LookupAll(g, key) {
+				src, _, _ := strings.Cut(strings.TrimSpace(v), ":")
+				if hostPath(src) && !under(src, managed) {
+					out = append(out, "Volume="+filepath.Clean(src))
+				}
+			}
+		case "Mount":
+			// Each arg (whitespace-split, quote-aware) is one mount spec, a
+			// comma-separated list, exactly as Quadlet reads KeyMount.
+			for _, m := range unit.LookupAllArgs(g, key) {
+				if o := protectedMount(m, managed); o != "" {
+					out = append(out, o)
+				}
+			}
+		default:
+			if safeKeys[key] {
+				continue
+			}
+			for _, v := range unit.LookupAll(g, key) {
+				out = append(out, key+"="+strings.TrimSpace(v))
 			}
 		}
-		switch typ {
-		case "volume", "tmpfs", "image":
-			return nil
-		case "bind":
-			if hostPath(src) && under(src, managed) {
-				return nil
-			}
-			return []string{"Volume=" + filepath.Clean(src)}
+	}
+	return out
+}
+
+// protectedMount classifies one --mount spec. Bind mounts of a folder
+// Maître did not place, and any type it does not vet, are protected.
+func protectedMount(spec string, managed []string) string {
+	typ, src := "volume", ""
+	for _, kv := range strings.Split(spec, ",") {
+		k, v, _ := strings.Cut(kv, "=")
+		switch strings.TrimSpace(k) {
+		case "type":
+			typ = strings.TrimSpace(v)
+		case "source", "src":
+			src = strings.TrimSpace(v)
 		}
-		return []string{"Mount=" + value}
 	}
-	if safeKeys[key] {
-		return nil
+	switch typ {
+	case "volume", "tmpfs", "image":
+		return ""
+	case "bind":
+		if hostPath(src) && under(src, managed) {
+			return ""
+		}
+		return "Volume=" + filepath.Clean(src)
 	}
-	return []string{key + "=" + value}
+	return "Mount=" + spec
 }
 
 // hostPath reports whether a Volume source is a folder of the Node rather
@@ -168,9 +195,15 @@ func ImageRepository(image string) string {
 	return repo
 }
 
-// GrantID is the record id of the grant of option to service on nodeID.
-func GrantID(nodeID, service, option string) string {
-	sum := sha256.Sum256([]byte(option))
+// GrantID is the record id of the grant of option to a service's component
+// on nodeID. For a single-container Service (component "") it is exactly what
+// it was before components, so grants made then still match.
+func GrantID(nodeID, service, component, option string) string {
+	key := option
+	if component != "" {
+		key = component + "\x00" + option
+	}
+	sum := sha256.Sum256([]byte(key))
 	if len(nodeID) > 16 {
 		nodeID = nodeID[:16]
 	}
@@ -184,40 +217,84 @@ func (e *GrantsError) Error() string {
 	return fmt.Sprintf("%s needs a Trusted Device to allow: %s", e.Needed.GetService(), strings.Join(e.Needed.GetOptions(), ", "))
 }
 
-// checkGrants returns a GrantsError when a protected option in body has no
-// live grant for this Service, this Node and this image's repository,
-// signed by a Trusted Device.
-func (m *Manager) checkGrants(ctx context.Context, spec *maitrev1.ServiceSpec, body string, managed []string) error {
-	need := Protected(body, managed)
-	if len(need) == 0 {
+// ProtectedOption is one protected option of a Service, with the component
+// it is in ("" for a single-container Service) and that component's image
+// repository, which a grant names.
+type ProtectedOption struct {
+	Component       string `json:"component,omitempty"`
+	ImageRepository string `json:"image_repository"`
+	Option          string `json:"option"`
+}
+
+// protectedOptions lists the protected options of every component of a
+// Service, rendered with its volumes in place.
+func protectedOptions(spec *maitrev1.ServiceSpec, vols map[string]string, managed []string) ([]ProtectedOption, error) {
+	var out []ProtectedOption
+	for _, c := range components(spec) {
+		body, err := renderComponentBody(spec, c, vols)
+		if err != nil {
+			return nil, err
+		}
+		repo := ImageRepository(c.Image)
+		for _, o := range Protected(body, managed) {
+			out = append(out, ProtectedOption{Component: c.Name, ImageRepository: repo, Option: o})
+		}
+	}
+	return out, nil
+}
+
+// checkGrants returns a GrantsError when a protected option in any of the
+// Service's components has no live grant for this Service, Node, component
+// and image repository, signed by a Trusted Device. A single-container
+// Service is one component with an empty name, so its grants are unchanged.
+func (m *Manager) checkGrants(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, managed []string) error {
+	self := m.store.NodeID()
+	type need struct{ component, repo, option, id string }
+	var needs []need
+	opts, err := protectedOptions(spec, vols, managed)
+	if err != nil {
+		return err
+	}
+	for _, o := range opts {
+		needs = append(needs, need{o.Component, o.ImageRepository, o.Option, GrantID(self, spec.GetName(), o.Component, o.Option)})
+	}
+	if len(needs) == 0 {
 		return nil
 	}
-	self := m.store.NodeID()
-	repo := ImageRepository(spec.GetImage())
-	granted := map[string]bool{}
 	recs, err := m.store.List(ctx, KindGrant)
 	if err != nil {
 		return err
 	}
+	granted := map[string]bool{}
+	key := func(component, repo, option string) string { return component + "\x00" + repo + "\x00" + option }
 	for _, r := range recs {
 		var g maitrev1.Grant
 		if r.GetDeleted() || proto.Unmarshal(r.GetBody(), &g) != nil {
 			continue
 		}
-		if g.GetNodeId() != self || g.GetService() != spec.GetName() || g.GetImageRepository() != repo || r.GetId() != GrantID(self, g.GetService(), g.GetOption()) {
+		if g.GetNodeId() != self || g.GetService() != spec.GetName() || r.GetId() != GrantID(self, g.GetService(), g.GetComponent(), g.GetOption()) {
 			continue
 		}
 		if m.cfg.DeviceSigned != nil && !m.cfg.DeviceSigned(ctx, r) {
 			continue
 		}
-		granted[g.GetOption()] = true
+		granted[key(g.GetComponent(), g.GetImageRepository(), g.GetOption())] = true
 	}
-	missing := &maitrev1.GrantsNeeded{NodeId: self, Service: spec.GetName(), ImageRepository: repo}
-	for _, o := range need {
-		if !granted[o] {
-			missing.Options = append(missing.Options, o)
-			missing.GrantIds = append(missing.GrantIds, GrantID(self, spec.GetName(), o))
+	missing := &maitrev1.GrantsNeeded{NodeId: self, Service: spec.GetName()}
+	for _, n := range needs {
+		if granted[key(n.component, n.repo, n.option)] {
+			continue
 		}
+		missing.Options = append(missing.Options, n.option)
+		missing.GrantIds = append(missing.GrantIds, n.id)
+		if isMulti(spec) {
+			missing.Components = append(missing.Components, n.component)
+			missing.ImageRepositories = append(missing.ImageRepositories, n.repo)
+		}
+	}
+	if !isMulti(spec) {
+		// Single-container shape, unchanged for the current Console.
+		missing.ImageRepository = ImageRepository(spec.GetImage())
 	}
 	if len(missing.Options) == 0 {
 		return nil
@@ -242,13 +319,9 @@ func (m *Manager) EnforceGrants(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		body, err := renderBody(spec, vols)
-		if err != nil {
-			continue
-		}
-		if err := m.checkGrants(ctx, spec, body, managedDirs(vols, extra)); err != nil {
+		if err := m.checkGrants(ctx, spec, vols, managedDirs(vols, extra)); err != nil {
 			m.logf("stopping %s: %v", spec.GetName(), err)
-			m.uninstallUnit(ctx, spec.GetName())
+			m.uninstallUnit(ctx, spec)
 		}
 	}
 }

@@ -178,6 +178,9 @@ message Grant {
   int64 granted_unix_ms = 5;
   // The device that granted it, for the Console's list.
   string device_name = 6;
+  // The component this option belongs to in a multi-container Service (plan
+  // C4); empty for a single-container Service, so existing grants still match.
+  string component = 7;
 }
 
 // GrantsNeeded is the detail of a FailedPrecondition error from a Service
@@ -186,8 +189,15 @@ message Grant {
 message GrantsNeeded {
   string node_id = 1;
   string service = 2;
+  // The image repository for a single-container Service. For a
+  // multi-container one it is empty; image_repositories gives one per option.
   string image_repository = 3;
   repeated string options = 4;
   // The grant record id for each option, in the same order.
   repeated string grant_ids = 5;
+  // For a multi-container Service, the component and image repository each
+  // option belongs to, parallel to options (plan C4). Empty for a
+  // single-container Service, where image_repository covers the one container.
+  repeated string components = 6;
+  repeated string image_repositories = 7;
 }

@@ -21,7 +21,7 @@ import { TrustedDeviceSchema } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
-import { controlService, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
+import { controlService, needComponents, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
 import { declined } from "@/fleet/grants";
 import { useIntroduce } from "@/fleet/introduce";
@@ -176,6 +176,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   async function install(_entry: CatalogEntry, spec: ServiceSpec, nodeId: string) {
     const t = targetFor(snap, state.nodes, nodeId);
     if (!t) throw new Error("that Node has no address");
+    await needComponents(t, spec, snap?.nodes.find((n) => n.nodeId === nodeId)?.name);
     await serviceClient(t).installService({ spec });
     toast.success(`${spec.name} is installing`);
     await fleet.refresh();

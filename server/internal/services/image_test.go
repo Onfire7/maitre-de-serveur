@@ -37,12 +37,12 @@ func TestSetImage(t *testing.T) {
 	st.Get(ctx, services.KindService, "uptime-kuma", &before)
 
 	for _, bad := range []string{"", "Nginx", "docker.io/louislam/uptime-kuma:2\nExecStartPre=/bin/sh", "docker.io/louislam/uptime-kuma:2 --privileged", "uptime-kuma"} {
-		if _, err := m.SetImage(ctx, "uptime-kuma", bad); err == nil {
+		if _, err := m.SetImage(ctx, "uptime-kuma", bad, ""); err == nil {
 			t.Fatalf("accepted %q", bad)
 		}
 	}
 	run.cmds = nil
-	if _, err := m.SetImage(ctx, "uptime-kuma", "docker.io/louislam/uptime-kuma:2"); err != nil {
+	if _, err := m.SetImage(ctx, "uptime-kuma", "docker.io/louislam/uptime-kuma:2", ""); err != nil {
 		t.Fatal(err)
 	}
 	want := "docker.io/louislam/uptime-kuma:2@sha256:" + strings.Repeat("c", 64)
@@ -60,7 +60,7 @@ func TestSetImage(t *testing.T) {
 		t.Fatalf("commands: %v", run.cmds)
 	}
 	// The same image again changes nothing.
-	if _, err := m.SetImage(ctx, "uptime-kuma", want); err != nil {
+	if _, err := m.SetImage(ctx, "uptime-kuma", want, ""); err != nil {
 		t.Fatal(err)
 	}
 	st.Get(ctx, services.KindService, "uptime-kuma", &after)

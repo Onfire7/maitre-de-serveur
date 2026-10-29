@@ -50,6 +50,9 @@ message SetImageRequest {
   // An image reference such as docker.io/jellyfin/jellyfin:10.11, with or
   // without a digest. Without one, the tag's current digest is pinned.
   string image = 2;
+  // Which component to change in a multi-container Service; empty means the
+  // single container, or every component that runs this image.
+  string component = 3;
 }
 
 message SetImageResponse {
@@ -101,6 +104,39 @@ message GetCatalogResponse {
   // Where it came from and when, for the Console to show.
   string source = 2;
   int64 fetched_unix_ms = 3;
+}
+
+// ServiceComponent is one container of a multi-container Service (plan C1).
+// Its quadlet is a [Container] template exactly like ServiceSpec.quadlet; the
+// Node fills .Image, .Name, .Volumes, .Settings, .Network and .Env. Volumes
+// are the Service's (project-level); a component mounts the ones it names.
+message ServiceComponent {
+  // [a-z0-9-], unique within the Service. The container and unit are named
+  // <service>-<name>; the component resolves on the Service network as <name>.
+  string name = 1;
+  // Image deployed, pinned by digest. Auto-update advances it per component.
+  string image = 2;
+  // The image before the last update, pinned by digest, for Rollback.
+  string previous_image = 3;
+  // The [Container] body as a Go text/template (catalog/FORMAT.md).
+  string quadlet = 4;
+  // Components that must start first (compose depends_on). Names in this
+  // Service; the Node writes After= and Requires=.
+  repeated string after = 5;
+  // Dependants wait for this component's health check, not just its start
+  // (compose service_healthy). The Node writes Notify=healthy.
+  bool wait_healthy = 6;
+  // Reaches the internet even when the Service network is internal (plan C2):
+  // the Node puts it on a second network with a route out.
+  bool egress = 7;
+}
+
+// ServiceUnit is an extra Quadlet unit a bundle ships beside its containers,
+// such as a .volume or .network (plan C8). name is the file name without the
+// <service>- prefix the Node adds, e.g. "cache.volume".
+message ServiceUnit {
+  string name = 1;
+  string body = 2;
 }
 
 // ServiceVolume is a named data directory of a Service.
@@ -169,6 +205,22 @@ message ServiceSpec {
   // HTTP path probed for health; empty means the web path.
   string health_http = 15;
   repeated ServiceVolume volumes = 16;
+  // A multi-container Service's components (plan C1). Empty for a
+  // single-container Service, where image, previous_image and quadlet above
+  // describe the one container and the Node writes <name>.container as
+  // before. With components set, the Node writes one <name>-<component>.container
+  // per entry, a <name>.target that groups them, and a <name>.network they
+  // share; image/previous_image/quadlet at this level are then unused.
+  repeated ServiceComponent components = 24;
+  // Which component serves the web page (web_port, web_path, health_http,
+  // exposure). Empty for a single-container Service.
+  string web_component = 25;
+  // Extra .volume and .network units the bundle ships (plan C8); rare, since
+  // volumes are folders in Spaces and the Node supplies the network.
+  repeated ServiceUnit units = 26;
+  // The Service's own network has no route out (plan C2, Q1). A component
+  // marked egress still reaches the internet through a second network.
+  bool network_internal = 27;
   // Ports the app owns on the Node itself, "25565/tcp" style (from the
   // Catalog entry's host_ports).
   repeated string host_ports = 20;
@@ -211,6 +263,18 @@ message ServiceStatus {
   // Decision 115: the router port forwarding this Service depends on
   // (its own host_ports, or 80/443 for a "direct" Service); empty when none.
   string forward_state = 10;
+  // Per-component status for a multi-container Service (plan C1); empty for a
+  // single-container one. The fields above are the Service-wide rollup.
+  repeated ComponentStatus components = 11;
+}
+
+// ComponentStatus is one container's state within a multi-container Service.
+message ComponentStatus {
+  string name = 1;
+  ServiceStatus.State state = 2;
+  bool healthy = 3;
+  uint32 restarts = 4;
+  string message = 5;
 }
 
 // Decision 114: Fleet-wide settings for Services published at the user's
@@ -287,6 +351,8 @@ message GetServiceLogsRequest {
   string name = 1;
   // Default 200.
   uint32 lines = 2;
+  // One component of a multi-container Service; empty interleaves them all.
+  string component = 3;
 }
 
 message GetServiceLogsResponse {

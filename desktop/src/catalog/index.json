@@ -37,6 +37,91 @@
       "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nVolume={{ .Volumes.work }}:/opt/adguardhome/work:Z\nVolume={{ .Volumes.conf }}:/opt/adguardhome/conf:Z\nNetwork={{ .Network }}\nPublishPort=53:53/tcp\nPublishPort=53:53/udp\n"
     },
     {
+      "id": "immich",
+      "name": "Immich",
+      "summary": "Back up and browse your photos and videos, with search by faces and things.",
+      "description": "Immich keeps your photos and videos on your own Nodes. The phone apps back\nthem up as you take them; the web page browses them by date, place, people\nand what is in them, found by its own machine learning.\n",
+      "icon": "https://raw.githubusercontent.com/immich-app/immich/main/design/immich-logo.svg",
+      "category": "media",
+      "image": "",
+      "version": "3.3.5",
+      "exposure": "remote",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 2283,
+        "path": "/",
+        "component": "server"
+      },
+      "volumes": [
+        {
+          "name": "library",
+          "path": "/data",
+          "size": "large"
+        },
+        {
+          "name": "database",
+          "path": "/var/lib/postgresql/data",
+          "size": "medium"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        },
+        {
+          "key": "DB_PASSWORD",
+          "label": "Database password",
+          "type": "password",
+          "default": "generate"
+        }
+      ],
+      "health": {
+        "http": "/api/server/ping"
+      },
+      "quadlet": "",
+      "components": [
+        {
+          "name": "server",
+          "image": "ghcr.io/immich-app/immich-server:v3.3.5@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6",
+          "after": [
+            "redis",
+            "database"
+          ],
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=TZ={{ .Settings.TZ }}\nEnvironment=DB_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=DB_USERNAME=postgres\nEnvironment=DB_DATABASE_NAME=immich\nVolume={{ .Volumes.library }}:/data:Z\n"
+        },
+        {
+          "name": "machine-learning",
+          "image": "ghcr.io/immich-app/immich-machine-learning:v3.3.5@sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56",
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=TZ={{ .Settings.TZ }}\nVolume=model-cache.volume:/cache\n"
+        },
+        {
+          "name": "redis",
+          "image": "docker.io/valkey/valkey:9@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d",
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=redis-cli ping | grep -q PONG || exit 1\n"
+        },
+        {
+          "name": "database",
+          "image": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=POSTGRES_USER=postgres\nEnvironment=POSTGRES_DB=immich\nEnvironment=POSTGRES_INITDB_ARGS=--data-checksums\nVolume={{ .Volumes.database }}:/var/lib/postgresql/data:Z\nShmSize=128m\n"
+        }
+      ],
+      "units": [
+        {
+          "name": "model-cache.volume",
+          "body": "[Volume]\n"
+        }
+      ],
+      "source": {
+        "from": "hand",
+        "url": "https://github.com/immich-app/immich/releases/download/v3.3.5/docker-compose.yml",
+        "licence": "AGPL-3.0"
+      }
+    },
+    {
       "id": "jellyfin",
       "name": "Jellyfin",
       "summary": "Stream your movies, shows and music to any device.",

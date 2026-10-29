@@ -34,6 +34,8 @@ export function GrantDialogHost({ snap }: { snap: FleetSnapshot | undefined }) {
     setNeed(null);
   };
   const many = !!need && need.options.length > 1;
+  // A Service of several containers names each option's container and image (plan C4).
+  const multi = !!need && need.components.length > 0;
   const nodeName = need ? (snap?.nodes.find((n) => n.nodeId === need.nodeId)?.name ?? need.nodeId.slice(0, 8)) : "";
   return (
     <AlertDialog open={!!need} onOpenChange={(o) => !o && answer(false)}>
@@ -43,12 +45,26 @@ export function GrantDialogHost({ snap }: { snap: FleetSnapshot | undefined }) {
             <ShieldAlert className="size-5 text-destructive" /> Give {need?.service} power over {nodeName}?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {need?.service} on {nodeName} runs <code className="rounded bg-muted px-1">{need?.imageRepository}</code> and asks for {many ? "these options" : "this option"}, which Maître keeps from containers unless you allow {many ? "them" : "it"}:
+            {multi ? (
+              <>
+                {need?.service} on {nodeName} asks for {many ? "these options" : "this option"} for its containers
+              </>
+            ) : (
+              <>
+                {need?.service} on {nodeName} runs <code className="rounded bg-muted px-1">{need?.imageRepository}</code> and asks for {many ? "these options" : "this option"}
+              </>
+            )}
+            , which Maître keeps from containers unless you allow {many ? "them" : "it"}:
           </AlertDialogDescription>
         </AlertDialogHeader>
         <ul className="max-h-72 space-y-2 overflow-y-auto">
-          {need?.options.map((o) => (
-            <li key={o} className="rounded-lg border p-3 text-sm">
+          {need?.options.map((o, i) => (
+            <li key={need.grantIds[i] || o} className="rounded-lg border p-3 text-sm">
+              {multi && (
+                <span className="mb-1 block text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{need.components[i]}</span>, running <code>{need.imageRepositories[i]}</code>
+                </span>
+              )}
               <code className="block break-all font-mono text-xs">{o}</code>
               <span className="mt-1 block text-muted-foreground">{optionNote(o)}</span>
             </li>

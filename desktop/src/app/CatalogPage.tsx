@@ -1,7 +1,8 @@
 // The Catalog as a card grid (decision 139) with the install sheet (151).
 // Step 3 fills the sheet's Options disclosure; here it asks name and Node.
 import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEdit
 import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
-import { specFor, type CatalogEntry, type CatalogIndex } from "@/services";
+import { GENERATE, generatedSettings, specFor, type CatalogEntry, type CatalogIndex } from "@/services";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { declined } from "@/fleet/grants";
 import { ServiceIcon } from "./status";
@@ -103,7 +104,9 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
     setSettings({});
     setError("");
   };
-  const settingValue = (key: string, def: string) => settings[key] ?? def;
+  // Passwords the entry has made up (plan C7): fresh for each entry opened.
+  const generated = useMemo(() => generatedSettings(entry), [entry?.id]);
+  const settingValue = (key: string, def: string) => settings[key] ?? generated[key] ?? def;
   // Only Spaces the chosen Node has (176); folders start from the Catalog's
   // hints (175) and follow a change of Node.
   const here = spacesOn(snap, effNode);
@@ -209,6 +212,14 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                         <>
                           <Label htmlFor={`set-${s.key}`}>{s.label}</Label>
                           <Input id={`set-${s.key}`} type={s.type === "password" ? "password" : s.type === "number" ? "number" : "text"} value={settingValue(s.key, s.default ?? "")} onChange={(e) => setSettings({ ...settings, [s.key]: e.target.value })} placeholder={s.type === "timezone" ? "auto = the Node's time zone" : ""} />
+                          {s.default === GENERATE && settings[s.key] === undefined && (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                              Made up for {entry.name}; it stays in the Service's settings.
+                              <button type="button" className="rounded p-0.5 hover:text-foreground" aria-label={`Copy ${s.label}`} onClick={() => navigator.clipboard?.writeText(generated[s.key]).then(() => toast("Copied"), () => toast.error("Could not copy"))}>
+                                <Copy className="size-3.5" />
+                              </button>
+                            </p>
+                          )}
                         </>
                       )}
                     </div>

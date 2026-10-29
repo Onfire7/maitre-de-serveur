@@ -6,6 +6,8 @@ import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "./useFleet";
 import type { KnownNode } from "@/state";
 import { withGrants } from "./grants";
+import { COMPONENTS_FEATURE, isMulti } from "./components";
+import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
 
 /** Where to reach a Node: the synced record's first address, else the Console's own list. */
 export function targetFor(snap: FleetSnapshot | undefined, known: KnownNode[], nodeId: string): Target | undefined {
@@ -66,13 +68,27 @@ export async function setSettings(t: Target, name: string, settings: Record<stri
   }
 }
 
-/** Runs a Service on another image (decision 195). */
-export async function setImage(t: Target, name: string, image: string, nodeName = "its Node") {
+/**
+ * Runs a Service on another image (decision 195). In a Service of several
+ * components, component names the one to change.
+ */
+export async function setImage(t: Target, name: string, image: string, nodeName = "its Node", component = "") {
   try {
-    return (await services(t).setImage({ name, image })).service;
+    return (await services(t).setImage({ name, image, component })).service;
   } catch (e) {
     throw tooOld(e, `Changing the image needs a newer Maître Server on ${nodeName}. Update it on the Nodes tab.`);
   }
+}
+
+/**
+ * A Service of several components runs only on a Node that says it can
+ * (plan C5); an older one would install just the spec's empty single
+ * container. Throws what to do instead.
+ */
+export async function needComponents(t: Target, spec: ServiceSpec, nodeName = "its Node") {
+  if (!isMulti(spec)) return;
+  const info = (await node(t).getNodeInfo({})).node;
+  if (!info?.features.includes(COMPONENTS_FEATURE)) throw new Error(`${spec.name} runs several containers, which needs a newer Maître Server on ${nodeName}. Update it on the Nodes tab.`);
 }
 
 /** A Node that lacks a call answers Unimplemented: say what to do instead. */

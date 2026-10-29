@@ -143,7 +143,7 @@ func (s *Service) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 
 // SetImage implements ServiceService (decision 195).
 func (s *Service) SetImage(ctx context.Context, req *maitrev1.SetImageRequest) (*maitrev1.SetImageResponse, error) {
-	st, err := s.mgr.SetImage(ctx, req.GetName(), req.GetImage())
+	st, err := s.mgr.SetImage(ctx, req.GetName(), req.GetImage(), req.GetComponent())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -172,7 +172,7 @@ func (s *Service) MoveVolume(ctx context.Context, req *maitrev1.MoveVolumeReques
 
 // GetServiceLogs implements ServiceService.
 func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLogsRequest) (*maitrev1.GetServiceLogsResponse, error) {
-	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetLines())
+	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetComponent(), req.GetLines())
 	if err != nil {
 		return nil, mapErr(err)
 	}

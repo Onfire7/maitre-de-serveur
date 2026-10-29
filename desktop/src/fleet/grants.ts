@@ -58,7 +58,7 @@ export function grantsOf(records: Rec[] | undefined, service: string): { record:
     .filter((r) => r.kind === "grant" && !r.deleted)
     .map((record) => ({ record, grant: fromBinary(GrantSchema, record.body) }))
     .filter((g) => g.grant.service === service)
-    .sort((a, b) => a.grant.option.localeCompare(b.grant.option));
+    .sort((a, b) => a.grant.component.localeCompare(b.grant.component) || a.grant.option.localeCompare(b.grant.option));
 }
 
 /** The GrantsNeeded detail of an error, if it is one. */
@@ -102,7 +102,11 @@ export async function signGrants(t: Target, need: GrantsNeeded) {
   for (const [i, option] of need.options.entries()) {
     const id = need.grantIds[i];
     if (!id) throw new Error(`the Node named no grant for ${option}`);
-    const body = toBinary(GrantSchema, create(GrantSchema, { nodeId: need.nodeId, service: need.service, option, imageRepository: need.imageRepository, grantedUnixMs: now, deviceName: name }));
+    // In a Service of several components each option is its component's,
+    // for that component's image (plan C4).
+    const component = need.components[i] ?? "";
+    const imageRepository = need.imageRepositories[i] || need.imageRepository;
+    const body = toBinary(GrantSchema, create(GrantSchema, { nodeId: need.nodeId, service: need.service, component, option, imageRepository, grantedUnixMs: now, deviceName: name }));
     await putSigned(t, { kind: "grant", id, body }, currentRecord(existing, "grant", id));
   }
 }

@@ -35,7 +35,9 @@ export const FLEET_ID = "f6".repeat(16);
 const GiB = 1024 ** 3;
 
 /** The demo Node's grant record id; the real one is the server's GrantID. */
-export const grantId = (nodeId: string, service: string, option: string) => `${nodeId.slice(0, 8)}/${service}/${option}`;
+export const grantId = (nodeId: string, service: string, option: string, component = "") => `${nodeId.slice(0, 8)}/${service}/${component ? `${component}/` : ""}${option}`;
+
+const repository = (image: string) => image.replace(/@.*$/, "").replace(/:[^/:]*$/, "");
 
 const PROTECTED = /^(AddCapability|AddDevice|PodmanArgs|GlobalArgs|SecurityLabelDisable|SeccompProfile|Sysctl|Privileged|Pid|Ipc|UserNS)=|^Network=host$|^Volume=\//;
 
@@ -104,6 +106,8 @@ export interface DemoService {
   /** Script: restart-looping; bumps restarts every few seconds. */
   looping?: boolean;
   statusUnixMs: number;
+  /** A Service of several containers: a component that is not as the Service is. */
+  componentStates?: Record<string, { state: ServiceStatus_State; message?: string; restarts?: number }>;
 }
 
 export interface DemoDrive extends Omit<Drive, "$typeName" | "record" | "folders"> {
@@ -192,6 +196,36 @@ function specFromCatalog(id: string, name: string, nodeId: string, webHostPort: 
     volumeFolders: Object.fromEntries((e.volumes ?? []).filter((v) => v.shared).map((v) => [v.name, ""])),
     hostPorts: e.host_ports ?? [],
     ...extra,
+  } as SpecInit);
+}
+
+/** Immich as a Service of four containers, the server publishing its web page. */
+function immich(nodeId: string, webHostPort: number, t: number): ServiceSpec {
+  const pin = (image: string, d: string) => `${image}@sha256:${d.repeat(32)}`;
+  return create(ServiceSpecSchema, {
+    name: "immich",
+    nodeId,
+    exposure: "remote",
+    createdUnixMs: BigInt(t - 21 * 86400_000),
+    webHostPort,
+    webPort: 2283,
+    webPath: "/",
+    healthHttp: "/api/server/ping",
+    webComponent: "server",
+    autoUpdate: false,
+    volumes: [
+      { name: "library", path: "/data", size: "" },
+      { name: "models", path: "/cache", size: "" },
+      { name: "database", path: "/var/lib/postgresql/data", size: "" },
+    ],
+    volumeSpaces: { library: "general", models: "general", database: "general" },
+    settings: { DB_PASSWORD: "k3v9-demo-generated" },
+    components: [
+      { name: "server", image: pin("ghcr.io/immich-app/immich-server:v2.1.0", "1a"), quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=DB_HOSTNAME=database\nEnvironment=DB_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=REDIS_HOSTNAME=redis\nVolume={{ .Volumes.library }}:/data:Z\nHealthCmd=curl -fs http://localhost:2283/api/server/ping\n", after: ["redis", "database"] },
+      { name: "machine-learning", image: pin("ghcr.io/immich-app/immich-machine-learning:v2.1.0", "2b"), quadlet: "[Container]\nImage={{ .Image }}\nVolume={{ .Volumes.models }}:/cache:Z\n", egress: true },
+      { name: "redis", image: pin("docker.io/valkey/valkey:8-bookworm", "3c"), quadlet: "[Container]\nImage={{ .Image }}\nHealthCmd=redis-cli ping\n", waitHealthy: true },
+      { name: "database", image: pin("ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0", "4d"), previousImage: pin("ghcr.io/immich-app/postgres:14-vectorchord0.4.2-pgvectors0.2.0", "4e"), quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=POSTGRES_USER=postgres\nEnvironment=POSTGRES_DB=immich\nVolume={{ .Volumes.database }}:/var/lib/postgresql/data:Z\nShmSize=128mb\n", waitHealthy: true },
+    ],
   } as SpecInit);
 }
 
@@ -298,6 +332,9 @@ export class DemoFleet {
       this.service(specFromCatalog("uptime-kuma", "uptime", NODE_B, 20001), ServiceStatus_State.STARTING, { readyAt: 25, message: "pulling image" }),
       this.service(specFromCatalog("minecraft", "minecraft", NODE_B, 0, { settings: { EULA: "false" }, forwardPorts: true }), ServiceStatus_State.FAILED, { restarts: 7, looping: true, message: "exited with code 1: you must accept the EULA (setting EULA=true)", forwardState: "25565/tcp forwarded by eero" }),
       this.service(create(ServiceSpecSchema, { name: "paperless", catalogId: "paperless-ngx", image: "ghcr.io/paperless-ngx/paperless-ngx:2.14@sha256:" + "9b".repeat(32), nodeId: NODE_A, exposure: "remote", volumeSpaces: { data: "general", media: "general" }, createdUnixMs: BigInt(t - 40 * 86400_000), webHostPort: 20003, webPort: 8000, webPath: "/", quadlet: "[Container]\nImage={{ .Image }}\n", volumes: [{ name: "data", path: "/usr/src/paperless/data", size: "" }, { name: "media", path: "/usr/src/paperless/media", size: "" }], autoUpdate: false }), ServiceStatus_State.STOPPED, { message: "stopped by you" }),
+      // A Service of several containers (plan C1): Immich's server, its
+      // machine learning, Valkey and Postgres, the database waited for.
+      this.service(immich(NODE_A, 20004, t), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 3 * 86400_000, componentStates: { "machine-learning": { state: ServiceStatus_State.RUNNING, restarts: 2 } } }),
     ];
     this.seedFiles();
     // Jellyfin transcodes on the GPU, granted when it was installed.
@@ -309,9 +346,15 @@ export class DemoFleet {
   /** The protected options of a spec without a live grant, as a Node would refuse them. */
   grantsNeeded(spec: ServiceSpec, nodeId: string): GrantsNeeded | undefined {
     const live = new Set(this.records.filter((r) => r.kind === "grant" && !r.deleted).map((r) => r.id));
+    if (spec.components.length) {
+      // Per component, for its own image (plan C4), as the Node asks.
+      const need = spec.components.flatMap((c) => protectedOptions(c.quadlet).map((option) => ({ c, option, id: grantId(nodeId, spec.name, option, c.name) }))).filter((x) => !live.has(x.id));
+      if (need.length === 0) return undefined;
+      return create(GrantsNeededSchema, { nodeId, service: spec.name, options: need.map((x) => x.option), grantIds: need.map((x) => x.id), components: need.map((x) => x.c.name), imageRepositories: need.map((x) => repository(x.c.image)) });
+    }
     const options = protectedOptions(spec.quadlet).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
     if (options.length === 0) return undefined;
-    return create(GrantsNeededSchema, { nodeId, service: spec.name, imageRepository: spec.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), options, grantIds: options.map((o) => grantId(nodeId, spec.name, o)) });
+    return create(GrantsNeededSchema, { nodeId, service: spec.name, imageRepository: repository(spec.image), options, grantIds: options.map((o) => grantId(nodeId, spec.name, o)) });
   }
 
   private service(spec: ServiceSpec, state: ServiceStatus_State, init: Partial<DemoService>): DemoService {
@@ -405,6 +448,12 @@ export class DemoFleet {
       remoteUrl: web && s.spec.exposure !== "private" ? `https://${s.spec.name}.home-fleet.ts.net` : "",
       remoteState: s.spec.exposure !== "private" ? "up" : "",
       forwardState: s.forwardState || (s.spec.forwardPorts && node ? `${s.spec.hostPorts.join(", ")} forwarded by ${node.portMapping.replace("router: ", "")}` : ""),
+      components: s.spec.components.map((c) => {
+        const own = s.componentStates?.[c.name];
+        // A component scripted otherwise holds its state only while the Service runs.
+        const state = own && s.state === ServiceStatus_State.RUNNING ? own.state : s.state;
+        return { name: c.name, state, healthy: state === ServiceStatus_State.RUNNING && s.healthy, restarts: own?.restarts ?? 0, message: (own && s.state === ServiceStatus_State.RUNNING ? own.message : undefined) ?? (state === s.state ? s.message : "") };
+      }),
     } as ServiceStatus;
   }
 
@@ -540,6 +589,10 @@ export class DemoFleet {
         s.state = ServiceStatus_State.REMOVING;
         break;
       case "update":
+        for (const c of s.spec.components) {
+          c.previousImage = c.image;
+          c.image = c.image.replace(/@sha256:.*/, "@sha256:" + "5c".repeat(32));
+        }
         s.spec.previousImage = s.spec.image;
         s.spec.image = s.spec.image.replace(/@sha256:.*/, "@sha256:" + "5c".repeat(32));
         s.state = ServiceStatus_State.STARTING;
@@ -548,6 +601,7 @@ export class DemoFleet {
         break;
       case "rollback":
         if (s.spec.previousImage) [s.spec.image, s.spec.previousImage] = [s.spec.previousImage, ""];
+        for (const c of s.spec.components) if (c.previousImage) [c.image, c.previousImage] = [c.previousImage, ""];
         s.state = ServiceStatus_State.STARTING;
         s.readyAt = this.tickCount + 6;
         break;
@@ -568,9 +622,19 @@ export class DemoFleet {
     return this.status(s);
   }
 
-  logs(name: string, lines: number): string[] {
+  logs(name: string, lines: number, component = ""): string[] {
     const s = this.services.find((x) => x.spec.name === name);
     if (!s) return [];
+    if (s.spec.components.length) {
+      // As journalctl interleaves them, each line named by its container.
+      const names = component ? [component] : s.spec.components.map((c) => c.name);
+      const base = this.now - lines * 1000;
+      return Array.from({ length: lines }, (_, i) => {
+        const c = names[i % names.length];
+        const msg = c === "database" ? "checkpoint complete: wrote 12 buffers" : c === "redis" ? "DB saved on disk" : c === "machine-learning" ? `model loaded in ${200 + (i % 9) * 10}ms` : `GET /api/assets 200 ${(i * 7) % 90}ms`;
+        return `${new Date(base + i * 1000).toISOString()} ${name}-${c}[${300 + names.indexOf(c)}]: ${msg}`;
+      });
+    }
     const out: string[] = [];
     const base = this.now - lines * 1000;
     for (let i = 0; i < lines; i++) {

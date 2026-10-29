@@ -3,10 +3,12 @@
 // Settings and auto update (193), Access and Storage (194, shown as their
 // editors) and the image (195) change here, in place; ports and root
 // powers through the flyout's sheets. Its usage over time shows too (210).
+// A Service of several containers lists them, each with its state, image,
+// logs and container definition (plan C1).
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowUpCircle, Copy, Eye, EyeOff, Truck, Trash2, Undo2 } from "lucide-react";
+import { ArrowUpCircle, Copy, Eye, EyeOff, ScrollText, Truck, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +17,8 @@ import { ago, formatUptime } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { declined, grantsOf, optionNote } from "@/fleet/grants";
 import { setImage, setSettings, targetFor } from "@/fleet/actions";
+import { canRollBack, componentsOf, componentStatus, isMulti, logSource } from "@/fleet/components";
+import { useNodeLogs } from "./LogsTab";
 import { catalogById } from "./status";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { AccessEditor, StorageEditor } from "./ServiceSheets";
@@ -42,17 +46,28 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
   const [saveError, setSaveError] = useState("");
   useEffect(() => setDraft(null), [spec.name]);
   const target = targetFor(snap, [], spec.nodeId);
-  // The image being typed, while Change image is open (195).
+  const multi = isMulti(spec);
+  const parts = componentsOf(spec);
+  const openLogs = useNodeLogs();
+  // The image being typed, while Change image is open (195), and in a
+  // Service of several containers the component it is for.
   const [newImage, setNewImage] = useState<string | null>(null);
+  const [imageFor, setImageFor] = useState("");
   const [imageError, setImageError] = useState("");
   useEffect(() => setNewImage(null), [spec.name]);
+  const changing = parts.find((c) => c.name === imageFor) ?? parts[0];
+  const startChange = (component: string) => {
+    setImageError("");
+    setImageFor(component);
+    setNewImage((parts.find((c) => c.name === component) ?? parts[0]).image.split("@")[0]);
+  };
   async function changeImage(image: string) {
     if (!target) return toast.error(`No address for ${s.node?.name ?? "its Node"}`);
     setSaving(true);
     setImageError("");
     try {
-      await setImage(target, spec.name, image, s.node?.name);
-      toast.success(`${spec.name} now runs ${image}${running ? ", restarting" : ""}`);
+      await setImage(target, spec.name, image, s.node?.name, multi ? imageFor : "");
+      toast.success(`${multi ? `${spec.name}: ${imageFor}` : spec.name} now runs ${image}${running ? ", restarting" : ""}`);
       setNewImage(null);
       qc.invalidateQueries({ queryKey: ["fleet"] });
     } catch (e) {
@@ -101,6 +116,38 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
         />
       ),
     },
+    ...(multi
+      ? [
+          {
+            id: "components",
+            title: "Containers",
+            body: (
+              <Table
+                head={["Container", "State", "Image", ""]}
+                rows={parts.map((c) => {
+                  const cs = componentStatus(st, c.name);
+                  const role = [c.name === spec.webComponent && "web page", spec.components.find((x) => x.name === c.name)?.waitHealthy && "others wait for it"].filter(Boolean).join(", ");
+                  return [
+                    <span key="n">
+                      <span className="font-medium">{c.name}</span>
+                      {role && <span className="block text-xs text-muted-foreground">{role}</span>}
+                    </span>,
+                    <span key="s">
+                      {cs ? `${STATE[cs.state]}${cs.state === 3 && cs.healthy ? ", healthy" : ""}` : <span className="text-muted-foreground">not reported</span>}
+                      {cs?.restarts ? <span className="block text-xs text-muted-foreground">{cs.restarts} restarts</span> : null}
+                      {cs?.message && <span className="block text-xs text-muted-foreground">{cs.message}</span>}
+                    </span>,
+                    <Image key="i" image={c.image} />,
+                    <Button key="l" size="sm" variant="ghost" className="h-7" disabled={s.nodeUnreachable} onClick={() => openLogs(spec.nodeId, logSource(spec.name, c.name))} aria-label={`Logs of ${c.name}`}>
+                      <ScrollText /> Logs
+                    </Button>,
+                  ];
+                })}
+              />
+            ),
+          },
+        ]
+      : []),
     {
       id: "usage",
       title: "Usage",
@@ -226,8 +273,8 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
       id: "image",
       title: "Image and updates",
       button:
-        newImage === null ? (
-          <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => (setImageError(""), setNewImage(spec.image.split("@")[0]))}>
+        newImage === null && !multi ? (
+          <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={s.nodeUnreachable} onClick={() => startChange("")}>
             Change image
           </Button>
         ) : undefined,
@@ -242,13 +289,13 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
               }}
             >
               <label className="block space-y-1.5">
-                <span className="text-muted-foreground">Image to run</span>
+                <span className="text-muted-foreground">{multi ? `Image for ${imageFor} to run` : "Image to run"}</span>
                 <Input className="font-mono text-xs" value={newImage} onChange={(e) => setNewImage(e.target.value)} placeholder="docker.io/jellyfin/jellyfin:10.11" aria-label="Image to run" autoFocus />
               </label>
               <p className="text-xs text-muted-foreground">A tag is pinned to the image it names now; it moves only when updated. The current image stays for Roll back. An image from another repository may need its root powers allowed again.</p>
               {imageError && <p className="rounded-md border border-destructive/60 bg-destructive/5 p-2 text-sm">{imageError}</p>}
               <div className="flex items-center gap-2">
-                <Button type="submit" size="sm" disabled={saving || !newImage.trim() || newImage.trim() === spec.image}>
+                <Button type="submit" size="sm" disabled={saving || !newImage.trim() || newImage.trim() === changing.image}>
                   {saving ? "Pulling…" : running ? "Change and restart" : "Change"}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setNewImage(null)}>
@@ -257,10 +304,31 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
               </div>
             </form>
           )}
+          {multi && (
+            <Table
+              head={["Container", "Image", ""]}
+              rows={parts.map((c) => [
+                <span key="n" className="font-medium">
+                  {c.name}
+                </span>,
+                <span key="i" className="block space-y-0.5">
+                  <Image image={c.image} />
+                  {c.previousImage && (
+                    <span className="block text-xs text-muted-foreground">
+                      Before the last update: <Image image={c.previousImage} />
+                    </span>
+                  )}
+                </span>,
+                <Button key="c" size="sm" variant="ghost" className="h-7" disabled={s.nodeUnreachable || newImage !== null} onClick={() => startChange(c.name)} aria-label={`Change the image of ${c.name}`}>
+                  Change
+                </Button>,
+              ])}
+            />
+          )}
           <Rows
             rows={[
-              ["Image", <Image key="i" image={spec.image} />],
-              ["Before the last update", spec.previousImage ? <Image key="p" image={spec.previousImage} /> : undefined],
+              ["Image", multi ? undefined : <Image key="i" image={spec.image} />],
+              ["Before the last update", !multi && spec.previousImage ? <Image key="p" image={spec.previousImage} /> : undefined],
               [
                 "Updates by itself",
                 <label key="a" className="flex items-center gap-2">
@@ -274,7 +342,7 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
             <Button size="sm" variant="outline" disabled={s.nodeUnreachable} onClick={() => onAct("update")}>
               <ArrowUpCircle /> Update now
             </Button>
-            {spec.previousImage && (
+            {canRollBack(spec) && (
               <Button size="sm" variant="outline" disabled={s.nodeUnreachable} onClick={() => onAct("rollback")}>
                 <Undo2 /> Roll back
               </Button>
@@ -289,8 +357,9 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
       edit: grants.length ? ["grants", "Review"] : undefined,
       body: grants.length ? (
         <ul className="space-y-2">
-          {grants.map(({ grant: g }) => (
-            <li key={g.option}>
+          {grants.map(({ record, grant: g }) => (
+            <li key={record.id}>
+              {g.component && <span className="mr-1.5 font-medium">{g.component}:</span>}
               <code>{g.option}</code>
               <div className="text-xs text-muted-foreground">
                 {optionNote(g.option)} Allowed {g.deviceName ? `from ${g.deviceName} ` : ""}
@@ -307,12 +376,19 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
       id: "container",
       title: "Container definition",
       body: (
-        <div className="relative">
-          <Button size="icon" variant="ghost" className="absolute top-1 right-1 size-7" aria-label="Copy the container definition" onClick={() => navigator.clipboard?.writeText(spec.quadlet).then(() => toast("Copied"), () => toast.error("Could not copy"))}>
-            <Copy />
-          </Button>
-          <pre className="max-h-72 overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">{spec.quadlet.trim() || "(empty)"}</pre>
-          <p className="mt-1 text-xs text-muted-foreground">The Quadlet template the Node fills in for its folders and ports.</p>
+        <div className="space-y-3">
+          {parts.map((c) => (
+            <div key={c.name}>
+              {multi && <h4 className="mb-1 font-medium">{c.name}</h4>}
+              <div className="relative">
+                <Button size="icon" variant="ghost" className="absolute top-1 right-1 size-7" aria-label={multi ? `Copy the container definition of ${c.name}` : "Copy the container definition"} onClick={() => navigator.clipboard?.writeText(c.quadlet).then(() => toast("Copied"), () => toast.error("Could not copy"))}>
+                  <Copy />
+                </Button>
+                <pre className="max-h-72 overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">{c.quadlet.trim() || "(empty)"}</pre>
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">{multi ? "The Quadlet templates the Node fills in for its folders and ports. The Node adds each container's network, start order and health wait." : "The Quadlet template the Node fills in for its folders and ports."}</p>
         </div>
       ),
     },

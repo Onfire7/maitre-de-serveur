@@ -1,6 +1,7 @@
 // What jsdom lacks and the Console's components use: matchMedia (theme,
-// reduced motion), ResizeObserver (Radix tooltips and selects), and
-// pointer capture (Radix). Imported first by DOM tests.
+// reduced motion), ResizeObserver (Radix tooltips and selects),
+// IntersectionObserver (a Service's contents list), and pointer capture
+// (Radix). Imported first by DOM tests.
 import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -15,5 +16,6 @@ class RO {
   disconnect() {}
 }
 (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver ??= RO;
+(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver ??= RO;
 Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.scrollIntoView ??= () => {};
