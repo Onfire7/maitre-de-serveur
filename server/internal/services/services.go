@@ -316,6 +316,9 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 			}
 		} else if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
+		} else if err := owner.Admit(dir, m.owner(ctx, space)); err != nil && m.cfg.Log != nil {
+			// Decision 216: files can still not be moved in; the Service runs.
+			m.cfg.Log.Warn("own folder access", "dir", dir, "err", err)
 		}
 	}
 	for i, mt := range spec.GetMounts() {

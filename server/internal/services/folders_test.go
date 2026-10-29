@@ -98,3 +98,40 @@ func TestSetFolders(t *testing.T) {
 		t.Fatal("its own volume was not deleted")
 	}
 }
+
+// Decision 216: a Service's own folders let their Space's owner in, so the
+// file manager can move files into them; the folders keep their owner.
+func TestOwnFoldersAdmitTheSpaceOwner(t *testing.T) {
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acls := map[string]string{}
+	oc, oa := owner.Chown, owner.ACL
+	owner.Chown = func(p string, _, _ int) error { t.Fatalf("own folder %s chowned", p); return nil }
+	owner.ACL = func(args ...string) error {
+		acls[args[len(args)-1]] = strings.Join(args[:len(args)-1], " ")
+		return nil
+	}
+	defer func() { owner.Chown, owner.ACL = oc, oa }()
+
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	os.MkdirAll(filepath.Join(pools, "general"), 0o755)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, SpaceOwner: func(context.Context, string) uint32 { return 61002 }}, st, &fakeRunner{state: "active"})
+	if _, err := m.Install(context.Background(), catalog.SpecFor(idx.Find("uptime-kuma"), "", nil, "")); err != nil {
+		t.Fatal(err)
+	}
+	own := filepath.Join(pools, "general", ".Services", "uptime-kuma")
+	vols, _ := os.ReadDir(own)
+	if len(vols) == 0 {
+		t.Fatal("no own folders made")
+	}
+	for _, v := range vols {
+		if got := acls[filepath.Join(own, v.Name())]; got != "-m u:61002:rwX,d:u:61002:rwX" {
+			t.Fatalf("%s: acl %q", v.Name(), got)
+		}
+	}
+}

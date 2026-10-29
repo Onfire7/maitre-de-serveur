@@ -65,3 +65,31 @@ export function serviceFolders(spec: ServiceSpec): ServiceFolder[] {
   const mounts = spec.mounts.map((m) => ({ key: `mount:${m.path}`, label: m.path.split("/").filter(Boolean).pop() ?? m.path, inContainer: m.path, spaceId: m.spaceId, path: m.folder, shared: true, readOnly: m.readOnly }));
   return [...vols, ...mounts];
 }
+
+/** A Service's folder files can be moved into (decision 216). */
+export interface ServiceTarget {
+  service: string;
+  nodeId: string;
+  folder: ServiceFolder;
+}
+
+/** Every folder of these Services that is not read only, by Service. */
+export function serviceTargets(specs: ServiceSpec[]): ServiceTarget[] {
+  return [...specs]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((s) => serviceFolders(s).filter((f) => !f.readOnly && f.spaceId).map((folder) => ({ service: s.name, nodeId: s.nodeId, folder })));
+}
+
+/** Which Services see a folder of a Space, and as what path in their
+ * container: the deepest of their folders it is in. A shared folder at a
+ * Space's top holds the whole Space. */
+export function seenBy(targets: ServiceTarget[], spaceId: string, path: string): { service: string; inContainer: string }[] {
+  const parts = path.split("/").filter(Boolean);
+  const within = targets
+    .map((t) => ({ t, base: t.folder.path.split("/").filter(Boolean) }))
+    .filter(({ t, base }) => t.folder.spaceId === spaceId && base.length <= parts.length && base.every((p, i) => parts[i] === p));
+  const deepest = Math.max(-1, ...within.map((w) => w.base.length));
+  return within
+    .filter((w) => w.base.length === deepest)
+    .map(({ t, base }) => ({ service: t.service, inContainer: [t.folder.inContainer.replace(/\/+$/, ""), ...parts.slice(base.length)].join("/") || "/" }));
+}

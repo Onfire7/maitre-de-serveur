@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -70,5 +71,19 @@ func TestShareMakesAndWalks(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if _, ok := chowned[f]; ok {
 		t.Fatal("walked again")
+	}
+}
+
+func TestAdmit(t *testing.T) {
+	_, acls := fake(t)
+	dir := t.TempDir()
+	if err := Admit(dir, 0); err != nil || len(acls) != 0 {
+		t.Fatalf("id 0 should do nothing: %v %v", err, acls)
+	}
+	if err := Admit(dir, 61001); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(acls[dir], " "); got != "-m u:61001:rwX,d:u:61001:rwX "+dir {
+		t.Fatalf("acl = %q", got)
 	}
 }

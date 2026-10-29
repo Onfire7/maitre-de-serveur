@@ -35,7 +35,7 @@ import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
 import { colorOf } from "./StorageTab";
 import type { FleetService } from "@/fleet/useFleet";
-import { serviceFolders, type ServiceFolder } from "@/files/sources";
+import { seenBy, serviceFolders, serviceTargets, type ServiceFolder, type ServiceTarget } from "@/files/sources";
 import { hidden } from "@/files/layout";
 
 const HIDDEN_KEY = "maitre.files.hidden";
@@ -595,6 +595,7 @@ export function FilesTab({ snap, state, initial, services = [] }: { snap: FleetS
           path={path}
           names={[...selected]}
           nodeName={nodeName}
+          targets={serviceTargets(services.map((s) => s.spec))}
           listFolders={async (nodeId, spaceId, p) => {
             const t = targetFor(snap, state.nodes, nodeId);
             if (!t) throw new Error("no address");
@@ -968,7 +969,7 @@ function NewFolderDialog({ open, onClose, where, taken, onMake }: { open: boolea
  * destination; a Space that does not span Nodes is browsed on the Node
  * chosen, a spanning one through any Node that has it.
  */
-function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFolders, makeFolder, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; listFolders: (nodeId: string, spaceId: string, path: string) => Promise<string[]>; makeFolder: (nodeId: string, spaceId: string, path: string) => Promise<void>; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
+function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, targets, listFolders, makeFolder, onMove }: { open: boolean; onClose: () => void; snap: FleetSnapshot | undefined; scope: FileScope; path: string; names: string[]; nodeName: (id: string) => string; targets: ServiceTarget[]; listFolders: (nodeId: string, spaceId: string, path: string) => Promise<string[]>; makeFolder: (nodeId: string, spaceId: string, path: string) => Promise<void>; onMove: (req: { toSpace: string; toPath: string; toNodeId: string; toDriveId: string }) => Promise<void> }) {
   // Same order as the file manager's list, so each Space keeps its colour.
   const spaces = [...(snap?.spaces ?? [])].sort((a, b) => b.priority - a.priority);
   const drives = snap?.drives ?? [];
@@ -993,6 +994,21 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
     if (sp?.spanNodes) return "";
     return hs.some((n) => n.nodeId === scope.nodeId) ? scope.nodeId : (hs[0]?.nodeId ?? "");
   };
+  // Decision 216: a Service's folder as the destination, in one pick. Its
+  // own folders are on its Node; a shared one in a spanning Space anywhere.
+  const nodeFor = (t: ServiceTarget) => (t.folder.shared && spaces.find((s) => s.spaceId === t.folder.spaceId)?.spanNodes ? "" : t.nodeId);
+  const reachable = targets.filter((t) => spaceChoices.some((s) => s.spaceId === t.folder.spaceId) && (!nodeFor(t) || holders(t.folder.spaceId).some((n) => n.nodeId === nodeFor(t))));
+  const targetKey = (t: ServiceTarget) => `${t.service}\n${t.folder.key}`;
+  const picked = reachable.find((t) => t.folder.spaceId === toSpace && t.folder.path === toPath && toNode === nodeFor(t));
+  function pickTarget(key: string) {
+    const t = reachable.find((x) => targetKey(x) === key);
+    if (!t) return;
+    setToSpace(t.folder.spaceId);
+    setToNode(nodeFor(t));
+    setToDrive("");
+    setToPath(t.folder.path);
+  }
+  const seen = seenBy(targets, toSpace, toPath);
   function pickSpace(id: string) {
     setToSpace(id);
     setToNode(defaultNode(id));
@@ -1028,6 +1044,28 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
           <DialogDescription>Copied first, checked, then removed from where it is. A move that fails leaves the original untouched. Within one Space on one Node it is a rename.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {reachable.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Service</Label>
+              <Select value={picked ? targetKey(picked) : "none"} onValueChange={(v) => v !== "none" && pickTarget(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">None: pick a Space and a folder below</span>
+                  </SelectItem>
+                  {reachable.map((t) => (
+                    <SelectItem key={targetKey(t)} value={targetKey(t)}>
+                      {t.service}
+                      <span className="font-mono text-xs text-muted-foreground">{t.folder.inContainer}</span>
+                      <span className="text-muted-foreground">{t.folder.shared ? "shared" : "its own"}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Space</Label>
@@ -1096,6 +1134,7 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, listFol
               Into <span className="font-medium text-foreground">{[spaceName, ...crumbs].join(" / ")}</span>
               {toNode ? ` on ${nodeName(toNode)}` : space?.spanNodes ? ", wherever the Space places it" : ""}
             </p>
+            {seen.length > 0 && <p className="text-xs text-muted-foreground">{seen.map((x) => `${x.service} sees it as ${x.inContainer}`).join("; ")}.</p>}
           </div>
           {problem && <p className={cn("text-xs", here ? "text-muted-foreground" : "text-destructive")}>{problem}</p>}
         </div>

@@ -6,6 +6,7 @@ package owner
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -49,6 +50,19 @@ func Apply(path string, id uint32) error {
 		return os.Chmod(path, info.Mode().Perm()|0o060)
 	}
 	return nil
+}
+
+// Admit lets the Space's owner into a Service's own folder (decision 216):
+// an ACL entry, and a default one so folders made in it later carry it too,
+// so the file manager, which acts as that owner (decision 189), can move and
+// upload files into it. Owner and mode stay as the container has them; 0
+// does nothing. Only the folder itself: walking a tree the container writes
+// to as root could be led out of it by a symlink.
+func Admit(dir string, id uint32) error {
+	if id == 0 {
+		return nil
+	}
+	return ACL("-m", fmt.Sprintf("u:%d:rwX,d:u:%d:rwX", id, id), dir)
 }
 
 // Tree applies the owner to root and everything under it, skipping
