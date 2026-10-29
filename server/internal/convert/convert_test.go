@@ -227,6 +227,19 @@ services:
 	}
 }
 
+// A service on the host's network gets no network of Maître's beside it.
+func TestHostNetworkMode(t *testing.T) {
+	dir := t.TempDir()
+	compose := "name: hostnet\nservices:\n  app:\n    image: docker.io/x/app:1\n    network_mode: host\n"
+	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(compose), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := run(t, "hostnet", convert.Options{Compose: filepath.Join(dir, "compose.yaml"), Licence: "MIT"}).Entry
+	if !strings.Contains(e.Quadlet, "Network=host") || strings.Contains(e.Quadlet, "{{ .Network }}") {
+		t.Errorf("template:\n%s", e.Quadlet)
+	}
+}
+
 // Nothing is written when the file cannot be an entry.
 func TestMustFix(t *testing.T) {
 	res := run(t, "build", convert.Options{Compose: "testdata/build/input/compose.yaml"})

@@ -362,7 +362,12 @@ func (c *conv) convert(ctx context.Context) {
 		// entries have it.
 		only := comps[0]
 		c.entry.Image = only.comp.Image
-		c.entry.Quadlet = c.labels("[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\n" + strings.Join(only.body, "\n") + "\n")
+		// Maître's network, unless the file puts it on the host's or none.
+		network := "Network={{ .Network }}\n"
+		if svc, ok := c.project.Services[only.comp.Name]; ok && (svc.NetworkMode == "host" || svc.NetworkMode == "none") {
+			network = ""
+		}
+		c.entry.Quadlet = c.labels("[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\n" + network + strings.Join(only.body, "\n") + "\n")
 		return
 	}
 	for _, b := range comps {
@@ -590,6 +595,11 @@ func (c *conv) webPage() (component string, port uint32, path string) {
 		if idx, ok := c.casaos["index"].(string); ok && idx != "" {
 			path = idx
 		}
+		// On the host's network nothing is published: the app listens on
+		// the Node's port itself, the one CasaOS opens.
+		if n, err := strconv.Atoi(hostPort); port == 0 && err == nil && n > 0 && n < 65536 && c.project.Services[main].NetworkMode == "host" {
+			port = uint32(n)
+		}
 		if port != 0 {
 			return main, port, path
 		}
@@ -796,7 +806,11 @@ func (c *conv) volumeLine(svcName string, v types.ServiceVolumeConfig) string {
 			r.changed("%s: the folder ./%s is the Service volume %q, kept in a Storage Space", svcName, filepath.ToSlash(rel), vol.name)
 			return fmt.Sprintf("Volume={{ .Volumes.%s }}:%s:%s", vol.name, v.Target, opts+"@label@"+vol.name)
 		default:
-			r.needsPerson("%s mounts the Node's own folder %s; point it at a Service volume, or keep it and allow it when installing", svcName, v.Source)
+			if ok, needs := catalog.Support("Volume=" + filepath.Clean(v.Source)); !ok {
+				r.needsPerson("%s mounts the Node's own %s, which Maître does not support yet (it needs %s); drop it if the app works without it, or leave the entry out", svcName, v.Source, needs)
+			} else {
+				r.needsPerson("%s mounts the Node's own folder %s; point it at a Service volume, or keep it and declare it under grants: with why", svcName, v.Source)
+			}
 			c.hostMounts[filepath.Clean(v.Source)] = true
 			return "Volume=" + templated(v.Source+":"+v.Target+strings.TrimSuffix(":"+opts, ":"))
 		}

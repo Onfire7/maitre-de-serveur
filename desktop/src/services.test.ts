@@ -61,8 +61,9 @@ describe("popularity", () => {
   it("rounds stars as people say them", () => {
     expect([812, 8150, 81234, 117608].map(formatStars)).toEqual(["812", "8.1k", "81k", "117k"]);
   });
-  it("the bundled Catalog has stars for every entry", () => {
-    const missing = (bundled as CatalogIndex).entries.filter((e) => !e.stars).map((e) => e.id);
+  it("the bundled Catalog has stars for every entry with a project", () => {
+    // An app not developed in public (Plex) has no project, and no stars.
+    const missing = (bundled as CatalogIndex).entries.filter((e) => e.project && !e.stars).map((e) => e.id);
     expect(missing).toEqual([]);
   });
 });

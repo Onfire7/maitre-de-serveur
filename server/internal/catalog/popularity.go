@@ -102,7 +102,7 @@ func ProjectFromSource(label string) string {
 	// A repository that packages the app (linuxserver/docker-syncthing,
 	// jellyfin/jellyfin-packaging) is not the app's own.
 	repo := strings.ToLower(parts[1])
-	if strings.HasPrefix(repo, "docker-") || strings.HasSuffix(repo, "-docker") || strings.HasSuffix(repo, "-packaging") {
+	if repo == "docker" || strings.HasPrefix(repo, "docker-") || strings.HasSuffix(repo, "-docker") || strings.HasSuffix(repo, "-packaging") {
 		return ""
 	}
 	p := "https://" + u.Host + "/" + parts[0] + "/" + parts[1]

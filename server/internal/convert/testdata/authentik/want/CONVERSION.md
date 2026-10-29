@@ -7,7 +7,7 @@ From `docker-compose.yml`, by `maitre catalog add`.
 The entry is unfinished until these are decided and its `unfinished:` list is removed.
 
 - The web page is taken to be server's port 9000, of 2 published ports; confirm web.component and web.port
-- worker mounts the Node's own folder /var/run/docker.sock; point it at a Service volume, or keep it and allow it when installing
+- worker mounts the Node's own /var/run/docker.sock, which Maître does not support yet (it needs SELinux letting a container use the Node's Podman socket (container_t to container_runtime_t) without turning SELinux off for it, and a warning that says the socket is root on the Node); drop it if the app works without it, or leave the entry out
 - Write the entry's summary and description
 
 ## Changed for you

@@ -39,7 +39,7 @@
         }
       },
       "project": "https://github.com/actualbudget/actual",
-      "stars": 29857
+      "stars": 29858
     },
     {
       "id": "adguard-home",
@@ -138,7 +138,7 @@
         }
       },
       "project": "https://github.com/advplyr/audiobookshelf",
-      "stars": 14849
+      "stars": 14850
     },
     {
       "id": "calibre-web",
@@ -302,6 +302,56 @@
       },
       "project": "https://github.com/FreshRSS/FreshRSS",
       "stars": 16445
+    },
+    {
+      "id": "homarr",
+      "name": "Homarr",
+      "summary": "A start page for your home server, with every app and its status in one place.",
+      "description": "Homarr is a dashboard: arrange tiles for your apps, bookmarks and widgets\n(weather, calendars, media, downloads) and see at a glance what is up. The\nfirst visit creates its admin account.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgODIuOSA1MTIgMzQ2LjIiPjxwYXRoIGQ9Ik0xNjkuMyAxMDIuN2MyOC44IDAgNTIuMiAyMy40IDUyLjIgNTIuMnY2Ni44YzEuOC0uNiAzLjYtMSA1LjUtMSA1LjkgMCAxMS4xIDIuOSAxNC4yIDcuNHYtNzMuMmMwLTM5LjctMzIuMy03Mi03Mi03Mi0yNC44IDAtNDYuOCAxMi42LTU5LjcgMzEuOCA1LjYgMy42IDEwLjkgNy41IDE2IDExLjggOS40LTE0LjMgMjUuNS0yMy44IDQzLjgtMjMuOG0xMTUuNiAxMTguMWMxLjkgMCAzLjguNCA1LjUgMVYxNTVjMC0yOC44IDIzLjQtNTIuMiA1Mi4yLTUyLjIgMTguMyAwIDM0LjQgOS41IDQzLjggMjMuOCA1LjEtNC4yIDEwLjQtOC4yIDE2LTExLjhDMzg5LjUgOTUuNiAzNjcuNSA4MyAzNDIuNyA4M2MtMzkuNyAwLTcyIDMyLjMtNzIgNzJ2NzMuMmMzLjEtNC41IDguMy03LjQgMTQuMi03LjRtLTY5LjMgMTA0LjhjLTM1LjcgOC42LTY2IDI4LjEtODguMSA1NC0xMi4yIDE0LjMtMjEuOSAzMC42LTI4LjYgNDhsNDYuNi4zIDI2NS41IDEuMnYtLjFjLTI5LjItNzcuOC0xMTIuNS0xMjMuNC0xOTUuNC0xMDMuNG0xMS41LTYxLjljLTkuNyAwLTE3LjUgNy44LTE3LjUgMTcuNXM3LjggMTcuNSAxNy41IDE3LjUgMTcuNS03LjggMTcuNS0xNy41LTcuOC0xNy41LTE3LjUtMTcuNW01Ny44IDM1LjFjOS43IDAgMTcuNS03LjggMTcuNS0xNy41cy03LjgtMTcuNS0xNy41LTE3LjUtMTcuNSA3LjgtMTcuNSAxNy41IDcuOCAxNy41IDE3LjUgMTcuNW0xNjIuNS03NS42IDI2LjctMTA4LjhjLTIyLjYgMi44LTQzLjUgMTEuMS02MS41IDIzLjQtNi4zIDQuMy0xMi4zIDkuMi0xNy44IDE0LjQtMjYuNCAyNS40LTQyLjkgNjEuMS00Mi45IDEwMC42IDAgMzAuNyA5LjkgNTkuMSAyNi43IDgyLjEgOS4yIDEyLjcgMjAuNiAyMy43IDMzLjQgMzIuNmw5LjMtMzcuOGM0Ny45LTE0LjMgODQuMS01NS43IDkwLjctMTA2LjV6TTEzMy41IDMzNC45YzE2LjgtMjMgMjYuNy01MS40IDI2LjctODIuMSAwLTM5LjUtMTYuNS03NS4yLTQyLjktMTAwLjYtNS41LTUuMy0xMS41LTEwLjEtMTcuOC0xNC40LTE3LjktMTIuMy0zOC44LTIwLjYtNjEuNS0yMy40bDI2LjcgMTA4LjhIMGM2LjYgNTAuOCA0Mi44IDkyLjIgOTAuNyAxMDYuNWw5LjMgMzcuOGMxMi45LTguOSAyNC4yLTE5LjkgMzMuNS0zMi42IiBzdHlsZT0iZmlsbDojZmE1MjUyIi8+PC9zdmc+",
+      "category": "tools",
+      "image": "ghcr.io/homarr-labs/homarr:v2.0.0@sha256:3eeef80bfc58f6588844e9405da47550f681006d3019005a34f9388b5c00eb73",
+      "version": "2.0.0",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 7575,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "appdata",
+          "path": "/appdata"
+        }
+      ],
+      "settings": [
+        {
+          "key": "SECRET_ENCRYPTION_KEY",
+          "label": "Key that encrypts its stored secrets",
+          "type": "password",
+          "default": "generate",
+          "format": "hex",
+          "bytes": 32
+        }
+      ],
+      "health": {
+        "http": "/api/health/live"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=DB_DIALECT=sqlite\nEnvironment=DB_URL=/appdata/db/db.sqlite\nEnvironment=\"SECRET_ENCRYPTION_KEY={{ .Settings.SECRET_ENCRYPTION_KEY }}\"\nVolume={{ .Volumes.appdata }}:/appdata:Z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/bigbeartechworld/big-bear-casaos/blob/05e3501e90017f2eb74d29f5d5bef13c3615a0af/Apps/homarr-v2/docker-compose.yml",
+        "licence": "MIT",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/homarr.svg"
+        }
+      },
+      "project": "https://github.com/homarr-labs/homarr",
+      "stars": 5234
     },
     {
       "id": "home-assistant",
@@ -539,6 +589,99 @@
       "stars": 58783
     },
     {
+      "id": "jellyseerr",
+      "name": "Jellyseerr",
+      "summary": "Let your household ask for films and series, and send them to Sonarr and Radarr.",
+      "description": "Jellyseerr shows what is on your Jellyfin, Emby or Plex server and lets the\npeople who use it ask for more; approved requests go to Sonarr and Radarr. The\nfirst visit connects it to your media server.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA0NDkgNDQ5Ij48bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSItMjI1NC4wMTYiIHgyPSItMjI2Ny41MSIgeTE9Ii0yODMxLjQzMyIgeTI9Ii0yOTYxLjYxOCIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxLjc1IDAgMCAtMS43NSA0MDk5LjcwNSAtNDYzMS45NikiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM1MDJkOTUiLz48c3RvcCBvZmZzZXQ9Ii4xIiBzdHlsZT0ic3RvcC1jb2xvcjojNmQzN2FjIi8+PHN0b3Agb2Zmc2V0PSIuNTciIHN0eWxlPSJzdG9wLWNvbG9yOiM2Nzg2ZDEiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGQ9Im0xNzAuOSAzMTQtMjctNnMtNi4yIDM5LjYtOC42IDU5LjVjLTMuOCAzMi4xLTguNCA3Ni41LTYuNiAxMTAuNSAyIDM3LjQgMTIuMiA3My40IDE1LjYgNzMuNHMtMS44LTIyLjkuNS03My4zYzEuNS0zMy42IDcuMS03NCAxMy44LTExMC41IDMuMy0xOCAxMi45LTUzLjQgMTIuOS01My40aC0uNnoiIHN0eWxlPSJmaWxsOnVybCgjYSkiLz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSItMjE3NS44MSIgeDI9Ii0yMTg5LjMwMyIgeTE9Ii0yODM5LjQ4MyIgeTI9Ii0yOTY5LjcyMSIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxLjc1IDAgMCAtMS43NSA0MDk5LjcwNSAtNDYzMS45NikiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM1MDJkOTUiLz48c3RvcCBvZmZzZXQ9Ii4xIiBzdHlsZT0ic3RvcC1jb2xvcjojNmQzN2FjIi8+PHN0b3Agb2Zmc2V0PSIuNTciIHN0eWxlPSJzdG9wLWNvbG9yOiM2Nzg2ZDEiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGQ9Ik0yODQuOCAzMTEuMmg4LjNjMTEuMSA0MS40IDEzLjIgMTAxLjEgMTAuOCAxNDYuMS0yLjYgNDkuNS0xNi4yIDk3LjItMjAuNiA5Ny4yczIuNC0zMC4zLS43LTk3LjFDMjgwLjQgNDEyLjkgMjcxIDM3MSAyNzAgMzExLjJ6IiBzdHlsZT0iZmlsbDp1cmwoI2IpIi8+PGxpbmVhckdyYWRpZW50IGlkPSJjIiB4MT0iLTE4MzEuNzU3IiB4Mj0iLTE4MzEuNzU3IiB5MT0iLTI1NzYuOTk2IiB5Mj0iLTI2OTUuNDUiIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMi4xMiAwIDAgLTIuMTIgNDE5OS40NiAtNTEzNy4zMikiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NjNkY2QiLz48c3RvcCBvZmZzZXQ9Ii4yMiIgc3R5bGU9InN0b3AtY29sb3I6IzhkNjFlYiIvPjxzdG9wIG9mZnNldD0iLjM3IiBzdHlsZT0ic3RvcC1jb2xvcjojOGM4NmVjIi8+PHN0b3Agb2Zmc2V0PSIuNjQiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NDhjZTgiLz48c3RvcCBvZmZzZXQ9Ii45IiBzdHlsZT0ic3RvcC1jb2xvcjojNmJhMWU2Ii8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJNMzA5LjggMTgxLjZoMTMuM2MxNy44IDY2LjIgMjYuMSAxNjEuOSAyMi4yIDIzNC00LjIgNzkuNC0yNS45IDE1NS43LTMzLjEgMTU1LjdzMy44LTQ4LjYtMS4xLTE1NS42Yy0zLjMtNzEuNC0yMy41LTEzOC40LTI1LjEtMjM0LjJ6IiBzdHlsZT0iZmlsbDp1cmwoI2MpIi8+PGxpbmVhckdyYWRpZW50IGlkPSJkIiB4MT0iLTE4OTEuMTM0IiB4Mj0iLTE4OTEuMTM0IiB5MT0iLTI1NzYuOTk2IiB5Mj0iLTI2OTUuNDUiIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMi4xMiAwIDAgLTIuMTIgNDE5OS40NiAtNTEzNy4zMikiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NjNkY2QiLz48c3RvcCBvZmZzZXQ9Ii4yMiIgc3R5bGU9InN0b3AtY29sb3I6IzhkNjFlYiIvPjxzdG9wIG9mZnNldD0iLjM3IiBzdHlsZT0ic3RvcC1jb2xvcjojOGM4NmVjIi8+PHN0b3Agb2Zmc2V0PSIuNjQiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NDhjZTgiLz48c3RvcCBvZmZzZXQ9Ii45IiBzdHlsZT0ic3RvcC1jb2xvcjojNmJhMWU2Ii8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJNMTk2LjYgMTgwLjFoLTEzLjNjLTE3LjggNjYuMi0yNi4xIDE2MS45LTIyLjIgMjM0IDQuMiA3OS40IDI1LjkgMTU1LjcgMzMuMSAxNTUuN3MtMy44LTQ4LjYgMS4xLTE1NS42YzMuMy03MS40IDIzLjUtMTM4LjQgMjUuMS0yMzQuMmgtMjMuOHoiIHN0eWxlPSJmaWxsOnVybCgjZCkiLz48bGluZWFyR3JhZGllbnQgaWQ9ImUiIHgxPSItMTkyMi4wMDQiIHgyPSItMTkyMi4wMDQiIHkxPSItMjU3Ni45OTYiIHkyPSItMjY5NS40NSIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgyLjEyIDAgMCAtMi4xMiA0MTk5LjQ2IC01MTM3LjMyKSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6Izc2M2RjZCIvPjxzdG9wIG9mZnNldD0iLjIyIiBzdHlsZT0ic3RvcC1jb2xvcjojOGQ2MWViIi8+PHN0b3Agb2Zmc2V0PSIuMzciIHN0eWxlPSJzdG9wLWNvbG9yOiM4Yzg2ZWMiLz48c3RvcCBvZmZzZXQ9Ii42NCIgc3R5bGU9InN0b3AtY29sb3I6Izc0OGNlOCIvPjxzdG9wIG9mZnNldD0iLjkiIHN0eWxlPSJzdG9wLWNvbG9yOiM2YmExZTYiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGQ9Im0xNTUuNiAxNTAtMzAuMi0xMC44cy0xMS4xIDcwLjctMTUuMyAxMDYuMmMtNi43IDU3LjMtMjAgMTM2LjYtMTYuNyAxOTcuMyAzLjYgNjYuOCAyMS44IDEzMS4xIDI3LjggMTMxLjFzLTMuMi00MC45IDEtMTMxYzIuOC02MC4xIDIxLjItMTE3IDI3LjQtMTk3LjQgMi41LTMxLjkgNy4zLTk1LjUgNy4zLTk1LjV6IiBzdHlsZT0iZmlsbDp1cmwoI2UpIi8+PGxpbmVhckdyYWRpZW50IGlkPSJmIiB4MT0iLTE4NjIuNDIxIiB4Mj0iLTE4NjIuNDIxIiB5MT0iLTI1NzYuOTk2IiB5Mj0iLTI2OTUuNDUiIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMi4xMiAwIDAgLTIuMTIgNDE5OS40NiAtNTEzNy4zMikiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NjNkY2QiLz48c3RvcCBvZmZzZXQ9Ii4yMiIgc3R5bGU9InN0b3AtY29sb3I6IzhkNjFlYiIvPjxzdG9wIG9mZnNldD0iLjM3IiBzdHlsZT0ic3RvcC1jb2xvcjojOGM4NmVjIi8+PHN0b3Agb2Zmc2V0PSIuNjQiIHN0eWxlPSJzdG9wLWNvbG9yOiM3NDhjZTgiLz48c3RvcCBvZmZzZXQ9Ii45IiBzdHlsZT0ic3RvcC1jb2xvcjojNmJhMWU2Ii8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJtMjU1LjUgMTgxLjYtMjcuMyA0LjZzMy42IDUzIDMuNiA4My4xYzAgNDguOSAxLjkgOTguMiAxLjggMTQ5LjUtLjIgNTguOSA5LjcgMTU3LjYgMTQuOCAxNTcuNnMyMS43LTEyNyAyNS4yLTIwM2MyLjMtNTAuNy01LjItOTUuMS02LjUtMTI1LjQtMS4yLTI3LTUtNjMuNC01LTYzLjR6IiBzdHlsZT0iZmlsbDp1cmwoI2YpIi8+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iLTE3MzUuNTQ4IiB4Mj0iLTE1ODYuOTM2IiB5MT0iLTI2NzMuMDk1IiB5Mj0iLTI4MzguMTkiIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMS43OSAwIDAgLTEuNzkgMzI0Ni4xNTUgLTQ2NTcuOTEpIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojYzM5NWZjIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojNGY2NWY1Ii8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJNNDA1LjggMTk3LjdjMCA2OC44LTExLjcgNzMtMzAuOCAxMDIuMS0xMy44IDIwLjkgMTQuMSAzNy4xIDIuOSA0Mi45LTEzLjMgNi45LTkuMS01LjYtMzUuNi0xMi43LTExLjUtMy0zNi41LjMtNDYuNiAyLjMtMTAgMS45LTQwLjYtMTUuMS00OC43LTE3LjMtMTIuMS0zLjMtNDEuOCAxMi41LTU5LjkgMTIuNXMtMzctMTUuOC02MS4xLTkuM2MtMjguNiA3LjctNjMuMSAyNi4zLTY4LjMgMjAuMi0xMC0xMS43IDIxLjktMjAuNiAxMC00MS40LTcuNS0xMy4yLTMzLjQtNDcuOS0zNC4yLTgzLTIuNC0xMTIuOCA5MS0yMDguMSAxOTEuMS0yMDguMXMxODEuMSA4Ni44IDE4MS4xIDE4My45IiBzdHlsZT0iZmlsbDp1cmwoI2cpIi8+PGxpbmVhckdyYWRpZW50IGlkPSJoIiB4MT0iLTEwNTkuODcyIiB4Mj0iLTEwNTkuODcyIiB5MT0iLTYzNzguMDMxIiB5Mj0iLTY1OTQuNzc1IiBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KC41MSAwIDAgLS41MSA2ODcuODY1IC0zMjA1LjUzKSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I2ZmZjtzdG9wLW9wYWNpdHk6LjQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmY7c3RvcC1vcGFjaXR5OjAiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGQ9Ik0yMTguNCA0MS43QzE2My43IDQxLjcgODcuMyA5OC4zIDg3LjMgMTUzYzAgNi4xLTQuOSAxMS0xMSAxMXMtMTEtNC45LTExLTExYzAtNjYuOCA4Ni4yLTEzMy4yIDE1My4xLTEzMy4yIDYuMSAwIDExIDQuOSAxMSAxMXMtNSAxMC45LTExIDEwLjkiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOnVybCgjaCkiLz48bGluZWFyR3JhZGllbnQgaWQ9ImkiIHgxPSItMTM1MS4zODIiIHgyPSItMTQ4NS4xOTUiIHkxPSItMzkwOC44OTQiIHkyPSItNDAwNy4yNCIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxLjAyIDAgMCAtMS4wMiAxNjU3LjUgLTM4MzIuNDUpIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojZjlmOWY5Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojZjlmOWY5O3N0b3Atb3BhY2l0eTowIi8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJNMjk5LjMgMjQ4LjVjLTUuOCA5LjUtMTMuNyAxNy4xLTIzIDIyLjMtNCAyLjItOC4yIDMuOS0xMi42IDUuMi0xMy4xIDUuOS0yNy43IDktNDIuNiA5LjMtNTAuOC45LTkzLTMxLjYtOTQuNy03Mi44LS44LTIwLjIgMTEuMy00MS4yIDIwLjYtNTcuMyA3LjktMTMuNyAyMS41LTM3LjIgMzkuNC00Ni42IDM2LjUtMTkuMiA4NS44IDEuMSAxMTAuNCA0NS42IDcuMSAxMi45IDExLjcgMjcgMTMuMiA0MS4xIDEuMSA0LjYgMS44IDkuMyAxLjggMTQgLjIgMTIuMi0zLjQgMjQuMy0xMC4yIDM1LjEtLjcgMS40LTEuNCAyLjctMi4yIDQgMCAuMS0uMS4xLS4xLjEiIHN0eWxlPSJmaWxsOnVybCgjaSkiLz48bGluZWFyR3JhZGllbnQgaWQ9ImoiIHgxPSItMTI5My4wMzUiIHgyPSItMTIyOC4zNDQiIHkxPSItMzEzOS41NTIiIHkyPSItMzIwNS41NzgiIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMS40MyAwIDAgLTEuNDMgMjAyNy42NjUgLTQzMjYuMDEpIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojMDA0M2EyIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojMDAxMzNhIi8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBkPSJNMjE5IDE0Ny40YzMxLjcgMCA1Ny4zIDI1LjcgNTcuMyA1Ny4zUzI1MC42IDI2MiAyMTkgMjYycy01Ny4zLTI1LjctNTcuMy01Ny4zYzAtNS45LjktMTEuNSAyLjUtMTYuOSA0LjUgMTAgMTQuNSAxNi45IDI2LjEgMTYuOSAxNS44IDAgMjguNi0xMi45IDI4LjYtMjguNiAwLTExLjYtNi45LTIxLjctMTYuOS0yNi4xIDUuNC0xLjcgMTEtMi41IDE3LTIuNiIgc3R5bGU9ImZpbGw6dXJsKCNqKSIvPjwvc3ZnPg==",
+      "category": "media",
+      "image": "docker.io/fallenbagel/jellyseerr:2.7.3@sha256:4538137bc5af902dece165f2bf73776d9cf4eafb6dd714670724af8f3eb77764",
+      "version": "2.7.3",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 5055,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "jellyseerr",
+          "path": "/app/config"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/api/v1/status"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=LOG_LEVEL=info\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.jellyseerr }}:/app/config:Z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Jellyseerr/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/jellyseerr.svg"
+        }
+      },
+      "project": "https://github.com/fallenbagel/jellyseerr",
+      "stars": 13062
+    },
+    {
+      "id": "linkding",
+      "name": "linkding",
+      "summary": "Save, tag and search your bookmarks, with copies of the pages kept.",
+      "description": "linkding is a bookmark manager: save links from its browser extension or\nbookmarklet, tag them, search them, and keep a copy of each page in case it\ndisappears. Sign in as admin with the password made up at install.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIGlkPSJMYXllcl8xIiB4PSIwIiB5PSIwIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48c3R5bGU+LnN0MXtmaWxsOm5vbmU7c3Ryb2tlOiNmZmY7c3Ryb2tlLXdpZHRoOjMxLjI1O3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2UtbWl0ZXJsaW1pdDoxLjV9PC9zdHlsZT48Y2lyY2xlIGN4PSIyNTYiIGN5PSIyNTYiIHI9IjI1NiIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO2ZpbGw6IzU4NTZlMCIvPjxwYXRoIGQ9Ik0yNDkuMyA5MS43IDg4LjUgMjUyLjVzLTU1LjMgNTQgNC44IDExNS44YzYwLjQgNjIgMTE1LjggNC44IDExNS44IDQuOGwxNjAuOC0xNjAuOCIgY2xhc3M9InN0MSIvPjxwYXRoIGQ9Im0yNjYuMSA0MjEuNyAxNjAuMi0xNjEuM3M1NS4xLTU0LjItNS4zLTExNS44Yy02MC42LTYxLjgtMTE1LjgtNC40LTExNS44LTQuNEwxNDUuMSAzMDEuNSIgY2xhc3M9InN0MSIvPjwvc3ZnPg==",
+      "category": "tools",
+      "image": "docker.io/sissbruecker/linkding:1.47.0@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522",
+      "version": "1.47.0",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 9090,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "data",
+          "path": "/etc/linkding/data"
+        }
+      ],
+      "settings": [
+        {
+          "key": "ADMIN_PASSWORD",
+          "label": "Password of the admin account",
+          "type": "password",
+          "default": "generate"
+        }
+      ],
+      "health": {
+        "http": "/health"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=LD_SUPERUSER_NAME=admin\nEnvironment=\"LD_SUPERUSER_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nVolume={{ .Volumes.data }}:/etc/linkding/data:Z\n",
+      "source": {
+        "from": "hand",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/linkding.svg"
+        }
+      },
+      "project": "https://github.com/sissbruecker/linkding",
+      "stars": 11358
+    },
+    {
       "id": "mealie",
       "name": "Mealie",
       "summary": "Keep your recipes, plan the week's meals and make the shopping list.",
@@ -624,7 +767,7 @@
         }
       },
       "project": "https://github.com/usememos/memos",
-      "stars": 64174
+      "stars": 64175
     },
     {
       "id": "minecraft",
@@ -954,6 +1097,65 @@
       "stars": 47302
     },
     {
+      "id": "photoprism",
+      "name": "PhotoPrism",
+      "summary": "Browse, search and organise your photos, found by place, face and subject.",
+      "description": "PhotoPrism indexes the photos and videos in a folder you pick and lets you\nbrowse them by date, place, person and what is in them, without changing the\nfiles. Sign in as admin with the password made up at install. It needs a few\ngigabytes of memory while it indexes.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCAyNjYgMjY2Ij48bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSI0NS4wNDIiIHgyPSIyMzEuNzE4IiB5MT0iMzYuMjgyIiB5Mj0iMjIyLjk1OCIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSAtNS4zOCAyNjIuNjIpIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojZmZmIi8+PHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojYjhlZGZmIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojZDRiOGZmIi8+PC9saW5lYXJHcmFkaWVudD48Y2lyY2xlIGN4PSIxMzMiIGN5PSIxMzMiIHI9IjEzMiIgc3R5bGU9ImZpbGw6dXJsKCNhKSIvPjxwYXRoIGQ9Im0yMjQuMiAxNzYuNS00IDI0LjJNNDEuOSAxNzcuNWwxNC44IDE0bTk1LjgtMTM3LjdMNTYuNiAxOTEuM3YuMWguMWwxNjMuNCA5LjRzLjEgMCAuMS0uMXYtLjFMMTUyLjYgNTMuOWMwLS4xLS4xLS4xLS4xLS4xem0tMTkuOC0xMy4yTDQxLjggMTc3LjNjMCAuMSAwIC4xLjEuMmguMWwxODIuMi0uOGMuMSAwIC4xLS4xLjEtLjF2LS4xTDEzMi45IDQwLjZjMC0uMS0uMS0uMS0uMiAwcS4xNS0uMTUgMCAwem0uMS0uMiAxOS44IDEzLjMiIHN0eWxlPSJmaWxsOm5vbmU7c3Ryb2tlOiMxZDFkMWI7c3Ryb2tlLXdpZHRoOjY7c3Ryb2tlLW1pdGVybGltaXQ6MTAiLz48L3N2Zz4=",
+      "category": "media",
+      "image": "docker.io/photoprism/photoprism:260523@sha256:ee3d15cf76f80c2fb4a28c336a63173b0c671ed7a3dd9ec0ed6231b7defa8876",
+      "version": "260523",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 2342,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "gallery",
+          "path": "/photoprism/originals",
+          "shared": true
+        },
+        {
+          "name": "storage",
+          "path": "/photoprism/storage"
+        }
+      ],
+      "settings": [
+        {
+          "key": "ADMIN_PASSWORD",
+          "label": "Password of the admin account",
+          "type": "password",
+          "default": "generate"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/api/v1/status"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PHOTOPRISM_ADMIN_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nEnvironment=PHOTOPRISM_UPLOAD_NSFW=true\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.storage }}:/photoprism/storage:Z\nVolume={{ .Volumes.gallery }}:/photoprism/originals:z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/PhotoPrism/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/photoprism.svg"
+        }
+      },
+      "project": "https://github.com/photoprism/photoprism",
+      "stars": 40370
+    },
+    {
       "id": "pihole",
       "name": "Pi-hole",
       "summary": "Network-wide Ad Blocking",
@@ -1007,6 +1209,347 @@
       },
       "project": "https://github.com/pi-hole/pi-hole",
       "stars": 61556
+    },
+    {
+      "id": "plex",
+      "name": "Plex",
+      "summary": "Stream your films, series and music to every screen, with the Plex apps.",
+      "description": "Plex Media Server organises your films, series, music and photos and streams\nthem to the Plex apps on TVs, phones and browsers. Sign in with your Plex\naccount on the first visit to claim the server. Hardware transcoding with the\nNode's graphics card needs Plex Pass.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzI4MmEyZCIgcng9IjE1JSIvPjxwYXRoIGZpbGw9IiNlNWEwMGQiIGQ9Ik0yNTYgNzBIMTQ4bDEwOCAxODYtMTA4IDE4NmgxMDhsMTA4LTE4NnoiLz48L3N2Zz4=",
+      "category": "media",
+      "image": "lscr.io/linuxserver/plex:1.43.3@sha256:de95bb12db3ed4e34ad5983113b8af967cfd77786e15669c0703c22133e10107",
+      "version": "1.43.3",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 32400,
+        "path": "/web/index.html"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        },
+        {
+          "name": "media",
+          "path": "/Media",
+          "shared": true
+        }
+      ],
+      "settings": [
+        {
+          "key": "PGID",
+          "label": "Run Plex as this group id.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "PUID",
+          "label": "Run Plex as this user id.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        },
+        {
+          "key": "GPU",
+          "label": "Graphics card for hardware transcoding",
+          "type": "device",
+          "device": "video"
+        },
+        {
+          "key": "PLEX_CLAIM",
+          "label": "Claim token from plex.tv/claim (only without discovery; valid four minutes)",
+          "type": "text"
+        }
+      ],
+      "health": {
+        "http": "/identity"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\n{{ if .Grants.discovery }}Network=host\n{{ else }}Network={{ .Network }}\n{{ end }}{{ if .Grants.hardware_transcoding }}{{ with .Settings.GPU }}AddDevice={{ . }}\n{{ end }}{{ end }}Environment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nEnvironment=\"PLEX_CLAIM={{ .Settings.PLEX_CLAIM }}\"\nEnvironment=VERSION=docker\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.media }}:/Media:z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Plex/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/plex.svg"
+        }
+      },
+      "grants": [
+        {
+          "option": "Network=host",
+          "why": "Lets the Plex apps on your TVs and phones find the server on your home network, and lets you claim it from the first visit. Its page is then also open on your home network at the Node's address, port 32400.",
+          "optional": "discovery",
+          "without": "Apps find the server through your Plex account only; claim it with a token from plex.tv/claim (the Claim token setting)."
+        },
+        {
+          "option": "AddDevice=*",
+          "why": "Uses the graphics card you picked to convert video for devices that cannot play it as it is, instead of the processor.",
+          "optional": "hardware_transcoding",
+          "without": "Video is converted by the processor, more slowly."
+        }
+      ]
+    },
+    {
+      "id": "prowlarr",
+      "name": "Prowlarr",
+      "summary": "Manage the indexers Sonarr and Radarr search, in one place.",
+      "description": "Prowlarr keeps your torrent trackers and Usenet indexers in one place and hands them to Sonarr, Radarr and the rest, so you set each up once.\nThe first visit sets up its login.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIGlkPSJzdmcxMCIgeD0iMCIgeT0iMCIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+PHN0eWxlPi5zdDR7ZmlsbDojZGVlNmUzfS5zdDV7ZmlsbDojZDQ1NDFlfS5zdDZ7ZmlsbDojODUyZTFifS5zdDd7ZmlsbDojZmZmfS5zdDExe2ZpbGw6IzZmMjcxN30uc3QxM3tmaWxsOiM5NDQwMWR9LnN0MTV7ZmlsbDojYzc0ZDFmfS5zdDE3e2ZpbGw6I2ZkZGQwNH0uc3QxOHtmaWxsOiMzOTE5MTN9PC9zdHlsZT48ZyBpZD0iZzE4IiB0cmFuc2Zvcm09Im1hdHJpeCgxLjMzMzMzIDAgMCAtMS4zMzMzMyAxOTguNjI4IDUxNS44MzcpIj48ZyBpZD0iZzIyNDgiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQyNS4wOTcgLTExMjMuMzQ5KXNjYWxlKDQuMDk2KSI+PGNpcmNsZSBpZD0icGF0aDIxODgiIGN4PSItOTMuMyIgY3k9IjMyMS44IiByPSI0NSIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO2ZpbGw6I2ZmZTZkNSIvPjxwYXRoIGlkPSJwYXRoNTY4IiBkPSJtLTEyNC4xIDMxMy42IDguMSA5LjUgNjAuNy4yLTcuOS05Ljd6IiBzdHlsZT0iZmlsbDojODMzMzFiIi8+PHBhdGggaWQ9InBhdGg1NzAiIGQ9Ik0tMTI0LjEgMzEzLjZ2LTI1LjVjNC42LS4yIDguMS0yIDguMS00LjFoNDcuMmMtLjQuNS0uNiAxLjEtLjYgMS43IDAgMi4yIDIuNyA0IDYuMiA0LjJ2MjMuN3oiIHN0eWxlPSJmaWxsOiNmOGEzN2IiLz48cGF0aCBpZD0icGF0aDU3MiIgZD0iTS04OS4yIDMwOS4zYzEgLjUgMi41IDIuMSAxLjYgMy43LS4yLjMtLjMuNS0uNS42aDQuMWMtLjUtMS4yLTIuNC0yLjYtMi40LTIuNnMtLjItLjMtMS0xYy0uNi0uMy0xLjMtLjYtMS44LS43bS0xMi4xLjFjLS41LjItMS4yLjYtMS43IDEuMi0uOS45LTEgMi4xLTEgMi4xbC0uNiAxaDIuNGMtLjItLjEtLjMtLjMtLjUtLjYtLjktMS42LjUtMy4xIDEuNC0zLjdtMTEuMi40Yy0uNS4xLTEuNS4yLTIuNS41LTEuNS41LTIuMyAxLjYtMi4zIDEuNnMtMS42LTEtMy44LTEuNGMtLjctLjEtMS4yLS4yLTEuNS0uMiAwIC43LS4yIDEuNS0uMiAxLjVzLS40IDEuMy0xIDEuN2gxMi42Yy0uNi0uNC0xLTEuNy0xLTEuN3MtLjMtMS4xLS4zLTIiIHN0eWxlPSJmaWxsOiNkYTg0NWQiLz48cGF0aCBpZD0icGF0aDU3NCIgZD0iTS0xMDAuNSAzMTEuOXMuNS0yLjQgMC0yLjctMy41IDEuOC0yLjIgMy45YzEuMiAyIDIuMi0xLjIgMi4yLTEuMiIgY2xhc3M9InN0NCIvPjxwYXRoIGlkPSJwYXRoNTc2IiBkPSJNLTg5LjkgMzExLjlzLS41LTIuNCAwLTIuNyAzLjUgMS44IDIuMiAzLjljLTEuMiAyLTIuMi0xLjItMi4yLTEuMiIgY2xhc3M9InN0NCIvPjxwYXRoIGlkPSJwYXRoNTc4IiBkPSJNLTEwNy43IDMzMi4xYy42LTIuNy0xLjItNS4zLTMuOC01LjgtMi43LS42LTUuMyAxLjItNS44IDMuOC0uNiAyLjcgMS4yIDUuMyAzLjggNS44IDIuNi42IDUuMi0xLjEgNS44LTMuOCIgY2xhc3M9InN0NSIvPjxwYXRoIGlkPSJwYXRoNTgwIiBkPSJNLTEwOS42IDMzNS4xYy0xLjEuOC0yLjUgMS4xLTMuOS44LTIuNy0uNi00LjQtMy4yLTMuOC01LjguMS0uNi4zLTEuMS42LTEuNiAyLjEuNyA1LjQgMi41IDcuMSA2LjYiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDU4MiIgZD0iTS0xMDkuOSAzMzEuNmMuMy0xLjUtLjYtMi45LTIuMS0zLjMtMS41LS4zLTIuOS42LTMuMyAyLjEtLjMgMS41LjYgMi45IDIuMSAzLjMgMS42LjQgMy0uNiAzLjMtMi4xIiBjbGFzcz0ic3Q3Ii8+PHBhdGggaWQ9InBhdGg1ODQiIGQ9Ik0tNzYuMSAzMzNjLTEuMSAwLTIuMi43LTIuNiAxLjktLjUgMS40LjMgMyAxLjcgMy40LjguMyA0LjYgMS44IDMuNSA1LjQtLjggMi42LTIuNCAzLTcgMy41LS45LjEtMS43LjItMi42LjMtMy4zLjUtNS43IDEuOC03LjIgNC0yLjIgMy4yLTEuMyA2LjktMS4yIDcuMy40IDEuNSAxLjkgMi4zIDMuMyAyIDEuNS0uNCAyLjMtMS45IDItMy4zIDAgMC0uNC0xLjcuNS0yLjkuNi0uOSAxLjctMS40IDMuNC0xLjZsMi40LS4zYzQuMy0uNSA5LjctMSAxMS43LTcuMiAyLjEtNi42LTMtMTAuOS03LTEyLjItLjMtLjMtLjYtLjMtLjktLjMiIHN0eWxlPSJmaWxsOiNlMjU5MWUiLz48cGF0aCBpZD0icGF0aDU4OCIgZD0ibS04NS44IDM1NC41LS4xLjFjLTEuOC0xLjEtNC4xLTEuNC01LjMtMS40LjItLjYuNS0xLjEuOS0xLjcuNS0uNyAxLjEtMS4zIDEuOC0xLjkgMi40LjQgNC4zIDIuMiA1LjQgMy40cS0xLjk1LjQ1LTIuNyAxLjUiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDU5MCIgZD0iTS04MCAzNDcuMWMyLS4yIDMuMy0uNCA0LjMtLjguNyAxLjEgMS42IDMgMiA1LjEtMS40LjYtMyAuOS00LjUgMS4xLjEtMS41IDAtMy44LTEuOC01LjQiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDU5MiIgZD0iTS02OCAzNDAuM2MuMyAxLjIuMyAyLjYgMCA0LjEtLjUtLjQtMS4yLS44LTIuMS0xLjEtMS41LS40LTIuNS0uNC0zLjItLjMuMy0xLjUtLjMtMi42LTEuMS0zLjMgMi40LS45IDQuOC0uMiA2LjQuNiIgY2xhc3M9InN0NiIvPjxwYXRoIGlkPSJwYXRoNTk0IiBkPSJNLTczLjMgMzQxLjh2MS4yYzAgLjItLjEuNS0uMi43LjEtLjIuMS0uMy4xLS41LjItLjUuMi0xIC4xLTEuNG0tLjEgMS45Yy0uNCAxLjMtMS4xIDIuMS0yLjIgMi42IDEuMS0uNSAxLjctMS4zIDIuMi0yLjZtLTYuNiAzLjRjLS4yIDAtLjQgMC0uNS4xLS45LjEtMS43LjItMi42LjNoLS4xLjFjLjktLjEgMS44LS4yIDIuNi0uMy4yLS4xLjQtLjEuNS0uMW0tMy4zLjQiIHN0eWxlPSJmaWxsOiM4M2JhZDIiLz48cGF0aCBpZD0icGF0aDU5NiIgZD0iTS02OC40IDMzOS4xYy0uMy4yLS42LjQtLjkuNy41LjIuOS40IDEuMy42LS4xLS41LS4yLS45LS40LTEuM20tNCA0Yy0uNCAwLS43IDAtLjkuMSAwIC4yLS4xLjMtLjEuNS0uNCAxLjMtMS4xIDIuMS0yLjIgMi42LjIuNC41LjkuOCAxLjUgMS40LS42IDIuMy0xLjQgMy0yLjhxLjQ1LS45LjMtMS44Yy0uMy0uMS0uNi0uMS0uOS0uMW0tNy42IDRjLS4yIDAtLjQgMC0uNS4xLS45LjEtMS43LjItMi42LjNoLS4xYy0yLjQuNC00LjQgMS4yLTUuOCAyLjZsLjUtLjVjLjMgMCAuNi4xLjguMiAxLjQtLjQgMy4xLS44IDUuMi0uOSAxLjQtLjEgMi42LS4yIDMuNy0uMy0uMy0uNS0uNi0xLTEuMi0xLjUiIHN0eWxlPSJmaWxsOiNiYTRhMWYiLz48cGF0aCBpZD0icGF0aDU5OCIgZD0iTS04OC42IDM0OS42Yy0uMi4xLS40LjMtLjUuNS0uMi4xLS4zLjMtLjQuNC41LS4yIDEuMS0uNSAxLjgtLjctLjMtLjEtLjYtLjEtLjktLjIiIGNsYXNzPSJzdDExIi8+PHBhdGggaWQ9InBhdGg2MDAiIGQ9Ik0tNzUuNiAzNDYuM2MtMSAuNC0yLjQuNi00LjMuOHEuNzUuNzUgMS4yIDEuNWMxLjYtLjIgMi45LS40IDQtLjhxLS42LS45LS45LTEuNSIgY2xhc3M9InN0MTEiLz48cGF0aCBpZD0icGF0aDYwMiIgZD0iTS02OS4zIDMzOS44Yy0xLjIuOC0yLjUgMS41LTQgMiAuMS40LjEuOSAwIDEuNC4yIDAgLjUtLjEuOS0uMS4zIDAgLjYgMCAuOS4xIDAtLjMtLjEtLjYtLjEtLjggMS4zLS42IDIuNS0xLjIgMy42LTItLjQtLjMtLjktLjUtMS4zLS42IiBjbGFzcz0ic3QxMSIvPjxwYXRoIGlkPSJwYXRoNjA0IiBkPSJNLTY5LjEgMzQ0LjlzLTIuMiAzLjEtNSA0LjZjLjEuNC4yLjcuMyAxLjEuNS0uMi45LS41IDEuMi0uOCAyLjUtMS45IDMuNS00LjkgMy41LTQuOW0tOS4xIDYuM2MtMS42LjYtMi44LjktMi44LjlzMS4yIDAgMi44LS4zeiIgc3R5bGU9ImZpbGw6I2U2NjczMyIvPjxwYXRoIGlkPSJwYXRoNjA2IiBkPSJNLTc0LjEgMzQ5LjZjLS4yLjEtLjUuMi0uNy40LTEuMi41LTIuMy45LTMuMyAxLjN2LjZjMS40LS4yIDMtLjYgNC4zLTEuMi0uMS0uNC0uMi0uOC0uMy0xLjEiIGNsYXNzPSJzdDEzIi8+PHBhdGggaWQ9InBhdGg2MDgiIGQ9Ik0tOTguOSAzMzYuMnM3LjIgOC41IDIxLjkgNi41YzE0LjctMi4xIDIwLjEtMjEuMiAyMC4xLTIxLjJsLTYuMy03LjloLTM1Ljd6IiBzdHlsZT0iZmlsbDojZWY1ZDIyIi8+PHBhdGggaWQ9InBhdGg2MTAiIGQ9Ik0tOTYuNiAzMzguM2MxLjYuNCA0IC44IDcuOS41IDkuMy0uNiAyMS4zLTE1LjUgMjEuMy0xNS41cy01LjMgMTYuOS0yMi4zIDE4LjVjLTMuMS0xLTUuNC0yLjQtNi45LTMuNSIgY2xhc3M9InN0NiIvPjxwYXRoIGlkPSJwYXRoNjEyIiBkPSJNLTY3LjYgMzE2aC0yLjFjLS42IDEuNi0zLjUgOS4yLTguMSAxMy4yLTMuOCAzLjMtOS4zIDcuMS0xNi4yIDcuNGgxYzUgMCA5LjMtMS44IDEyLjctNC4xdi4yYy4xLjcuNCAxLjMuOCAxLjkgMi44LTIgNS40LTQuNCA3LjQtNi41LS41LS41LTEuMS0uOC0xLjctMS4xIDMuNi00IDUuOC05LjYgNi4yLTExbS0zLjEgMTMuOWMtMS40IDIuMi0zLjQgNC42LTUuOSA2LjYuMSAwIC4xIDAgLjIuMWguMWMuMSAwIC4zIDAgLjQuMWgxLjFjLjIgMCAuMyAwIC41LS4xIDIuNy0uNiA0LjQtMy4yIDMuOC01LjggMC0uNC0uMS0uNi0uMi0uOSIgY2xhc3M9InN0MTUiLz48cGF0aCBpZD0icGF0aDYxNCIgZD0iTS03MS45IDMyOC4yYy0yIDIuMS00LjYgNC41LTcuNCA2LjUuMy40LjcuOCAxLjEgMS4xLjEuMS4zLjIuNC4zcy4zLjIuNC4yYy4xLjEuMy4xLjQuMmguMWMuMSAwIC4xIDAgLjIuMSAyLjYtMi4xIDQuNS00LjUgNS45LTYuNi0uMS0uMy0uMi0uNS0uNC0uNy0uMS0uNS0uNC0uOC0uNy0xLjEiIGNsYXNzPSJzdDExIi8+PHBhdGggaWQ9InBhdGg2MTYiIGQ9Ik0tODIuMiAzMzIuOGMtLjYtMi43IDEuMi01LjMgMy44LTUuOCAyLjctLjYgNS4zIDEuMiA1LjggMy44LjYgMi43LTEuMiA1LjMtMy44IDUuOHMtNS4zLTEuMi01LjgtMy44IiBjbGFzcz0ic3Q1Ii8+PHBhdGggaWQ9InBhdGg2MTgiIGQ9Ik0tODAuMyAzMzUuN2MxLjEuOCAyLjUgMS4xIDMuOS44IDIuNy0uNiA0LjQtMy4yIDMuOC01LjgtLjEtLjYtLjMtMS4xLS42LTEuNi0yLjIuOC01LjUgMi41LTcuMSA2LjYiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDYyMCIgZD0iTS04MC4xIDMzMi4zYy0uMy0xLjUuNi0yLjkgMi4xLTMuMyAxLjUtLjMgMi45LjYgMy4zIDIuMS4zIDEuNS0uNiAyLjktMi4xIDMuMy0xLjUuMy0zLS42LTMuMy0yLjEiIGNsYXNzPSJzdDciLz48cGF0aCBpZD0icGF0aDYyMiIgZD0ibS0xMTcuOSAzMTMuNi0yLjQgMi41czcuNyAxNS43IDE4LjQgMTkuNGMxMC42IDMuNiAxOS0xLjggMjQuMi02LjNzOC4yLTEzLjUgOC4yLTEzLjVsLTEuOS0yLjF6IiBzdHlsZT0iZmlsbDojZjQ2YTJmIi8+PHBhdGggaWQ9InBhdGg2MjQiIGQ9Ik0tMTA1LjYgMzI5LjFzOC43IDYuOSAxMC40IDYuOSAxMC02IDEwLTZsLTEuNC0xLjdzLTcuMyA1LjktOC43IDUuOS04LjItNS45LTguMi01Ljl6IiBjbGFzcz0ic3Q2Ii8+PHBhdGggaWQ9InBhdGg2MjYiIGQ9Ik0tMTAxLjMgMzI2LjVzNSA0LjIgNi40IDQuMiA2LjItMy43IDYuMi0zLjdsLTEuMy0yLjVzLTMuOCA0LjEtNC45IDQuMS01LjQtMy44LTUuNC0zLjh6IiBjbGFzcz0ic3Q2Ii8+PHBhdGggaWQ9InBhdGg2MjgiIGQ9Im0tMTIwLjMgMzE2LjEgNi43IDIuM3MtMi4yIDcgNC4xIDEwLjQgOS4xLS4xIDkuOS0yLjFjLjktMiAuOS03LjMuOS03LjNoNy41cy0uMSA3LjkgMy4xIDEwLjEgOCAyLjUgOS45LTEuNmMxLjktNC4yIDAtNy44IDAtNy44bDguNi00LjMtMS45LTIuMWgtNDYuNHoiIGNsYXNzPSJzdDciLz48cGF0aCBpZD0icGF0aDYzMCIgZD0iTS0xMDAuNSAzMjMuM2MwLTEuNi0xLjMtMy0zLTMtMS42IDAtMyAxLjMtMyAzIDAgMS42IDEuMyAzIDMgM3MzLTEuMyAzLTMiIGNsYXNzPSJzdDE3Ii8+PHBhdGggaWQ9InBhdGg2MzIiIGQ9Ik0tMTAxLjMgMzIzLjNjMC0xLjItMS0yLjEtMi4xLTIuMS0xLjIgMC0yLjEgMS0yLjEgMi4xczEgMi4xIDIuMSAyLjEgMi4xLS45IDIuMS0yLjEiIGNsYXNzPSJzdDE4Ii8+PHBhdGggaWQ9InBhdGg2MzQiIGQ9Ik0tMTAzLjkgMzI0LjZjMC0uNS0uNC0uOS0uOS0uOXMtLjkuNC0uOS45LjQuOS45LjkuOS0uNC45LS45IiBjbGFzcz0ic3Q3Ii8+PHBhdGggaWQ9InBhdGg2MzYiIGQ9Ik0tODMuNiAzMjMuM2MwLTEuNi0xLjMtMy0zLTMtMS42IDAtMyAxLjMtMyAzIDAgMS42IDEuMyAzIDMgM3MzLTEuMyAzLTMiIGNsYXNzPSJzdDE3Ii8+PHBhdGggaWQ9InBhdGg2MzgiIGQ9Ik0tODQuNCAzMjMuM2MwLTEuMi0xLTIuMS0yLjEtMi4xLTEuMiAwLTIuMSAxLTIuMSAyLjFzLjkgMi4xIDIuMSAyLjFjMS4xIDAgMi4xLS45IDIuMS0yLjEiIGNsYXNzPSJzdDE4Ii8+PHBhdGggaWQ9InBhdGg2NDAiIGQ9Ik0tODcgMzI0LjZjMC0uNS0uNC0uOS0uOS0uOXMtLjkuNC0uOS45LjQuOS45LjkuOS0uNC45LS45IiBjbGFzcz0ic3Q3Ii8+PHBhdGggaWQ9InBhdGg2NDIiIGQ9Ik0tNjMuMiAzMTMuNmgtNi4ybDEuOSAyLjFzMCAuMS0uMS4zaDQuNGw1LjggNy4xYy40LTEgLjUtMS42LjUtMS42eiIgY2xhc3M9InN0MTUiLz48cGF0aCBpZD0icGF0aDY0NCIgZD0iTS02OS40IDMxMy42aC0yLjFsMS45IDIuMXMwIC4xLS4xLjNoMi4xYy4xLS4yLjEtLjMuMS0uM3oiIHN0eWxlPSJmaWxsOiNhMzNmMWUiLz48cGF0aCBpZD0icGF0aDY0NiIgZD0ibS02OS41IDMxNS43LS42LjNoLjVjMC0uMi4xLS4zLjEtLjMiIHN0eWxlPSJmaWxsOiNkZTU4MWQiLz48cGF0aCBpZD0icGF0aDY0OCIgZD0iTS03MS41IDMxMy42aC00Ni40bC0yLjQgMi40aDUwLjFsLjYtLjN6IiBzdHlsZT0iZmlsbDojZDVkMGNkIi8+PHBhdGggaWQ9InBhdGg2NTAiIGQ9Ik0tOTkuNiAzMjAuMXMtMi44LS43LTMuOS0zLjRjLTEtMi43LjQtNC43IDIuNy01LjIgMi40LS41IDUuOCAxLjIgNS44IDEuMnMyLjgtMi43IDYuMi0yIDQuNSA0LjUgMi44IDYuOWMtMS42IDIuMy01LjYgMi42LTUuNiAyLjZzLTYuMS0xLjgtOC0uMSIgY2xhc3M9InN0NyIvPjxwYXRoIGlkPSJwYXRoNjUyIiBkPSJNLTk0LjkgMzEyLjdzLjEtLjEuNC0uM3Y0LjNjMCAuMi0uMi4zLS4zLjMtLjIgMC0uMy0uMi0uMy0uM3YtNC4xYy4xIDAgLjIuMS4yLjEiIHN0eWxlPSJmaWxsOiNhNmI5YjUiLz48cGF0aCBpZD0icGF0aDY1NCIgZD0iTS05MS4yIDMxNy4xczIuMiAyLjYuOCAzLjctMi44LS44LTQuNi0uNi0zLjcgMS41LTQuNC4zYy0uOC0xLjMgMS4yLTIuOCAxLjItMi44cy41IDEuMyAxLjYuNy4yLTIgLjItMiAuOC0uNiAxLjUtLjcgMS44LjggMS44LjgtLjYgMS41LjYgMi4xYzEuMS42IDEuMy0xLjUgMS4zLTEuNSIgY2xhc3M9InN0NiIvPjxwYXRoIGlkPSJwYXRoNjU2IiBkPSJNLTExMyAzMjUuMXMtMS43LTIuMi0xLjUtNS40Yy4xLTMuMiA0LjgtNi4xIDQuOC02LjFsLTEuOCAyLjhjLS41LjctLjMgMS42LjQgMi4ybDIuOCAyLjNzLTMuOC0xLjItNC41LS4zLS4yIDQuNS0uMiA0LjUiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY1OCIgZD0iTS03Ny44IDMyN3MtLjMtMi44LTEtNC4yLTMuMS0uOC0zLjEtLjggMi43LTEuNCAyLjctMi4yYzAtLjktMS44LTMuNi0xLjgtMy42czUuOSAzLjcgMy4yIDEwLjgiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY2MCIgZD0iTS0xMTMuMSAzMTMuNnMtMS4yLjktMS45IDIuMWMtLjggMS4yLTEgMi0xIDJzLS4xLTEuNi40LTIuNy44LTEuNC44LTEuNHoiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY2MiIgZD0iTS03Ni45IDMxMy42czEuMS45IDIuMSAyLjYgMS4zIDMuOSAxLjMgMy45LjUtMy4yLjItNC41Yy0uMy0xLjQtLjgtMS45LS44LTEuOWgtMi44IiBjbGFzcz0ic3Q2Ii8+PHBhdGggaWQ9InBhdGg2NjQiIGQ9Ik0tNzIuNSAzNDEuNGMtMS40LjYtMi45IDEtNC41IDEuMy0xLjQuMi0yLjYuMy0zLjkuMyAyLjQtLjYgNy40LTIuMSAxMS40LTUuOCA1LjUtNSA3LjYtOS42IDcuNi05LjZzLTMuMyA5LjEtMTAuNiAxMy44IiBjbGFzcz0ic3Q2Ii8+PHBhdGggaWQ9InBhdGg2NjYiIGQ9Ik0tNjkuMSAzMzUuM3MzLjYtMi44IDUuNy04LjMgMi4xLTYuOSAyLjEtNi45bC05IDExLjMgNi01LjVjLS4xIDAtLjMgMy4yLTQuOCA5LjQiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY2OCIgZD0ibS01NS4zIDMyMy4zLTcuOS05Ljd2LTIyLjVjLjYuOCAxLjMgMS4yIDIgMS4yczEuNC0uNCAxLjktMS4xbDMuOSA3LjF2MjV6IiBzdHlsZT0iZmlsbDojZjY4NTRmIi8+PHBhdGggaWQ9InBhdGg2NzAiIGQ9Ik0tNzEuNyAzMDQuNmgzLjV2M2gxLjZsLTMuNCAzLjgtMy40LTMuOGgxLjZ2LTMiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY3MiIgZD0iTS03MCAzMDMuN2gtMy40di0xLjJoNi43djEuMnoiIGNsYXNzPSJzdDYiLz48cGF0aCBpZD0icGF0aDY3NCIgZD0iTS03Mi4yIDMzOS40Yy0xLjcuNi00IDEuMi02LjUgMS4zaC0xYy0xLjQgMC0yLjgtLjEtNC4xLS4xbC0yLjEuNmMxLjYuNCAzLjYuNyA1LjguNy42IDAgMS4yIDAgMS44LS4xLjgtLjEgMS42LS4yIDIuMy0uMyAxLjEtLjYgMi41LTEuMyAzLjgtMi4xIiBzdHlsZT0iZmlsbDojZjA2YzM0Ii8+PHBhdGggaWQ9InBhdGg2NzYiIGQ9Ik0tOTAgMzM5LjlzMS42LjcgNCAxLjNsMi4xLS42Yy0zLjMtLjMtNi4xLS43LTYuMS0uNyIgY2xhc3M9InN0MTMiLz48cGF0aCBpZD0icGF0aDY3OCIgZD0iTS02OS41IDMzOC4ycy0xIC42LTIuNyAxLjJjLTEuMy45LTIuNiAxLjUtMy45IDIuMSA0LjYtMSA2LjYtMy4zIDYuNi0zLjMiIGNsYXNzPSJzdDEzIi8+PHBhdGggaWQ9InBhdGgxMTMxIiBkPSJNLTkzLjMgMzY4LjdjLTI1LjkgMC00Ni45LTIxLTQ2LjktNDYuOXMyMS00Ni45IDQ2LjktNDYuOSA0Ni45IDIxIDQ2LjkgNDYuOS0yMSA0Ni45LTQ2LjkgNDYuOW0wLTkuNGMyMC43IDAgMzcuNS0xNi44IDM3LjUtMzcuNXMtMTYuOC0zNy41LTM3LjUtMzcuNS0zNy41IDE2LjgtMzcuNSAzNy41IDE2LjggMzcuNSAzNy41IDM3LjUiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiNlNjYwMDEiLz48cGF0aCBpZD0icGF0aDU4NiIgZD0iTS04NS44IDM1NC41Yy0uOCAxLjItLjUgMi45LS41IDIuOS40IDEuNS0uNSAyLjktMiAzLjNzLTIuOS0uNS0zLjMtMmMtLjEtLjQtLjktMy44IDEtNi45IDEuNS4zIDMuNi45IDUuMSAyLjMgMCAuMi0uMi4zLS4zLjQiIGNsYXNzPSJzdDciLz48L2c+PC9nPjwvc3ZnPg==",
+      "category": "media",
+      "image": "docker.io/linuxserver/prowlarr:2.5.2@sha256:aaa16ba7d66e413db6d0358d3b6c68d833578ba7f176f24a51807181e7637fce",
+      "version": "2.5.2",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 9696,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/ping"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=PGID=1000\nEnvironment=PUID=1000\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/config:Z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Prowlarr/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/prowlarr.svg"
+        }
+      },
+      "project": "https://github.com/Prowlarr/Prowlarr",
+      "stars": 7465
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "summary": "Download torrents from a web page, on your own server.",
+      "description": "qBittorrent downloads torrents into the shared Downloads folder, where Sonarr\nand Radarr pick them up. Sign in as admin; the first password is printed in\nthe Service's logs when it starts for the first time.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPjxsaW5lYXJHcmFkaWVudCBpZD0iYSIgeDE9Ii00NDYuMjk4IiB4Mj0iLTQ0NS44NzUiIHkxPSIxMDUyLjkyNCIgeTI9IjEwNTIuMTU2IiBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDk5MiAwIDAgLTk5MiA0NDI5OTMgMTA0NDU2NSkiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM3MmI0ZjUiLz48c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiMzNTZlYmYiLz48L2xpbmVhckdyYWRpZW50PjxjaXJjbGUgY3g9IjUxMiIgY3k9IjUxMiIgcj0iNDk2IiBzdHlsZT0iZmlsbC1ydWxlOmV2ZW5vZGQ7Y2xpcC1ydWxlOmV2ZW5vZGQ7ZmlsbDp1cmwoI2EpO3N0cm9rZTojZGFlZmZmO3N0cm9rZS13aWR0aDozMiIvPjxwYXRoIGQ9Ik03MTIuOSAzMzIuNGM0NC40IDAgNzguOSAxNS4yIDEwMy40IDQ1LjcgMjQuNyAzMC4yIDM3IDczLjEgMzcgMTI4LjcgMCA1NS41LTEyLjQgOTguOC0zNy4zIDEyOS42LTI0LjcgMzAuNy01OSA0Ni0xMDMuMSA0Ni0yMiAwLTQyLjItNC02MC41LTEyLTE4LjEtOC4yLTMzLjMtMjAuOC00NS43LTM3LjZINjAzbC0xMC44IDQzLjVoLTM2LjdWMTk2aDUxLjJ2MTE2LjZjMCAyNi4xLS44IDQ5LjYtMi41IDcwLjRoMi41YzIzLjktMzMuNyA1OS4zLTUwLjYgMTA2LjItNTAuNm0tNy40IDQyLjljLTM1IDAtNjAuMiAxMC4xLTc1LjYgMzAuMi0xNS40IDIwLTIzLjEgNTMuNy0yMy4xIDEwMS4yczcuOSA4MS42IDIzLjggMTAyLjFjMTUuOCAyMC40IDQxLjIgMzAuNSA3Ni4yIDMwLjUgMzEuNSAwIDU0LjktMTEuNCA3MC40LTM0LjMgMTUuNC0yMyAyMy4xLTU2LjEgMjMuMS05OS4xcTAtNjYtMjMuMS05OC40Yy0xNS41LTIxLjQtMzkuNC0zMi4yLTcxLjctMzIuMiIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO2ZpbGw6I2ZmZiIvPjxwYXRoIGQ9Ik0zMTcuMyA2MzkuNWMzNC4yIDAgNTktOS4yIDc0LjctMjcuNSAxNS42LTE4LjMgMjQtNDkuMiAyNS05Mi42VjUwOGMwLTQ3LjMtOC04MS40LTI0LjEtMTAyLjEtMTYtMjAuOC00MS41LTMxLjItNzYuMi0zMS4yLTMwIDAtNTMuMSAxMS43LTY5LjEgMzUuMi0xNS44IDIzLjItMjMuOCA1Ni4yLTIzLjggOTguOHM3LjggNzUuMSAyMy41IDk3LjVjMTUuOCAyMi4xIDM5LjEgMzMuMiA3MCAzMy4zbS03LjcgNDIuOGMtNDMuNiAwLTc3LjctMTUuMy0xMDIuMS00Ni0yNC41LTMwLjctMzYuNy03My40LTM2LjctMTI4LjQgMC01NS4zIDEyLjMtOTguNSAzNy0xMjkuNnM1OS00Ni42IDEwMy4xLTQ2LjZxNjkuNDUgMCAxMDYuOCA1Mi41aDIuOGw3LjQtNDYuM2g0MC40djQ5MGgtNTEuMlY2ODMuM2MwLTIwLjYgMS4xLTM4LjEgMy40LTUyLjVoLTRjLTIzLjggMzQuNC01OS40IDUxLjUtMTA2LjkgNTEuNSIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO2ZpbGw6I2M4ZThmZiIvPjwvc3ZnPg==",
+      "category": "media",
+      "image": "ghcr.io/hotio/qbittorrent:release-5.0.4@sha256:47c82280276d24aaab26acbb4ceadf7639b43596ba8f2d7f63c52c27e947029b",
+      "version": "5.0.4",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 8080,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        },
+        {
+          "name": "downloads",
+          "path": "/downloads",
+          "shared": true
+        }
+      ],
+      "settings": [
+        {
+          "key": "PGID",
+          "label": "Run qBittorrent as specified gid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "PUID",
+          "label": "Run qBittorrent as specified uid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nEnvironment=UMASK=002\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.downloads }}:/downloads:z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/qBittorrent/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/qbittorrent.svg"
+        }
+      },
+      "project": "https://github.com/qbittorrent/qBittorrent",
+      "stars": 41213
+    },
+    {
+      "id": "radarr",
+      "name": "Radarr",
+      "summary": "Keep a list of films you want and fetch them when they are out.",
+      "description": "Radarr keeps a list of the films you want, sends them to your download client when they are available and files them in your films folder, named and sorted.\nThe first visit sets up its login.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIGlkPSJMYXllcl8xIiB4PSIwIiB5PSIwIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48c3R5bGU+LnN0MHtmaWxsOiMyNDI5MmV9PC9zdHlsZT48ZyBpZD0iR3JvdXAtQ29weSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzAgMjEpIj48cGF0aCBpZD0iU2hhcGUiIGQ9Im0xMC4zIDU5LjggMy45IDM3Mi40Yy0zMS40IDMuOS01NC45LTExLjgtNTQuOS00My4xbC0zLjktMzA5LjdjMC05OCA5MC4yLTEyMS41IDE0NS4xLTgyLjNsMjc4LjMgMTYwLjdjMzkuMiAyNy40IDQ3IDc4LjQgMjcuNCAxMTMuNy0zLjktMjcuNC0xNS43LTQzLjEtMzkuMi01OC44TDUzLjQgMzYuMkMyOS45IDIwLjYgMTAuMyAyNC41IDEwLjMgNTkuOCIgY2xhc3M9InN0MCIvPjxwYXRoIGlkPSJTaGFwZV8wMDAwMDExNDA0OTUzNTkzODU2MTc3MzgyMDAwMDAxODI3MTUyMzk0MDkxMzEwNTM0MV8iIGQ9Ik0tMTMuMiA0NTEuOGMyMy41IDcuOCA0NyAzLjkgNjYuNi03LjhsMzIxLjUtMTg4LjJjMTkuNiAyNy40IDE1LjcgNTQuOS03LjggNzAuNkw5Ni41IDQ4My4yYy0zOS4yIDE5LjYtOTAuMSAwLTEwOS43LTMxLjQiIGNsYXNzPSJzdDAiLz48cGF0aCBpZD0iU2hhcGVfMDAwMDAxNjU5MzU5MjQ0MTMyODY0MzMwNDAwMDAwMDM2NjgwMDI4MDc3OTM4NjI1NzZfIiBkPSJNODAuOSAzNDIgMjczIDIzMi4zIDg0LjggMTI2LjR6IiBzdHlsZT0iZmlsbDojZmZjMjMwIi8+PC9nPjwvc3ZnPg==",
+      "category": "media",
+      "image": "docker.io/linuxserver/radarr:6.3.0@sha256:fe051413dfd91b383ba04910552e83fb0306895fefee275c48dafe7bb90807dc",
+      "version": "6.3.0",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 7878,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        },
+        {
+          "name": "downloads",
+          "path": "/downloads",
+          "shared": true
+        },
+        {
+          "name": "movies",
+          "path": "/movies",
+          "shared": true
+        }
+      ],
+      "settings": [
+        {
+          "key": "PGID",
+          "label": "Run Radarr as specified gid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "PUID",
+          "label": "Run Radarr as specified uid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/ping"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.movies }}:/movies:z\nVolume={{ .Volumes.downloads }}:/downloads:z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Radarr/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/radarr.svg"
+        }
+      },
+      "project": "https://github.com/Radarr/Radarr",
+      "stars": 14672
+    },
+    {
+      "id": "sonarr",
+      "name": "Sonarr",
+      "summary": "Follow your series and fetch new episodes as they air.",
+      "description": "Sonarr watches for new episodes of the series you follow, sends them to your download client and files them in your series folder, named and sorted.\nThe first visit sets up its login.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBkPSJNNTExLjggMjU2YzAgNzAuNC0yNC45IDEzMC44LTc0LjYgMTgxLjEtMS43IDItMy41IDMuOC01LjUgNS40LTguMiA4LTE2LjggMTUuMy0yNiAyMS44UTM0MS4wNSA1MTIgMjU2LjMgNTEyYy01Ni42IDAtMTA2LjMtMTUuOS0xNDkuMi00Ny43LTExLjMtOC0yMi0xNy4xLTMxLjktMjcuM0MzNi41IDM5OC43IDEyLjggMzU0IDQgMzAzLjJjLTEuNy05LjktMi45LTIwLTMuNC0zMC4yLS4yLTUuNy0uNC0xMS4zLS40LTE3IDAtNiAuMS0xMS43LjQtMTcuMSAwLS42LjItMS4xLjUtMS43IDMuNy02Mi44IDI4LjQtMTE3IDc0LjEtMTYyLjhDMTI1LjUgMjQuOCAxODUuOCAwIDI1Ni4yIDBjNzAuNyAwIDEzMSAyNC44IDE4MC45IDc0LjVxNzQuNyA3NS45IDc0LjcgMTgxLjUiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiNlZWUiLz48cGF0aCBkPSJtNDU5LjcgMTAwLjMtNTIuOSA1Mi45Yy0zMC45IDMwLjktMzMuNiA1Ny44LTMzLjYgMTA1LjMgMCA0Mi4zIDYuNyA4MS4xIDM4LjIgMTEyLjYgMjMgMjMgNDQuOSA0NC43IDQ0LjkgNDQuNy01LjkgNy4yLTEyLjMgMTQuMy0xOS4xIDIxLjItMS43IDItMy41IDMuOC01LjUgNS40LTYgNS45LTEyLjIgMTEuNC0xOC42IDE2LjRsLTQxLjQtNDEuNEMzMzQuOSAzODAuNiAzMDUuNiAzNzcgMjU3IDM3N2MtNDYuNyAwLTc4LjQgNC4zLTExMi42IDM4LjUtMjAuNCAyMC40LTQzLjggNDMuOS00My44IDQzLjktOC45LTYuOC0xNy4zLTE0LjItMjUuMy0yMi40LTYuNi02LjYtMTIuOC0xMy40LTE4LjUtMjAuMyAwIDAgMjMuMS0yMy4yIDQ1LjItNDUuMyAzMi43LTMyLjcgMzgtNzAuNiAzOC0xMTMgMC00MS4zLTYuOC03OS44LTM2LjgtMTA5LjlDODIuMiAxMjcuNyA1My4zIDk5IDUzLjMgOTljNi43LTguNSAxNC0xNi43IDIxLjgtMjQuNSA2LjktNi44IDE0LTEzLjEgMjEuMi0xOWw0OCA0OGMzMC43IDMwLjcgNzAgMzguNiAxMTIuNCAzOC42IDQzLjYgMCA4Mi44LTguNCAxMTQuNy00MC40QzM5MSA4Mi4xIDQxNyA1Ni4zIDQxNyA1Ni4zYzYuOCA1LjYgMTMuNSAxMS42IDIwLjEgMTguMiA4LjMgOC4zIDE1LjggMTYuOSAyMi42IDI1LjgiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiMzYTNmNTEiLz48cGF0aCBkPSJNMTg2IDI2OS4xYy0uNS0yLjgtLjgtNS41LS45LTguNC0uMS0xLjYtLjEtMy4xLS4xLTQuNyAwLTEuNyAwLTMuMi4xLTQuNyAwLS4yIDAtLjMuMS0uNSAxLTE3LjQgNy45LTMyLjQgMjAuNS00NS4xIDEzLjktMTMuOCAzMC42LTIwLjcgNTAuMi0yMC43czM2LjMgNi45IDUwLjIgMjAuN2MxMy44IDE0IDIwLjcgMzAuOCAyMC43IDUwLjNzLTYuOSAzNi4yLTIwLjcgNTAuMmMtLjUuNS0xIDEuMS0xLjUgMS41cS0zLjQ1IDMuMy03LjIgNi0xOCAxMy4yLTQxLjQgMTMuMmMtMjMuNCAwLTI5LjQtNC40LTQxLjMtMTMuMi0zLjEtMi4yLTYuMS00LjctOC45LTcuNi0xMC44LTEwLjYtMTcuMy0yMi45LTE5LjgtMzciIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiMwY2YiLz48cGF0aCBkPSJtMzcyLjcgMTQxLTM1LjQgMzQuNk03Mi45IDc2LjhsOTYuNSA5Ni4xbTE5OS43IDE5OC45IDY1LjYgNjcuOW00LjQtMzYzLjNMMzcyLjcgMTQxTTc2LjYgNDM4LjVsNjQuNi02NC43IiBzdHlsZT0iZmlsbDpub25lO3N0cm9rZTojMGNmO3N0cm9rZS13aWR0aDoyO3N0cm9rZS1taXRlcmxpbWl0OjEiLz48cGF0aCBkPSJtMzcyLjcgMTQxLTQwIDQwLjZtLTE5My4zLTM4LjUgNDAuNiA0MC41TTE0MSAzNzRsMzkuNS00MS4xbTE0Ni4yLTMuMyA0Mi42IDQyLjQiIHN0eWxlPSJmaWxsOm5vbmU7c3Ryb2tlOiMwY2Y7c3Ryb2tlLXdpZHRoOjc7c3Ryb2tlLW1pdGVybGltaXQ6MSIvPjwvc3ZnPg==",
+      "category": "media",
+      "image": "docker.io/linuxserver/sonarr:4.0.19@sha256:82172b363f9eddc02aca544f880a044f2ceb9aaf190bc87e4454e2f705eb91d0",
+      "version": "4.0.19",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 8989,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        },
+        {
+          "name": "downloads",
+          "path": "/downloads",
+          "shared": true
+        },
+        {
+          "name": "tv_shows",
+          "path": "/tv",
+          "shared": true
+        }
+      ],
+      "settings": [
+        {
+          "key": "PGID",
+          "label": "Run Sonarr as specified gid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "PUID",
+          "label": "Run Sonarr as specified uid.",
+          "type": "text",
+          "default": "1000"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/ping"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/config:Z\nVolume={{ .Volumes.tv_shows }}:/tv:z\nVolume={{ .Volumes.downloads }}:/downloads:z\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Sonarr/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/sonarr.svg"
+        }
+      },
+      "project": "https://github.com/Sonarr/Sonarr",
+      "stars": 17480
     },
     {
       "id": "speedtest-tracker",
@@ -1267,6 +1810,50 @@
       },
       "project": "https://github.com/dani-garcia/vaultwarden",
       "stars": 69891
+    },
+    {
+      "id": "wallabag",
+      "name": "Wallabag",
+      "summary": "Save articles from the web to read later, on any device, without the clutter.",
+      "description": "Wallabag saves the articles you want to read later, strips them to their\ntext and images, and keeps them for its apps and browser extensions. Sign in\nfirst as wallabag with the password wallabag, then change it.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBkPSJNMjU3IDE1MC40YzYuMS0zLjggMzkuMS0yMS4zIDkyLjQuNyA1NC44IDIyLjYgODguOCAzIDkzIC4zLTEzLjItMjEuOC0yOS00MC43LTQ2LjQtNTMuNSAxLjItLjMgMi4zLS42IDMuNi0xIDIzLjEtNi43IDI5LTI2LjIgMzAuMi00MyAxLjQtMTkgMi40LTE5LjMgNi41LTM2LjQgNC0xNi40LS41LTE5LjctNC41LTE2LjQtMi4yIDEuOC0yMS4zIDYuMi0zMi42IDE1LTE4LjMgMTQuMy0yOS41IDQxLjQtMzQuNyA1Ni40LS4xLjItLjggMi4zLTEgMy0yLjQgNS43LTcuMSA1LjctNy4xIDUuNy0yLjMtLjMtNC42LS40LTYuOS0uNC0yLjEgMC00LjEuMS02LjIuM2gtLjFjLTYuMS45LTkuNC02LjUtMTAuMS04LjMtNy4xLTIwLjMtMjYuMS02MC40LTY5LTcxLjIgMCAwLTcuOC02LTUuNCA0LjEgMi4zIDkuNiA2LjkgMTkuNCA1LjkgMzMuNS0uNSA2LjUtNC41IDQwIDI2LjMgNTcuNSAyLjkgMS43IDUuNSAzIDcuOSA0LjItMTUuNiAxMi42LTI5LjcgMjkuOS00MS44IDQ5LjVtMjAyLjIgMzA2LjRjLTM3LjctMjMuNC01MC40LTMxLjYtNDkuNi00MC41IDAgMCAwLTEuNS40LTMuNy45LTQuNyAzLjgtMTIuOCAxMy4xLTE3LjUuMy0uMS42LS4zLjgtLjUgMjkuNC0xNy4xIDUwLjktNDQuNSA1OC41LTc4LjgtNy42IDE4LjktNjQuMiAzMy43LTEzMi44IDMzLjdzLTEyNS4yLTE0LjctMTMyLjgtMzMuN2MxLjcgNy43IDQuMSAxNSA3LjEgMjIgMi42IDE0LjQgNiA0OC4yLTEwLjIgNzcuOC0xNC4zIDI2LjEtODQuOSA2MS42LTE4OS43IDQxLjIgMCAwLTQuMi0yLjktNS41LS41LTEuOSAzLjYgNS44IDYuNSAxMy43IDguNSA3MyAxOS4zIDE4My4xIDExLjUgMjE3LjctMTcgMTUuOC0xMyAyMS45LTMwLjUgMjMuNC00OS4zIDAgMCAuNC00LjkgNi42LTEuMiAxLjggMS4xIDguMSA1LjIgOS4yIDkuOS45IDYuNyAxIDE0LjktMi41IDIwLjYtNC45IDguMi01IDkuNCAxLjUgMTQgNCAyLjggMjAuMyAxNC44IDQyLjkgMjguNC4xIDAgLjEuMS4xLjEgNC44IDIuOSAxMS41IDEwIDExLjUgMTAgMTAuMiAxMS44IDMyLjQgMzUuNiA0Mi4xIDMxLjEgNC42LTIuMS0uMi0xMS42LS4yLTExLjZzNy42IDkuOSAxMS43IDYuNWMzLjEtMi42LTEuOC0xMi40LTEuOC0xMi40czYuNiA1LjcgMTAuNiAzLjZjNC44LTIuNi0uNy0xNy43LTM4LjYtNDAuNy0zNy45LTIzLjEtNDguMi0yNi42LTQ5LjEtMzYuOXYtMS40Yy4zLTIuMyAxLjYtNy4xIDcuMS02LjYgOC4yIDEuMyAxNi43IDIgMjUuMyAyIDkuOSAwIDE5LjYtLjkgMjguOS0yLjYgMCAwIC41LS4xLjYtLjEgMS4xLS4xIDMuMi0uMSAzLjIgMi42LS4zIDMuNC0xLjMgNi43LTMuMiA5LjctNS42IDguMy0zLjcgOS41IDIuMSAxNC44IDMuNiAzLjMgMjAgMTcuNyA0Mi40IDMxLjdsLjEuMWM0LjggMi45IDEzLjEgMTAuOCAxMy4xIDEwLjggOS4zIDkuNCAyNi40IDI1LjMgMzUuOCAyNC4zIDYuMy0uNyAxLjItMTEuNSAxLjItMTEuNXM4IDcuNyAxMS45IDUuNGM0LjQtMi41LTEuOC0xMC42LTEuOC0xMC42czUuMSAyLjcgOC44IDEuOGMzLjItLjkgNC4xLTEwLjEtMzMuNi0zMy41Ii8+PHBhdGggZD0iTTQxNyAxOTIuNmMtNC41IDAtOC4zIDEuNC0xMS4yIDQuMXMtNC40IDUuOS00LjQgOS4zdjYxLjZjMCA4LjMtMS41IDE0LjMtNC40IDE4LjEtMi44IDMuNi03LjMgNS40LTEzLjYgNS40LTYuNSAwLTExLTEuNy0xMy42LTUuNC0yLjctMy44LTQuMS05LjktNC4xLTE4LjF2LTYxLjhjMC00LjItMS45LTcuNy01LjYtMTAtNC45LTMuMS05LjktNC4yLTE1LjgtMi4ycS0yLjcuOS01LjEgMi40Yy0xLjcgMS0zLjEgMi4zLTQuMiAzLjgtMS4yIDEuNy0xLjkgMy41LTEuOSA1LjR2NjIuNWMwIDguMy0xLjQgMTQuNC00LjEgMTguMS0yLjYgMy42LTcuMSA1LjQtMTMuNiA1LjRzLTExLTEuOC0xMy43LTUuNGMtMi44LTMuOC00LjItOS45LTQuMi0xOC4xVjIwNmMwLTMuNS0xLjUtNi42LTQuNC05LjNzLTYuNy00LjEtMTEuNC00LjFjLTQuOCAwLTguOCAxLjMtMTEuOCA0LTMuMSAyLjctNC43IDUuOS00LjcgOS40djYwLjZjMCA3LjYuNyAxNC44IDIuMiAyMS40IDEuNSA2LjcgNC4xIDEyLjcgNy44IDE3LjZxNS41NSA3LjUgMTUgMTEuN2M2LjIgMi43IDEzLjkgNC4xIDIyLjkgNC4xIDkuNCAwIDE3LjMtMS43IDIzLjQtNS4yIDUuMS0yLjkgOS41LTYuNyAxMi45LTExLjMgMy4zIDQuNiA3LjYgOC40IDEyLjYgMTEuMyA2LjEgMy40IDE0LjEgNS4yIDIzLjggNS4yIDkgMCAxNi43LTEuNCAyMi44LTQuMSA2LjEtMi44IDExLjEtNi43IDE0LjgtMTEuNyAzLjctNC45IDYuMy0xMC45IDcuOC0xNy42IDEuNS02LjYgMi4yLTEzLjggMi4yLTIxLjRWMjA2YzAtMy41LTEuNS02LjYtNC41LTkuNC0yLjgtMi42LTYuOS00LTExLjktNCIvPjwvc3ZnPg==",
+      "category": "tools",
+      "image": "docker.io/wallabag/wallabag:2.6.14@sha256:4a527e027e0d59e87c14225ef11e005af3d4890374202ad319ce5e63dfc66709",
+      "version": "2.6.14",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 80,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "data",
+          "path": "/var/www/wallabag/data"
+        },
+        {
+          "name": "images",
+          "path": "/var/www/wallabag/web/assets/images"
+        }
+      ],
+      "health": {
+        "http": "/api/info"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nHealthInterval=1m0s\nHealthTimeout=3s\nEnvironment=\"SYMFONY__ENV__DOMAIN_NAME=http://{{ .Name }}.local\"\nEnvironment=SYMFONY__ENV__SERVER_NAME=Wallabag\nVolume={{ .Volumes.data }}:/var/www/wallabag/data:Z\nVolume={{ .Volumes.images }}:/var/www/wallabag/web/assets/images:Z\nHealthCmd=[\"wget\",\"--no-verbose\",\"--tries=1\",\"--spider\",\"http://localhost/api/info\"]\n",
+      "source": {
+        "from": "casaos",
+        "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Wallabag/docker-compose.yml",
+        "licence": "Apache-2.0",
+        "converted": "2026-10-29",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/wallabag.svg"
+        }
+      },
+      "project": "https://github.com/wallabag/wallabag",
+      "stars": 13031
     }
   ]
 }
