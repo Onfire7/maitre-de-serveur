@@ -174,9 +174,16 @@ func TestCatalogEntriesPassQuadlet(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s rejected: %v", e.ID, err)
 			}
-			// The Catalog's entries run inside Maître's limits.
-			if len(res.Protected) > 0 {
-				t.Fatalf("%s needs grants: %+v", e.ID, res.Protected)
+			// The Catalog's entries need only the grants they declare
+			// (docs/popularity-and-grants.md, G2).
+			for _, p := range res.Protected {
+				declared := false
+				for _, g := range e.Grants {
+					declared = declared || g.Matches(p.Component, p.Option)
+				}
+				if !declared {
+					t.Errorf("%s needs a grant it does not declare: %+v", e.ID, p)
+				}
 			}
 		})
 	}

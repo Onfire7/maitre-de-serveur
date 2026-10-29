@@ -97,8 +97,8 @@ func TestGrantDeclarations(t *testing.T) {
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "app.container"), []byte("[Container]\nImage={{ .Image }}\n"), 0o644)
 	for grants, want := range map[string]string{
-		"grants:\n  - option: Network=host\n    optional: discovery\n    without: x\n":            "say why",
-		"grants:\n  - option: Network=host\n    why: y\n    optional: discovery\n":                "say what the person loses",
+		"grants:\n  - option: Network=host\n    optional: discovery\n    without: x\n":             "say why",
+		"grants:\n  - option: Network=host\n    why: y\n    optional: discovery\n":                 "say what the person loses",
 		"grants:\n  - option: Network=host\n    why: y\n    optional: discovery\n    without: x\n": "not used by any template",
 	} {
 		os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte("id: app\nname: App\nsummary: An app.\nimage: "+image+"\nexposure: private\n"+grants), 0o644)

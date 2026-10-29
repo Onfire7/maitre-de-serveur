@@ -62,3 +62,14 @@ func TestPopularityInIndex(t *testing.T) {
 		t.Fatalf("a broken popularity.json in a user Catalog: %v, %v", problems, err)
 	}
 }
+
+func TestGenerateSecret(t *testing.T) {
+	for _, tc := range []struct {
+		format string
+		n, len int
+	}{{"", 0, 32}, {"alnum", 0, 32}, {"hex", 32, 64}, {"hex", 0, 64}, {"base64", 32, 44}} {
+		if got := catalog.GenerateSecret(tc.format, tc.n); len(got) != tc.len {
+			t.Errorf("%s %d: %q", tc.format, tc.n, got)
+		}
+	}
+}

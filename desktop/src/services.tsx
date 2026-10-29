@@ -22,7 +22,8 @@ export interface CatalogEntry {
   port_forward?: boolean;
   web?: { port: number; path: string; component?: string };
   volumes: { name: string; path: string; size?: string; shared?: boolean }[];
-  settings?: { key: string; label: string; type: string; default?: string }[];
+  /** device: a Node device the person picks (G5); format and bytes shape a generated secret (G7). */
+  settings?: { key: string; label: string; type: string; default?: string; device?: string; format?: string; bytes?: number }[];
   health?: { http?: string };
   quadlet: string;
   /** A Service of several containers (plan C8): each with its own template; then image and quadlet are empty. */
@@ -91,9 +92,21 @@ export function generatePassword(): string {
   return out.join("");
 }
 
+/**
+ * A secret in a setting's shape (G7): 32 letters and digits, or hex or
+ * base64 of `bytes` random bytes (32 by default). Go's GenerateSecret makes
+ * the same.
+ */
+export function generateSecret(format?: string, bytes?: number): string {
+  if (!format || format === "alnum") return generatePassword();
+  const b = crypto.getRandomValues(new Uint8Array(bytes || 32));
+  if (format === "hex") return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return btoa(String.fromCharCode(...b));
+}
+
 /** The entry's settings that are made up at install, each with a fresh value. */
 export function generatedSettings(e: CatalogEntry | null): Record<string, string> {
-  return Object.fromEntries((e?.settings ?? []).filter((s) => s.default === GENERATE).map((s) => [s.key, generatePassword()]));
+  return Object.fromEntries((e?.settings ?? []).filter((s) => s.default === GENERATE).map((s) => [s.key, generateSecret(s.format, s.bytes)]));
 }
 /** How the Catalog page orders entries (P5). */
 export type CatalogSort = "popular" | "name";
@@ -127,7 +140,7 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     name: name || e.id,
     catalogId: catalogKey(e),
     image: e.image,
-    settings: { ...Object.fromEntries((e.settings ?? []).map((s) => [s.key, s.default === GENERATE ? generatePassword() : (s.default ?? "")])), ...settings },
+    settings: { ...Object.fromEntries((e.settings ?? []).map((s) => [s.key, s.default === GENERATE ? generateSecret(s.format, s.bytes) : (s.default ?? "")])), ...settings },
     exposure: e.exposure,
     quadlet: e.quadlet,
     infrastructure: e.infrastructure,

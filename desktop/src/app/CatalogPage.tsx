@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { create } from "@bufbuild/protobuf";
-import { ServiceMountSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { ServiceMountSchema, type Device, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEditor";
 import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,10 @@ const VIEW_KEY = "maitre.catalog.view";
 const SORT_KEY = "maitre.catalog.sort";
 type View = "grid" | "list";
 
-export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
+/** A Node's devices of a kind (G5); undefined when the Node cannot list them. */
+export type ListDevices = (nodeId: string, kind: string) => Promise<Device[] | undefined>;
+
+export function CatalogPage({ snap, deviceId, onInstall, devices }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   // Which Catalog to show: all, the project's ("maitre"), or a user's (plan C9).
@@ -166,11 +169,59 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
       ) : (
         <CatalogList entries={entries} installed={installed} onPick={setPicked} />
       )}
-      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} />
+      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} devices={devices} />
       <CatalogsSheet open={manage} onClose={() => setManage(false)} snap={snap} deviceId={deviceId} loaded={user.data} />
       <ChangesDialog loaded={review} changes={review ? changesSince(review) : null} onClose={() => setReview(null)} />
     </div>
     </div>
+  );
+}
+
+const validDevice = (v: string) => v === "" || /^\/dev\/\S+$/.test(v);
+
+/**
+ * A device setting (G5): the Node's devices of the kind, or none. A Node
+ * that cannot list them (older) gets a path to type.
+ */
+function DeviceSetting({ label, kind, nodeId, list, value, onChange }: { label: string; kind: string; nodeId: string; list?: ListDevices; value: string; onChange: (v: string) => void }) {
+  const [found, setFound] = useState<Device[] | undefined | null>(null);
+  useEffect(() => {
+    let live = true;
+    setFound(null);
+    (list ? list(nodeId, kind) : Promise.resolve(undefined)).then(
+      (d) => live && setFound(d),
+      () => live && setFound(undefined),
+    );
+    return () => {
+      live = false;
+    };
+  }, [nodeId, kind, list]);
+  const NONE = "none";
+  return (
+    <>
+      <Label>{label}</Label>
+      {found ? (
+        <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+          <SelectTrigger size="sm" aria-label={label}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>None</SelectItem>
+            {found.map((d) => (
+              <SelectItem key={d.path} value={d.path}>
+                {d.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input aria-label={label} value={value} onChange={(e) => onChange(e.target.value.trim())} placeholder={found === null ? "Looking for devices…" : "/dev/serial/by-id/…, or leave empty for none"} />
+      )}
+      <p className="text-xs text-muted-foreground">
+        {found && found.length === 0 ? `This Node has no ${kind === "video" ? "video" : kind === "serial" ? "serial" : ""} device plugged in; plug it in and open this again, or install without.` : found ? "Plugged into this Node." : found === undefined ? "This Node cannot list its devices; type the path, or leave it empty." : ""}
+        {!validDevice(value) && <span className="block text-destructive">A device path starts with /dev/.</span>}
+      </p>
+    </>
   );
 }
 
@@ -232,7 +283,7 @@ function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; 
   );
 }
 
-function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
+function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
   const nodes = snap?.nodes ?? [];
   const spaces = snap?.spaces ?? [];
   const defaultSpace = spaces.find((s) => s.defaultForNew);
@@ -261,6 +312,8 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
   // Passwords the entry has made up (plan C7): fresh for each entry opened.
   const generated = useMemo(() => generatedSettings(entry), [entry?.id]);
   const settingValue = (key: string, def: string) => settings[key] ?? generated[key] ?? def;
+  // A device the person typed must be one of the Node's (G5).
+  const badDevice = (entry?.settings ?? []).some((s) => s.type === "device" && !validDevice(settingValue(s.key, "")));
   // Only Spaces the chosen Node has (176); folders start from the Catalog's
   // hints (175) and follow a change of Node.
   const here = spacesOn(snap, effNode);
@@ -357,7 +410,9 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                   )}
                   {(entry.settings ?? []).map((s) => (
                     <div key={s.key} className="space-y-1.5">
-                      {s.type === "bool" ? (
+                      {s.type === "device" ? (
+                        <DeviceSetting label={s.label} kind={s.device ?? "any"} nodeId={effNode} list={devices} value={settingValue(s.key, "")} onChange={(v) => setSettings({ ...settings, [s.key]: v })} />
+                      ) : s.type === "bool" ? (
                         <label className="flex items-center justify-between gap-3 text-sm">
                           <span>{s.label}</span>
                           <Switch checked={settingValue(s.key, s.default ?? "") === "true"} onCheckedChange={(v) => setSettings({ ...settings, [s.key]: String(v) })} />
@@ -396,7 +451,7 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
             </div>
             <SheetFooter>
               <Button
-                disabled={busy || !!entry.unfinished?.length || !effName || taken.has(effName) || !effNode || !defaultSpace}
+                disabled={busy || !!entry.unfinished?.length || !effName || taken.has(effName) || !effNode || !defaultSpace || badDevice}
                 onClick={async () => {
                   setBusy(true);
                   setError("");

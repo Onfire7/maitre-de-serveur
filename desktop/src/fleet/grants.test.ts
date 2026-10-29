@@ -10,6 +10,7 @@ import { GrantSchema, GrantsNeededSchema, RecordSchema } from "@/gen/maitre/v1/f
 import { ListRecordsResponseSchema, PutRecordRequestSchema, PutRecordResponseSchema } from "@/gen/maitre/v1/node_pb";
 import { fingerprintOfPem, nextSignedMs, signedRecord } from "./sign";
 import { GrantsDeclined, optionNote, setGrantAsker, withGrants } from "./grants";
+import type { CatalogEntry } from "@/services";
 
 const T = { addr: "10.0.0.5:7443", fingerprint: "a1".repeat(32) };
 
@@ -116,6 +117,38 @@ describe("grants (decision 189)", () => {
       }),
     ).rejects.toThrow(/grants needed/);
     expect(calls).toBe(2);
+    setGrantAsker(undefined);
+  });
+
+  it("for a Catalog entry, sign only what is still needed and install without the features left out (G8)", async () => {
+    const puts: string[] = [];
+    invoke.mockImplementation(async (cmd: string, a: { procedure?: string; body?: number[]; signedUnixMs?: number }) => {
+      if (cmd === "device_info") return { name: "Laptop" };
+      if (cmd === "sign_record") return { signerKey: [7], signature: [8], signedUnixMs: a.signedUnixMs };
+      if (a.procedure?.endsWith("PutRecord")) puts.push(fromBinary(PutRecordRequestSchema, new Uint8Array(a.body!)).record!.id);
+      const body = a.procedure?.endsWith("ListRecords") ? toBinary(ListRecordsResponseSchema, create(ListRecordsResponseSchema, {})) : toBinary(PutRecordResponseSchema, create(PutRecordResponseSchema, {}));
+      return { status: 200, content_type: "application/proto", body: Array.from(body) };
+    });
+    const entry = {
+      id: "vpn",
+      grants: [
+        { option: "AddCapability=NET_ADMIN", why: "Routes traffic." },
+        { option: "AddDevice=*", why: "A tunnel.", optional: "tunnel", without: "No tunnel." },
+      ],
+    } as unknown as CatalogEntry;
+    const ask = vi.fn(async () => ({ without: ["tunnel"] }));
+    setGrantAsker(ask);
+    const without = vi.fn(async (fs: string[]) => `without ${fs.join()}`);
+    const out = await withGrants(T, () => Promise.reject(refusal()), { entry, without });
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ service: "vpn" }), entry);
+    expect(puts).toEqual(["g-cap"]);
+    expect(without).toHaveBeenCalledWith(["tunnel"]);
+    expect(out).toBe("without tunnel");
+    // An option the entry did not declare gets the ordinary question.
+    const plain = vi.fn(async () => true);
+    setGrantAsker(plain);
+    await withGrants(T, async () => (plain.mock.calls.length ? "ok" : Promise.reject(refusal())), { entry: { ...entry, grants: entry.grants!.slice(0, 1) }, without });
+    expect(plain).toHaveBeenCalledWith(expect.objectContaining({ service: "vpn" }));
     setGrantAsker(undefined);
   });
 });

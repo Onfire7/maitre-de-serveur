@@ -7,6 +7,7 @@ import (
 
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -129,6 +130,13 @@ type Setting struct {
 	Label   string `yaml:"label,omitempty" json:"label"`
 	Type    string `yaml:"type,omitempty" json:"type"`
 	Default string `yaml:"default,omitempty" json:"default,omitempty"`
+	// Device is the kind of device a device setting names: serial, video
+	// or any (docs/popularity-and-grants.md, G5).
+	Device string `yaml:"device,omitempty" json:"device,omitempty"`
+	// Format and Bytes shape a generated secret (G7): alnum (32 letters
+	// and digits, the default), or hex or base64 of Bytes random bytes.
+	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	Bytes  int    `yaml:"bytes,omitempty" json:"bytes,omitempty"`
 }
 
 // Health is how the agent decides a Service is up.
@@ -310,11 +318,34 @@ func (m *Manifest) Validate() error {
 	for _, s := range m.Settings {
 		switch s.Type {
 		case "text", "number", "password", "timezone", "bool":
+			if s.Device != "" {
+				return fmt.Errorf("setting %q: device: is for a setting of type device", s.Key)
+			}
+		case "device":
+			// A device of the Node the person picks (G5); empty is none.
+			switch s.Device {
+			case "serial", "video", "any":
+			default:
+				return fmt.Errorf("setting %q: device must be serial, video or any, got %q", s.Key, s.Device)
+			}
+			if s.Default != "" {
+				return fmt.Errorf("setting %q: a device setting has no default; the person picks one of the Node's", s.Key)
+			}
 		default:
 			return fmt.Errorf("setting %q has unknown type %q", s.Key, s.Type)
 		}
 		if s.Default == Generate && s.Type != "password" {
 			return fmt.Errorf("setting %q: only a password can be generated", s.Key)
+		}
+		switch {
+		case (s.Format != "" || s.Bytes != 0) && s.Default != Generate:
+			return fmt.Errorf("setting %q: format and bytes shape a generated secret (default: generate)", s.Key)
+		case s.Format != "" && s.Format != "alnum" && s.Format != "hex" && s.Format != "base64":
+			return fmt.Errorf("setting %q: format must be alnum, hex or base64, got %q", s.Key, s.Format)
+		case s.Bytes != 0 && (s.Format == "" || s.Format == "alnum"):
+			return fmt.Errorf("setting %q: bytes is for hex and base64; alnum is always 32 characters", s.Key)
+		case s.Bytes != 0 && (s.Bytes < 16 || s.Bytes > 64):
+			return fmt.Errorf("setting %q: bytes must be 16 to 64", s.Key)
 		}
 	}
 	if m.Web != nil && (m.Web.Port <= 0 || m.Web.Port > 65535) {
@@ -547,6 +578,26 @@ func GeneratePassword() string {
 	return string(out)
 }
 
+// GenerateSecret makes a setting's secret in its shape (G7): 32 letters
+// and digits by default, or hex or standard base64 of n random bytes (32
+// when n is 0). The Console's generateSecret makes the same shapes.
+func GenerateSecret(format string, n int) string {
+	if format == "" || format == "alnum" {
+		return GeneratePassword()
+	}
+	if n == 0 {
+		n = 32
+	}
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	if format == "hex" {
+		return hex.EncodeToString(b)
+	}
+	return base64.StdEncoding.EncodeToString(b)
+}
+
 // SpecFor turns an entry plus the user's choices into the ServiceSpec the
 // Node runs (decision 78). The Console does the same in TypeScript.
 func SpecFor(e *Manifest, name string, settings map[string]string, exposure string) *maitrev1.ServiceSpec {
@@ -569,7 +620,7 @@ func SpecWithout(e *Manifest, name string, settings map[string]string, exposure 
 	for _, s := range e.Settings {
 		merged[s.Key] = s.Default
 		if s.Default == Generate {
-			merged[s.Key] = GeneratePassword()
+			merged[s.Key] = GenerateSecret(s.Format, s.Bytes)
 		}
 	}
 	for k, v := range settings {

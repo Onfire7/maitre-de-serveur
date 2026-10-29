@@ -1,6 +1,6 @@
 # Popularity, and Catalog entries that need grants
 
-Status: being built (2026-10-29). Follows docs/services-from-compose.md.
+Status: built (2026-10-29), except Bluetooth (G6) and devices other than GPUs, which wait for SELinux work checked on a Node. Follows docs/services-from-compose.md.
 
 Two additions to the Catalog. The Catalog page can sort by an approximation of popularity. And entries may need grants (decision 189): an entry declares each protected option it needs and why, the Console asks before installing, and the person can install it fully, without its optional features, or not at all. This opens Home Assistant, Plex, Homarr, Dozzle and others that the "no grants" rule kept out.
 
@@ -91,16 +91,19 @@ Supported:
 | Option | Why it is supported |
 |---|---|
 | `Network=host` | The Node serves the app's web port as it is (G4). |
-| `AddDevice=<path>` | A fixed path, or a device setting the Console offers from the Node's own devices (G5). |
+| `AddDevice=/dev/dri...` | GPUs: container-selinux lets containers use them (`container_use_dri_devices`, on by default). A fixed path, or a device setting (G5). |
 | `AddCapability=<cap>` | Podman applies it; the warning names the capability. |
 | `Sysctl=<key>` | Podman applies it inside the container's namespaces. |
-| `Volume=<host path>` | Any folder of the Node, named in the warning. Two paths have prerequisites the Node meets: `/run/podman/podman.sock` (the Node runs `podman.socket`) and `/run/dbus` (the Node runs BlueZ, G6). |
+| `Volume=<host path>` | Any folder of the Node, named in the warning, except the two below. |
 | `UserNS=host`, `NoNewPrivileges=false` | Podman applies them. |
 
 Unsupported, with what they need:
 
 | Option | Needs |
 |---|---|
+| `Volume=/run/podman/podman.sock` (and Docker's) | SELinux letting a container use the Podman socket without turning SELinux off for it (`label=disable`, Podman's usual answer), and a warning that says the socket is root on the Node. The Node already runs `podman.socket`. Dozzle and Homarr's container view wait for it. |
+| `Volume=/run/dbus` | Bluetooth (G6). |
+| `AddDevice=` other devices (serial sticks, `/dev/video*`) | SELinux letting a container use the device: container-selinux's `container_use_devices` boolean, off on Fedora, or a narrower rule, set in the Node image and checked on a Node with the device plugged in. Home Assistant's Zigbee and Z-Wave sticks wait for it. |
 | `Network=container:...`, `Network=ns:...` | Maître to manage the other container's lifecycle with this one. |
 | `PodmanArgs=...`, `GlobalArgs=...` | Nothing in Maître can check raw arguments; ask for the specific capability, device or folder instead, or teach `protect.go` the Quadlet key that says it. |
 | `SecurityLabelDisable`, `SeccompProfile`, `SecurityLabel*` | A design for weakening SELinux or seccomp per Service. |
@@ -131,9 +134,9 @@ settings:
 - Empty means none. The value must be a path under `/dev/`.
 - The template writes `{{ if .Grants.radio }}{{ with .Settings.ZIGBEE_DEVICE }}AddDevice={{ . }}{{ end }}{{ end }}`, and the grant is `AddDevice=*`.
 
-### G6. BlueZ on the Node
+### G6. Bluetooth (not yet supported)
 
-Home Assistant uses Bluetooth through the host's BlueZ over D-Bus, as its documentation says. The Node image installs `bluez` and enables `bluetooth.service`, so `Volume=/run/dbus` is supported. A Node without a Bluetooth adapter runs BlueZ idle.
+Home Assistant uses Bluetooth through the host's BlueZ over D-Bus, as its documentation says, with `/run/dbus` mounted. That needs two things the Node does not have yet: BlueZ (`bluetooth.service`) in the image, and SELinux letting a container connect to the Node's system bus (`container_t` to `system_dbusd_t`), which Fedora's policy is expected to refuse. Both must be checked on a real Node. Until then `Volume=/run/dbus` is unsupported, and `catalog-check` says what it needs; Home Assistant ships without Bluetooth.
 
 ### G7. Generated secrets in other shapes
 
@@ -152,8 +155,10 @@ Homarr wants 64 hex characters; Laravel apps want `base64:` and 32 random bytes,
 Today the Node refuses an install that needs grants, and the Console then shows a warning naming each option. For an entry that declares grants, the Console asks first, with the entry's words:
 
 - Each option is shown with the entry's `why`, and Maître's own note on what the option allows. Options are grouped by feature.
-- The buttons are **Don't install**, **Install without** *features* (when any grant is optional), and **Allow and install**.
-- Allow signs a grant for every option and installs. Without installs with those features off (`optional_grants` in the spec, G9), signing grants only for the required options. Don't install stops.
+- Each optional feature has its own switch, on until the person turns it off, with what is lost without it.
+- The buttons are **Don't install** and **Allow and install**, which becomes **Install without** *features* once a switch is off.
+- Allow signs a grant for every option and installs. Without installs with those features off (`optional_grants` in the spec, G9), signing grants only for the options still needed. Don't install stops.
+- `maitre service install --allow [--without features]` does the same from the command line, for the boot test.
 
 The Node still enforces the grants, so nothing changes for safety. If an option appears that the entry did not declare, the Console falls back to the existing warning.
 
@@ -169,6 +174,6 @@ Each ends with the Go and Console tests, `make lint`, and `catalog-check` over t
 2. **Declared grants and the support table** (G1-G3, G9): the format, `catalog-check`'s two renders, `optional_grants` and `.Grants` on the Node.
 3. **Host networking** (G4) on the Node.
 4. **Device settings** (G5): the `device` type, `ListDevices`, the Console's picker.
-5. **Generated secret shapes** (G7), and **BlueZ** in the image (G6).
+5. **Generated secret shapes** (G7). Bluetooth (G6) waits for a Node to check SELinux on.
 6. **The Console's question** (G8), on the demo Fleet first.
 7. **Home Assistant**, then the other entries left out: Plex, Homarr, Dozzle, PhotoPrism, Wallabag, Linkding. Then batches of ten.

@@ -10,6 +10,7 @@ import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { api } from "@/state";
 import { transportFor, type Target } from "@/transport";
 import { currentRecord, putSigned } from "./sign";
+import { grantMatches, type CatalogEntry, type CatalogGrant } from "@/services";
 
 /** What a protected option lets the container do, in plain words. */
 export function optionNote(option: string): string {
@@ -24,7 +25,7 @@ export function optionNote(option: string): string {
     case "AddDevice":
       return `Direct access to the Node's hardware${value ? ` at ${value}` : ""}, bypassing the operating system's checks.`;
     case "Network":
-      return value === "host" ? "Uses the Node's own network: it can see and answer on every network connection of the Node." : `Joins the network "${value}" instead of the Service's own.`;
+      return value === "host" ? "Uses the Node's own network: it can see and answer on every network connection of the Node, and its page is open to your home network at the Node's address, whatever Reachable says." : `Joins the network "${value}" instead of the Service's own.`;
     case "Volume":
       return `Reads and writes ${value ? value.split(":")[0] : "a folder"} on the Node, outside its Storage Spaces.`;
     case "PodmanArgs":
@@ -80,7 +81,14 @@ export function declined(e: unknown): boolean {
   return e instanceof GrantsDeclined;
 }
 
-type Ask = (need: GrantsNeeded) => Promise<boolean>;
+/**
+ * The answer to a question about grants: allow all, decline, or (for a
+ * Catalog entry that declares optional features, G8) install without some.
+ */
+export type GrantAnswer = boolean | { without: string[] };
+
+/** Asks; entry is given when the entry declares every option asked for. */
+type Ask = (need: GrantsNeeded, entry?: CatalogEntry) => Promise<GrantAnswer>;
 let ask: Ask | undefined;
 
 /** The dialog that asks; mounted once by the Shell. */
@@ -111,19 +119,45 @@ export async function signGrants(t: Target, need: GrantsNeeded) {
   }
 }
 
+/** The declared grant of each option the Node asks for, or undefined when the entry did not declare them all. */
+export function declaredFor(entry: CatalogEntry | undefined, need: GrantsNeeded): CatalogGrant[] | undefined {
+  if (!entry?.grants?.length) return undefined;
+  const out = need.options.map((o, i) => entry.grants!.find((g) => grantMatches(g, need.components[i] ?? "", o)));
+  return out.every(Boolean) ? (out as CatalogGrant[]) : undefined;
+}
+
+/** A Catalog install that can be retried with some of its features off (G8). */
+export interface EntryInstall<T> {
+  entry: CatalogEntry;
+  without: (features: string[]) => Promise<T>;
+}
+
 /**
  * Run a Service call; when the Node says it needs grants, ask, sign them
- * and run it once more. Declining throws GrantsDeclined.
+ * and run it once more. Declining throws GrantsDeclined. For a Catalog
+ * install whose entry declares the options, the question uses the entry's
+ * words, and "without" signs only the options still needed and installs
+ * with those features off.
  */
-export async function withGrants<T>(t: Target, call: () => Promise<T>): Promise<T> {
+export async function withGrants<T>(t: Target, call: () => Promise<T>, install?: EntryInstall<T>): Promise<T> {
   try {
     return await call();
   } catch (e) {
     const need = grantsNeeded(e);
     if (!need || !ask) throw e;
-    if (!(await ask(need))) throw new GrantsDeclined();
-    await signGrants(t, need);
-    return call();
+    const declared = declaredFor(install?.entry, need);
+    const answer = declared ? await ask(need, install!.entry) : await ask(need);
+    if (answer === false) throw new GrantsDeclined();
+    if (answer === true || !install || !declared || answer.without.length === 0) {
+      await signGrants(t, need);
+      return call();
+    }
+    const keep = need.options.map((_, i) => !(declared[i].optional && answer.without.includes(declared[i].optional)));
+    const pick = <V>(xs: V[]) => xs.filter((_, i) => keep[i]);
+    const still = create(GrantsNeededSchema, { ...need, options: pick(need.options), grantIds: pick(need.grantIds), components: need.components.length ? pick(need.components) : [], imageRepositories: need.imageRepositories.length ? pick(need.imageRepositories) : [] });
+    if (still.options.length) await signGrants(t, still);
+    // Anything the Node still asks for, the ordinary question covers.
+    return withGrants(t, () => install.without(answer.without));
   }
 }
 

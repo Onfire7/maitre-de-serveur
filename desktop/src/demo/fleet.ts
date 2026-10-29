@@ -46,6 +46,48 @@ const PROTECTED = /^(AddCapability|AddDevice|PodmanArgs|GlobalArgs|SecurityLabel
  * The protected options of a Quadlet (decision 189), worded as the Node
  * words them, roughly: the demo has no classifier of its own.
  */
+/**
+ * A Catalog template with its features and settings filled in, as far as
+ * the demo needs (G9): {{ if .Grants.x }}…{{ else }}…{{ end }},
+ * {{ with .Settings.K }}…{{ . }}…{{ end }} and {{ .Settings.K }}; other
+ * fields stay as they are.
+ */
+export function renderDemo(tmpl: string, spec: Pick<ServiceSpec, "optionalGrants" | "settings">): string {
+  const tokens = tmpl.split(/(\{\{-?\s*.*?\s*-?\}\})/);
+  let i = 0;
+  const block = (dot: string): string => {
+    let out = "";
+    while (i < tokens.length) {
+      const t = tokens[i];
+      const m = /^\{\{-?\s*(.*?)\s*-?\}\}$/.exec(t);
+      if (!m) {
+        out += t;
+        i++;
+        continue;
+      }
+      const action = m[1];
+      if (action === "end" || action === "else") return out;
+      i++;
+      const cond = /^(if|with) \.(Grants|Settings)\.(\w+)$/.exec(action);
+      if (cond) {
+        const value = cond[2] === "Grants" ? (spec.optionalGrants[cond[3]] ? "true" : "") : (spec.settings[cond[3]] ?? "");
+        const yes = block(cond[1] === "with" ? value : dot);
+        let no = "";
+        if (tokens[i] && /\{\{-?\s*else\s*-?\}\}/.test(tokens[i])) {
+          i++;
+          no = block(dot);
+        }
+        i++; // end
+        out += value ? yes : no;
+      } else if (action === ".") out += dot;
+      else if (/^\.Settings\.(\w+)$/.test(action)) out += spec.settings[action.slice(10)] ?? "";
+      else out += t;
+    }
+    return out;
+  };
+  return block("");
+}
+
 export function protectedOptions(quadlet: string): string[] {
   const out: string[] = [];
   let section = "";
@@ -356,11 +398,11 @@ export class DemoFleet {
     const live = new Set(this.records.filter((r) => r.kind === "grant" && !r.deleted).map((r) => r.id));
     if (spec.components.length) {
       // Per component, for its own image (plan C4), as the Node asks.
-      const need = spec.components.flatMap((c) => protectedOptions(c.quadlet).map((option) => ({ c, option, id: grantId(nodeId, spec.name, option, c.name) }))).filter((x) => !live.has(x.id));
+      const need = spec.components.flatMap((c) => protectedOptions(renderDemo(c.quadlet, spec)).map((option) => ({ c, option, id: grantId(nodeId, spec.name, option, c.name) }))).filter((x) => !live.has(x.id));
       if (need.length === 0) return undefined;
       return create(GrantsNeededSchema, { nodeId, service: spec.name, options: need.map((x) => x.option), grantIds: need.map((x) => x.id), components: need.map((x) => x.c.name), imageRepositories: need.map((x) => repository(x.c.image)) });
     }
-    const options = protectedOptions(spec.quadlet).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
+    const options = protectedOptions(renderDemo(spec.quadlet, spec)).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
     if (options.length === 0) return undefined;
     return create(GrantsNeededSchema, { nodeId, service: spec.name, imageRepository: repository(spec.image), options, grantIds: options.map((o) => grantId(nodeId, spec.name, o)) });
   }

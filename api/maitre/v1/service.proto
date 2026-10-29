@@ -50,6 +50,33 @@ service ServiceService {
   // only its local checks ran. A spec Quadlet or the Node refuses fails
   // with InvalidArgument and the reason.
   rpc CheckService(CheckServiceRequest) returns (CheckServiceResponse) {}
+  // ListDevices lists this Node's devices a Catalog entry's device setting
+  // can name (docs/popularity-and-grants.md, G5): serial adapters such as
+  // Zigbee and Z-Wave sticks, and video devices for hardware decoding.
+  // Optional: older Nodes answer Unimplemented, and the Console then asks
+  // for a path.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {}
+}
+
+message ListDevicesRequest {
+  // serial, video, or empty for both.
+  string kind = 1;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+// Device is one device of the Node.
+message Device {
+  // The path a unit names: /dev/serial/by-id/... (stable across reboots
+  // and ports) where there is one, else /dev/ttyUSB0 or /dev/dri/renderD128.
+  string path = 1;
+  // serial or video.
+  string kind = 2;
+  // What it is, for a person: the by-id name without its prefix, such as
+  // "usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_1234-if00-port0".
+  string name = 3;
 }
 
 message CheckServiceRequest {

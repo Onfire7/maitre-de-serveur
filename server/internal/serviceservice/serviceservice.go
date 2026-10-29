@@ -15,6 +15,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/devices"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
@@ -56,6 +57,8 @@ type Service struct {
 	cat *Catalog
 	// OnChange runs after installs and removals so Caddy and mDNS can follow.
 	OnChange func()
+	// DevRoot is where ListDevices looks: /dev, swapped in tests.
+	DevRoot string
 }
 
 var _ maitrev1connect.ServiceServiceHandler = (*Service)(nil)
@@ -196,6 +199,20 @@ func (s *Service) CheckService(ctx context.Context, req *maitrev1.CheckServiceRe
 	out := &maitrev1.CheckServiceResponse{Units: res.Units}
 	for _, p := range res.Protected {
 		out.Protected = append(out.Protected, &maitrev1.ProtectedOption{Component: p.Component, ImageRepository: p.ImageRepository, Option: p.Option})
+	}
+	return out, nil
+}
+
+// ListDevices implements ServiceService (G5): this Node's devices a
+// device setting can name.
+func (s *Service) ListDevices(_ context.Context, req *maitrev1.ListDevicesRequest) (*maitrev1.ListDevicesResponse, error) {
+	root := s.DevRoot
+	if root == "" {
+		root = "/dev"
+	}
+	out := &maitrev1.ListDevicesResponse{}
+	for _, d := range devices.List(root, req.GetKind()) {
+		out.Devices = append(out.Devices, &maitrev1.Device{Path: d.Path, Kind: d.Kind, Name: d.Name})
 	}
 	return out, nil
 }

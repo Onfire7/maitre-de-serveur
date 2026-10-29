@@ -99,11 +99,29 @@ func Support(option string) (ok bool, needs string) {
 			return true, ""
 		}
 		return false, "Maître to manage the other container's lifecycle with this one (Network=" + value + ")"
-	case "AddDevice", "AddCapability", "Sysctl", "UserNS", "NoNewPrivileges":
+	case "AddDevice":
+		// container-selinux lets containers use GPUs (container_use_dri_devices,
+		// on by default); any other device needs container_use_devices, off.
+		// host[:container[:permissions]], as Quadlet and Podman read it.
+		if host, _, _ := strings.Cut(value, ":"); host == "/dev/dri" || strings.HasPrefix(host, "/dev/dri/") {
+			return true, ""
+		}
+		return false, "SELinux letting a container use the device (container-selinux's container_use_devices boolean, off on Fedora, or a narrower rule) set in the Node image, checked on a Node with the device plugged in"
+	case "AddCapability", "Sysctl", "UserNS", "NoNewPrivileges":
 		return true, ""
 	case "Volume":
-		// Any folder of the Node. The two whose use needs something running
-		// on the Node are supported because the Node image provides it.
+		path, _, _ := strings.Cut(value, ":")
+		switch path {
+		case "/run/dbus", "/run/dbus/system_bus_socket", "/var/run/dbus":
+			// Bluetooth for Home Assistant and the like goes through the
+			// host's BlueZ over the system bus.
+			return false, "BlueZ (bluetooth.service) in the Node image, and SELinux letting a container connect to the Node's system bus (container_t to system_dbusd_t), checked on a Node"
+		case "/run/podman/podman.sock", "/var/run/podman/podman.sock", "/run/docker.sock", "/var/run/docker.sock":
+			// The Node runs podman.socket, but SELinux keeps container_t
+			// from connecting to it; Podman's own answer is label=disable.
+			return false, "SELinux letting a container use the Node's Podman socket (container_t to container_runtime_t) without turning SELinux off for it, and a warning that says the socket is root on the Node"
+		}
+		// Any other folder of the Node, named in the warning.
 		return true, ""
 	case "PodmanArgs", "GlobalArgs":
 		return false, "nothing in Maître can check raw Podman arguments; ask for the specific capability, device or folder instead, or teach protect.go the Quadlet key that says it"

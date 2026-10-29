@@ -15,9 +15,9 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
 
-// SampleDevice fills a device setting, which has no value until a person
-// picks one, so the check sees the option it adds.
-const SampleDevice = "/dev/maitre-check-device"
+// SampleDevices fill device settings by kind, which have no value until a
+// person picks one, so the check sees the option each adds.
+var SampleDevices = map[string]string{"serial": "/dev/serial/by-id/maitre-check", "video": "/dev/dri/renderD128", "any": "/dev/maitre-check"}
 
 // Result is an entry's check: the units it renders to with every feature
 // on, and what is wrong with it.
@@ -38,7 +38,7 @@ func Check(ctx context.Context, e *catalog.Manifest) (*Result, error) {
 	settings := map[string]string{}
 	for _, s := range e.Settings {
 		if s.Type == "device" {
-			settings[s.Key] = SampleDevice
+			settings[s.Key] = SampleDevices[s.Device]
 		}
 	}
 	on, err := render(ctx, e, settings, nil, res)
@@ -92,8 +92,14 @@ func Check(ctx context.Context, e *catalog.Manifest) (*Result, error) {
 		if !used {
 			res.Problems = append(res.Problems, fmt.Sprintf("declares %s, which no unit uses", whereGrant(g)))
 		}
-		if ok, needs := catalog.Support(g.Option); !ok {
-			res.Problems = append(res.Problems, fmt.Sprintf("%s is not supported yet: Maître needs %s", whereGrant(g), needs))
+	}
+	// What the units really ask for, so AddDevice=* is judged by the device.
+	for _, p := range on.Protected {
+		if declared(p) == nil {
+			continue
+		}
+		if ok, needs := catalog.Support(p.Option); !ok {
+			res.Problems = append(res.Problems, fmt.Sprintf("%s is not supported yet: Maître needs %s", where(p), needs))
 		}
 	}
 	return res, nil

@@ -11,7 +11,7 @@ import { GrantsNeededSchema } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
-import { type DemoFleet, type DemoNode, demoFleet, protectedOptions } from "./fleet";
+import { type DemoFleet, type DemoNode, demoFleet, NODE_A, protectedOptions, renderDemo } from "./fleet";
 import { demoHistory } from "./metrics";
 
 type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
@@ -245,8 +245,18 @@ const handlers: Record<string, Handler> = {
     if (parts.some((p) => !p.quadlet.includes("[Container]"))) throw fail(Code.InvalidArgument, `${spec.name}: Quadlet rejected the unit: no [Container] group`);
     return {
       units: Object.fromEntries(parts.map((p) => [`${p.name ? `${spec.name}-${p.name}` : spec.name}.container`, p.quadlet])),
-      protected: parts.flatMap((p) => protectedOptions(p.quadlet).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
+      protected: parts.flatMap((p) => protectedOptions(renderDemo(p.quadlet, spec)).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
     };
+  },
+  // G5: Node A has a Zigbee stick and a GPU plugged in; the others nothing.
+  "ServiceService/ListDevices": (_f, n, i, addr) => {
+    const node = needNode(n, addr);
+    const all = node.nodeId === NODE_A ? [
+      { path: "/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_4c004e-if00-port0", kind: "serial", name: "usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_4c004e-if00-port0" },
+      { path: "/dev/dri/renderD128", kind: "video", name: "GPU 128" },
+    ] : [];
+    const kind = (i as { kind?: string }).kind ?? "";
+    return { devices: all.filter((d) => !kind || d.kind === kind) };
   },
   "ServiceService/SetImage": (f, n, i, addr) => {
     needNode(n, addr);

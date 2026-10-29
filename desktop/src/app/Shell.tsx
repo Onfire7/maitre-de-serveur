@@ -21,7 +21,7 @@ import { TrustedDeviceSchema } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
-import { controlService, needComponents, removeService, services as serviceClient, targetFor } from "@/fleet/actions";
+import { controlService, installEntry, listDevices, needComponents, removeService, targetFor } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
 import { declined } from "@/fleet/grants";
 import { useIntroduce } from "@/fleet/introduce";
@@ -175,11 +175,11 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     }
   }
 
-  async function install(_entry: CatalogEntry, spec: ServiceSpec, nodeId: string) {
+  async function install(entry: CatalogEntry, spec: ServiceSpec, nodeId: string) {
     const t = targetFor(snap, state.nodes, nodeId);
     if (!t) throw new Error("that Node has no address");
     await needComponents(t, spec, snap?.nodes.find((n) => n.nodeId === nodeId)?.name);
-    await serviceClient(t).installService({ spec });
+    await installEntry(t, entry, spec);
     toast.success(`${spec.name} is installing`);
     await fleet.refresh();
     go({ name: "service", service: spec.name });
@@ -237,7 +237,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
-              {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} />}
+              {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} />}
               {route.name === "add-node" && addFound && (
                 <div className="h-full overflow-y-auto">

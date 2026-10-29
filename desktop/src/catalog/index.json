@@ -39,7 +39,7 @@
         }
       },
       "project": "https://github.com/actualbudget/actual",
-      "stars": 29856
+      "stars": 29857
     },
     {
       "id": "adguard-home",
@@ -84,7 +84,7 @@
         }
       },
       "project": "https://github.com/AdguardTeam/AdGuardHome",
-      "stars": 37856
+      "stars": 37857
     },
     {
       "id": "audiobookshelf",
@@ -304,6 +304,59 @@
       "stars": 16445
     },
     {
+      "id": "home-assistant",
+      "name": "Home Assistant",
+      "summary": "Control your lights, heating, plugs and sensors from one place, without the cloud.",
+      "description": "Home Assistant connects the smart devices in your home, from lights and\nthermostats to plugs, sensors and speakers, and lets you control them\ntogether and automate them, all from your own server. The first visit\ncreates its owner account.\n\nIts add-on store is part of Home Assistant OS and not of this install; the\nusual add-ons, such as Mosquitto and Zigbee2MQTT, are Services of their own.\nBluetooth and Zigbee or Z-Wave sticks plugged into the Node are not yet\navailable to it here.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBkPSJNNTEyIDQ3My4zYzAgMTcuNi0xNC40IDMyLTMyIDMySDMyYy0xNy42IDAtMzItMTQuNC0zMi0zMnYtMTkyYzAtMTcuNiAxMC4yLTQyLjIgMjIuNi01NC42TDIzMy40IDE2YzEyLjQtMTIuNCAzMi44LTEyLjQgNDUuMiAwbDIxMC44IDIxMC44YzEyLjQgMTIuNCAyMi42IDM3IDIyLjYgNTQuNnoiIHN0eWxlPSJmaWxsOiNmMmY0ZjkiLz48cGF0aCBkPSJNNDg5LjQgMjI2LjcgMjc4LjYgMTZjLTEyLjQtMTIuNC0zMi44LTEyLjQtNDUuMiAwTDIyLjYgMjI2LjdDMTAuMiAyMzkuMSAwIDI2My43IDAgMjgxLjN2MTkyYzAgMTcuNiAxNC40IDMyIDMyIDMyaDE5Ni44bC04Ni43LTg2LjdjLTQuNSAxLjUtOS4yIDIuNC0xNC4yIDIuNC0yNC4xIDAtNDMuNy0xOS42LTQzLjctNDMuN3MxOS42LTQzLjcgNDMuNy00My43IDQzLjcgMTkuNiA0My43IDQzLjdjMCA1LS45IDkuNy0yLjQgMTQuMmw2Ny41IDY3LjVWMjExLjhjLTE0LjUtNy4xLTI0LjUtMjItMjQuNS0zOS4yIDAtMjQuMSAxOS42LTQzLjcgNDMuNy00My43czQzLjcgMTkuNiA0My43IDQzLjdjMCAxNy4yLTEwIDMyLjEtMjQuNSAzOS4ydjE3My40bDY3LjEtNjcuMWMtMS4zLTQuMi0yLTguNi0yLTEzLjIgMC0yNC4xIDE5LjYtNDMuNyA0My43LTQzLjdzNDMuNyAxOS42IDQzLjcgNDMuNy0xOS42IDQzLjctNDMuNyA0My43Yy01LjMgMC0xMC40LTEtMTUuMS0yLjhsLTkzLjcgOTMuN3Y2NS45SDQ4MGMxNy42IDAgMzItMTQuNCAzMi0zMnYtMTkyYzAtMTcuNi0xMC4yLTQyLjItMjIuNi01NC43IiBzdHlsZT0iZmlsbDojMThiY2YyIi8+PC9zdmc+",
+      "category": "home",
+      "image": "ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133",
+      "version": "2026.10.4",
+      "exposure": "private",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 8123,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/config"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/manifest.json"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\n{{ if .Grants.discovery }}Network=host\n{{ else }}Network={{ .Network }}\n{{ end }}Environment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/config:Z\n",
+      "source": {
+        "from": "hand",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/home-assistant.svg"
+        }
+      },
+      "grants": [
+        {
+          "option": "Network=host",
+          "why": "Finds the devices on your home network by listening for their announcements (Chromecast, Sonos, HomeKit, smart plugs and most local integrations), and answers HomeKit on its own ports. Its page is then also open on your home network at the Node's address, port 8123.",
+          "optional": "discovery",
+          "without": "Add devices by their address. Integrations that find devices by themselves, and HomeKit, will not work."
+        }
+      ],
+      "project": "https://github.com/home-assistant/core",
+      "stars": 91830
+    },
+    {
       "id": "immich",
       "name": "Immich",
       "summary": "Back up and browse your photos and videos, with search by faces and things.",
@@ -393,7 +446,7 @@
         }
       },
       "project": "https://github.com/immich-app/immich",
-      "stars": 117608
+      "stars": 117609
     },
     {
       "id": "it-tools",
@@ -523,7 +576,7 @@
         }
       },
       "project": "https://github.com/mealie-recipes/mealie",
-      "stars": 13722
+      "stars": 13724
     },
     {
       "id": "memos",
