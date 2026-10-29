@@ -813,7 +813,7 @@ func (c *conv) volumeLine(svcName string, v types.ServiceVolumeConfig) string {
 				r.needsPerson("%s mounts the Node's own folder %s; point it at a Service volume, or keep it and declare it under grants: with why", svcName, v.Source)
 			}
 			c.hostMounts[filepath.Clean(v.Source)] = true
-			return "Volume=" + templated(v.Source+":"+v.Target+strings.TrimSuffix(":"+opts, ":"))
+			return "Volume=" + templated(v.Source+":"+v.Target+strings.TrimSuffix(":"+strings.TrimSuffix(opts, ","), ":"))
 		}
 	case types.VolumeTypeVolume:
 		src := v.Source

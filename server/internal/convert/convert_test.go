@@ -230,7 +230,7 @@ services:
 // A service on the host's network gets no network of Maître's beside it.
 func TestHostNetworkMode(t *testing.T) {
 	dir := t.TempDir()
-	compose := "name: hostnet\nservices:\n  app:\n    image: docker.io/x/app:1\n    network_mode: host\n  torrent:\n    image: docker.io/x/t:1\n    ports:\n      - 51413:51413/UDP\n"
+	compose := "name: hostnet\nservices:\n  app:\n    image: docker.io/x/app:1\n    network_mode: host\n  torrent:\n    image: docker.io/x/t:1\n    ports:\n      - 51413:51413/UDP\n    volumes:\n      - /srv/backups:/backups:ro\n"
 	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(compose), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestHostNetworkMode(t *testing.T) {
 		if c.Name == "app" && (!strings.Contains(c.Quadlet, "Network=host") || strings.Contains(c.Quadlet, "{{ .Network }}")) {
 			t.Errorf("template:\n%s", c.Quadlet)
 		}
-		if c.Name == "torrent" && !strings.Contains(c.Quadlet, "PublishPort=51413:51413/udp") {
+		if c.Name == "torrent" && (!strings.Contains(c.Quadlet, "PublishPort=51413:51413/udp") || !strings.Contains(c.Quadlet, "Volume=/srv/backups:/backups:ro\n")) {
 			t.Errorf("an upper-case protocol:\n%s", c.Quadlet)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -36,11 +37,13 @@ type Fetcher struct {
 	Client  *http.Client
 	RawBase string // https://raw.githubusercontent.com
 	APIBase string // https://api.github.com
+	// Token lifts GitHub's limit of 60 anonymous API calls an hour.
+	Token string
 }
 
 // Default fetches from GitHub.
 func Default() *Fetcher {
-	return &Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, RawBase: "https://raw.githubusercontent.com", APIBase: "https://api.github.com"}
+	return &Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, RawBase: "https://raw.githubusercontent.com", APIBase: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")}
 }
 
 // Icon is one copied icon: its bytes, its file name in the entry
@@ -102,6 +105,9 @@ func (f *Fetcher) get(ctx context.Context, url, accept string) ([]byte, error) {
 	}
 	if accept != "" {
 		req.Header.Set("Accept", accept)
+	}
+	if f.Token != "" && strings.HasPrefix(url, f.APIBase) {
+		req.Header.Set("Authorization", "Bearer "+f.Token)
 	}
 	res, err := f.Client.Do(req)
 	if err != nil {
