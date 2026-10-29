@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/fleet.proto.
  */
 export const file_maitre_v1_fleet: GenFile = /*@__PURE__*/
-  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSLBAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgSEgoKc2lnbmVyX2tleRgIIAEoDBIRCglzaWduYXR1cmUYCSABKAwSFgoOc2lnbmVkX3VuaXhfbXMYCiABKAMiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMizgIKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDBInCgh1cGRhdGluZxgMIAEoCzIVLm1haXRyZS52MS5Ob2RlVXBkYXRlEiUKB3VwZGF0ZXMYDSADKAsyFC5tYWl0cmUudjEuVXBkYXRlUnVuIlsKCk5vZGVVcGRhdGUSFwoPc3RhcnRlZF91bml4X21zGAEgASgDEg4KBnRhcmdldBgCIAEoCRITCgtmcm9tX2RpZ2VzdBgDIAEoCRIPCgdib290X2lkGAQgASgJIq0CCglVcGRhdGVSdW4SFwoPc3RhcnRlZF91bml4X21zGAEgASgDEhUKDWVuZGVkX3VuaXhfbXMYAiABKAMSDgoGdGFyZ2V0GAMgASgJEhMKC2Zyb21fZGlnZXN0GAQgASgJEhEKCXRvX2RpZ2VzdBgFIAEoCRItCgdvdXRjb21lGAYgASgOMhwubWFpdHJlLnYxLlVwZGF0ZVJ1bi5PdXRjb21lEg8KB21lc3NhZ2UYByABKAkieAoHT3V0Y29tZRIXChNPVVRDT01FX1VOU1BFQ0lGSUVEEAASEwoPT1VUQ09NRV9VUERBVEVEEAESFwoTT1VUQ09NRV9ST0xMRURfQkFDSxACEhIKDk9VVENPTUVfRkFJTEVEEAMSEgoOT1VUQ09NRV9TVEFHRUQQBCJ6CgxVcGRhdGVQb2xpY3kSEQoJYXV0b21hdGljGAEgASgIEhkKEXdpbmRvd19zdGFydF9ob3VyGAIgASgFEhcKD3dpbmRvd19lbmRfaG91chgDIAEoBRITCgtzdGFnZV9ob3VycxgEIAEoBRIOCgZwYXVzZWQYBSABKAgitwEKDVRydXN0ZWREZXZpY2USEQoJZGV2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFgoOcHVibGljX2tleV9wZW0YAyABKAkSFQoNcmVjb3Zlcnlfb25seRgEIAEoCBIVCg1hZGRlZF91bml4X21zGAUgASgDEhIKCm5vZGVfc2NvcGUYBiABKAkSKwoHdm91Y2hlchgHIAEoCzIaLm1haXRyZS52MS5SZWNvdmVyeVZvdWNoZXIiXgoPUmVjb3ZlcnlWb3VjaGVyEhIKCnNpZ25lcl9rZXkYASABKAwSEQoJc2lnbmF0dXJlGAIgASgMEhYKDnNpZ25lZF91bml4X21zGAMgASgDEgwKBGJvZHkYBCABKAwigQEKBUdyYW50Eg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIOCgZvcHRpb24YAyABKAkSGAoQaW1hZ2VfcmVwb3NpdG9yeRgEIAEoCRIXCg9ncmFudGVkX3VuaXhfbXMYBSABKAMSEwoLZGV2aWNlX25hbWUYBiABKAkibgoMR3JhbnRzTmVlZGVkEg8KB25vZGVfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIYChBpbWFnZV9yZXBvc2l0b3J5GAMgASgJEg8KB29wdGlvbnMYBCADKAkSEQoJZ3JhbnRfaWRzGAUgAygJQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChVtYWl0cmUvdjEvZmxlZXQucHJvdG8SCW1haXRyZS52MSLBAQoGUmVjb3JkEgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkSFQoNb3duZXJfbm9kZV9pZBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgEEhcKD3VwZGF0ZWRfdW5peF9tcxgFIAEoAxIMCgRib2R5GAYgASgMEg8KB2RlbGV0ZWQYByABKAgSEgoKc2lnbmVyX2tleRgIIAEoDBIRCglzaWduYXR1cmUYCSABKAwSFgoOc2lnbmVkX3VuaXhfbXMYCiABKAMiQAoFRmxlZXQSEAoIZmxlZXRfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYAyABKAMizgIKBE5vZGUSDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhEKCWFkZHJlc3NlcxgEIAMoCRIbChNwcm92aXNpb25lZF91bml4X21zGAUgASgDEhEKCWltYWdlX3JlZhgGIAEoCRIUCgxpbWFnZV9kaWdlc3QYByABKAkSFgoOYm9vdGVkX3VuaXhfbXMYCCABKAMSDgoGbGV0dGVyGAkgASgJEhsKE25mc19jZXJ0aWZpY2F0ZV9wZW0YCiABKAkSIQoZbmZzX2NlcnRpZmljYXRlX3NpZ25hdHVyZRgLIAEoDBInCgh1cGRhdGluZxgMIAEoCzIVLm1haXRyZS52MS5Ob2RlVXBkYXRlEiUKB3VwZGF0ZXMYDSADKAsyFC5tYWl0cmUudjEuVXBkYXRlUnVuIlsKCk5vZGVVcGRhdGUSFwoPc3RhcnRlZF91bml4X21zGAEgASgDEg4KBnRhcmdldBgCIAEoCRITCgtmcm9tX2RpZ2VzdBgDIAEoCRIPCgdib290X2lkGAQgASgJIq0CCglVcGRhdGVSdW4SFwoPc3RhcnRlZF91bml4X21zGAEgASgDEhUKDWVuZGVkX3VuaXhfbXMYAiABKAMSDgoGdGFyZ2V0GAMgASgJEhMKC2Zyb21fZGlnZXN0GAQgASgJEhEKCXRvX2RpZ2VzdBgFIAEoCRItCgdvdXRjb21lGAYgASgOMhwubWFpdHJlLnYxLlVwZGF0ZVJ1bi5PdXRjb21lEg8KB21lc3NhZ2UYByABKAkieAoHT3V0Y29tZRIXChNPVVRDT01FX1VOU1BFQ0lGSUVEEAASEwoPT1VUQ09NRV9VUERBVEVEEAESFwoTT1VUQ09NRV9ST0xMRURfQkFDSxACEhIKDk9VVENPTUVfRkFJTEVEEAMSEgoOT1VUQ09NRV9TVEFHRUQQBCJjCgtGbGVldERvbWFpbhIOCgZkb21haW4YASABKAkSIQoDYXBwGAIgASgLMhQubWFpdHJlLnYxLkVudHJ5Tm9kZRIhCgN3ZWIYAyABKAsyFC5tYWl0cmUudjEuRW50cnlOb2RlIi0KCUVudHJ5Tm9kZRIPCgdlbmFibGVkGAEgASgIEg8KB25vZGVfaWQYAiABKAkiegoMVXBkYXRlUG9saWN5EhEKCWF1dG9tYXRpYxgBIAEoCBIZChF3aW5kb3dfc3RhcnRfaG91chgCIAEoBRIXCg93aW5kb3dfZW5kX2hvdXIYAyABKAUSEwoLc3RhZ2VfaG91cnMYBCABKAUSDgoGcGF1c2VkGAUgASgIIrcBCg1UcnVzdGVkRGV2aWNlEhEKCWRldmljZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDnB1YmxpY19rZXlfcGVtGAMgASgJEhUKDXJlY292ZXJ5X29ubHkYBCABKAgSFQoNYWRkZWRfdW5peF9tcxgFIAEoAxISCgpub2RlX3Njb3BlGAYgASgJEisKB3ZvdWNoZXIYByABKAsyGi5tYWl0cmUudjEuUmVjb3ZlcnlWb3VjaGVyIl4KD1JlY292ZXJ5Vm91Y2hlchISCgpzaWduZXJfa2V5GAEgASgMEhEKCXNpZ25hdHVyZRgCIAEoDBIWCg5zaWduZWRfdW5peF9tcxgDIAEoAxIMCgRib2R5GAQgASgMIoEBCgVHcmFudBIPCgdub2RlX2lkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSDgoGb3B0aW9uGAMgASgJEhgKEGltYWdlX3JlcG9zaXRvcnkYBCABKAkSFwoPZ3JhbnRlZF91bml4X21zGAUgASgDEhMKC2RldmljZV9uYW1lGAYgASgJIm4KDEdyYW50c05lZWRlZBIPCgdub2RlX2lkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSGAoQaW1hZ2VfcmVwb3NpdG9yeRgDIAEoCRIPCgdvcHRpb25zGAQgAygJEhEKCWdyYW50X2lkcxgFIAMoCUJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * Record is the unit of the Fleet database and of the sync layer (ADR 0003).
@@ -375,6 +375,75 @@ export const UpdateRun_OutcomeSchema: GenEnum<UpdateRun_Outcome> = /*@__PURE__*/
   enumDesc(file_maitre_v1_fleet, 4, 0);
 
 /**
+ * FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"
+ * (decision 218): the user's own domain pointing at the home, and which
+ * Node the router forwards to for the app and for the web. The user makes
+ * the DNS records (the domain and *.domain to the home's public address).
+ *
+ * @generated from message maitre.v1.FleetDomain
+ */
+export type FleetDomain = Message<"maitre.v1.FleetDomain"> & {
+  /**
+   * e.g. home.example.com. The app reaches the Fleet at <domain>:7443;
+   * a Service published at the domain defaults to <service>.<domain>.
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+
+  /**
+   * The router forwards 7443 to one Node, so the app can reach the Fleet
+   * from outside the home.
+   *
+   * @generated from field: maitre.v1.EntryNode app = 2;
+   */
+  app?: EntryNode | undefined;
+
+  /**
+   * The router forwards 80 and 443 to one Node, whose Caddy answers every
+   * Service published at the user's domain, wherever it runs.
+   *
+   * @generated from field: maitre.v1.EntryNode web = 3;
+   */
+  web?: EntryNode | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.FleetDomain.
+ * Use `create(FleetDomainSchema)` to create a new message.
+ */
+export const FleetDomainSchema: GenMessage<FleetDomain> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 5);
+
+/**
+ * EntryNode is which Node the router forwards a role's ports to.
+ *
+ * @generated from message maitre.v1.EntryNode
+ */
+export type EntryNode = Message<"maitre.v1.EntryNode"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * Empty: the Fleet elects the least busy reachable Node and keeps it
+   * until it goes away or stays much busier than another. Else this Node,
+   * while it is reachable (the election otherwise).
+   *
+   * @generated from field: string node_id = 2;
+   */
+  nodeId: string;
+};
+
+/**
+ * Describes the message maitre.v1.EntryNode.
+ * Use `create(EntryNodeSchema)` to create a new message.
+ */
+export const EntryNodeSchema: GenMessage<EntryNode> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_fleet, 6);
+
+/**
  * UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
  * how Maître Server updates roll across the Fleet by themselves.
  *
@@ -421,7 +490,7 @@ export type UpdatePolicy = Message<"maitre.v1.UpdatePolicy"> & {
  * Use `create(UpdatePolicySchema)` to create a new message.
  */
 export const UpdatePolicySchema: GenMessage<UpdatePolicy> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 5);
+  messageDesc(file_maitre_v1_fleet, 7);
 
 /**
  * TrustedDevice is the kind "trusted_device" record, keyed by device_id
@@ -481,7 +550,7 @@ export type TrustedDevice = Message<"maitre.v1.TrustedDevice"> & {
  * Use `create(TrustedDeviceSchema)` to create a new message.
  */
 export const TrustedDeviceSchema: GenMessage<TrustedDevice> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 6);
+  messageDesc(file_maitre_v1_fleet, 8);
 
 /**
  * RecoveryVoucher is another Node's signed record of the same device, scoped
@@ -520,7 +589,7 @@ export type RecoveryVoucher = Message<"maitre.v1.RecoveryVoucher"> & {
  * Use `create(RecoveryVoucherSchema)` to create a new message.
  */
 export const RecoveryVoucherSchema: GenMessage<RecoveryVoucher> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 7);
+  messageDesc(file_maitre_v1_fleet, 9);
 
 /**
  * Grant is the kind "grant" record (decision 189): a Trusted Device's
@@ -576,7 +645,7 @@ export type Grant = Message<"maitre.v1.Grant"> & {
  * Use `create(GrantSchema)` to create a new message.
  */
 export const GrantSchema: GenMessage<Grant> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 8);
+  messageDesc(file_maitre_v1_fleet, 10);
 
 /**
  * GrantsNeeded is the detail of a FailedPrecondition error from a Service
@@ -619,5 +688,5 @@ export type GrantsNeeded = Message<"maitre.v1.GrantsNeeded"> & {
  * Use `create(GrantsNeededSchema)` to create a new message.
  */
 export const GrantsNeededSchema: GenMessage<GrantsNeeded> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_fleet, 9);
+  messageDesc(file_maitre_v1_fleet, 11);
 

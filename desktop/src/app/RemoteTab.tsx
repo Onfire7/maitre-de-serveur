@@ -1,5 +1,6 @@
 // The Remote tab (Milestone 5, decision 148): the Fleet on Tailscale. One
 // OAuth client for the whole Fleet; every Node joins the tailnet by itself.
+// And the Fleet's own domain (218).
 import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import { currentRecord, putSigned } from "@/fleet/sign";
 import type { ConsoleState } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
+import { DomainSection } from "./DomainSection";
 
 // Tailscale's pages for each step (decisions 196, 197).
 const SIGN_UP = "https://login.tailscale.com/start";
@@ -96,6 +98,8 @@ export function RemoteTab({ snap, state }: { snap: FleetSnapshot | undefined; st
           <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Not connected. Services are reachable at home only until the Fleet is on a Tailscale network.</p>
         )}
       </section>
+
+      <DomainSection snap={snap} />
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Services reachable away from home</h2>

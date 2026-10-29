@@ -13,6 +13,7 @@ import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/
 import { transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
 import { pickAnchor, type AnchorPick } from "./anchor";
+import { domainAddr, domainOrder, rememberDomain } from "./domain";
 
 export const FLEET_POLL_MS = 3000;
 /** Metrics older than this are shown dimmed (decision 158). */
@@ -138,8 +139,13 @@ export function useFleet(known: KnownNode[]) {
 
   const candidates = useCallback(() => {
     const snap = qc.getQueryData<FleetSnapshot>(["fleet"]);
-    const fromRecords = snap?.nodes.map((n) => ({ nodeId: n.nodeId, letter: n.letter, addresses: n.addresses })) ?? [];
-    const fromKnown = known.map((n) => ({ nodeId: n.node_id, letter: "", addresses: n.addresses }));
+    // The Fleet's domain (decision 218) is every Node's last address: it
+    // reaches whichever Node holds the app's forward, so a read through it
+    // keeps going there while it answers.
+    const dom = domainAddr();
+    const withDomain = (a: string[]) => (dom && !a.includes(dom) ? [...a, dom] : a);
+    const fromRecords = snap?.nodes.map((n) => ({ nodeId: n.nodeId, letter: n.letter, addresses: withDomain(n.addresses) })) ?? [];
+    const fromKnown = known.map((n) => ({ nodeId: n.node_id, letter: "", addresses: withDomain(n.addresses) }));
     const seen = new Set(fromRecords.map((n) => n.nodeId));
     return [...fromRecords, ...fromKnown.filter((n) => !seen.has(n.nodeId))];
   }, [known, qc]);
@@ -163,11 +169,33 @@ export function useFleet(known: KnownNode[]) {
           const data = await readFleet(pick, known);
           last.current = pick;
           failed.current.clear();
-          return { ...data, anchor: pick, at: Date.now() };
+          const snap = { ...data, anchor: pick, at: Date.now() };
+          rememberDomain(snap);
+          return snap;
         } catch (e) {
           lastErr = e;
           failed.current.add(pick.nodeId);
           if (failed.current.size >= nodes.length) failed.current.clear();
+        }
+      }
+      // No Node answers at home: try the domain, which reaches one Node; the
+      // one that held it last first. A Node that is not the one there fails
+      // its key check, so the next is tried.
+      const dom = domainAddr();
+      if (dom) {
+        for (const nodeId of domainOrder(nodes.map((n) => n.nodeId))) {
+          const pick = { nodeId, addr: dom };
+          if (last.current?.nodeId === nodeId && last.current.addr === dom) continue;
+          try {
+            const data = await readFleet(pick, known);
+            last.current = pick;
+            failed.current.clear();
+            const snap = { ...data, anchor: pick, at: Date.now() };
+            rememberDomain(snap);
+            return snap;
+          } catch (e) {
+            lastErr = e;
+          }
         }
       }
       throw lastErr ?? new Error("no Node to ask");

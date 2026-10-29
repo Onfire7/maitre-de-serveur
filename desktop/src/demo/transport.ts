@@ -4,10 +4,10 @@
 // against real machines. Every RPC the Console uses is here; an unknown one
 // fails with Unimplemented so a prototype never silently gets empty data.
 import { volumeDir } from "@/files/layout";
-import { create, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
+import { create, fromBinary, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
 import { ControlServiceRequest_Action, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
-import { GrantsNeededSchema } from "@/gen/maitre/v1/fleet_pb";
+import { FleetDomainSchema, GrantsNeededSchema, type EntryNode } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
@@ -133,6 +133,7 @@ const handlers: Record<string, Handler> = {
       version: "0.9.3",
       problems: p === me ? [] : (p.problems ?? []),
       syncGaps: p === me ? f.syncGaps : [],
+      entries: demoEntries(f, p),
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.
@@ -446,4 +447,25 @@ export function createDemoTransport(addr: string, fleet: DemoFleet = demoFleet()
       throw fail(Code.Unimplemented, "demo: no streaming RPCs");
     },
   };
+}
+
+// Decision 218 in the demo: the Node elected for the app and the web, as
+// the Nodes elect it (pinned while reachable, else the least busy in steps
+// of 20%, then by letter), with its router's answer.
+function demoEntries(f: DemoFleet, p: DemoNode) {
+  const rec = f.records.find((r) => r.kind === "fleet_domain" && !r.deleted);
+  if (!rec) return [];
+  const d = fromBinary(FleetDomainSchema, rec.body);
+  const up = f.nodes.filter((n) => n.reachable);
+  const busy = (n: DemoNode) => Math.floor(f.metricsOf(n).cpuPercent / 20);
+  const elect = (e: EntryNode | undefined) => {
+    if (!e?.enabled || up.length === 0) return "";
+    if (up.some((n) => n.nodeId === e.nodeId)) return e.nodeId;
+    return [...up].sort((a, b) => busy(a) - busy(b) || a.letter.localeCompare(b.letter))[0].nodeId;
+  };
+  const router = p.portMapping.replace("router: ", "");
+  const out: { role: string; state: string }[] = [];
+  if (elect(d.app) === p.nodeId) out.push({ role: "app", state: `forwarded 7443/tcp at ${router}` });
+  if (elect(d.web) === p.nodeId) out.push({ role: "web", state: `forwarded 443/tcp, 80/tcp at ${router}; waiting for DNS: point *.${d.domain} at ${p.publicIp}` });
+  return out;
 }

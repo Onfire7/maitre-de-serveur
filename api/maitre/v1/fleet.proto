@@ -115,6 +115,31 @@ message UpdateRun {
   string message = 7;
 }
 
+// FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"
+// (decision 218): the user's own domain pointing at the home, and which
+// Node the router forwards to for the app and for the web. The user makes
+// the DNS records (the domain and *.domain to the home's public address).
+message FleetDomain {
+  // e.g. home.example.com. The app reaches the Fleet at <domain>:7443;
+  // a Service published at the domain defaults to <service>.<domain>.
+  string domain = 1;
+  // The router forwards 7443 to one Node, so the app can reach the Fleet
+  // from outside the home.
+  EntryNode app = 2;
+  // The router forwards 80 and 443 to one Node, whose Caddy answers every
+  // Service published at the user's domain, wherever it runs.
+  EntryNode web = 3;
+}
+
+// EntryNode is which Node the router forwards a role's ports to.
+message EntryNode {
+  bool enabled = 1;
+  // Empty: the Fleet elects the least busy reachable Node and keeps it
+  // until it goes away or stays much busier than another. Else this Node,
+  // while it is reachable (the election otherwise).
+  string node_id = 2;
+}
+
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
 // how Maître Server updates roll across the Fleet by themselves.
 message UpdatePolicy {

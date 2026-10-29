@@ -193,6 +193,19 @@ message FleetNodeStatus {
   // peer, and its own records a peer still lacks. Gossiped, so the anchor
   // reports what every Node sees.
   repeated SyncGap sync_gaps = 17;
+  // The entry roles ("app", "web") this Node holds (decision 218): it was
+  // elected and asks the router to forward their ports here. Gossiped so
+  // every Node elects the same one and keeps it, and the Console shows it.
+  repeated EntryHold entries = 18;
+}
+
+// EntryHold is one entry role a Node holds and how its forwarding stands.
+message EntryHold {
+  // "app" (7443) or "web" (80 and 443).
+  string role = 1;
+  // The router's side, e.g. "forwarded 443/tcp, 80/tcp at <router>", and
+  // whether the domain points here.
+  string state = 2;
 }
 
 // SyncGap is one Node holding older copies of records than another, found

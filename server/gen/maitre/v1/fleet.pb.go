@@ -604,6 +604,132 @@ func (x *UpdateRun) GetMessage() string {
 	return ""
 }
 
+// FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"
+// (decision 218): the user's own domain pointing at the home, and which
+// Node the router forwards to for the app and for the web. The user makes
+// the DNS records (the domain and *.domain to the home's public address).
+type FleetDomain struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// e.g. home.example.com. The app reaches the Fleet at <domain>:7443;
+	// a Service published at the domain defaults to <service>.<domain>.
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	// The router forwards 7443 to one Node, so the app can reach the Fleet
+	// from outside the home.
+	App *EntryNode `protobuf:"bytes,2,opt,name=app,proto3" json:"app,omitempty"`
+	// The router forwards 80 and 443 to one Node, whose Caddy answers every
+	// Service published at the user's domain, wherever it runs.
+	Web           *EntryNode `protobuf:"bytes,3,opt,name=web,proto3" json:"web,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FleetDomain) Reset() {
+	*x = FleetDomain{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FleetDomain) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FleetDomain) ProtoMessage() {}
+
+func (x *FleetDomain) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FleetDomain.ProtoReflect.Descriptor instead.
+func (*FleetDomain) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FleetDomain) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *FleetDomain) GetApp() *EntryNode {
+	if x != nil {
+		return x.App
+	}
+	return nil
+}
+
+func (x *FleetDomain) GetWeb() *EntryNode {
+	if x != nil {
+		return x.Web
+	}
+	return nil
+}
+
+// EntryNode is which Node the router forwards a role's ports to.
+type EntryNode struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Empty: the Fleet elects the least busy reachable Node and keeps it
+	// until it goes away or stays much busier than another. Else this Node,
+	// while it is reachable (the election otherwise).
+	NodeId        string `protobuf:"bytes,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntryNode) Reset() {
+	*x = EntryNode{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntryNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntryNode) ProtoMessage() {}
+
+func (x *EntryNode) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntryNode.ProtoReflect.Descriptor instead.
+func (*EntryNode) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *EntryNode) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *EntryNode) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
 // UpdatePolicy is the Fleet-wide kind "update_policy" Record (Milestone 6):
 // how Maître Server updates roll across the Fleet by themselves.
 type UpdatePolicy struct {
@@ -624,7 +750,7 @@ type UpdatePolicy struct {
 
 func (x *UpdatePolicy) Reset() {
 	*x = UpdatePolicy{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +762,7 @@ func (x *UpdatePolicy) String() string {
 func (*UpdatePolicy) ProtoMessage() {}
 
 func (x *UpdatePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[5]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +775,7 @@ func (x *UpdatePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePolicy.ProtoReflect.Descriptor instead.
 func (*UpdatePolicy) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdatePolicy) GetAutomatic() bool {
@@ -712,7 +838,7 @@ type TrustedDevice struct {
 
 func (x *TrustedDevice) Reset() {
 	*x = TrustedDevice{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -724,7 +850,7 @@ func (x *TrustedDevice) String() string {
 func (*TrustedDevice) ProtoMessage() {}
 
 func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[6]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -737,7 +863,7 @@ func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustedDevice.ProtoReflect.Descriptor instead.
 func (*TrustedDevice) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TrustedDevice) GetDeviceId() string {
@@ -805,7 +931,7 @@ type RecoveryVoucher struct {
 
 func (x *RecoveryVoucher) Reset() {
 	*x = RecoveryVoucher{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -817,7 +943,7 @@ func (x *RecoveryVoucher) String() string {
 func (*RecoveryVoucher) ProtoMessage() {}
 
 func (x *RecoveryVoucher) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[7]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -830,7 +956,7 @@ func (x *RecoveryVoucher) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecoveryVoucher.ProtoReflect.Descriptor instead.
 func (*RecoveryVoucher) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RecoveryVoucher) GetSignerKey() []byte {
@@ -885,7 +1011,7 @@ type Grant struct {
 
 func (x *Grant) Reset() {
 	*x = Grant{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -897,7 +1023,7 @@ func (x *Grant) String() string {
 func (*Grant) ProtoMessage() {}
 
 func (x *Grant) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[8]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +1036,7 @@ func (x *Grant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Grant.ProtoReflect.Descriptor instead.
 func (*Grant) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{8}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Grant) GetNodeId() string {
@@ -972,7 +1098,7 @@ type GrantsNeeded struct {
 
 func (x *GrantsNeeded) Reset() {
 	*x = GrantsNeeded{}
-	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -984,7 +1110,7 @@ func (x *GrantsNeeded) String() string {
 func (*GrantsNeeded) ProtoMessage() {}
 
 func (x *GrantsNeeded) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_fleet_proto_msgTypes[9]
+	mi := &file_maitre_v1_fleet_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -997,7 +1123,7 @@ func (x *GrantsNeeded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantsNeeded.ProtoReflect.Descriptor instead.
 func (*GrantsNeeded) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{9}
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GrantsNeeded) GetNodeId() string {
@@ -1093,7 +1219,14 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x0fOUTCOME_UPDATED\x10\x01\x12\x17\n" +
 	"\x13OUTCOME_ROLLED_BACK\x10\x02\x12\x12\n" +
 	"\x0eOUTCOME_FAILED\x10\x03\x12\x12\n" +
-	"\x0eOUTCOME_STAGED\x10\x04\"\xb9\x01\n" +
+	"\x0eOUTCOME_STAGED\x10\x04\"u\n" +
+	"\vFleetDomain\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12&\n" +
+	"\x03app\x18\x02 \x01(\v2\x14.maitre.v1.EntryNodeR\x03app\x12&\n" +
+	"\x03web\x18\x03 \x01(\v2\x14.maitre.v1.EntryNodeR\x03web\">\n" +
+	"\tEntryNode\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
+	"\anode_id\x18\x02 \x01(\tR\x06nodeId\"\xb9\x01\n" +
 	"\fUpdatePolicy\x12\x1c\n" +
 	"\tautomatic\x18\x01 \x01(\bR\tautomatic\x12*\n" +
 	"\x11window_start_hour\x18\x02 \x01(\x05R\x0fwindowStartHour\x12&\n" +
@@ -1144,7 +1277,7 @@ func file_maitre_v1_fleet_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_fleet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_maitre_v1_fleet_proto_goTypes = []any{
 	(UpdateRun_Outcome)(0),  // 0: maitre.v1.UpdateRun.Outcome
 	(*Record)(nil),          // 1: maitre.v1.Record
@@ -1152,22 +1285,26 @@ var file_maitre_v1_fleet_proto_goTypes = []any{
 	(*Node)(nil),            // 3: maitre.v1.Node
 	(*NodeUpdate)(nil),      // 4: maitre.v1.NodeUpdate
 	(*UpdateRun)(nil),       // 5: maitre.v1.UpdateRun
-	(*UpdatePolicy)(nil),    // 6: maitre.v1.UpdatePolicy
-	(*TrustedDevice)(nil),   // 7: maitre.v1.TrustedDevice
-	(*RecoveryVoucher)(nil), // 8: maitre.v1.RecoveryVoucher
-	(*Grant)(nil),           // 9: maitre.v1.Grant
-	(*GrantsNeeded)(nil),    // 10: maitre.v1.GrantsNeeded
+	(*FleetDomain)(nil),     // 6: maitre.v1.FleetDomain
+	(*EntryNode)(nil),       // 7: maitre.v1.EntryNode
+	(*UpdatePolicy)(nil),    // 8: maitre.v1.UpdatePolicy
+	(*TrustedDevice)(nil),   // 9: maitre.v1.TrustedDevice
+	(*RecoveryVoucher)(nil), // 10: maitre.v1.RecoveryVoucher
+	(*Grant)(nil),           // 11: maitre.v1.Grant
+	(*GrantsNeeded)(nil),    // 12: maitre.v1.GrantsNeeded
 }
 var file_maitre_v1_fleet_proto_depIdxs = []int32{
-	4, // 0: maitre.v1.Node.updating:type_name -> maitre.v1.NodeUpdate
-	5, // 1: maitre.v1.Node.updates:type_name -> maitre.v1.UpdateRun
-	0, // 2: maitre.v1.UpdateRun.outcome:type_name -> maitre.v1.UpdateRun.Outcome
-	8, // 3: maitre.v1.TrustedDevice.voucher:type_name -> maitre.v1.RecoveryVoucher
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4,  // 0: maitre.v1.Node.updating:type_name -> maitre.v1.NodeUpdate
+	5,  // 1: maitre.v1.Node.updates:type_name -> maitre.v1.UpdateRun
+	0,  // 2: maitre.v1.UpdateRun.outcome:type_name -> maitre.v1.UpdateRun.Outcome
+	7,  // 3: maitre.v1.FleetDomain.app:type_name -> maitre.v1.EntryNode
+	7,  // 4: maitre.v1.FleetDomain.web:type_name -> maitre.v1.EntryNode
+	10, // 5: maitre.v1.TrustedDevice.voucher:type_name -> maitre.v1.RecoveryVoucher
+	6,  // [6:6] is the sub-list for method output_type
+	6,  // [6:6] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_fleet_proto_init() }
@@ -1181,7 +1318,7 @@ func file_maitre_v1_fleet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_fleet_proto_rawDesc), len(file_maitre_v1_fleet_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

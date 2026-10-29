@@ -31,6 +31,7 @@ import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 import { FoldersEditor, type Folders } from "@/files/FoldersEditor";
 import { folderSource, ownSpacesOn } from "@/files/sources";
+import { fleetDomainName } from "@/fleet/domain";
 
 export type SheetKind = "ports" | "grants";
 
@@ -129,7 +130,7 @@ export function AccessEditor({ service, target, snap }: { service: FleetService;
             <div className="space-y-3 rounded-lg border p-3 text-sm">
               <div className="space-y-1.5">
                 <Label htmlFor="exp-host">Host name</Label>
-                <Input id="exp-host" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder="photos.example.com" />
+                <Input id="exp-host" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder={fleetDomainName() ? `${service.spec.name}.${fleetDomainName()}` : "photos.example.com"} />
                 {h && !hostOk && <p className="text-xs text-destructive">That is not a public host name.</p>}
               </div>
               <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">

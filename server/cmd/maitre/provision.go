@@ -228,7 +228,7 @@ func runProvision(args []string) error {
 // provisioning (decision 189); the rest it pulls from its peers.
 var provisionKinds = map[string]bool{
 	store.KindTrustedDevice: true, store.KindNode: true, store.KindFleet: true,
-	"space": true, "update_policy": true, "tailscale": true, "public_settings": true, "grant": true,
+	"space": true, "update_policy": true, "tailscale": true, "public_settings": true, "fleet_domain": true, "grant": true,
 }
 
 // signed signs rec as id, now (decision 189).

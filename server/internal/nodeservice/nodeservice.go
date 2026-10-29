@@ -41,6 +41,8 @@ type Service struct {
 	// OnChange is called after every applied write so the agent can refresh
 	// derived state such as the trust list. Optional.
 	OnChange func(*maitrev1.Record)
+	// Entries are the entry roles this Node holds (decision 218), gossiped.
+	Entries func() []*maitrev1.EntryHold
 	// Metrics supplies GetNodeMetrics; nil means empty readings.
 	Metrics func() *maitrev1.NodeMetrics
 	// History holds the long-term metrics (decision 210); nil answers
@@ -146,7 +148,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", authz.KindGrant:
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", "fleet_domain", authz.KindGrant:
 		return true
 	}
 	return false
@@ -341,6 +343,9 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	if s.Peers != nil {
 		self.SyncGaps = s.Peers.Gaps()
 	}
+	if s.Entries != nil {
+		self.Entries = s.Entries()
+	}
 	return self
 }
 
@@ -387,6 +392,7 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.UpdateStaged, st.LastRollback = last.GetUpdateStaged(), last.GetLastRollback()
 				st.UpdateAvailable = last.GetUpdateAvailable()
 				st.SyncGaps = last.GetSyncGaps()
+				st.Entries = last.GetEntries()
 			}
 			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)

@@ -12,6 +12,7 @@ Nothing.
 
 ## Built
 
+- **The Fleet's domain and entry Nodes (decision 218).** New Fleet-wide Record kind `fleet_domain` (`FleetDomain`: domain, `app` and `web` `EntryNode`s), signed by a Trusted Device, in `authz.DeviceOnly`, `nodeservice.FleetWide` and the provisioned kinds. `FleetNodeStatus.entries` (18) gossips the roles a Node holds with their state. No new RPC: an older Node ignores the record and reports no roles, so the Console says no Node has taken it yet. Caddy on every Node routes every Service in the Fleet (hops to the Node that runs it) and answers LAN names from LAN clients only.
 - **Every Console sees a Node being installed.** Built without gossip or a
   new RPC: the Console that starts an install already puts the new Node's
   record through a sponsor, and now writes the Installer's address into it

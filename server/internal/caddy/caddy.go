@@ -6,6 +6,11 @@
 // domain (decision 112), an HTTPS server on :443 for those hosts with
 // certificates Caddy obtains and renews itself. The :80 server also answers
 // the ACME HTTP challenge and redirects those hosts to HTTPS.
+//
+// Decision 218: every Node routes every Service in the Fleet. A Service on
+// another Node is proxied to that Node's Caddy with X-Maitre-Hop naming it;
+// a hop is answered only by the Node that runs the Service, never passed
+// on, so traffic that reached the wrong Node still arrives and cannot loop.
 package caddy
 
 import (
@@ -14,26 +19,85 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"time"
 )
 
+// HopHeader names the Service a request is for when one Node's Caddy hands
+// it to the Node that runs it (decision 218).
+const HopHeader = "X-Maitre-Hop"
+
 // Route is one Service's web entry.
 type Route struct {
 	Host     string // e.g. jellyfin.local
-	Upstream string // e.g. 127.0.0.1:20481
+	Upstream string // e.g. 127.0.0.1:20481, or a peer's Caddy, 192.168.1.20:80
+	// Hop is set when Upstream is another Node's Caddy: the Service's name
+	// there, sent as X-Maitre-Hop.
+	Hop string
+}
+
+// Site is everything one Node's Caddy answers.
+type Site struct {
+	// Account email for the certificate authority (decision 114); "" for none.
+	ACMEEmail string
+	// LAN names (<service>.local) of every Service in the Fleet.
+	Routes []Route
+	// Hosts at the user's domain served over HTTPS here, with certificates.
+	Public []Route
+	// Hosts at the user's domain answered over plain HTTP here, without a
+	// redirect: this Node is not where the router sends the web (decision
+	// 218), but a request that reaches it is still served.
+	Plain []Route
+	// This Node's own Services by name (Host is the name), answering hops
+	// from other Nodes.
+	Here []Route
+	// The other Nodes' addresses: only they may hop, and their forwarded
+	// headers (the client's address, scheme and host) are kept.
+	Peers []string
+}
+
+// lan are the client addresses LAN names (<service>.local) answer. The
+// router may forward 80 here from the internet (decision 115, 218); a
+// stranger naming a Private Service must not reach it.
+var lan = []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "fc00::/7", "fe80::/10"}
+
+// hosts are the Fleet's own Nodes as address ranges: loopback and each peer.
+func (s Site) hosts() []string {
+	out := []string{"127.0.0.0/8", "::1/128"}
+	for _, p := range s.Peers {
+		switch ip := net.ParseIP(p); {
+		case ip == nil:
+		case ip.To4() != nil:
+			out = append(out, ip.String()+"/32")
+		default:
+			out = append(out, ip.String()+"/128")
+		}
+	}
+	return out
 }
 
 func proxyRoute(r Route) map[string]any {
 	return map[string]any{
-		"match": []map[string]any{{"host": []string{r.Host}}},
-		"handle": []map[string]any{{
-			"handler":   "reverse_proxy",
-			"upstreams": []map[string]string{{"dial": r.Upstream}},
-		}},
+		"match":    []map[string]any{{"host": []string{r.Host}}},
+		"handle":   []map[string]any{proxy(r)},
 		"terminal": true,
 	}
+}
+
+func proxy(r Route) map[string]any {
+	h := map[string]any{
+		"handler":   "reverse_proxy",
+		"upstreams": []map[string]string{{"dial": r.Upstream}},
+	}
+	if r.Hop != "" {
+		h["headers"] = map[string]any{"request": map[string]any{"set": map[string][]string{HopHeader: {r.Hop}}}}
+	} else {
+		// The app never sees a hop.
+		h["headers"] = map[string]any{"request": map[string]any{"delete": []string{HopHeader}}}
+	}
+	return h
 }
 
 // Config builds the Caddy JSON for the LAN routes and the public (own
@@ -46,9 +110,40 @@ func Config(routes []Route, public ...Route) []byte {
 // certificate authority (decision 114): Let's Encrypt sends expiry and
 // policy notices there. Empty means no email.
 func ConfigWithEmail(acmeEmail string, routes []Route, public ...Route) []byte {
-	sort.Slice(routes, func(i, j int) bool { return routes[i].Host < routes[j].Host })
-	sort.Slice(public, func(i, j int) bool { return public[i].Host < public[j].Host })
+	return Build(Site{ACMEEmail: acmeEmail, Routes: routes, Public: public})
+}
+
+// Build is the Caddy JSON for a Site.
+func Build(site Site) []byte {
+	acmeEmail, routes, public := site.ACMEEmail, site.Routes, site.Public
+	byHost := func(rs []Route) {
+		sort.Slice(rs, func(i, j int) bool { return rs[i].Host < rs[j].Host })
+	}
+	byHost(routes)
+	byHost(public)
+	byHost(site.Plain)
+	byHost(site.Here)
 	var rs []map[string]any
+	// Hops first: a peer handing over a request for a Service here. Any
+	// other hop is for a Service this Node does not run (it moved, or the
+	// peer's view is behind): answered at once, never passed on.
+	nodes := site.hosts()
+	for _, r := range site.Here {
+		rs = append(rs, map[string]any{
+			"match":    []map[string]any{{"header": map[string][]string{HopHeader: {r.Host}}, "remote_ip": map[string]any{"ranges": nodes}}},
+			"handle":   []map[string]any{proxy(Route{Upstream: r.Upstream})},
+			"terminal": true,
+		})
+	}
+	rs = append(rs, map[string]any{
+		"match": []map[string]any{{"header_regexp": map[string]any{HopHeader: map[string]string{"pattern": "."}}}},
+		"handle": []map[string]any{{
+			"handler":     "static_response",
+			"status_code": 502,
+			"body":        "Maître Server: that Service is not on this Node.\n",
+		}},
+		"terminal": true,
+	})
 	for _, r := range public {
 		// Plain HTTP for a public host goes to HTTPS; the ACME HTTP challenge
 		// is answered before routing, so this does not get in its way.
@@ -62,8 +157,13 @@ func ConfigWithEmail(acmeEmail string, routes []Route, public ...Route) []byte {
 			"terminal": true,
 		})
 	}
-	for _, r := range routes {
+	for _, r := range site.Plain {
 		rs = append(rs, proxyRoute(r))
+	}
+	for _, r := range routes {
+		lr := proxyRoute(r)
+		lr["match"] = []map[string]any{{"host": []string{r.Host}, "remote_ip": map[string]any{"ranges": lan}}}
+		rs = append(rs, lr)
 	}
 	// Anything else gets a short plain-text answer so a stray browser sees
 	// something meaningful instead of a blank page.
@@ -79,6 +179,7 @@ func ConfigWithEmail(acmeEmail string, routes []Route, public ...Route) []byte {
 			"listen":          []string{":80"},
 			"routes":          rs,
 			"automatic_https": map[string]any{"disable": true},
+			"trusted_proxies": map[string]any{"source": "static", "ranges": nodes},
 		},
 	}
 	apps := map[string]any{"http": map[string]any{"servers": servers}}

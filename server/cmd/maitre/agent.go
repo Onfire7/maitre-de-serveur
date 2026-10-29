@@ -35,6 +35,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/entry"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
@@ -448,6 +449,9 @@ func runAgent(args []string) error {
 		}
 		return list
 	}
+	// The last metrics this Node gossiped: the election (decision 218) reads
+	// these rather than taking a sample of its own.
+	var ownMetrics atomic.Pointer[maitrev1.NodeMetrics]
 	// ADR 0006: gossip to every peer. Metrics go every 5 s; Service
 	// statuses ride along only when one changed (checked every 2 s) or
 	// every 5 minutes, so a quiet Fleet sends almost nothing but samples.
@@ -463,6 +467,7 @@ func runAgent(args []string) error {
 			case <-t.C:
 			}
 			own := svc.OwnStatus(ctx)
+			ownMetrics.Store(own.GetMetrics())
 			key := statusKey(own.GetServices())
 			services := key != lastKey || time.Since(lastServices) >= 5*time.Minute
 			metrics := time.Since(lastMetrics) >= 5*time.Second
@@ -648,22 +653,129 @@ func runAgent(args []string) error {
 	assemblePools()
 	ssvc2 := storageservice.New(stor)
 	var hostAd *mdns.Advertisement
+	// Decision 218: the roles this Node holds (the router forwards the app's
+	// port, or the web's, here), what the domain's DNS says, and the
+	// election's last outcome, so a change of holder republishes.
+	var entryMu sync.Mutex
+	held := map[string]bool{}
+	dnsState := map[string]string{}
+	lastElected := ""
+	me := id.Fingerprint()
+	elect := func(ctx context.Context) (*maitrev1.FleetDomain, string, string) {
+		fd := &maitrev1.FleetDomain{}
+		_, _ = st.Get(ctx, entry.Kind, entry.ID, fd)
+		entryMu.Lock()
+		var mine []string
+		for r, ok := range held {
+			if ok {
+				mine = append(mine, r)
+			}
+		}
+		entryMu.Unlock()
+		cands := []entry.Candidate{{ID: me, Reachable: true, Busy: entry.Busyness(ownMetrics.Load()), Holds: mine}}
+		for _, p := range pm.Status(ctx) {
+			c := entry.Candidate{ID: p.GetNodeId(), Reachable: p.GetOnline()}
+			if last := pm.Last(p.GetNodeId()); last != nil {
+				c.Busy = entry.Busyness(last.GetMetrics())
+				for _, h := range last.GetEntries() {
+					c.Holds = append(c.Holds, h.GetRole())
+				}
+			}
+			cands = append(cands, c)
+		}
+		return fd, entry.Elect(fd.GetApp(), entry.App, cands), entry.Elect(fd.GetWeb(), entry.Web, cands)
+	}
+	svc.Entries = func() []*maitrev1.EntryHold {
+		entryMu.Lock()
+		defer entryMu.Unlock()
+		var out []*maitrev1.EntryHold
+		for _, r := range []struct{ role, owner string }{{entry.App, entry.App}, {entry.Web, direct.ForwardOwner}} {
+			if !held[r.role] {
+				continue
+			}
+			state := pmap.State(r.owner)
+			if d := dnsState[r.role]; d != "" {
+				state += "; " + d
+			}
+			out = append(out, &maitrev1.EntryHold{Role: r.role, State: state})
+		}
+		return out
+	}
+	// The IP addresses known for each peer, best first: Caddy is given
+	// addresses, not names (it may not resolve .local).
+	peerIPs := func() map[string][]string {
+		out := map[string][]string{}
+		for id, addrs := range pm.Addresses() {
+			for _, a := range addrs {
+				if host, _, err := net.SplitHostPort(a); err == nil && net.ParseIP(host) != nil {
+					out[id] = append(out[id], host)
+				}
+			}
+		}
+		return out
+	}
+	// Where each peer's Caddy answers: its best IP address, port 80.
+	peerWeb := func(ctx context.Context) map[string]string {
+		out := map[string]string{}
+		for id, ips := range peerIPs() {
+			out[id] = net.JoinHostPort(ips[0], "80")
+		}
+		return out
+	}
 	publish := func() {
 		specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
 		if err != nil {
 			log.Error("list services", "err", err)
 			return
 		}
-		var routes, public []caddy.Route
+		var routes, public, plain, here []caddy.Route
 		var names []string
 		var wants []portmap.Mapping
-		// The Fleet database holds every Node's Services; this Node routes,
-		// announces and exposes only its own. A peer's name answered here
-		// would reach nothing (a 502), and two Nodes would claim it on mDNS.
-		mine := specs[:0]
+		fd, appHolder, webHolder := elect(ctx)
+		holdApp, holdWeb, webOn := appHolder == me, webHolder == me, fd.GetWeb().GetEnabled()
+		entryMu.Lock()
+		held[entry.App], held[entry.Web] = holdApp, holdWeb
+		lastElected = appHolder + "|" + webHolder
+		entryMu.Unlock()
+		peersWeb := peerWeb(ctx)
+		// The Fleet database holds every Node's Services. Caddy here routes
+		// all of them (decision 218): its own to their loopback ports, a
+		// peer's to that peer's Caddy as a hop, so a request that reached
+		// the wrong Node still arrives. Only its own are announced on mDNS
+		// (two Nodes would claim a name) and checked and forwarded here.
+		var mine []*maitrev1.ServiceSpec
+		ownPublic := false
 		for _, sp := range specs {
-			if sp.GetNodeId() == id.Fingerprint() {
+			local := sp.GetNodeId() == me
+			if local {
 				mine = append(mine, sp)
+			}
+			if sp.GetWebHostPort() == 0 {
+				continue
+			}
+			r := caddy.Route{Upstream: fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())}
+			if local {
+				here = append(here, caddy.Route{Host: sp.GetName(), Upstream: r.Upstream})
+			} else if addr := peersWeb[sp.GetNodeId()]; addr != "" {
+				r.Upstream, r.Hop = addr, sp.GetName()
+			} else {
+				continue
+			}
+			r.Host = sp.GetName() + "." + services.DefaultSuffix
+			routes = append(routes, r)
+			if sp.GetExposure() != direct.Exposure || !direct.ValidHost(sp.GetPublicHost()) {
+				continue
+			}
+			r.Host = sp.GetPublicHost()
+			// With a web entry Node, it alone has certificates for every
+			// public host and the router sends it 80 and 443; before one,
+			// each Node publishes its own as it did.
+			switch {
+			case webOn && holdWeb, !webOn && local:
+				public = append(public, r)
+				ownPublic = ownPublic || local
+			default:
+				plain = append(plain, r)
 			}
 		}
 		specs = mine
@@ -676,30 +788,39 @@ func runAgent(args []string) error {
 					}
 				}
 			}
-			if sp.GetWebHostPort() == 0 {
-				continue
-			}
-			host := sp.GetName() + "." + services.DefaultSuffix
-			upstream := fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())
-			routes = append(routes, caddy.Route{Host: host, Upstream: upstream})
-			names = append(names, host)
-			if sp.GetExposure() == direct.Exposure && direct.ValidHost(sp.GetPublicHost()) {
-				public = append(public, caddy.Route{Host: sp.GetPublicHost(), Upstream: upstream})
+			if sp.GetWebHostPort() != 0 {
+				names = append(names, sp.GetName()+"."+services.DefaultSuffix)
 			}
 		}
-		if len(public) > 0 {
+		if holdWeb || (!webOn && ownPublic) {
 			// Caddy must be reachable from the internet for the ACME
-			// challenge and the Service itself.
+			// challenge and the Services themselves.
 			wants = append(wants, portmap.Mapping{Port: 80, Proto: "tcp", Owner: direct.ForwardOwner}, portmap.Mapping{Port: 443, Proto: "tcp", Owner: direct.ForwardOwner})
+		}
+		if holdApp {
+			wants = append(wants, portmap.Mapping{Port: entry.AppPort, Proto: "tcp", Owner: entry.App})
 		}
 		pmap.Reconcile(wants)
 		if *caddyAdmin != "" {
 			var ps maitrev1.PublicSettings
 			_, _ = st.Get(ctx, "public_settings", "fleet", &ps)
-			if err := caddy.Load(ctx, *caddyAdmin, caddy.ConfigWithEmail(ps.GetAcmeEmail(), routes, public...)); err != nil {
+			var nodes []string
+			for _, ips := range peerIPs() {
+				nodes = append(nodes, ips...)
+			}
+			if err := caddy.Load(ctx, *caddyAdmin, caddy.Build(caddy.Site{ACMEEmail: ps.GetAcmeEmail(), Routes: routes, Public: public, Plain: plain, Here: here, Peers: nodes})); err != nil {
 				log.Warn("caddy config not applied", "err", err)
 			}
 		}
+		// This Node's public hosts are checked where their certificates
+		// are: on the web entry Node when there is one.
+		tlsAddr := "127.0.0.1:443"
+		if webOn && webHolder != "" && !holdWeb {
+			if host, _, err := net.SplitHostPort(peersWeb[webHolder]); err == nil {
+				tlsAddr = net.JoinHostPort(host, "443")
+			}
+		}
+		dir.SetTLSAddr(tlsAddr)
 		dir.Reconcile(specs)
 		if !*noTailscale {
 			rem.Reconcile(ctx, specs)
@@ -730,10 +851,49 @@ func runAgent(args []string) error {
 	withPublic := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
 		withPublic(r)
-		if r.GetKind() == "public_settings" {
+		if r.GetKind() == "public_settings" || r.GetKind() == entry.Kind {
 			publish()
 		}
 	}
+	// Decision 218: the election follows the Fleet's load and reachability,
+	// re-run every 15 s; a new holder anywhere republishes here. The Node
+	// holding a role checks the domain's DNS every minute.
+	go func() {
+		t := time.NewTicker(15 * time.Second)
+		defer t.Stop()
+		var lastDNS time.Time
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			fd, app, web := elect(ctx)
+			entryMu.Lock()
+			changed := app+"|"+web != lastElected
+			holding := held[entry.App] || held[entry.Web]
+			entryMu.Unlock()
+			if changed {
+				log.Info("entry nodes", "app", app, "web", web)
+				publish()
+			}
+			if holding && fd.GetDomain() != "" && time.Since(lastDNS) >= time.Minute {
+				lastDNS = time.Now()
+				next := map[string]string{}
+				entryMu.Lock()
+				roles := map[string]bool{entry.App: held[entry.App], entry.Web: held[entry.Web]}
+				entryMu.Unlock()
+				for r, ok := range roles {
+					if ok {
+						next[r] = entry.CheckDNS(ctx, net.DefaultResolver.LookupHost, fd.GetDomain(), dir.PublicIP(), r == entry.Web)
+					}
+				}
+				entryMu.Lock()
+				dnsState = next
+				entryMu.Unlock()
+			}
+		}
+	}()
 	withPublicApplied := pm.OnApplied
 	pm.OnApplied = func() {
 		withPublicApplied()

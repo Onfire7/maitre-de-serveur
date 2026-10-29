@@ -55,7 +55,8 @@ type watched struct {
 type Manager struct {
 	log    *slog.Logger
 	client *http.Client
-	// TLSAddr is where Caddy's HTTPS listener is probed; 127.0.0.1:443.
+	// TLSAddr is where Caddy's HTTPS listener is probed: 127.0.0.1:443, or
+	// the web entry Node's (decision 218), set with SetTLSAddr.
 	TLSAddr string
 
 	mu       sync.Mutex
@@ -67,6 +68,14 @@ type Manager struct {
 // New builds a Manager.
 func New(log *slog.Logger) *Manager {
 	return &Manager{log: log, client: &http.Client{Timeout: 10 * time.Second}, TLSAddr: "127.0.0.1:443", hosts: map[string]*watched{}, wake: make(chan struct{}, 1)}
+}
+
+// SetTLSAddr probes certificates at addr from now on: the Node whose Caddy
+// answers the user's domain (decision 218).
+func (m *Manager) SetTLSAddr(addr string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.TLSAddr = addr
 }
 
 // PublicIP is the last address learned, "" when unknown.
@@ -215,7 +224,10 @@ func (m *Manager) check(ctx context.Context, host, publicIP string) (state, url 
 	// 443 here; that is the whole chain working.
 	d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}}
 	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
-	conn, err := d.DialContext(cctx, "tcp", m.TLSAddr)
+	m.mu.Lock()
+	addr := m.TLSAddr
+	m.mu.Unlock()
+	conn, err := d.DialContext(cctx, "tcp", addr)
 	cancel()
 	if err != nil {
 		return "waiting for a certificate; ports 80 and 443 must reach this Node", ""
