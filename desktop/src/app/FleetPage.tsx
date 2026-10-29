@@ -80,7 +80,7 @@ export function FleetPage({
         </Tabs>
       </header>
       <div className={cn("min-h-0 flex-1 overflow-y-auto p-6", tab !== "files" && tab !== "logs" && "[&_section]:mb-6")}>
-        {tab === "overview" && <OverviewTab snap={snap} device={device} notices={notices} state={state} services={services} now={now} onPromote={onPromote} />}
+        {tab === "overview" && <OverviewTab snap={snap} notices={notices} state={state} services={services} now={now} onPromote={onPromote} />}
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
         {tab === "services" && <ServicesTab snap={snap} state={state} services={services} onAct={onAct} now={now} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}

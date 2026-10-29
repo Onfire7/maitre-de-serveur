@@ -16,13 +16,12 @@ import { HistoryChart } from "./HistoryChart";
 import { fmtPercent } from "./Usage";
 import { spacesOf } from "@/spaces";
 import type { ConsoleState } from "@/state";
-import type { DeviceInfo } from "@/state";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { colorOf } from "./StorageTab";
 import { useRoute, type FleetTab } from "./routes";
 import type { Notice } from "./notices";
 
-export function OverviewTab({ snap, device, notices, state, services, now, onPromote }: { snap: FleetSnapshot | undefined; device: DeviceInfo; notices: Notice[]; state: ConsoleState; services: FleetService[]; now: number; onPromote: () => void }) {
+export function OverviewTab({ snap, notices, state, services, now, onPromote }: { snap: FleetSnapshot | undefined; notices: Notice[]; state: ConsoleState; services: FleetService[]; now: number; onPromote: () => void }) {
   const { go } = useRoute();
   if (!snap) return <p className="text-sm text-muted-foreground">{state.nodes.length === 0 ? "No Node answers yet." : "Reaching the Fleet…"}</p>;
 
@@ -52,7 +51,7 @@ export function OverviewTab({ snap, device, notices, state, services, now, onPro
           <div className="text-lg font-semibold">{attention > 0 ? `${attention} ${attention === 1 ? "thing needs" : "things need"} your attention` : troubled > 0 ? "Running, with Services to look at" : "Everything is running"}</div>
           <div className="text-sm text-muted-foreground">
             {nodes.length} {nodes.length === 1 ? "Node" : "Nodes"}, {services.length} {services.length === 1 ? "Service" : "Services"}, {snap.spaces.length} {snap.spaces.length === 1 ? "Storage Space" : "Storage Spaces"}
-            {anchor ? `, reached through ${anchor}` : ""}. This Console runs on the computer named <span className="text-foreground">{snap.devices.find((d) => d.deviceId === device.fingerprint)?.name || device.name}</span>.
+            {anchor ? `, reached through ${anchor}` : ""}.
           </div>
         </div>
       </div>
