@@ -35,6 +35,10 @@ export interface CatalogEntry {
   source?: { from: string; url?: string; licence?: string; converted?: string; icon?: { pack: string; licence: string; url: string } };
   /** A converted entry's open questions (plan C10); it is not installed until there are none. */
   unfinished?: string[];
+  /** The repository the app is developed in (docs/popularity-and-grants.md, P1). */
+  project?: string;
+  /** Its project's stars, from the Catalog's popularity.json: the popularity it sorts by (P2). */
+  stars?: number;
   /** The user Catalog it came from (plan C9); none for the project's own. */
   catalog?: { id: string; name: string };
 }
@@ -66,6 +70,27 @@ export function generatePassword(): string {
 export function generatedSettings(e: CatalogEntry | null): Record<string, string> {
   return Object.fromEntries((e?.settings ?? []).filter((s) => s.default === GENERATE).map((s) => [s.key, generatePassword()]));
 }
+/** How the Catalog page orders entries (P5). */
+export type CatalogSort = "popular" | "name";
+
+/**
+ * Most stars first, or by name. Entries without stars follow those with
+ * them, by name, so a user Catalog without popularity.json still reads in
+ * order.
+ */
+export function sortEntries<T extends Pick<CatalogEntry, "name" | "stars">>(entries: T[], by: CatalogSort): T[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name);
+  if (by === "name") return [...entries].sort(byName);
+  return [...entries].sort((a, b) => (b.stars ?? -1) - (a.stars ?? -1) || byName(a, b));
+}
+
+/** Stars as people say them: 812, 8.1k, 81k. */
+export function formatStars(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(Math.floor(n / 100) / 10).toString()}k`;
+  return `${Math.floor(n / 1000)}k`;
+}
+
 export interface CatalogIndex {
   format: number;
   entries: CatalogEntry[];

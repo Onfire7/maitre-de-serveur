@@ -93,9 +93,9 @@ export function useCatalogs(records: Rec[] | undefined, deviceId: string | undef
 
 // --- what changed since this Console last looked ---------------------------
 
-/** An entry as compared between looks: everything but its (large) icon. */
+/** An entry as compared between looks: everything but its (large) icon and its stars, which move every week. */
 function comparable(e: CatalogEntry): string {
-  const { icon: _icon, catalog: _catalog, ...rest } = e;
+  const { icon: _icon, catalog: _catalog, stars: _stars, ...rest } = e;
   return JSON.stringify(rest, null, 2);
 }
 

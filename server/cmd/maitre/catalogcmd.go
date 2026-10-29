@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogsync"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/convert"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/icons"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/outdated"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/popularity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
@@ -143,8 +145,11 @@ func runCatalog(args []string) error {
 	if len(args) > 0 && args[0] == "outdated" {
 		return runCatalogOutdated(args[1:])
 	}
+	if len(args) > 0 && args[0] == "popularity" {
+		return runCatalogPopularity(args[1:])
+	}
 	if len(args) == 0 || args[0] != "add" {
-		return fmt.Errorf("usage: maitre catalog add [--id id] [--url url] [--licence spdx] [--icon name] [--replace] [--json] <catalog folder> <compose file or folder>\n       maitre catalog icon <entry dir> [name in the icon packs]\n       maitre catalog outdated [--write] [--json] <entries dir>\n       maitre catalog sync [--branch b] <git url> <dir>")
+		return fmt.Errorf("usage: maitre catalog add [--id id] [--url url] [--licence spdx] [--icon name] [--replace] [--json] <catalog folder> <compose file or folder>\n       maitre catalog icon <entry dir> [name in the icon packs]\n       maitre catalog outdated [--write] [--json] <entries dir>\n       maitre catalog popularity [--write] <entries dir>\n       maitre catalog sync [--branch b] <git url> <dir>")
 	}
 	fs := flag.NewFlagSet("catalog add", flag.ExitOnError)
 	id := fs.String("id", "", "the entry's id (default: the Compose project's name)")
@@ -324,6 +329,78 @@ func runCatalogOutdated(args []string) error {
 	}
 	if failed > 0 {
 		return fmt.Errorf("%d not looked up", failed)
+	}
+	return nil
+}
+
+// runCatalogPopularity is `maitre catalog popularity [--write] <entries
+// dir>`: the stars of each entry's project (docs/popularity-and-grants.md,
+// P3), most first. --write keeps them in the Catalog's popularity.json; a
+// project that could not be asked keeps its last count. Fails when one
+// could not, after reporting the rest.
+func runCatalogPopularity(args []string) error {
+	fs := flag.NewFlagSet("catalog popularity", flag.ExitOnError)
+	write := fs.Bool("write", false, "keep the counts in the Catalog's popularity.json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: maitre catalog popularity [--write] <entries dir>")
+	}
+	dir := fs.Arg(0)
+	idx, problems, err := catalog.LoadDirLenient(dir)
+	if err != nil {
+		return err
+	}
+	old, err := catalog.ReadPopularity(dir)
+	if err != nil {
+		return err
+	}
+	next := &catalog.Popularity{Checked: time.Now().UTC().Format("2006-01-02"), Stars: map[string]int{}}
+	var none, failed []string
+	f := popularity.Default()
+	for _, e := range idx.Entries {
+		if e.Project == "" {
+			none = append(none, e.ID)
+			continue
+		}
+		n, err := f.Stars(context.Background(), e.Project)
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", e.ID, err))
+			if n, ok := old.Stars[e.ID]; ok {
+				next.Stars[e.ID] = n
+			}
+			continue
+		}
+		next.Stars[e.ID] = n
+	}
+	ids := make([]string, 0, len(next.Stars))
+	for id := range next.Stars {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := next.Stars[ids[i]], next.Stars[ids[j]]
+		return a > b || a == b && ids[i] < ids[j]
+	})
+	for _, id := range ids {
+		fmt.Printf("%8d  %s\n", next.Stars[id], id)
+	}
+	for _, p := range problems {
+		fmt.Printf("not read: %s: %s\n", p.Entry, p.Error)
+	}
+	if len(none) > 0 {
+		fmt.Printf("no project: %s\n", strings.Join(none, ", "))
+	}
+	for _, f := range failed {
+		fmt.Printf("not looked up: %s\n", f)
+	}
+	if *write {
+		if err := catalog.WritePopularity(dir, next); err != nil {
+			return err
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("%d not looked up", len(failed))
 	}
 	return nil
 }

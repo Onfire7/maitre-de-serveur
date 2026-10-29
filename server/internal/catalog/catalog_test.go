@@ -15,8 +15,10 @@ func TestRepoCatalogLoadsAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(idx.Entries) != 12 {
-		t.Fatalf("got %d entries", len(idx.Entries))
+	// Every folder is an entry; the count grows with each batch.
+	dirs, _ := os.ReadDir("../../../catalog/entries")
+	if len(idx.Entries) != len(dirs) || len(idx.Entries) < 12 {
+		t.Fatalf("got %d entries from %d folders", len(idx.Entries), len(dirs))
 	}
 	raw, _ := json.Marshal(idx)
 	back, err := catalog.ParseIndex(raw)

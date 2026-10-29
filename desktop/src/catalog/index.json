@@ -37,7 +37,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/actual-budget.svg"
         }
-      }
+      },
+      "project": "https://github.com/actualbudget/actual",
+      "stars": 29856
     },
     {
       "id": "adguard-home",
@@ -80,7 +82,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/adguard-home.svg"
         }
-      }
+      },
+      "project": "https://github.com/AdguardTeam/AdGuardHome",
+      "stars": 37856
     },
     {
       "id": "audiobookshelf",
@@ -132,7 +136,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/audiobookshelf.svg"
         }
-      }
+      },
+      "project": "https://github.com/advplyr/audiobookshelf",
+      "stars": 14849
     },
     {
       "id": "calibre-web",
@@ -195,7 +201,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/calibre-web.svg"
         }
-      }
+      },
+      "project": "https://github.com/janeczku/calibre-web",
+      "stars": 18490
     },
     {
       "id": "forgejo",
@@ -239,7 +247,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/forgejo.svg"
         }
-      }
+      },
+      "project": "https://codeberg.org/forgejo/forgejo",
+      "stars": 5742
     },
     {
       "id": "freshrss",
@@ -289,7 +299,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/freshrss.svg"
         }
-      }
+      },
+      "project": "https://github.com/FreshRSS/FreshRSS",
+      "stars": 16445
     },
     {
       "id": "immich",
@@ -379,7 +391,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/immich.svg"
         }
-      }
+      },
+      "project": "https://github.com/immich-app/immich",
+      "stars": 117608
     },
     {
       "id": "it-tools",
@@ -412,7 +426,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/it-tools.svg"
         }
-      }
+      },
+      "project": "https://github.com/CorentinTh/it-tools",
+      "stars": 41057
     },
     {
       "id": "jellyfin",
@@ -465,7 +481,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/jellyfin.svg"
         }
-      }
+      },
+      "project": "https://github.com/jellyfin/jellyfin",
+      "stars": 58783
     },
     {
       "id": "mealie",
@@ -503,7 +521,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/mealie.svg"
         }
-      }
+      },
+      "project": "https://github.com/mealie-recipes/mealie",
+      "stars": 13722
     },
     {
       "id": "memos",
@@ -549,7 +569,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/memos.svg"
         }
-      }
+      },
+      "project": "https://github.com/usememos/memos",
+      "stars": 64174
     },
     {
       "id": "minecraft",
@@ -614,7 +636,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/minecraft.svg"
         }
-      }
+      },
+      "project": "https://github.com/itzg/docker-minecraft-server",
+      "stars": 14493
     },
     {
       "id": "navidrome",
@@ -662,7 +686,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/navidrome.svg"
         }
-      }
+      },
+      "project": "https://github.com/navidrome/navidrome",
+      "stars": 24429
     },
     {
       "id": "nextcloud",
@@ -697,7 +723,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/nextcloud.svg"
         }
-      }
+      },
+      "project": "https://github.com/nextcloud/server",
+      "stars": 37346
     },
     {
       "id": "ntfy",
@@ -747,7 +775,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/ntfy.svg"
         }
-      }
+      },
+      "project": "https://github.com/binwiederhier/ntfy",
+      "stars": 35161
     },
     {
       "id": "paperless-ngx",
@@ -866,7 +896,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/paperless-ngx.svg"
         }
-      }
+      },
+      "project": "https://github.com/paperless-ngx/paperless-ngx",
+      "stars": 47302
     },
     {
       "id": "pihole",
@@ -919,7 +951,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/pi-hole.svg"
         }
-      }
+      },
+      "project": "https://github.com/pi-hole/pi-hole",
+      "stars": 61556
     },
     {
       "id": "speedtest-tracker",
@@ -983,7 +1017,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/png/speedtest-tracker.png"
         }
-      }
+      },
+      "project": "https://github.com/alexjustesen/speedtest-tracker",
+      "stars": 6043
     },
     {
       "id": "stirling-pdf",
@@ -1033,7 +1069,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/stirling-pdf.svg"
         }
-      }
+      },
+      "project": "https://github.com/Stirling-Tools/Stirling-PDF",
+      "stars": 95354
     },
     {
       "id": "syncthing",
@@ -1099,7 +1137,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/syncthing.svg"
         }
-      }
+      },
+      "project": "https://github.com/syncthing/syncthing",
+      "stars": 89873
     },
     {
       "id": "uptime-kuma",
@@ -1134,7 +1174,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/uptime-kuma.svg"
         }
-      }
+      },
+      "project": "https://github.com/louislam/uptime-kuma",
+      "stars": 93062
     },
     {
       "id": "vaultwarden",
@@ -1169,7 +1211,9 @@
           "licence": "Apache-2.0",
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/vaultwarden.svg"
         }
-      }
+      },
+      "project": "https://github.com/dani-garcia/vaultwarden",
+      "stars": 69891
     }
   ]
 }

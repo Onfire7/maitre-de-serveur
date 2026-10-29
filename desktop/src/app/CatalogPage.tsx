@@ -2,7 +2,7 @@
 // install sheet (151). Step 3 fills the sheet's Options disclosure; here it
 // asks name and Node.
 import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronRight, Copy, Library, LayoutGrid, List } from "lucide-react";
+import { Search, ChevronRight, Copy, Library, LayoutGrid, List, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEdit
 import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
-import { GENERATE, catalogKey, generatedSettings, specFor, type CatalogEntry, type CatalogIndex } from "@/services";
+import { GENERATE, catalogKey, formatStars, generatedSettings, sortEntries, specFor, type CatalogEntry, type CatalogIndex, type CatalogSort } from "@/services";
 import { changeCount, changesSince, lastSeen, markSeen, useCatalogs, type LoadedCatalog } from "@/fleet/catalogs";
 import { CatalogsSheet, ChangesDialog } from "./UserCatalogs";
 import type { FleetSnapshot } from "@/fleet/useFleet";
@@ -27,6 +27,7 @@ import { registerEntries, ServiceIcon } from "./status";
 
 const catalog = bundledCatalog as CatalogIndex;
 const VIEW_KEY = "maitre.catalog.view";
+const SORT_KEY = "maitre.catalog.sort";
 type View = "grid" | "list";
 
 export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
@@ -40,6 +41,12 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
   const pickView = (v: View) => {
     localStorage.setItem(VIEW_KEY, v);
     setView(v);
+  };
+  // Most popular first by default (P5), kept on this device like the view.
+  const [sort, setSort] = useState<CatalogSort>(() => (localStorage.getItem(SORT_KEY) === "name" ? "name" : "popular"));
+  const pickSort = (v: CatalogSort) => {
+    localStorage.setItem(SORT_KEY, v);
+    setSort(v);
   };
   const [review, setReview] = useState<LoadedCatalog | null>(null);
   const user = useCatalogs(snap?.records, deviceId);
@@ -55,10 +62,10 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
   // `?install=<catalog id>` opens the sheet on load (screenshot fixture).
   const [picked, setPicked] = useState<CatalogEntry | null>(() => catalog.entries.find((e) => e.id === new URLSearchParams(window.location.search).get("install")) ?? null);
   const categories = useMemo(() => ["all", ...Array.from(new Set(all.map((e) => e.category)))], [all]);
-  // By name: with hundreds of entries the order has to be one a person can scan.
-  const entries = all
-    .filter((e) => (from === "all" || (e.catalog?.id ?? "maitre") === from) && (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary} ${e.category}`.toLowerCase().includes(q.toLowerCase())))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const entries = sortEntries(
+    all.filter((e) => (from === "all" || (e.catalog?.id ?? "maitre") === from) && (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary} ${e.category}`.toLowerCase().includes(q.toLowerCase()))),
+    sort,
+  );
   const installed = new Set(snap?.specs.map((s) => s.catalogId));
   const changed = loaded.map((l) => ({ l, ch: changesSince(l) })).filter((x) => changeCount(x.ch) > 0);
   return (
@@ -69,7 +76,19 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
         <span className="text-sm text-muted-foreground">
           {entries.length === all.length ? `${all.length} in the Catalog` : `${entries.length} of ${all.length}`}
         </span>
-        <div className="ml-auto flex rounded-md border p-0.5" role="group" aria-label="View">
+        <div className="ml-auto flex rounded-md border p-0.5 text-xs" role="group" aria-label="Sort">
+          {(
+            [
+              ["popular", "Popular", "Most popular first: by the stars of each app's project"],
+              ["name", "A–Z", "By name"],
+            ] as const
+          ).map(([v, label, title]) => (
+            <button key={v} title={title} aria-pressed={sort === v} onClick={() => pickSort(v)} className={cn("rounded px-2 py-1", sort === v ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-md border p-0.5" role="group" aria-label="View">
           {(
             [
               ["grid", LayoutGrid, "Cards"],
@@ -128,6 +147,7 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
                   v{e.version.replace(/^v/, "")}
                   {installed.has(catalogKey(e)) && " · installed"}
                   {e.unfinished?.length ? " · unfinished" : ""}
+                  {e.stars ? <Stars n={e.stars} /> : null}
                 </div>
               </div>
             </div>
@@ -154,6 +174,16 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
   );
 }
 
+/** A project's stars, rounded: the popularity the Catalog sorts by. */
+function Stars({ n, bare }: { n: number; bare?: boolean }) {
+  return (
+    <span title={`${n.toLocaleString()} stars on the app's project`}>
+      {bare ? "" : " · "}
+      <Star className="inline size-3 -translate-y-px" aria-hidden /> {formatStars(n)}
+    </span>
+  );
+}
+
 /** The Catalog as rows (217): one line each, for scanning hundreds. */
 function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; installed: Set<string | undefined>; onPick: (e: CatalogEntry) => void }) {
   if (entries.length === 0) return null;
@@ -174,6 +204,11 @@ function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; 
               <ServiceIcon catalogId={catalogKey(e)} word="Online" size={24} />
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate font-medium">{e.name}</span>
+                {e.stars ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    <Stars n={e.stars} bare />
+                  </span>
+                ) : null}
                 {installed.has(catalogKey(e)) && (
                   <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px]">
                     installed

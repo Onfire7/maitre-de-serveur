@@ -55,6 +55,11 @@ type Manifest struct {
 	// Source says where an entry converted or imported from elsewhere came
 	// from; omitted for one written here by hand.
 	Source *Source `yaml:"source,omitempty" json:"source,omitempty"`
+	// Project is the repository the app is developed in; its stars are the
+	// entry's popularity (docs/popularity-and-grants.md, P1).
+	Project string `yaml:"project,omitempty" json:"project,omitempty"`
+	// Stars come from the Catalog's popularity.json, not the manifest (P2).
+	Stars int `yaml:"-" json:"stars,omitempty"`
 	// Unfinished lists what a person must still decide in a converted
 	// entry (plan C10). The Console does not install it, and catalog-check
 	// fails it, until the list is empty and removed.
@@ -312,6 +317,11 @@ func (m *Manifest) Validate() error {
 	if m.Web != nil && (m.Web.Port <= 0 || m.Web.Port > 65535) {
 		return fmt.Errorf("web.port out of range")
 	}
+	if m.Project != "" {
+		if _, _, err := ProjectRepo(m.Project); err != nil {
+			return err
+		}
+	}
 	if m.Source != nil {
 		switch m.Source.From {
 		case "compose", "casaos", "hand":
@@ -436,6 +446,9 @@ func LoadDir(entriesDir string) (*Index, error) {
 		idx.Entries = append(idx.Entries, *m)
 	}
 	sort.Slice(idx.Entries, func(i, j int) bool { return idx.Entries[i].ID < idx.Entries[j].ID })
+	if err := idx.applyPopularity(entriesDir); err != nil {
+		return nil, err
+	}
 	return idx, nil
 }
 
@@ -470,6 +483,9 @@ func LoadDirLenient(entriesDir string) (*Index, []Problem, error) {
 		idx.Entries = append(idx.Entries, *m)
 	}
 	sort.Slice(idx.Entries, func(i, j int) bool { return idx.Entries[i].ID < idx.Entries[j].ID })
+	if err := idx.applyPopularity(entriesDir); err != nil {
+		problems = append(problems, Problem{Entry: PopularityFile, Error: err.Error()})
+	}
 	return idx, problems, nil
 }
 

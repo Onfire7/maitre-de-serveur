@@ -1,0 +1,174 @@
+# Popularity, and Catalog entries that need grants
+
+Status: being built (2026-10-29). Follows docs/services-from-compose.md.
+
+Two additions to the Catalog. The Catalog page can sort by an approximation of popularity. And entries may need grants (decision 189): an entry declares each protected option it needs and why, the Console asks before installing, and the person can install it fully, without its optional features, or not at all. This opens Home Assistant, Plex, Homarr, Dozzle and others that the "no grants" rule kept out.
+
+## Popularity
+
+### P1. The metric: stars of the app's own project
+
+Each entry names its project: the repository the app is developed in.
+
+```yaml
+project: https://github.com/home-assistant/core
+```
+
+Popularity is that project's star count. Stars are chosen over registry pull counts because:
+
+- They exist for every entry. Docker Hub has a public pull count, but GHCR has no API for its download counts, and Codeberg's registry has none at all. GitHub, Codeberg (Forgejo/Gitea's API) and GitLab all report stars.
+- Pull counts measure machines, not people. CI systems and auto-updaters pull the same image over and over, and old images accumulate billions (Nextcloud, Postgres). Stars are people saying they care.
+
+Stars are an approximation and are labelled as such: the Console says "by popularity (stars of the project)".
+
+### P2. Where the numbers live
+
+`popularity.json` sits beside `entries/` in a Catalog:
+
+```json
+{"checked": "2026-10-29", "stars": {"home-assistant": 81234, "jellyfin": 41000}}
+```
+
+It is kept out of the manifests on purpose. The numbers change every week, and the Console's "what changed since you last looked" compares entries; stars in the manifest would mark every entry as changed every week. A future bundle signature (docs/services-from-compose.md) also has no reason to cover them.
+
+`maitre catalog-index` reads `popularity.json` when it exists and adds `stars` to each entry of the index. A user Catalog without the file still loads, unsorted by popularity.
+
+### P3. Updating them
+
+`maitre catalog popularity [--write] <entries dir>` asks each entry's project host for its stars (GitHub's API with `GITHUB_TOKEN` when set, since anonymous calls are limited to 60 an hour), prints them, and with `--write` rewrites `popularity.json`. The weekly `catalog-outdated` job runs it with the image lookup, so the same pull requests carry both.
+
+Stars are not comparable across hosts: Codeberg's and GitLab's run lower than GitHub's for a project of the same size (Forgejo has 5.7k on Codeberg). This is accepted for now; most entries are on GitHub.
+
+An entry without `project:` has no stars and is reported. `catalog-check` does not fail it: popularity is a nicety, not a correctness rule.
+
+### P4. Filling `project:`
+
+`maitre catalog add` fills it from the image's `org.opencontainers.image.source` label, which most images set to their repository, when that label names GitHub, Codeberg or GitLab. Otherwise it is a note in the report. Existing entries get it once, by hand, from the same label or the project's page.
+
+### P5. The Console
+
+The Catalog page gets a sort control: Popular (the default) or A to Z. Entries without stars go after those with them, alphabetically. Each card shows its stars, rounded ("81k"). User Catalog entries sort with the project's.
+
+## Grants in the Catalog
+
+### G1. Entries declare their grants
+
+```yaml
+grants:
+  - option: Network=host
+    why: Finds devices on your network (Chromecast, HomeKit, smart plugs) by listening for their announcements, and opens port 8123 on the Node's own address.
+    optional: discovery
+    without: Add devices by their address instead; most integrations still work.
+  - option: AddDevice=*
+    component: ""                 # in an entry of several, the component that needs it
+    why: Talks to a Zigbee or Z-Wave USB stick plugged into the Node.
+    optional: radio
+    without: No Zigbee or Z-Wave devices.
+```
+
+- `option` is a protected option as `services.Protected` words it (`Network=host`, `AddCapability=NET_ADMIN`, `Volume=/run/dbus`). A trailing `*` matches any value, for options whose value comes from a setting (`AddDevice=*`).
+- `why` is required: the reason this app needs this power, shown in the warning.
+- `optional`, when given, names the feature the grant enables. The template puts the option inside `{{ if .Grants.<name> }}...{{ end }}`, so it can be left out. Several grants can share one feature (Bluetooth needs a D-Bus mount and two capabilities). `without` says what the person loses.
+- A grant without `optional` is required: the entry does not run without it.
+
+### G2. `catalog-check` checks declarations and support
+
+`catalog-check` renders each entry twice, with every optional feature on and with every one off, and reads the protected options of each.
+
+- Every protected option with features on must match a declared grant. Otherwise: FAIL, "needs X but does not declare it; add it under grants: with why".
+- With features off, only required grants may remain. Otherwise: FAIL, "X is optional (feature) but stays in the unit when the feature is off; put it inside {{ if .Grants.feature }}".
+- A declared grant must be used by the units. Otherwise: FAIL, "declares X, which no unit uses".
+- Every declared grant must be supported (G3). Otherwise: FAIL, with what Maître needs before it can be.
+
+A device setting (G5) has no value in the check, so the check fills each with a sample path.
+
+### G3. Supported grants, and what the rest need
+
+`server/internal/catalog/grants.go` keeps the table of options Maître runs correctly. Each unsupported kind carries the sentence `catalog-check` prints, naming the support that must be added. The table grows until it covers everything Quadlet can say.
+
+Supported:
+
+| Option | Why it is supported |
+|---|---|
+| `Network=host` | The Node serves the app's web port as it is (G4). |
+| `AddDevice=<path>` | A fixed path, or a device setting the Console offers from the Node's own devices (G5). |
+| `AddCapability=<cap>` | Podman applies it; the warning names the capability. |
+| `Sysctl=<key>` | Podman applies it inside the container's namespaces. |
+| `Volume=<host path>` | Any folder of the Node, named in the warning. Two paths have prerequisites the Node meets: `/run/podman/podman.sock` (the Node runs `podman.socket`) and `/run/dbus` (the Node runs BlueZ, G6). |
+| `UserNS=host`, `NoNewPrivileges=false` | Podman applies them. |
+
+Unsupported, with what they need:
+
+| Option | Needs |
+|---|---|
+| `Network=container:...`, `Network=ns:...` | Maître to manage the other container's lifecycle with this one. |
+| `PodmanArgs=...`, `GlobalArgs=...` | Nothing in Maître can check raw arguments; ask for the specific capability, device or folder instead, or teach `protect.go` the Quadlet key that says it. |
+| `SecurityLabelDisable`, `SeccompProfile`, `SecurityLabel*` | A design for weakening SELinux or seccomp per Service. |
+| `[Service]`, `[Unit]` and other sections | A design for Node-side commands; they run as root outside any container. |
+| Any key `protect.go` does not know | Classifying the key in `protect.go`. |
+
+### G4. Host networking on the Node
+
+A Service whose web container uses `Network=host` listens on the Node's own address, not on a loopback port Maître publishes. At install and on every re-render, the Node:
+
+- sets the Service's web host port to its web port, so Caddy, Tailscale and the health probe reach `127.0.0.1:<web port>` as before;
+- refuses the install when another Service's web host port or host ports already hold that port, naming it;
+- writes no `PublishPort=` (Podman discards it under host networking) and no `HostName=` (already the case).
+
+The app is then also reachable on the home network at the Node's address and that port, outside Maître's private and remote exposure. The grant's `why` must say so, and the Console's note for `Network=host` says it too.
+
+### G5. A device setting
+
+```yaml
+settings:
+  - key: ZIGBEE_DEVICE
+    label: Zigbee or Z-Wave stick
+    type: device
+    device: serial                # serial | video | any
+```
+
+- The Console offers the target Node's devices of that kind, from a new `ListDevices` call: serial devices by their stable `/dev/serial/by-id/` names (else `/dev/ttyUSB*`, `/dev/ttyACM*`), video by `/dev/dri/renderD*`. A Node without the call (Unimplemented) gets a text field.
+- Empty means none. The value must be a path under `/dev/`.
+- The template writes `{{ if .Grants.radio }}{{ with .Settings.ZIGBEE_DEVICE }}AddDevice={{ . }}{{ end }}{{ end }}`, and the grant is `AddDevice=*`.
+
+### G6. BlueZ on the Node
+
+Home Assistant uses Bluetooth through the host's BlueZ over D-Bus, as its documentation says. The Node image installs `bluez` and enables `bluetooth.service`, so `Volume=/run/dbus` is supported. A Node without a Bluetooth adapter runs BlueZ idle.
+
+### G7. Generated secrets in other shapes
+
+```yaml
+  - key: SECRET_ENCRYPTION_KEY
+    type: password
+    default: generate
+    format: hex                   # alnum (default) | hex | base64
+    bytes: 32                     # random bytes for hex and base64; alnum is always 32 characters
+```
+
+Homarr wants 64 hex characters; Laravel apps want `base64:` and 32 random bytes, written in the template as `APP_KEY=base64:{{ .Settings.APP_KEY }}`. Go's `GenerateSecret` and the Console's `generateSecret` make the same shapes.
+
+### G8. Asking before installing
+
+Today the Node refuses an install that needs grants, and the Console then shows a warning naming each option. For an entry that declares grants, the Console asks first, with the entry's words:
+
+- Each option is shown with the entry's `why`, and Maître's own note on what the option allows. Options are grouped by feature.
+- The buttons are **Don't install**, **Install without** *features* (when any grant is optional), and **Allow and install**.
+- Allow signs a grant for every option and installs. Without installs with those features off (`optional_grants` in the spec, G9), signing grants only for the required options. Don't install stops.
+
+The Node still enforces the grants, so nothing changes for safety. If an option appears that the entry did not declare, the Console falls back to the existing warning.
+
+### G9. Features in the Service spec
+
+`ServiceSpec.optional_grants` (map of feature to on or off) is filled from the entry by `specFor` and `SpecFor`, every feature on by default. The Node gives templates `.Grants` from it, and keeps it across updates, rollbacks and image changes. A Node older than this field fails such an entry's template with an error that names `.Grants`. The Console falls back on that, as on any older Node.
+
+## Steps
+
+Each ends with the Go and Console tests, `make lint`, and `catalog-check` over the Catalog.
+
+1. **Popularity** (P1-P5): `project:` in the format, `catalog popularity`, `stars` in the index, the Console's sort, `project:` for the 22 entries, and the weekly job.
+2. **Declared grants and the support table** (G1-G3, G9): the format, `catalog-check`'s two renders, `optional_grants` and `.Grants` on the Node.
+3. **Host networking** (G4) on the Node.
+4. **Device settings** (G5): the `device` type, `ListDevices`, the Console's picker.
+5. **Generated secret shapes** (G7), and **BlueZ** in the image (G6).
+6. **The Console's question** (G8), on the demo Fleet first.
+7. **Home Assistant**, then the other entries left out: Plex, Homarr, Dozzle, PhotoPrism, Wallabag, Linkding. Then batches of ten.

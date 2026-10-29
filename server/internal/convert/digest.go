@@ -64,3 +64,27 @@ func (Registry) Tags(ctx context.Context, image string) ([]string, error) {
 	}
 	return remote.List(ref.Context(), remote.WithContext(ctx), remote.WithAuthFromKeychain(authn.DefaultKeychain))
 }
+
+// Labeller reads an image's labels. Registry is one; a Resolver that is
+// not (as in tests) leaves the entry's project for a person.
+type Labeller interface {
+	Labels(ctx context.Context, image string) (map[string]string, error)
+}
+
+// Labels are the labels of image's configuration: for a multi-platform
+// index, those of the platform this runs on, which publishers label alike.
+func (Registry) Labels(ctx context.Context, image string) (map[string]string, error) {
+	ref, err := name.ParseReference(image)
+	if err != nil {
+		return nil, err
+	}
+	img, err := remote.Image(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := img.ConfigFile()
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Config.Labels, nil
+}

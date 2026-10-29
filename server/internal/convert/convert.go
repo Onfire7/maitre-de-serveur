@@ -97,6 +97,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 		c.convert(ctx)
 	}
 	if len(c.res.Report.MustFix) == 0 {
+		c.findProject(ctx)
 		c.check(ctx)
 	}
 	if len(c.res.Report.MustFix) == 0 {
@@ -983,6 +984,31 @@ func (c *conv) describe(web string, port uint32, path string, n int) {
 	if c.opts.Licence == "" {
 		r.needsPerson("Say under which licence the Compose file was published (source.licence)")
 	}
+}
+
+// findProject fills the entry's project, for its popularity (docs/
+// popularity-and-grants.md, P4), from the org.opencontainers.image.source
+// label of the image serving its page, or of its only image.
+func (c *conv) findProject(ctx context.Context) {
+	r := &c.res.Report
+	e := &c.entry
+	l, ok := c.opts.Resolver.(Labeller)
+	if !ok {
+		return
+	}
+	image := e.Image
+	for _, comp := range e.Components {
+		if image == "" || e.Web != nil && comp.Name == e.Web.Component {
+			image = comp.Image
+		}
+	}
+	labels, err := l.Labels(ctx, image)
+	if p := catalog.ProjectFromSource(labels["org.opencontainers.image.source"]); err == nil && p != "" {
+		e.Project = p
+		r.note("project: %s, from the image's source label; its stars are the entry's popularity", p)
+		return
+	}
+	r.note("No project: for the entry's popularity; add the app's repository on GitHub, Codeberg or GitLab")
 }
 
 // check runs the bundle through the Node's own check: the options that

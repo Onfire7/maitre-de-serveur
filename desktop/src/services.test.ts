@@ -2,7 +2,7 @@
 // runs as such (plan C8), with its password made up at install (C7).
 import { describe, expect, it } from "vitest";
 import bundled from "@/catalog/index.json";
-import { credits, generatePassword, generatedSettings, specFor, type CatalogIndex } from "./services";
+import { credits, formatStars, generatePassword, generatedSettings, sortEntries, specFor, type CatalogIndex } from "./services";
 
 const entry = (id: string) => (bundled as CatalogIndex).entries.find((e) => e.id === id)!;
 
@@ -49,5 +49,20 @@ describe("credits", () => {
 
   it("bundles every icon, so the Console reaches no other server for them", () => {
     for (const e of (bundled as CatalogIndex).entries) expect(e.icon).toMatch(/^data:image\/(svg\+xml|png);base64,/);
+  });
+});
+
+describe("popularity", () => {
+  it("sorts by stars, entries without them after, by name", () => {
+    const es = [{ name: "B", stars: 10 }, { name: "A" }, { name: "C", stars: 500 }, { name: "D", stars: 10 }, { name: "0" }];
+    expect(sortEntries(es, "popular").map((e) => e.name)).toEqual(["C", "B", "D", "0", "A"]);
+    expect(sortEntries(es, "name").map((e) => e.name)).toEqual(["0", "A", "B", "C", "D"]);
+  });
+  it("rounds stars as people say them", () => {
+    expect([812, 8150, 81234, 117608].map(formatStars)).toEqual(["812", "8.1k", "81k", "117k"]);
+  });
+  it("the bundled Catalog has stars for every entry", () => {
+    const missing = (bundled as CatalogIndex).entries.filter((e) => !e.stars).map((e) => e.id);
+    expect(missing).toEqual([]);
   });
 });
