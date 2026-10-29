@@ -327,7 +327,7 @@ func validateContainers(spec *maitrev1.ServiceSpec) error {
 // renderComponentBody executes one component's [Container] template, with
 // its references to the bundle's own units renamed as they are written.
 func renderComponentBody(spec *maitrev1.ServiceSpec, c comp, vols map[string]string) (string, error) {
-	body, err := renderTemplate(unitBase(spec.GetName(), c), c.Quadlet, c.Image, spec.GetSettings(), vols)
+	body, err := renderTemplate(unitBase(spec.GetName(), c), c.Quadlet, c.Image, spec, vols)
 	if err != nil {
 		return "", err
 	}

@@ -2,7 +2,7 @@
 // runs as such (plan C8), with its password made up at install (C7).
 import { describe, expect, it } from "vitest";
 import bundled from "@/catalog/index.json";
-import { credits, formatStars, generatePassword, generatedSettings, sortEntries, specFor, type CatalogIndex } from "./services";
+import { credits, formatStars, generatePassword, generatedSettings, grantMatches, sortEntries, specFor, type CatalogIndex } from "./services";
 
 const entry = (id: string) => (bundled as CatalogIndex).entries.find((e) => e.id === id)!;
 
@@ -64,5 +64,26 @@ describe("popularity", () => {
   it("the bundled Catalog has stars for every entry", () => {
     const missing = (bundled as CatalogIndex).entries.filter((e) => !e.stars).map((e) => e.id);
     expect(missing).toEqual([]);
+  });
+});
+
+describe("declared grants", () => {
+  const e = {
+    ...(bundled as CatalogIndex).entries[0],
+    grants: [
+      { option: "Network=host", why: "Finds devices.", optional: "discovery", without: "By address." },
+      { option: "AddDevice=*", why: "A radio.", optional: "radio", without: "No Zigbee." },
+      { option: "AddCapability=NET_RAW", why: "Pings." },
+    ],
+  };
+  it("turns every feature on unless left out", () => {
+    expect(specFor(e, "", {}).optionalGrants).toEqual({ discovery: true, radio: true });
+    expect(specFor(e, "", {}, ["radio"]).optionalGrants).toEqual({ discovery: true, radio: false });
+  });
+  it("matches options as the Node words them", () => {
+    expect(grantMatches(e.grants[1], "", "AddDevice=/dev/serial/by-id/usb-1")).toBe(true);
+    expect(grantMatches(e.grants[0], "", "Network=host")).toBe(true);
+    expect(grantMatches(e.grants[0], "web", "Network=host")).toBe(false);
+    expect(grantMatches(e.grants[2], "", "AddCapability=NET_ADMIN")).toBe(false);
   });
 });

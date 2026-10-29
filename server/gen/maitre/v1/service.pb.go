@@ -1217,9 +1217,14 @@ type ServiceSpec struct {
 	// shared with other containers (172).
 	VolumeFolders map[string]string `protobuf:"bytes,22,rep,name=volume_folders,json=volumeFolders,proto3" json:"volume_folders,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Decision 171: extra folders beyond the Catalog's volumes.
-	Mounts        []*ServiceMount `protobuf:"bytes,23,rep,name=mounts,proto3" json:"mounts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Mounts []*ServiceMount `protobuf:"bytes,23,rep,name=mounts,proto3" json:"mounts,omitempty"`
+	// The Catalog entry's optional features (docs/popularity-and-grants.md,
+	// G9), each on or off as the person chose at install: templates read them
+	// as {{ .Grants.<feature> }}, and a feature off leaves out the protected
+	// options it needs.
+	OptionalGrants map[string]bool `protobuf:"bytes,28,rep,name=optional_grants,json=optionalGrants,proto3" json:"optional_grants,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ServiceSpec) Reset() {
@@ -1437,6 +1442,13 @@ func (x *ServiceSpec) GetVolumeFolders() map[string]string {
 func (x *ServiceSpec) GetMounts() []*ServiceMount {
 	if x != nil {
 		return x.Mounts
+	}
+	return nil
+}
+
+func (x *ServiceSpec) GetOptionalGrants() map[string]bool {
+	if x != nil {
+		return x.OptionalGrants
 	}
 	return nil
 }
@@ -2508,8 +2520,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x16\n" +
 	"\x06folder\x18\x02 \x01(\tR\x06folder\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1b\n" +
-	"\tread_only\x18\x04 \x01(\bR\breadOnly\"\x85\n" +
-	"\n" +
+	"\tread_only\x18\x04 \x01(\bR\breadOnly\"\x9d\v\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -2545,7 +2556,8 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"host_ports\x18\x14 \x03(\tR\thostPorts\x12#\n" +
 	"\rforward_ports\x18\x15 \x01(\bR\fforwardPorts\x12P\n" +
 	"\x0evolume_folders\x18\x16 \x03(\v2).maitre.v1.ServiceSpec.VolumeFoldersEntryR\rvolumeFolders\x12/\n" +
-	"\x06mounts\x18\x17 \x03(\v2\x17.maitre.v1.ServiceMountR\x06mounts\x1a;\n" +
+	"\x06mounts\x18\x17 \x03(\v2\x17.maitre.v1.ServiceMountR\x06mounts\x12S\n" +
+	"\x0foptional_grants\x18\x1c \x03(\v2*.maitre.v1.ServiceSpec.OptionalGrantsEntryR\x0eoptionalGrants\x1a;\n" +
 	"\rSettingsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
@@ -2554,7 +2566,10 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a@\n" +
 	"\x12VolumeFoldersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9e\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aA\n" +
+	"\x13OptionalGrantsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\x9e\x04\n" +
 	"\rServiceStatus\x12*\n" +
 	"\x04spec\x18\x01 \x01(\v2\x16.maitre.v1.ServiceSpecR\x04spec\x124\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1e.maitre.v1.ServiceStatus.StateR\x05state\x12\x18\n" +
@@ -2668,7 +2683,7 @@ func file_maitre_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_maitre_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_maitre_v1_service_proto_goTypes = []any{
 	(ServiceStatus_State)(0),          // 0: maitre.v1.ServiceStatus.State
 	(ControlServiceRequest_Action)(0), // 1: maitre.v1.ControlServiceRequest.Action
@@ -2714,6 +2729,7 @@ var file_maitre_v1_service_proto_goTypes = []any{
 	nil,                               // 41: maitre.v1.ServiceSpec.SettingsEntry
 	nil,                               // 42: maitre.v1.ServiceSpec.VolumeSpacesEntry
 	nil,                               // 43: maitre.v1.ServiceSpec.VolumeFoldersEntry
+	nil,                               // 44: maitre.v1.ServiceSpec.OptionalGrantsEntry
 }
 var file_maitre_v1_service_proto_depIdxs = []int32{
 	19, // 0: maitre.v1.CheckServiceRequest.spec:type_name -> maitre.v1.ServiceSpec
@@ -2733,47 +2749,48 @@ var file_maitre_v1_service_proto_depIdxs = []int32{
 	16, // 14: maitre.v1.ServiceSpec.units:type_name -> maitre.v1.ServiceUnit
 	43, // 15: maitre.v1.ServiceSpec.volume_folders:type_name -> maitre.v1.ServiceSpec.VolumeFoldersEntry
 	18, // 16: maitre.v1.ServiceSpec.mounts:type_name -> maitre.v1.ServiceMount
-	19, // 17: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
-	0,  // 18: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State
-	21, // 19: maitre.v1.ServiceStatus.components:type_name -> maitre.v1.ComponentStatus
-	0,  // 20: maitre.v1.ComponentStatus.state:type_name -> maitre.v1.ServiceStatus.State
-	24, // 21: maitre.v1.UserCatalogs.catalogs:type_name -> maitre.v1.UserCatalog
-	20, // 22: maitre.v1.SetPortForwardingResponse.service:type_name -> maitre.v1.ServiceStatus
-	19, // 23: maitre.v1.InstallServiceRequest.spec:type_name -> maitre.v1.ServiceSpec
-	20, // 24: maitre.v1.InstallServiceResponse.service:type_name -> maitre.v1.ServiceStatus
-	1,  // 25: maitre.v1.ControlServiceRequest.action:type_name -> maitre.v1.ControlServiceRequest.Action
-	20, // 26: maitre.v1.ControlServiceResponse.service:type_name -> maitre.v1.ServiceStatus
-	20, // 27: maitre.v1.ListServicesResponse.services:type_name -> maitre.v1.ServiceStatus
-	20, // 28: maitre.v1.SetExposureResponse.service:type_name -> maitre.v1.ServiceStatus
-	13, // 29: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
-	27, // 30: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
-	29, // 31: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
-	31, // 32: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
-	35, // 33: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
-	33, // 34: maitre.v1.ServiceService.SetExposure:input_type -> maitre.v1.SetExposureRequest
-	25, // 35: maitre.v1.ServiceService.SetPortForwarding:input_type -> maitre.v1.SetPortForwardingRequest
-	11, // 36: maitre.v1.ServiceService.MoveVolume:input_type -> maitre.v1.MoveVolumeRequest
-	9,  // 37: maitre.v1.ServiceService.SetFolders:input_type -> maitre.v1.SetFoldersRequest
-	7,  // 38: maitre.v1.ServiceService.SetSettings:input_type -> maitre.v1.SetSettingsRequest
-	5,  // 39: maitre.v1.ServiceService.SetImage:input_type -> maitre.v1.SetImageRequest
-	2,  // 40: maitre.v1.ServiceService.CheckService:input_type -> maitre.v1.CheckServiceRequest
-	14, // 41: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
-	28, // 42: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
-	30, // 43: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
-	32, // 44: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
-	36, // 45: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
-	34, // 46: maitre.v1.ServiceService.SetExposure:output_type -> maitre.v1.SetExposureResponse
-	26, // 47: maitre.v1.ServiceService.SetPortForwarding:output_type -> maitre.v1.SetPortForwardingResponse
-	12, // 48: maitre.v1.ServiceService.MoveVolume:output_type -> maitre.v1.MoveVolumeResponse
-	10, // 49: maitre.v1.ServiceService.SetFolders:output_type -> maitre.v1.SetFoldersResponse
-	8,  // 50: maitre.v1.ServiceService.SetSettings:output_type -> maitre.v1.SetSettingsResponse
-	6,  // 51: maitre.v1.ServiceService.SetImage:output_type -> maitre.v1.SetImageResponse
-	3,  // 52: maitre.v1.ServiceService.CheckService:output_type -> maitre.v1.CheckServiceResponse
-	41, // [41:53] is the sub-list for method output_type
-	29, // [29:41] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	44, // 17: maitre.v1.ServiceSpec.optional_grants:type_name -> maitre.v1.ServiceSpec.OptionalGrantsEntry
+	19, // 18: maitre.v1.ServiceStatus.spec:type_name -> maitre.v1.ServiceSpec
+	0,  // 19: maitre.v1.ServiceStatus.state:type_name -> maitre.v1.ServiceStatus.State
+	21, // 20: maitre.v1.ServiceStatus.components:type_name -> maitre.v1.ComponentStatus
+	0,  // 21: maitre.v1.ComponentStatus.state:type_name -> maitre.v1.ServiceStatus.State
+	24, // 22: maitre.v1.UserCatalogs.catalogs:type_name -> maitre.v1.UserCatalog
+	20, // 23: maitre.v1.SetPortForwardingResponse.service:type_name -> maitre.v1.ServiceStatus
+	19, // 24: maitre.v1.InstallServiceRequest.spec:type_name -> maitre.v1.ServiceSpec
+	20, // 25: maitre.v1.InstallServiceResponse.service:type_name -> maitre.v1.ServiceStatus
+	1,  // 26: maitre.v1.ControlServiceRequest.action:type_name -> maitre.v1.ControlServiceRequest.Action
+	20, // 27: maitre.v1.ControlServiceResponse.service:type_name -> maitre.v1.ServiceStatus
+	20, // 28: maitre.v1.ListServicesResponse.services:type_name -> maitre.v1.ServiceStatus
+	20, // 29: maitre.v1.SetExposureResponse.service:type_name -> maitre.v1.ServiceStatus
+	13, // 30: maitre.v1.ServiceService.GetCatalog:input_type -> maitre.v1.GetCatalogRequest
+	27, // 31: maitre.v1.ServiceService.InstallService:input_type -> maitre.v1.InstallServiceRequest
+	29, // 32: maitre.v1.ServiceService.ControlService:input_type -> maitre.v1.ControlServiceRequest
+	31, // 33: maitre.v1.ServiceService.ListServices:input_type -> maitre.v1.ListServicesRequest
+	35, // 34: maitre.v1.ServiceService.GetServiceLogs:input_type -> maitre.v1.GetServiceLogsRequest
+	33, // 35: maitre.v1.ServiceService.SetExposure:input_type -> maitre.v1.SetExposureRequest
+	25, // 36: maitre.v1.ServiceService.SetPortForwarding:input_type -> maitre.v1.SetPortForwardingRequest
+	11, // 37: maitre.v1.ServiceService.MoveVolume:input_type -> maitre.v1.MoveVolumeRequest
+	9,  // 38: maitre.v1.ServiceService.SetFolders:input_type -> maitre.v1.SetFoldersRequest
+	7,  // 39: maitre.v1.ServiceService.SetSettings:input_type -> maitre.v1.SetSettingsRequest
+	5,  // 40: maitre.v1.ServiceService.SetImage:input_type -> maitre.v1.SetImageRequest
+	2,  // 41: maitre.v1.ServiceService.CheckService:input_type -> maitre.v1.CheckServiceRequest
+	14, // 42: maitre.v1.ServiceService.GetCatalog:output_type -> maitre.v1.GetCatalogResponse
+	28, // 43: maitre.v1.ServiceService.InstallService:output_type -> maitre.v1.InstallServiceResponse
+	30, // 44: maitre.v1.ServiceService.ControlService:output_type -> maitre.v1.ControlServiceResponse
+	32, // 45: maitre.v1.ServiceService.ListServices:output_type -> maitre.v1.ListServicesResponse
+	36, // 46: maitre.v1.ServiceService.GetServiceLogs:output_type -> maitre.v1.GetServiceLogsResponse
+	34, // 47: maitre.v1.ServiceService.SetExposure:output_type -> maitre.v1.SetExposureResponse
+	26, // 48: maitre.v1.ServiceService.SetPortForwarding:output_type -> maitre.v1.SetPortForwardingResponse
+	12, // 49: maitre.v1.ServiceService.MoveVolume:output_type -> maitre.v1.MoveVolumeResponse
+	10, // 50: maitre.v1.ServiceService.SetFolders:output_type -> maitre.v1.SetFoldersResponse
+	8,  // 51: maitre.v1.ServiceService.SetSettings:output_type -> maitre.v1.SetSettingsResponse
+	6,  // 52: maitre.v1.ServiceService.SetImage:output_type -> maitre.v1.SetImageResponse
+	3,  // 53: maitre.v1.ServiceService.CheckService:output_type -> maitre.v1.CheckServiceResponse
+	42, // [42:54] is the sub-list for method output_type
+	30, // [30:42] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_service_proto_init() }
@@ -2788,7 +2805,7 @@ func file_maitre_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_service_proto_rawDesc), len(file_maitre_v1_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   42,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

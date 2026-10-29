@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogcheck"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogsync"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/convert"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/icons"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/outdated"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/popularity"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
 
@@ -93,23 +93,19 @@ func runCatalogCheck(args []string) error {
 		if e == nil {
 			return fmt.Errorf("no entry %q", id)
 		}
-		res, err := services.Check(context.Background(), catalog.SpecFor(e, "", nil, ""))
+		res, err := catalogcheck.Check(context.Background(), e)
 		switch {
-		case len(e.Unfinished) > 0:
-			failed++
-			fmt.Printf("FAIL %s is unfinished:\n", id)
-			for _, u := range e.Unfinished {
-				fmt.Printf("  %s\n", u)
-			}
 		case err != nil:
 			failed++
 			fmt.Printf("FAIL %s: %s\n", id, strings.TrimPrefix(err.Error(), id+": "))
-		case len(res.Protected) > 0:
+		case len(res.Problems) > 0:
 			failed++
-			fmt.Printf("FAIL %s needs grants:\n", id)
-			for _, p := range res.Protected {
-				fmt.Printf("  %s %s\n", p.Component, p.Option)
+			fmt.Printf("FAIL %s:\n", id)
+			for _, p := range res.Problems {
+				fmt.Printf("  %s\n", p)
 			}
+		case len(e.Grants) > 0:
+			fmt.Printf("ok   %s (%d grants declared)\n", id, len(e.Grants))
 		default:
 			fmt.Printf("ok   %s\n", id)
 		}

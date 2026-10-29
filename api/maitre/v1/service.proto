@@ -261,6 +261,11 @@ message ServiceSpec {
   map<string, string> volume_folders = 22;
   // Decision 171: extra folders beyond the Catalog's volumes.
   repeated ServiceMount mounts = 23;
+  // The Catalog entry's optional features (docs/popularity-and-grants.md,
+  // G9), each on or off as the person chose at install: templates read them
+  // as {{ .Grants.<feature> }}, and a feature off leaves out the protected
+  // options it needs.
+  map<string, bool> optional_grants = 28;
 }
 
 message ServiceStatus {

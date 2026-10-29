@@ -55,6 +55,9 @@ type Manifest struct {
 	// Source says where an entry converted or imported from elsewhere came
 	// from; omitted for one written here by hand.
 	Source *Source `yaml:"source,omitempty" json:"source,omitempty"`
+	// Grants are the protected options the entry needs, each with why
+	// (docs/popularity-and-grants.md, G1).
+	Grants []Grant `yaml:"grants,omitempty" json:"grants,omitempty"`
 	// Project is the repository the app is developed in; its stars are the
 	// entry's popularity (docs/popularity-and-grants.md, P1).
 	Project string `yaml:"project,omitempty" json:"project,omitempty"`
@@ -317,6 +320,9 @@ func (m *Manifest) Validate() error {
 	if m.Web != nil && (m.Web.Port <= 0 || m.Web.Port > 65535) {
 		return fmt.Errorf("web.port out of range")
 	}
+	if err := m.validateGrants(); err != nil {
+		return err
+	}
 	if m.Project != "" {
 		if _, _, err := ProjectRepo(m.Project); err != nil {
 			return err
@@ -544,6 +550,15 @@ func GeneratePassword() string {
 // SpecFor turns an entry plus the user's choices into the ServiceSpec the
 // Node runs (decision 78). The Console does the same in TypeScript.
 func SpecFor(e *Manifest, name string, settings map[string]string, exposure string) *maitrev1.ServiceSpec {
+	return SpecWithout(e, name, settings, exposure, nil)
+}
+
+// SpecWithout is SpecFor with some of the entry's optional features off.
+func SpecWithout(e *Manifest, name string, settings map[string]string, exposure string, without []string) *maitrev1.ServiceSpec {
+	off := map[string]bool{}
+	for _, f := range without {
+		off[f] = true
+	}
 	if name == "" {
 		name = e.ID
 	}
@@ -569,6 +584,13 @@ func SpecFor(e *Manifest, name string, settings map[string]string, exposure stri
 		Quadlet:         e.Quadlet,
 		Infrastructure:  e.Infrastructure,
 		NetworkInternal: e.Network == "internal",
+	}
+	// Every optional feature on, unless the person turned it off (G9).
+	for _, f := range e.Features() {
+		if spec.OptionalGrants == nil {
+			spec.OptionalGrants = map[string]bool{}
+		}
+		spec.OptionalGrants[f] = !off[f]
 	}
 	for _, c := range e.Components {
 		spec.Components = append(spec.Components, &maitrev1.ServiceComponent{Name: c.Name, Image: c.Image, Quadlet: c.Quadlet, After: c.After, WaitHealthy: c.WaitHealthy, Egress: c.Egress})

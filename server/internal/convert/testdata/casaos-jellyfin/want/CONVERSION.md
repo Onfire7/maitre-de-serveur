@@ -7,12 +7,12 @@ From `docker-compose.yml`, by `maitre catalog add`.
 The entry is unfinished until these are decided and its `unfinished:` list is removed.
 
 - jellyfin mounts the Node's own folder /opt/vc/lib; point it at a Service volume, or keep it and allow it when installing
-- jellyfin asks for AddDevice=/dev/dri:/dev/dri:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
-- jellyfin asks for AddDevice=/dev/vchiq:/dev/vchiq:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
-- jellyfin asks for AddDevice=/dev/vcsm:/dev/vcsm:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
-- jellyfin asks for AddDevice=/dev/video10:/dev/video10:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
-- jellyfin asks for AddDevice=/dev/video11:/dev/video11:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
-- jellyfin asks for AddDevice=/dev/video12:/dev/video12:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+- jellyfin asks for AddDevice=/dev/dri:/dev/dri:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
+- jellyfin asks for AddDevice=/dev/vchiq:/dev/vchiq:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
+- jellyfin asks for AddDevice=/dev/vcsm:/dev/vcsm:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
+- jellyfin asks for AddDevice=/dev/video10:/dev/video10:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
+- jellyfin asks for AddDevice=/dev/video11:/dev/video11:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
+- jellyfin asks for AddDevice=/dev/video12:/dev/video12:rwm, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)
 
 ## Changed for you
 

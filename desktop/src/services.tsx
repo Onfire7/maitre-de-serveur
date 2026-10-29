@@ -35,12 +35,37 @@ export interface CatalogEntry {
   source?: { from: string; url?: string; licence?: string; converted?: string; icon?: { pack: string; licence: string; url: string } };
   /** A converted entry's open questions (plan C10); it is not installed until there are none. */
   unfinished?: string[];
+  /** Protected options the entry needs, each with why (docs/popularity-and-grants.md, G1). */
+  grants?: CatalogGrant[];
   /** The repository the app is developed in (docs/popularity-and-grants.md, P1). */
   project?: string;
   /** Its project's stars, from the Catalog's popularity.json: the popularity it sorts by (P2). */
   stars?: number;
   /** The user Catalog it came from (plan C9); none for the project's own. */
   catalog?: { id: string; name: string };
+}
+
+/** A protected option an entry declares (G1). */
+export interface CatalogGrant {
+  /** As the Node words it; a trailing * matches any value (AddDevice=*). */
+  option: string;
+  component?: string;
+  why: string;
+  /** The feature it enables; absent when the entry needs it to run. */
+  optional?: string;
+  /** What the person loses with the feature off. */
+  without?: string;
+}
+
+/** Whether a protected option the Node names is this grant's. */
+export function grantMatches(g: CatalogGrant, component: string, option: string): boolean {
+  if ((g.component ?? "") !== component) return false;
+  return g.option.endsWith("*") ? option.startsWith(g.option.slice(0, -1)) : option === g.option;
+}
+
+/** The entry's optional features, in the order declared. */
+export function features(e: Pick<CatalogEntry, "grants">): string[] {
+  return [...new Set((e.grants ?? []).flatMap((g) => (g.optional ? [g.optional] : [])))];
 }
 
 /** How a Service names the entry it came from: "jellyfin", or "<catalog>/<id>" for a user Catalog's. */
@@ -96,7 +121,8 @@ export interface CatalogIndex {
   entries: CatalogEntry[];
 }
 
-export function specFor(e: CatalogEntry, name: string, settings: Record<string, string>) {
+/** The Service spec for an entry; features in without are left out (G9). */
+export function specFor(e: CatalogEntry, name: string, settings: Record<string, string>, without: string[] = []) {
   return create(ServiceSpecSchema, {
     name: name || e.id,
     catalogId: catalogKey(e),
@@ -114,6 +140,7 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     webComponent: e.web?.component ?? "",
     units: e.units ?? [],
     networkInternal: e.network === "internal",
+    optionalGrants: Object.fromEntries(features(e).map((f) => [f, !without.includes(f)])),
   });
 }
 

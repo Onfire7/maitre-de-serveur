@@ -205,7 +205,20 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	spec.WebHostPort = 0
 	if spec.GetWebPort() != 0 {
-		spec.WebHostPort = uint32(m.hostPort(ctx, name))
+		host, err := hostNetworked(spec)
+		if err != nil {
+			return nil, err
+		}
+		if host {
+			// G4: on the Node's own network the app's port is the Node's;
+			// Caddy, Tailscale and the probe reach it there.
+			if err := m.portFree(ctx, name, spec.GetWebPort()); err != nil {
+				return nil, err
+			}
+			spec.WebHostPort = spec.GetWebPort()
+		} else {
+			spec.WebHostPort = uint32(m.hostPort(ctx, name))
+		}
 	}
 	if err := m.apply(ctx, spec); err != nil {
 		return nil, err
@@ -591,13 +604,14 @@ type Mount struct {
 
 // renderBody executes a Service's Catalog template: its [Container] body.
 func renderBody(spec *maitrev1.ServiceSpec, volumes map[string]string) (string, error) {
-	return renderTemplate(spec.GetName(), spec.GetQuadlet(), spec.GetImage(), spec.GetSettings(), volumes)
+	return renderTemplate(spec.GetName(), spec.GetQuadlet(), spec.GetImage(), spec, volumes)
 }
 
 // renderTemplate executes a [Container] Go template with the data a Catalog
 // entry may use (catalog/FORMAT.md). Shared by single-container Services and
 // by each component of a multi-container one.
-func renderTemplate(name, quadletTmpl, image string, settings, volumes map[string]string) (string, error) {
+func renderTemplate(name, quadletTmpl, image string, spec *maitrev1.ServiceSpec, volumes map[string]string) (string, error) {
+	settings := spec.GetSettings()
 	tmpl, err := template.New(name).Option("missingkey=error").Parse(quadletTmpl)
 	if err != nil {
 		return "", fmt.Errorf("quadlet template: %w", err)
@@ -617,6 +631,9 @@ func renderTemplate(name, quadletTmpl, image string, settings, volumes map[strin
 		"Settings": escaped,
 		"Network":  Network,
 		"Env":      map[string]string{},
+		// The entry's optional features, on or off (G9). A feature the
+		// spec does not name fails the template, as a missing setting does.
+		"Grants": spec.GetOptionalGrants(),
 	}
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, data); err != nil {
@@ -676,7 +693,9 @@ func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Ext
 	if !parsed.HasKey("Container", "HostName") && !parsed.HasKey("Container", "Pod") && !lookupIs(parsed, "Network", "host") && !lookupIs(parsed, "UTS", "host") {
 		fmt.Fprintf(&out, "HostName=%s\n", spec.GetName())
 	}
-	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 {
+	// On the Node's own network (G4) there is nothing to publish: the app
+	// listens on the Node's port itself, and Podman would discard the line.
+	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 && !lookupIs(parsed, "Network", "host") {
 		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
 	}
 	for _, mt := range extra.Mounts {
@@ -752,6 +771,54 @@ func shareVolumes(body string, hosts map[string]bool) string {
 		lines[i] = "Volume=" + parts[0] + ":" + parts[1] + ":" + strings.Join(opts, ",")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// hostNetworked reports whether a single-container Service's template puts
+// it on the Node's own network (Network=host, a granted option, G4).
+// Volumes are not placed yet, so placeholders stand in for them.
+func hostNetworked(spec *maitrev1.ServiceSpec) (bool, error) {
+	if isMulti(spec) {
+		return false, nil
+	}
+	vols := map[string]string{}
+	for _, v := range spec.GetVolumes() {
+		vols[v.GetName()] = "/maitre-volume"
+	}
+	body, err := renderBody(spec, vols)
+	if err != nil {
+		return false, err
+	}
+	unit := parser.NewUnitFile()
+	if err := unit.Parse(body); err != nil {
+		return false, fmt.Errorf("quadlet unit: %w", err)
+	}
+	return lookupIs(unit, "Network", "host"), nil
+}
+
+// nodePorts are ports the Node itself holds: SSH, Caddy, NFS and its
+// portmapper, Caddy's admin API, mDNS and the agent.
+var nodePorts = map[uint32]string{22: "SSH", 80: "Maître's web server", 111: "NFS", 443: "Maître's web server", 2019: "Maître's web server", 2049: "NFS", 5353: "mDNS", 7443: "the Maître agent"}
+
+// portFree refuses a port of the Node that another Service, or the Node
+// itself, already holds, naming who.
+func (m *Manager) portFree(ctx context.Context, name string, port uint32) error {
+	if who, ok := nodePorts[port]; ok {
+		return fmt.Errorf("%s serves its page on port %d of the Node itself, which %s uses", name, port, who)
+	}
+	specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	for _, s := range specs {
+		if s.GetName() == name || s.GetNodeId() != m.store.NodeID() {
+			continue
+		}
+		taken := s.GetWebHostPort() == port
+		for _, hp := range s.GetHostPorts() {
+			taken = taken || hp == fmt.Sprintf("%d/tcp", port)
+		}
+		if taken {
+			return fmt.Errorf("%s serves its page on port %d of the Node itself, which %s already uses", name, port, s.GetName())
+		}
+	}
+	return nil
 }
 
 // hostPort picks a stable loopback port for a Service's web port, avoiding

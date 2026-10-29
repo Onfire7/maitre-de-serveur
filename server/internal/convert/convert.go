@@ -1037,7 +1037,11 @@ func (c *conv) check(ctx context.Context) {
 			if who == "" {
 				who = e.ID
 			}
-			r.needsPerson("%s asks for %s, which a Trusted Device must allow at install; keep it only if the app needs it", who, p.Option)
+			if ok, needs := catalog.Support(p.Option); !ok {
+				r.needsPerson("%s asks for %s, which Maître does not support yet (it needs %s); find another way, or leave the entry out", who, p.Option, needs)
+				continue
+			}
+			r.needsPerson("%s asks for %s, which a Trusted Device must allow at install; keep it only if the app needs it, and declare it under grants: with why (optional: if the app works without it)", who, p.Option)
 		}
 	}
 	c.entry.Unfinished = append([]string{}, r.NeedsPerson...)
