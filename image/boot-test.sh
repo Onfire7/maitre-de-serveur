@@ -158,4 +158,6 @@ for id in ${CATALOG_ENTRIES:-}; do
     exit 1
   }
   echo "boot-test: OK ($id installed from the Catalog and healthy)"
+  # One at a time: the VM has room for one app beside Uptime Kuma.
+  "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --delete-data remove "$id"
 done

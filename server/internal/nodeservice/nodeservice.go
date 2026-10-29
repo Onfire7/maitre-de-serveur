@@ -148,7 +148,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", authz.KindGrant:
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", authz.KindGrant, "catalogs":
 		return true
 	}
 	return false

@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { isDemo } from "@/demo/flag";
 import type { DeviceInfo, KnownNode } from "@/state";
 import { useTheme, type ThemePref } from "./theme";
+import bundledCatalog from "@/catalog/index.json";
+import { credits, type CatalogIndex } from "@/services";
 
 export function PreferencesDialog({ open, onClose, device, onAddDev }: { open: boolean; onClose: () => void; device: DeviceInfo; onAddDev: (n: KnownNode) => void }) {
   const { pref, setPref } = useTheme();
@@ -66,6 +68,20 @@ export function PreferencesDialog({ open, onClose, device, onAddDev }: { open: b
                   Add
                 </Button>
               </div>
+            </div>
+          </details>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground">Credits</summary>
+            <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+              <p>The Catalog uses work of these projects, under their licences; its NOTICE file lists every file.</p>
+              <ul className="space-y-1.5">
+                {credits(bundledCatalog as CatalogIndex).map((c) => (
+                  <li key={c.name}>
+                    <span className="text-foreground">{c.name}</span> ({c.licence}), <span className="break-all">{c.url}</span>
+                    <span className="block">{c.what}.</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </details>
         </div>

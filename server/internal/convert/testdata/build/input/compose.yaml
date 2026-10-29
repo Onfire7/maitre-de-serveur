@@ -1,0 +1,6 @@
+# Written for Maître's tests: an app built from source cannot be an entry.
+services:
+  app:
+    build: .
+    ports:
+      - "8080:80"

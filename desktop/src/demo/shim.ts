@@ -3,6 +3,7 @@
 // update) get a stub that rejects with a readable message instead of a
 // TypeError, and `listen` gets a no-op.
 import { demoApi } from "./api";
+import { demoCatalogAdd, demoCatalogLoad } from "./catalogs";
 
 export function installTauriShim() {
   if (typeof window === "undefined" || "__TAURI_INTERNALS__" in window) return;
@@ -24,6 +25,10 @@ export function installTauriShim() {
           return demoApi.deviceInfo();
         case "device_code":
           return "482 913";
+        case "catalog_load":
+          return demoCatalogLoad(args?.source as never);
+        case "catalog_add":
+          return demoCatalogAdd(String(args?.folder ?? ""), String(args?.compose ?? ""));
         case "peek_installer":
           return demoApi.peekInstaller(String(args?.addr ?? ""));
       }

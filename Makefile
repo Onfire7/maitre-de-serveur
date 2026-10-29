@@ -22,10 +22,12 @@ gen: ## Regenerate Go and TypeScript from api/, and the Catalog index the Deskto
 	cd api && $(BUF) lint && $(BUF) generate
 	$(MAKE) build
 	./server/bin/maitre catalog-index --out desktop/src/catalog/index.json catalog/entries
+	./server/bin/maitre catalog-notice --out catalog/NOTICE catalog/entries
 	./server/bin/maitre names-index --out desktop/src/names.json
 
 gen-check: gen ## Fail if generated code is stale
 	git diff --exit-code -- server/gen desktop/src/gen desktop/src/catalog desktop/src/names.json
+	git -C catalog diff --exit-code -- NOTICE
 
 build: server/bin/maitre ## Build the agent binary
 server/bin/maitre: $(shell find server -name '*.go') server/go.mod

@@ -8,8 +8,8 @@
 //   - trusted_device: a Trusted Device; the Recovery Phrase, for a new full
 //     device; or a Node, for a device scoped to that Node, or promoted to
 //     the whole Fleet with a second Node's voucher (decision 120).
-//   - space, update_policy, tailscale, public_settings, grant: a Trusted
-//     Device.
+//   - space, update_policy, tailscale, public_settings, grant, catalogs: a
+//     Trusted Device.
 //   - node: a Trusted Device, or the Node itself once it has been
 //     introduced and while it has not been removed.
 //   - service: the Node that runs it, which may not take over another
@@ -43,6 +43,7 @@ const (
 	kindPolicy         = "update_policy"
 	kindTailscale      = "tailscale"
 	kindPublicSettings = "public_settings"
+	kindCatalogs       = "catalogs"
 	kindService        = "service"
 	kindDrive          = "drive"
 )
@@ -54,7 +55,7 @@ const PromoteWithin = 24 * time.Hour
 // DeviceOnly reports whether only a Trusted Device may sign kind.
 func DeviceOnly(kind string) bool {
 	switch kind {
-	case store.KindTrustedDevice, kindSpace, kindPolicy, kindTailscale, kindPublicSettings, KindGrant:
+	case store.KindTrustedDevice, kindSpace, kindPolicy, kindTailscale, kindPublicSettings, KindGrant, kindCatalogs:
 		return true
 	}
 	return false

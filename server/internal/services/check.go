@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -22,8 +24,9 @@ type CheckResult struct {
 // Check renders a Service as a Node installs it, in a throwaway layout with
 // every volume in one Space, and runs podman's Quadlet generator over the
 // units (plan C8's second check, and C10's report). Nothing is installed or
-// started. It returns quadlet.ErrNoGenerator where Quadlet is not installed;
-// CI runs it inside the maitre-server image, which has it.
+// started. Where Quadlet is not installed it returns the result with
+// quadlet.ErrNoGenerator; CI runs it inside the maitre-server image, which
+// has it.
 func Check(ctx context.Context, in *maitrev1.ServiceSpec) (*CheckResult, error) {
 	spec := proto.Clone(in).(*maitrev1.ServiceSpec)
 	if !nameRe.MatchString(spec.GetName()) {
@@ -68,6 +71,10 @@ func Check(ctx context.Context, in *maitrev1.ServiceSpec) (*CheckResult, error) 
 		return nil, err
 	}
 	if err := validateUnits(ctx, spec.GetName(), res.Units); err != nil {
+		if errors.Is(err, quadlet.ErrNoGenerator) {
+			// Rendered and classified; only Podman's own check is missing.
+			return res, err
+		}
 		return nil, err
 	}
 	return res, nil

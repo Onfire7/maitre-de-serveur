@@ -32,7 +32,16 @@ export interface CatalogEntry {
   /** The bundle's own .volume and .network units. */
   units?: { name: string; body: string }[];
   /** Where a converted or imported entry came from. */
-  source?: { from: string; url?: string; licence?: string; converted?: string };
+  source?: { from: string; url?: string; licence?: string; converted?: string; icon?: { pack: string; licence: string; url: string } };
+  /** A converted entry's open questions (plan C10); it is not installed until there are none. */
+  unfinished?: string[];
+  /** The user Catalog it came from (plan C9); none for the project's own. */
+  catalog?: { id: string; name: string };
+}
+
+/** How a Service names the entry it came from: "jellyfin", or "<catalog>/<id>" for a user Catalog's. */
+export function catalogKey(e: Pick<CatalogEntry, "id" | "catalog">): string {
+  return e.catalog ? `${e.catalog.id}/${e.id}` : e.id;
 }
 
 /** A setting whose default is this is made up at install (plan C7). */
@@ -65,7 +74,7 @@ export interface CatalogIndex {
 export function specFor(e: CatalogEntry, name: string, settings: Record<string, string>) {
   return create(ServiceSpecSchema, {
     name: name || e.id,
-    catalogId: e.id,
+    catalogId: catalogKey(e),
     image: e.image,
     settings: { ...Object.fromEntries((e.settings ?? []).map((s) => [s.key, s.default === GENERATE ? generatePassword() : (s.default ?? "")])), ...settings },
     exposure: e.exposure,
@@ -80,5 +89,38 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     webComponent: e.web?.component ?? "",
     units: e.units ?? [],
     networkInternal: e.network === "internal",
+  });
+}
+
+/** Projects whose material the Catalog carries, as its NOTICE names them (plan C11, C12). */
+const PROJECTS: Record<string, { name: string; url: string; licence: string; prefix?: string }> = {
+  "dashboard-icons": { name: "dashboard-icons by Homarr Labs", url: "https://github.com/homarr-labs/dashboard-icons", licence: "Apache License 2.0" },
+  "selfh.st/icons": { name: "selfh.st/icons", url: "https://selfh.st/icons", licence: "CC BY 4.0" },
+  casaos: { name: "CasaOS AppStore by IceWhale Technology", url: "https://github.com/IceWhaleTech/CasaOS-AppStore", licence: "Apache License 2.0" },
+  bigbear: { name: "Big Bear CasaOS, © 2023 Big Bear Enterprises, LLC", url: "https://github.com/bigbeartechworld/big-bear-casaos", licence: "MIT License" },
+};
+
+export interface Credit {
+  name: string;
+  url: string;
+  licence: string;
+  /** What of theirs the Catalog uses: "Icons of Immich, Jellyfin". */
+  what: string;
+}
+
+/** The Credits the Console shows: each project whose icons or app definitions the Catalog uses, and for which entries. */
+export function credits(index: CatalogIndex): Credit[] {
+  const used = new Map<string, { icons: string[]; apps: string[] }>();
+  const at = (k: string) => used.get(k) ?? (used.set(k, { icons: [], apps: [] }), used.get(k)!);
+  for (const e of index.entries) {
+    if (e.source?.icon) at(e.source.icon.pack).icons.push(e.name);
+    const store = Object.entries(PROJECTS).find(([, p]) => e.source?.url?.startsWith(p.url + "/"))?.[0];
+    if (store && (e.source?.from === "casaos" || e.source?.from === "compose")) at(store).apps.push(e.name);
+  }
+  return [...used].flatMap(([k, u]) => {
+    const p = PROJECTS[k];
+    if (!p) return [];
+    const what = [u.icons.length && `Icons of ${u.icons.join(", ")}`, u.apps.length && `App definitions of ${u.apps.join(", ")}, converted`].filter(Boolean).join(". ");
+    return [{ name: p.name, url: p.url, licence: p.licence, what }];
   });
 }

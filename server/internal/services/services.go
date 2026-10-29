@@ -602,11 +602,19 @@ func renderTemplate(name, quadletTmpl, image string, settings, volumes map[strin
 	if err != nil {
 		return "", fmt.Errorf("quadlet template: %w", err)
 	}
+	// Quadlet copies [Container] values into ExecStart as they are, where
+	// systemd would expand $VAR and %-specifiers in what the user typed; a
+	// setting's value reaches the container as typed only with $ and %
+	// doubled.
+	escaped := make(map[string]string, len(settings))
+	for k, v := range settings {
+		escaped[k] = settingEscape.Replace(v)
+	}
 	data := map[string]any{
 		"Image":    image,
 		"Name":     name,
 		"Volumes":  volumes,
-		"Settings": settings,
+		"Settings": escaped,
 		"Network":  Network,
 		"Env":      map[string]string{},
 	}
@@ -616,6 +624,8 @@ func renderTemplate(name, quadletTmpl, image string, settings, volumes map[strin
 	}
 	return body.String(), nil
 }
+
+var settingEscape = strings.NewReplacer("$", "$$", "%", "%%")
 
 // RenderWith is Render with picked and extra folders.
 func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Extra) ([]byte, error) {

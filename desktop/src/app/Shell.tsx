@@ -34,6 +34,8 @@ import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
 import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
+import { useCatalogs } from "@/fleet/catalogs";
+import { registerEntries } from "./status";
 import { FleetPage } from "./FleetPage";
 import { recordMetrics } from "@/fleet/history";
 import { pump } from "@/fleet/updateQueue";
@@ -183,6 +185,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     go({ name: "service", service: spec.name });
   }
 
+  // User Catalogs' entries (plan C9), so a Service installed from one shows
+  // its entry anywhere; the Catalog page shares the read.
+  const userCatalogs = useCatalogs(snap?.records, device.fingerprint);
+  useEffect(() => {
+    for (const l of userCatalogs.data ?? []) registerEntries(l.entries);
+  }, [userCatalogs.data]);
+
   const current = route.name === "service" ? services.find((s) => s.spec.name === route.service) : undefined;
   const addFound = route.name === "add-node" ? (found.find((f) => f.kind === "installer" && (f.id === route.installerId || f.addresses[0] === route.addr)) ?? { kind: "installer" as const, id: route.installerId, name: "", machine: "", fleet_id: "", version: "", addresses: [route.addr], key_pem: "", recovery: false }) : undefined;
 
@@ -228,7 +237,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
-              {route.name === "catalog" && <CatalogPage snap={snap} onInstall={install} />}
+              {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} />}
               {route.name === "add-node" && addFound && (
                 <div className="h-full overflow-y-auto">

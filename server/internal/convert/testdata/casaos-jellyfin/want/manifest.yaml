@@ -1,0 +1,53 @@
+id: jellyfin
+name: Jellyfin
+summary: The personal Media System
+description: |-
+  Jellyfin stands out among media server applications for its fully open-source, free, and privacy-focused design. Unlike Emby and Plex, Jellyfin delivers robust media management, real-time transcoding, and granular multi-user permissions without subscription costs, operating independently of cloud services to ensure full user control over data. Its community-driven development and efficient resource usage enable smooth performance on low-end devices, making it the go-to choice for privacy-conscious and budget-savvy users.
+
+  Picture your movies, TV shows, and music at your fingertips, accessible on any device. Jellyfin transforms your media collection into a personalized entertainment hub, surpassing traditional photo albums with a seamless browsing and playback experience.
+  Jellyfin offers high-quality streaming, automatic metadata fetching, and personalized recommendations, all at no cost. It supports multiple users, each with their own media library, catering to the diverse needs of families or teams.
+  Deploying Jellyfin on private cloud devices like Zima provides near-unlimited storage, smooth streaming, and secure multi-device access. For NAS enthusiasts or anyone looking to elevate their home media setup, Jellyfin is the perfect solution.
+icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Jellyfin/icon.svg
+category: media
+image: docker.io/linuxserver/jellyfin:12.2ubu2604-ls53@sha256:445d87d9c44260bdf97a7e97195655d54c7f77310a54b873c90acf68b20bbb6c
+version: 12.2.0
+exposure: private
+host_ports:
+  - 8921/tcp
+  - 7359/tcp
+  - 1901/tcp
+web:
+  port: 8096
+  path: /
+volumes:
+  - name: config
+    path: /config
+  - name: media
+    path: /Media
+    shared: true
+settings:
+  - key: PGID
+    label: Run Jellyfin as specified gid.
+    type: text
+    default: "1000"
+  - key: PUID
+    label: Run Jellyfin as specified uid.
+    type: text
+    default: "1000"
+  - key: TZ
+    label: Time zone
+    type: timezone
+    default: auto
+source:
+  from: casaos
+  url: https://example.invalid/casaos-jellyfin
+  licence: Apache-2.0
+  converted: "2026-10-29"
+unfinished:
+  - jellyfin mounts the Node's own folder /opt/vc/lib; point it at a Service volume, or keep it and allow it when installing
+  - jellyfin asks for AddDevice=/dev/dri:/dev/dri:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+  - jellyfin asks for AddDevice=/dev/vchiq:/dev/vchiq:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+  - jellyfin asks for AddDevice=/dev/vcsm:/dev/vcsm:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+  - jellyfin asks for AddDevice=/dev/video10:/dev/video10:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+  - jellyfin asks for AddDevice=/dev/video11:/dev/video11:rwm, which a Trusted Device must allow at install; keep it only if the app needs it
+  - jellyfin asks for AddDevice=/dev/video12:/dev/video12:rwm, which a Trusted Device must allow at install; keep it only if the app needs it

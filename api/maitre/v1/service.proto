@@ -43,6 +43,33 @@ service ServiceService {
   // pinned to its digest, the old one kept for Rollback, and the Service
   // restarted if it was running.
   rpc SetImage(SetImageRequest) returns (SetImageResponse) {}
+  // CheckService renders a spec exactly as InstallService would and runs
+  // this Node's Quadlet over the units, without installing or pulling
+  // anything (plan C10): the Console's check of a converted Compose file.
+  // Optional: older Nodes answer Unimplemented, and the Console then says
+  // only its local checks ran. A spec Quadlet or the Node refuses fails
+  // with InvalidArgument and the reason.
+  rpc CheckService(CheckServiceRequest) returns (CheckServiceResponse) {}
+}
+
+message CheckServiceRequest {
+  ServiceSpec spec = 1;
+}
+
+message CheckServiceResponse {
+  // The unit files the Node would write, by file name.
+  map<string, string> units = 1;
+  // The options a Trusted Device would be asked to allow at install.
+  repeated ProtectedOption protected = 2;
+}
+
+// ProtectedOption is one option of a container definition that needs a
+// grant (decision 189), with the component it is in ("" for a Service of
+// one container) and that component's image repository.
+message ProtectedOption {
+  string component = 1;
+  string image_repository = 2;
+  string option = 3;
 }
 
 message SetImageRequest {
@@ -283,6 +310,30 @@ message PublicSettings {
   // Optional email given to the certificate authority (Let's Encrypt) for
   // expiry and policy notices. Empty means none.
   string acme_email = 1;
+}
+
+// Plan C9: the Catalogs the Fleet's Consoles show beside the project's own.
+// Record kind "catalogs", id "fleet", signed by a Trusted Device; every
+// Console reads the entries itself (a folder through its own disk, a git
+// repository through its own clone) and a Node takes nothing from them but
+// what is installed, which it checks as always.
+message UserCatalogs {
+  repeated UserCatalog catalogs = 1;
+}
+
+message UserCatalog {
+  // Stable id, [a-z0-9-], unique among the Fleet's Catalogs.
+  string id = 1;
+  string name = 2;
+  // A folder on one computer: its path there, and that computer's Trusted
+  // Device id, since other Consoles cannot read it.
+  string folder = 3;
+  string folder_device = 4;
+  // A git repository the Consoles clone and follow (Q4): its URL and branch
+  // (empty: the repository's default branch).
+  string git_url = 5;
+  string git_branch = 6;
+  int64 added_unix_ms = 7;
 }
 
 message SetPortForwardingRequest {

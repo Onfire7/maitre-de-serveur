@@ -1,0 +1,18 @@
+# Written for Maître's tests: values that mean something to systemd, Go
+# templates and Quadlet's word splitting reach the container as Compose
+# gives them.
+name: escaping
+services:
+  app:
+    image: docker.io/library/nginx:1.29
+    command: ["sh", "-c", "date +%Y && echo $$HOME"]
+    environment:
+      GREETING: "hello world"
+      QUOTED: 'say "hi"'
+      TEMPLATE: "{{ not a template }}"
+      PRICE: "$$5 and 10%"
+      API_TOKEN: ${API_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost/"]
+    ports:
+      - "8080:80"

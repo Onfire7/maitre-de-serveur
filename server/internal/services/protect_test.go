@@ -178,6 +178,20 @@ func TestRenderKeepsSectionsApart(t *testing.T) {
 	}
 }
 
+// Quadlet copies values into ExecStart, where systemd expands $ and %; a
+// setting reaches the container as typed only with them doubled.
+func TestRenderEscapesSettingsForSystemd(t *testing.T) {
+	spec := &maitrev1.ServiceSpec{Name: "x", Image: "img", Settings: map[string]string{"PW": "a$b${c}%n"},
+		Quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=PW={{ .Settings.PW }}\n"}
+	unit, err := services.Render(spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(unit), "Environment=PW=a$$b$${c}%%n\n") {
+		t.Fatalf("unit:\n%s", unit)
+	}
+}
+
 func TestRenderNamesTheHost(t *testing.T) {
 	spec := &maitrev1.ServiceSpec{Name: "jellyfin", Image: "img", Quadlet: "[Container]\nImage={{ .Image }}\n"}
 	unit, _ := services.Render(spec, nil)

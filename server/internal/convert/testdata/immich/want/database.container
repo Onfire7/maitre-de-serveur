@@ -1,0 +1,8 @@
+[Container]
+Image={{ .Image }}
+ShmSize=134217728
+Environment="POSTGRES_DB={{ .Settings.DB_DATABASE_NAME }}"
+Environment=POSTGRES_INITDB_ARGS=--data-checksums
+Environment="POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}"
+Environment="POSTGRES_USER={{ .Settings.DB_USERNAME }}"
+Volume={{ .Volumes.postgres }}:/var/lib/postgresql/data:Z

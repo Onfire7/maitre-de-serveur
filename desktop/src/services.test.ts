@@ -2,7 +2,7 @@
 // runs as such (plan C8), with its password made up at install (C7).
 import { describe, expect, it } from "vitest";
 import bundled from "@/catalog/index.json";
-import { generatePassword, generatedSettings, specFor, type CatalogIndex } from "./services";
+import { credits, generatePassword, generatedSettings, specFor, type CatalogIndex } from "./services";
 
 const entry = (id: string) => (bundled as CatalogIndex).entries.find((e) => e.id === id)!;
 
@@ -34,5 +34,20 @@ describe("specFor", () => {
     expect(Object.keys(shown)).toEqual(["DB_PASSWORD"]);
     expect(specFor(entry("immich"), "", shown).settings.DB_PASSWORD).toBe(shown.DB_PASSWORD);
     expect(new Set(Array.from({ length: 50 }, generatePassword)).size).toBe(50);
+  });
+});
+
+describe("credits", () => {
+  it("names each project whose icons or app definitions the Catalog uses", () => {
+    const c = credits(bundled as CatalogIndex);
+    const icons = c.find((x) => x.name.startsWith("dashboard-icons"))!;
+    expect(icons.licence).toBe("Apache License 2.0");
+    expect(icons.what).toContain("Immich");
+    expect(c.find((x) => x.name.startsWith("CasaOS"))?.what).toMatch(/App definitions of .*Vaultwarden/);
+    expect(c.find((x) => x.name.startsWith("Big Bear"))?.what).toContain("Paperless-ngx");
+  });
+
+  it("bundles every icon, so the Console reaches no other server for them", () => {
+    for (const e of (bundled as CatalogIndex).entries) expect(e.icon).toMatch(/^data:image\/(svg\+xml|png);base64,/);
   });
 });

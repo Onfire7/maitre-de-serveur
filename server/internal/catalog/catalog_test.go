@@ -15,7 +15,7 @@ func TestRepoCatalogLoadsAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(idx.Entries) != 5 {
+	if len(idx.Entries) != 12 {
 		t.Fatalf("got %d entries", len(idx.Entries))
 	}
 	raw, _ := json.Marshal(idx)
@@ -148,4 +148,24 @@ func repeat(s string, n int) string {
 		out += s
 	}
 	return out
+}
+
+// A user's Catalog shows the entries that load and says why the others
+// do not.
+func TestLoadDirLenient(t *testing.T) {
+	dir := t.TempDir()
+	pin := "@sha256:" + repeat("a", 64)
+	os.MkdirAll(filepath.Join(dir, "good"), 0o755)
+	os.WriteFile(filepath.Join(dir, "good", "manifest.yaml"), []byte("id: good\nname: G\nsummary: s\nexposure: private\nimage: docker.io/x/x:1"+pin+"\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "good", "good.container"), []byte("[Container]\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "bad"), 0o755)
+	os.WriteFile(filepath.Join(dir, "bad", "manifest.yaml"), []byte("id: bad\nname: B\nsummary: s\nexposure: private\nimage: docker.io/x/x:latest\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "bad", "bad.container"), []byte("[Container]\n"), 0o644)
+	idx, problems, err := catalog.LoadDirLenient(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(idx.Entries) != 1 || idx.Entries[0].ID != "good" || len(problems) != 1 || problems[0].Entry != "bad" || !strings.Contains(problems[0].Error, "digest") {
+		t.Fatalf("entries %v problems %v", idx.Entries, problems)
+	}
 }

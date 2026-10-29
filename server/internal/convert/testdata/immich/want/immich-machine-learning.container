@@ -1,0 +1,9 @@
+[Container]
+Image={{ .Image }}
+Environment="DB_DATABASE_NAME={{ .Settings.DB_DATABASE_NAME }}"
+Environment=DB_DATA_LOCATION=./postgres
+Environment="DB_PASSWORD={{ .Settings.DB_PASSWORD }}"
+Environment="DB_USERNAME={{ .Settings.DB_USERNAME }}"
+Environment=IMMICH_VERSION=v3
+Environment=UPLOAD_LOCATION=./library
+Volume={{ .Volumes.model_cache }}:/cache:Z

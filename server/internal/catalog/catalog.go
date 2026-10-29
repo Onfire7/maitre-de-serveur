@@ -6,6 +6,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,50 +23,54 @@ type Manifest struct {
 	ID             string   `yaml:"id" json:"id"`
 	Name           string   `yaml:"name" json:"name"`
 	Summary        string   `yaml:"summary" json:"summary"`
-	Description    string   `yaml:"description" json:"description"`
-	Icon           string   `yaml:"icon" json:"icon"`
-	Category       string   `yaml:"category" json:"category"`
-	Image          string   `yaml:"image" json:"image"`
-	Version        string   `yaml:"version" json:"version"`
+	Description    string   `yaml:"description,omitempty" json:"description"`
+	Icon           string   `yaml:"icon,omitempty" json:"icon"`
+	Category       string   `yaml:"category,omitempty" json:"category"`
+	Image          string   `yaml:"image,omitempty" json:"image"`
+	Version        string   `yaml:"version,omitempty" json:"version"`
 	Exposure       string   `yaml:"exposure" json:"exposure"`
-	OwnLogin       bool     `yaml:"own_login" json:"own_login"`
-	Infrastructure bool     `yaml:"infrastructure" json:"infrastructure"`
-	HostPorts      []string `yaml:"host_ports" json:"host_ports,omitempty"`
+	OwnLogin       bool     `yaml:"own_login,omitempty" json:"own_login"`
+	Infrastructure bool     `yaml:"infrastructure,omitempty" json:"infrastructure"`
+	HostPorts      []string `yaml:"host_ports,omitempty" json:"host_ports,omitempty"`
 	// PortForward (decision 115): the app is meant to be reached from the
 	// internet at its host_ports (a game server), so the Console offers to
 	// have the router forward them. Still off until the user turns it on.
-	PortForward bool      `yaml:"port_forward" json:"port_forward,omitempty"`
-	Web         *Web      `yaml:"web" json:"web,omitempty"`
-	Volumes     []Volume  `yaml:"volumes" json:"volumes"`
-	Settings    []Setting `yaml:"settings" json:"settings,omitempty"`
-	Health      *Health   `yaml:"health" json:"health,omitempty"`
+	PortForward bool      `yaml:"port_forward,omitempty" json:"port_forward,omitempty"`
+	Web         *Web      `yaml:"web,omitempty" json:"web,omitempty"`
+	Volumes     []Volume  `yaml:"volumes,omitempty" json:"volumes"`
+	Settings    []Setting `yaml:"settings,omitempty" json:"settings,omitempty"`
+	Health      *Health   `yaml:"health,omitempty" json:"health,omitempty"`
 	// Quadlet is the [Container] template, filled from <id>.container. Empty
 	// in an entry of several components, whose templates are theirs.
 	Quadlet string `yaml:"-" json:"quadlet"`
 	// Components, when given, make the entry a Service of several containers
 	// (plan C8): one <name>.container template each, and no image or
 	// <id>.container of the entry's own.
-	Components []Component `yaml:"components" json:"components,omitempty"`
+	Components []Component `yaml:"components,omitempty" json:"components,omitempty"`
 	// Network "internal" gives the Service's own network no route out; its
 	// components marked egress still have one (plan C2).
-	Network string `yaml:"network" json:"network,omitempty"`
+	Network string `yaml:"network,omitempty" json:"network,omitempty"`
 	// Units are the bundle's own .volume and .network files, by file name.
 	Units []Unit `yaml:"-" json:"units,omitempty"`
 	// Source says where an entry converted or imported from elsewhere came
 	// from; omitted for one written here by hand.
-	Source *Source `yaml:"source" json:"source,omitempty"`
+	Source *Source `yaml:"source,omitempty" json:"source,omitempty"`
+	// Unfinished lists what a person must still decide in a converted
+	// entry (plan C10). The Console does not install it, and catalog-check
+	// fails it, until the list is empty and removed.
+	Unfinished []string `yaml:"unfinished,omitempty" json:"unfinished,omitempty"`
 }
 
 // Component is one container of an entry of several.
 type Component struct {
 	Name  string `yaml:"name" json:"name"`
-	Image string `yaml:"image" json:"image"`
+	Image string `yaml:"image,omitempty" json:"image"`
 	// After are components to start first; WaitHealthy makes those that
 	// wait for this one wait for its health check too.
-	After       []string `yaml:"after" json:"after,omitempty"`
-	WaitHealthy bool     `yaml:"wait_healthy" json:"wait_healthy,omitempty"`
+	After       []string `yaml:"after,omitempty" json:"after,omitempty"`
+	WaitHealthy bool     `yaml:"wait_healthy,omitempty" json:"wait_healthy,omitempty"`
 	// Egress keeps a route out when the entry's network is internal.
-	Egress bool `yaml:"egress" json:"egress,omitempty"`
+	Egress bool `yaml:"egress,omitempty" json:"egress,omitempty"`
 	// Quadlet is the [Container] template, filled from <name>.container.
 	Quadlet string `yaml:"-" json:"quadlet"`
 }
@@ -76,44 +81,52 @@ type Unit struct {
 	Body string `json:"body"`
 }
 
-// Source is where an entry came from (plan C8, C11).
+// Source is where an entry came from (plan C8, C11), and its icon (C12).
 type Source struct {
-	From      string `yaml:"from" json:"from"`
-	URL       string `yaml:"url" json:"url,omitempty"`
-	Licence   string `yaml:"licence" json:"licence,omitempty"`
-	Converted string `yaml:"converted" json:"converted,omitempty"`
+	From      string      `yaml:"from,omitempty" json:"from"`
+	URL       string      `yaml:"url,omitempty" json:"url,omitempty"`
+	Licence   string      `yaml:"licence,omitempty" json:"licence,omitempty"`
+	Converted string      `yaml:"converted,omitempty" json:"converted,omitempty"`
+	Icon      *IconCredit `yaml:"icon,omitempty" json:"icon,omitempty"`
+}
+
+// IconCredit is the pack an entry's icon file was copied from.
+type IconCredit struct {
+	Pack    string `yaml:"pack" json:"pack"`
+	Licence string `yaml:"licence" json:"licence"`
+	URL     string `yaml:"url" json:"url"`
 }
 
 // Web is the page the Console opens.
 type Web struct {
-	Port int    `yaml:"port" json:"port"`
-	Path string `yaml:"path" json:"path"`
+	Port int    `yaml:"port,omitempty" json:"port"`
+	Path string `yaml:"path,omitempty" json:"path"`
 	// Component serves the page, in an entry of several components.
-	Component string `yaml:"component" json:"component,omitempty"`
+	Component string `yaml:"component,omitempty" json:"component,omitempty"`
 }
 
 // Volume is a named data directory.
 type Volume struct {
 	Name string `yaml:"name" json:"name"`
-	Path string `yaml:"path" json:"path"`
-	Size string `yaml:"size" json:"size,omitempty"`
+	Path string `yaml:"path,omitempty" json:"path"`
+	Size string `yaml:"size,omitempty" json:"size,omitempty"`
 	// Shared suggests a folder the user picks, used by other Services too
 	// (decision 175).
-	Shared bool `yaml:"shared" json:"shared,omitempty"`
+	Shared bool `yaml:"shared,omitempty" json:"shared,omitempty"`
 }
 
 // Setting is asked at install time.
 type Setting struct {
-	Key     string `yaml:"key" json:"key"`
-	Label   string `yaml:"label" json:"label"`
-	Type    string `yaml:"type" json:"type"`
-	Default string `yaml:"default" json:"default,omitempty"`
+	Key     string `yaml:"key,omitempty" json:"key"`
+	Label   string `yaml:"label,omitempty" json:"label"`
+	Type    string `yaml:"type,omitempty" json:"type"`
+	Default string `yaml:"default,omitempty" json:"default,omitempty"`
 }
 
 // Health is how the agent decides a Service is up.
 type Health struct {
-	HTTP string `yaml:"http" json:"http,omitempty"`
-	Cmd  string `yaml:"cmd" json:"cmd,omitempty"`
+	HTTP string `yaml:"http,omitempty" json:"http,omitempty"`
+	Cmd  string `yaml:"cmd,omitempty" json:"cmd,omitempty"`
 }
 
 // Index is the generated index.json.
@@ -144,6 +157,9 @@ func LoadEntry(dir string) (*Manifest, error) {
 		return nil, fmt.Errorf("%s: %w", dir, err)
 	}
 	if err := m.readUnits(dir); err != nil {
+		return nil, fmt.Errorf("%s: %w", dir, err)
+	}
+	if err := m.readIcon(dir); err != nil {
 		return nil, fmt.Errorf("%s: %w", dir, err)
 	}
 	if err := m.Validate(); err != nil {
@@ -199,6 +215,34 @@ func (m *Manifest) readUnits(dir string) error {
 			return fmt.Errorf("%s: a bundle holds .container, .volume and .network units only", f.Name())
 		}
 	}
+	return nil
+}
+
+// iconTypes are the icon files an entry may hold, by extension.
+var iconTypes = map[string]string{".svg": "image/svg+xml", ".png": "image/png"}
+
+// readIcon inlines an icon copied into the entry (icon: icon.svg) as a data
+// URI, so the index carries it and the Console needs no other server
+// (plan C12). A copied icon must say where it came from.
+func (m *Manifest) readIcon(dir string) error {
+	if m.Icon == "" || strings.Contains(m.Icon, "://") || strings.HasPrefix(m.Icon, "data:") {
+		return nil
+	}
+	if strings.ContainsAny(m.Icon, "/\\") {
+		return fmt.Errorf("icon %q: name a file beside the manifest", m.Icon)
+	}
+	typ, ok := iconTypes[filepath.Ext(m.Icon)]
+	if !ok {
+		return fmt.Errorf("icon %q: an .svg or .png", m.Icon)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, m.Icon))
+	if err != nil {
+		return err
+	}
+	if m.Source == nil || m.Source.Icon == nil || m.Source.Icon.Pack == "" || m.Source.Icon.Licence == "" {
+		return fmt.Errorf("icon %s: say in source.icon which pack it was copied from, and its licence", m.Icon)
+	}
+	m.Icon = "data:" + typ + ";base64," + base64.StdEncoding.EncodeToString(b)
 	return nil
 }
 
@@ -393,6 +437,40 @@ func LoadDir(entriesDir string) (*Index, error) {
 	}
 	sort.Slice(idx.Entries, func(i, j int) bool { return idx.Entries[i].ID < idx.Entries[j].ID })
 	return idx, nil
+}
+
+// Problem is an entry of a user's Catalog that could not be read.
+type Problem struct {
+	Entry string `json:"entry"`
+	Error string `json:"error"`
+}
+
+// LoadDirLenient reads a user's Catalog (plan C9): the entries that load,
+// and the ones that do not with why, so one broken entry does not hide the
+// rest. The project's own Catalog uses LoadDir, which refuses them all.
+func LoadDirLenient(entriesDir string) (*Index, []Problem, error) {
+	dirs, err := os.ReadDir(entriesDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	idx := &Index{Format: 1}
+	var problems []Problem
+	for _, d := range dirs {
+		if !d.IsDir() || strings.HasPrefix(d.Name(), ".") {
+			continue
+		}
+		m, err := LoadEntry(filepath.Join(entriesDir, d.Name()))
+		if err == nil && m.ID != d.Name() {
+			err = fmt.Errorf("id %q does not match its folder", m.ID)
+		}
+		if err != nil {
+			problems = append(problems, Problem{Entry: d.Name(), Error: strings.TrimPrefix(err.Error(), filepath.Join(entriesDir, d.Name())+": ")})
+			continue
+		}
+		idx.Entries = append(idx.Entries, *m)
+	}
+	sort.Slice(idx.Entries, func(i, j int) bool { return idx.Entries[i].ID < idx.Entries[j].ID })
+	return idx, problems, nil
 }
 
 // ParseIndex decodes index.json.

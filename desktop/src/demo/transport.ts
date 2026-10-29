@@ -11,7 +11,7 @@ import { GrantsNeededSchema } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
-import { type DemoFleet, type DemoNode, demoFleet } from "./fleet";
+import { type DemoFleet, type DemoNode, demoFleet, protectedOptions } from "./fleet";
 import { demoHistory } from "./metrics";
 
 type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
@@ -236,6 +236,17 @@ const handlers: Record<string, Handler> = {
     const running = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
     f.rebuildRecords();
     return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
+  },
+  // Plan C10: the Node's check of a spec, without installing it.
+  "ServiceService/CheckService": (_f, n, i, addr) => {
+    needNode(n, addr);
+    const spec = i.spec as ServiceSpec;
+    const parts = spec.components?.length ? spec.components.map((c) => ({ name: c.name, image: c.image, quadlet: c.quadlet })) : [{ name: "", image: spec.image, quadlet: spec.quadlet }];
+    if (parts.some((p) => !p.quadlet.includes("[Container]"))) throw fail(Code.InvalidArgument, `${spec.name}: Quadlet rejected the unit: no [Container] group`);
+    return {
+      units: Object.fromEntries(parts.map((p) => [`${p.name ? `${spec.name}-${p.name}` : spec.name}.container`, p.quadlet])),
+      protected: parts.flatMap((p) => protectedOptions(p.quadlet).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
+    };
   },
   "ServiceService/SetImage": (f, n, i, addr) => {
     needNode(n, addr);

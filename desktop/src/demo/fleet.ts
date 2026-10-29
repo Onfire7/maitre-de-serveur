@@ -17,7 +17,8 @@ import {
   RecordSchema,
   UpdateRunSchema,
 } from "@/gen/maitre/v1/fleet_pb";
-import { ServiceSpecSchema, ServiceStatus_State, type ServiceSpec, type ServiceStatus, PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
+import { ServiceSpecSchema, ServiceStatus_State, type ServiceSpec, type ServiceStatus, PublicSettingsSchema, UserCatalogsSchema } from "@/gen/maitre/v1/service_pb";
+import { MY_FOLDER } from "./catalogs";
 import { DriveRecordSchema, SpaceSchema, type Drive, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import { UpdateStatus_State, type UpdateStatus } from "@/gen/maitre/v1/node_pb";
@@ -204,6 +205,7 @@ function immich(nodeId: string, webHostPort: number, t: number): ServiceSpec {
   const pin = (image: string, d: string) => `${image}@sha256:${d.repeat(32)}`;
   return create(ServiceSpecSchema, {
     name: "immich",
+    catalogId: "immich",
     nodeId,
     exposure: "remote",
     createdUnixMs: BigInt(t - 21 * 86400_000),
@@ -339,6 +341,12 @@ export class DemoFleet {
     this.seedFiles();
     // Jellyfin transcodes on the GPU, granted when it was installed.
     const dri = "AddDevice=/dev/dri";
+    // Plan C9: a community Catalog the Fleet follows, and a folder of the
+    // user's own on this computer.
+    this.records.push(this.rec("catalogs", "fleet", NODE_A, toBinary(UserCatalogsSchema, create(UserCatalogsSchema, { catalogs: [
+      { id: "community-extras", name: "Community extras", gitUrl: "https://codeberg.org/homelab/maitre-extras.git", addedUnixMs: BigInt(t - 9 * 86400_000) },
+      { id: "my-apps", name: "My apps", folder: MY_FOLDER, folderDevice: DEVICE_ID, addedUnixMs: BigInt(t - 2 * 86400_000) },
+    ] })), false, BigInt(t - 2 * 86400_000)));
     this.records.push(this.rec("grant", grantId(NODE_A, "jellyfin", dri), NODE_A, toBinary(GrantSchema, create(GrantSchema, { nodeId: NODE_A, service: "jellyfin", option: dri, imageRepository: "docker.io/jellyfin/jellyfin", grantedUnixMs: BigInt(t - 14 * 86400_000), deviceName: "Sean's laptop" })), false, BigInt(t - 14 * 86400_000)));
     this.rebuildRecords();
   }
@@ -385,7 +393,7 @@ export class DemoFleet {
     out.push(this.rec("tailscale", "fleet", NODE_A, toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: "k7Hs2demoClientId", oauthClientSecret: "tskey-client-demo", tag: "tag:maitre", addedUnixMs: BigInt(this.now - 12 * 86400_000) }))));
     out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
     // Keep tombstones, and grants, which the model does not hold.
-    for (const r of this.records) if ((r.deleted || r.kind === "grant") && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
+    for (const r of this.records) if ((r.deleted || r.kind === "grant" || r.kind === "catalogs") && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
     this.records = out;
     this.changed();
   }

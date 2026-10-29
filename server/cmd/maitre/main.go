@@ -68,6 +68,10 @@ func main() {
 		err = runInstaller(os.Args[2:])
 	case "provision":
 		err = runProvision(os.Args[2:])
+	case "catalog":
+		err = runCatalog(os.Args[2:])
+	case "catalog-notice":
+		err = runCatalogNotice(os.Args[2:])
 	case "catalog-check":
 		err = runCatalogCheck(os.Args[2:])
 	case "catalog-index":
@@ -111,7 +115,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|catalog-check|depot|update|netboot|tui|record|recover|authorize|media> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|catalog-check|catalog-notice|catalog|depot|update|netboot|tui|record|recover|authorize|media> [flags]")
 }
 
 func runDev(args []string) error {

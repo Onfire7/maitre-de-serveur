@@ -1,0 +1,11 @@
+[Container]
+Image={{ .Image }}
+ContainerName={{ .Name }}
+Network={{ .Network }}
+Exec='sh' '-c' 'date +%%Y && echo $$HOME'
+Environment="API_TOKEN={{ .Settings.API_TOKEN }}"
+Environment="GREETING=hello world"
+Environment="PRICE=$$5 and 10%%"
+Environment="QUOTED=say \"hi\""
+Environment="TEMPLATE={{ "{{" }} not a template }}"
+HealthCmd=["wget","-q","-O-","http://localhost/"]

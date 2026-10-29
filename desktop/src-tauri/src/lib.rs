@@ -1,3 +1,4 @@
+mod catalogs;
 mod discovery;
 pub mod identity;
 mod media;
@@ -378,6 +379,19 @@ fn media_status(state: State<'_, AppState>) -> media::WriteStatus {
     state.media.status()
 }
 
+#[tauri::command]
+async fn catalog_load(state: State<'_, AppState>, source: catalogs::Source) -> Result<catalogs::Loaded, String> {
+    let helper = netboot::Netboot::helper_path()?;
+    let data_dir = state.data_dir.clone();
+    tauri::async_runtime::spawn_blocking(move || catalogs::load(&helper, &data_dir, &source)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn catalog_add(folder: String, compose: String) -> Result<serde_json::Value, String> {
+    let helper = netboot::Netboot::helper_path()?;
+    tauri::async_runtime::spawn_blocking(move || catalogs::add(&helper, &folder, &compose)).await.map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -405,6 +419,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            catalog_load,
+            catalog_add,
             device_info,
             get_state,
             set_state,
