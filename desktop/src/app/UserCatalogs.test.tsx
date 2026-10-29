@@ -34,8 +34,9 @@ describe("user Catalogs", () => {
     const main = await screen.findByRole("main", {}, { timeout: 5000 });
 
     // Entries of both user Catalogs, labelled by Catalog; one can be shown alone.
-    expect(await within(main).findByText("IT Tools", {}, { timeout: 5000 })).toBeTruthy();
-    expect(within(main).getByText("whoami")).toBeTruthy();
+    // (Waiting on whoami, which only a user Catalog has: the project's has an IT Tools too.)
+    expect(await within(main).findByText("whoami", {}, { timeout: 5000 })).toBeTruthy();
+    expect(within(main).getAllByText("IT Tools").length).toBe(2);
     expect(within(main).getAllByText("Community extras").length).toBeGreaterThan(0);
     fireEvent.click(within(within(main).getByRole("group", { name: "Catalog" })).getByRole("button", { name: "My apps" }));
     expect(within(main).queryByText("IT Tools")).toBeNull();

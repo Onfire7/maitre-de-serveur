@@ -467,6 +467,10 @@ func mapValue(n *yaml.Node, key string) *yaml.Node {
 // placeholder is a value the file expects the user to replace by hand.
 var placeholder = regexp.MustCompile(`(?i)\[your[_ -]?[a-z_ -]*\]|<your[_ -]?[a-z_ -]*>|change[-_ ]?me`)
 
+// switchValue is a yes or no, such as MARIADB_RANDOM_ROOT_PASSWORD=true:
+// a switch with a password-like name, not a password.
+var switchValue = regexp.MustCompile(`(?i)^(true|false|yes|no|on|off|0|1)$`)
+
 // literalSecrets turns passwords written into the file into settings made
 // up at install, when the file itself shows every place that uses one: the
 // same value under password-like keys in two or more places (a database and
@@ -484,7 +488,7 @@ func (c *conv) literalSecrets() {
 		env := c.project.Services[name].Environment
 		for _, k := range sortedKeys(env) {
 			v := env[k]
-			if v == nil || *v == "" || tokenRe.MatchString(*v) || !secretName.MatchString(k) || c.settings[k] {
+			if v == nil || *v == "" || tokenRe.MatchString(*v) || switchValue.MatchString(*v) || !secretName.MatchString(k) || c.settings[k] {
 				continue
 			}
 			if uses[*v] == nil {
@@ -671,6 +675,11 @@ func (c *conv) template(name string, svc types.ServiceConfig, web bool, webPort 
 			continue
 		}
 		val := *v
+		if k == "TZ" && !tokenRe.MatchString(val) {
+			// The time zone of whoever wrote the file; the Node's own instead.
+			r.changed("%s: TZ=%s is replaced by the TZ setting, the Node's time zone unless changed", name, val)
+			c.tz, val = true, token("TZ")
+		}
 		if s, ok := c.secrets[val]; ok && secretName.MatchString(k) && (!c.settings[k] || s == k) {
 			val = token(s)
 		} else if placeholder.MatchString(val) {
@@ -764,7 +773,7 @@ func (c *conv) volumeLine(svcName string, v types.ServiceVolumeConfig) string {
 		switch {
 		case v.Source == "/etc/localtime" || v.Source == "/etc/timezone":
 			c.tz = true
-			if !c.settings["TZ"] {
+			if _, said := c.project.Services[svcName].Environment["TZ"]; !c.settings["TZ"] && !said {
 				r.changed("%s: the host's %s is replaced by the TZ setting, the Node's time zone unless changed", svcName, v.Source)
 			}
 			return ""

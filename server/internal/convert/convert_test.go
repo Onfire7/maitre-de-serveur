@@ -189,6 +189,44 @@ func TestDecisions(t *testing.T) {
 	}
 }
 
+// A time zone written into the file becomes the TZ setting, and a switch
+// with a password-like name is not a password.
+func TestTimeZoneAndSwitches(t *testing.T) {
+	dir := t.TempDir()
+	compose := `name: tz
+services:
+  app:
+    image: docker.io/x/app:1
+    environment:
+      TZ: America/Chicago
+  db:
+    image: docker.io/library/mariadb:10
+    environment:
+      TZ: ""
+      MARIADB_RANDOM_ROOT_PASSWORD: "true"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+`
+	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(compose), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := run(t, "tz", convert.Options{Compose: filepath.Join(dir, "compose.yaml"), Licence: "MIT"})
+	e := res.Entry
+	for _, u := range e.Unfinished {
+		if strings.Contains(u, "PASSWORD") {
+			t.Errorf("a switch is taken for a password: %s", u)
+		}
+	}
+	for _, c := range e.Components {
+		if !strings.Contains(c.Quadlet, `Environment="TZ={{ .Settings.TZ }}"`) || strings.Count(c.Quadlet, "TZ=") != 1 {
+			t.Errorf("%s:\n%s", c.Name, c.Quadlet)
+		}
+	}
+	if len(e.Settings) != 1 || e.Settings[0].Key != "TZ" || e.Settings[0].Default != "auto" {
+		t.Errorf("settings %+v", e.Settings)
+	}
+}
+
 // Nothing is written when the file cannot be an entry.
 func TestMustFix(t *testing.T) {
 	res := run(t, "build", convert.Options{Compose: "testdata/build/input/compose.yaml"})
