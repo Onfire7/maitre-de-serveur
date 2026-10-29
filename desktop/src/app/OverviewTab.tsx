@@ -52,7 +52,7 @@ export function OverviewTab({ snap, device, notices, state, services, now, onPro
           <div className="text-lg font-semibold">{attention > 0 ? `${attention} ${attention === 1 ? "thing needs" : "things need"} your attention` : troubled > 0 ? "Running, with Services to look at" : "Everything is running"}</div>
           <div className="text-sm text-muted-foreground">
             {nodes.length} {nodes.length === 1 ? "Node" : "Nodes"}, {services.length} {services.length === 1 ? "Service" : "Services"}, {snap.spaces.length} {snap.spaces.length === 1 ? "Storage Space" : "Storage Spaces"}
-            {anchor ? `, reached through ${anchor}` : ""}. This device is <span className="text-foreground">{device.name}</span>.
+            {anchor ? `, reached through ${anchor}` : ""}. This Console runs on the computer named <span className="text-foreground">{snap.devices.find((d) => d.deviceId === device.fingerprint)?.name || device.name}</span>.
           </div>
         </div>
       </div>
