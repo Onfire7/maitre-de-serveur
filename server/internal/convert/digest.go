@@ -55,3 +55,12 @@ func pin(ctx context.Context, r Resolver, image string) (string, error) {
 	}
 	return full + "@" + digest, nil
 }
+
+// Tags lists the tags of image's repository.
+func (Registry) Tags(ctx context.Context, image string) ([]string, error) {
+	ref, err := name.ParseReference(image)
+	if err != nil {
+		return nil, err
+	}
+	return remote.List(ref.Context(), remote.WithContext(ctx), remote.WithAuthFromKeychain(authn.DefaultKeychain))
+}

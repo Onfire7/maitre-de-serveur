@@ -14,6 +14,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogsync"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/convert"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/icons"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/outdated"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
@@ -139,8 +140,11 @@ func runCatalog(args []string) error {
 	if len(args) > 0 && args[0] == "sync" {
 		return runCatalogSync(args[1:])
 	}
+	if len(args) > 0 && args[0] == "outdated" {
+		return runCatalogOutdated(args[1:])
+	}
 	if len(args) == 0 || args[0] != "add" {
-		return fmt.Errorf("usage: maitre catalog add [--id id] [--url url] [--licence spdx] [--icon name] [--replace] [--json] <catalog folder> <compose file or folder>\n       maitre catalog icon <entry dir> [name in the icon packs]")
+		return fmt.Errorf("usage: maitre catalog add [--id id] [--url url] [--licence spdx] [--icon name] [--replace] [--json] <catalog folder> <compose file or folder>\n       maitre catalog icon <entry dir> [name in the icon packs]\n       maitre catalog outdated [--write] [--json] <entries dir>\n       maitre catalog sync [--branch b] <git url> <dir>")
 	}
 	fs := flag.NewFlagSet("catalog add", flag.ExitOnError)
 	id := fs.String("id", "", "the entry's id (default: the Compose project's name)")
@@ -275,6 +279,52 @@ func runCatalogSync(args []string) error {
 		return err
 	}
 	fmt.Println(commit)
+	return nil
+}
+
+// runCatalogOutdated is `maitre catalog outdated [--write] <entries dir>`:
+// which pinned images have a newer tag in their series, or were rebuilt
+// under the same tag (plan C13). --write repins the manifests. Fails when
+// an image could not be looked up, after reporting the rest.
+func runCatalogOutdated(args []string) error {
+	fs := flag.NewFlagSet("catalog outdated", flag.ExitOnError)
+	write := fs.Bool("write", false, "repin the entries' manifests")
+	asJSON := fs.Bool("json", false, "print the lookups as JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: maitre catalog outdated [--write] [--json] <entries dir>")
+	}
+	entries, err := outdated.Check(context.Background(), convert.Registry{}, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	failed := 0
+	for _, e := range entries {
+		if e.Error != "" {
+			failed++
+		}
+		for _, im := range e.Images {
+			if im.Error != "" {
+				failed++
+			}
+		}
+		if *write && e.Changed() {
+			if err := outdated.Write(filepath.Join(fs.Arg(0), e.ID), e); err != nil {
+				return err
+			}
+		}
+	}
+	if *asJSON {
+		out, _ := json.MarshalIndent(entries, "", "  ")
+		fmt.Println(string(out))
+	} else {
+		fmt.Print(outdated.Markdown(entries))
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d not looked up", failed)
+	}
 	return nil
 }
 
