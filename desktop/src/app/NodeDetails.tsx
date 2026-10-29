@@ -2,12 +2,12 @@
 // is, what it runs, its Maître Server image with update, roll back and the
 // wait while it restarts, and its usage over time (210). Every call here
 // goes straight to the Node (160).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { Copy, ScrollText, ArrowUpCircle, Undo2, Globe, Router, Network, RotateCw } from "lucide-react";
+import { Copy, ScrollText, ArrowUpCircle, Undo2, Globe, Router, Network, RotateCw, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,13 +23,12 @@ import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { useFleetServices } from "@/fleet/useFleet";
+import { busy, describe, enqueue, onQueue, queued, remove, type Job, type Maintenance } from "@/fleet/updateQueue";
 import type { Found } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
-
-export type Maintenance = { kind: "update"; target: string; reboot: boolean } | { kind: "rollback"; reboot: boolean } | { kind: "reboot" };
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
@@ -140,16 +139,24 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
   );
 }
 
+/** The Console's update queue (decision 215), re-read whenever it changes. */
+export function useUpdateQueue() {
+  return useSyncExternalStore(onQueue, queued);
+}
+
 /**
  * A Node's Maître Server image: what it runs, has staged and can go back
  * to, with Logs, Update and Roll back, and the wait while it restarts. On
  * the Node's card and, for every Node, on the Updates tab (decision 197).
+ * Update, Roll back and Restart now join the Console's queue (215).
  */
 export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "Maître Server" }: { node: Node; target: Target | undefined; snap: FleetSnapshot; askUpdate?: boolean; onAsked?: () => void; title?: React.ReactNode }) {
   const showLogs = useNodeLogs();
   const qc = useQueryClient();
   const client = useMemo(() => (target ? createClient(NodeService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
-  const [maint, setMaint] = useState<Maintenance | null>(null);
+  const queue = useUpdateQueue();
+  const job = queue.find((j) => j.nodeId === node.nodeId);
+  const maint = job && job.phase !== "waiting" ? job : null;
   const info = useQuery({ queryKey: ["node-info", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 5000, retry: false, queryFn: async () => (await client!.getNodeInfo({})).node });
   const upd = useQuery({ queryKey: ["update-status", node.nodeId, target?.addr], enabled: !!client && !maint, refetchInterval: 3000, retry: false, queryFn: async () => (await client!.getUpdateStatus({})).status });
   const i = info.data;
@@ -164,29 +171,26 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
     onAsked?.();
   }, [askUpdate, !!st]);
 
-  async function run(fn: () => Promise<unknown>, m: Maintenance) {
-    try {
-      await fn();
-      setMaint(m);
-    } catch (e) {
-      toast.error(String((e as Error).message ?? e));
-    }
+  // Fresh numbers once this Node's job is over.
+  const jobId = job?.id;
+  const hadJob = useRef(jobId);
+  useEffect(() => {
+    const had = hadJob.current;
+    hadJob.current = jobId;
+    if (had === undefined || jobId !== undefined) return;
+    qc.invalidateQueries({ queryKey: ["node-info", node.nodeId] });
+    qc.invalidateQueries({ queryKey: ["update-status", node.nodeId] });
+    qc.invalidateQueries({ queryKey: ["fleet"] });
+  }, [jobId]);
+
+  function run(fn: () => Promise<unknown>, m: Maintenance) {
+    if (!client) return;
+    const wait = busy(snap);
+    enqueue(node.nodeId, node.name, m, { start: fn, status: async () => (await client.getUpdateStatus({})).status });
+    if (wait) toast(`${node.name}: ${describe(m)} queued`, { description: "It starts once no Node is updating." });
   }
 
-  if (maint && client)
-    return (
-      <MaintenanceCard
-        client={client}
-        name={node.name}
-        m={maint}
-        onDone={() => {
-          setMaint(null);
-          qc.invalidateQueries({ queryKey: ["node-info", node.nodeId] });
-          qc.invalidateQueries({ queryKey: ["update-status", node.nodeId] });
-          qc.invalidateQueries({ queryKey: ["fleet"] });
-        }}
-      />
-    );
+  if (maint) return <MaintenanceCard job={maint} />;
 
   return (
     <>
@@ -201,15 +205,16 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
           </Button>
           {st?.supported && (
             <>
-              <Button size="sm" variant="outline" disabled={st.state === UpdateStatus_State.UPDATING} onClick={() => setUpdateOpen(true)}>
+              <Button size="sm" variant="outline" disabled={!!job || st.state === UpdateStatus_State.UPDATING} onClick={() => setUpdateOpen(true)}>
                 <ArrowUpCircle /> Update…
               </Button>
-              <Button size="sm" variant="outline" disabled={!st.rollback || st.state === UpdateStatus_State.UPDATING} onClick={() => setRollbackOpen(true)}>
+              <Button size="sm" variant="outline" disabled={!!job || !st.rollback || st.state === UpdateStatus_State.UPDATING} onClick={() => setRollbackOpen(true)}>
                 <Undo2 /> Roll back…
               </Button>
             </>
           )}
         </div>
+        {job && <QueuedLine job={job} queue={queue} />}
         {problems.length > 0 && (
           <ul className="space-y-0.5 rounded-md bg-status-attention/10 px-2 py-1.5 text-xs">
             {problems.map((p) => (
@@ -239,7 +244,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
           </div>
         )}
         {st?.state === UpdateStatus_State.FAILED && <p className="text-xs text-destructive">Update to {st.target} failed: {st.message}</p>}
-        {st?.staged && st.state !== UpdateStatus_State.UPDATING && (
+        {st?.staged && st.state !== UpdateStatus_State.UPDATING && !job && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             An update is staged. Restart the Node to run it.
             <Button size="sm" variant="outline" className="h-7" onClick={() => client && run(() => client.reboot({}), { kind: "reboot" })}>
@@ -252,7 +257,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
         {st?.lastRollback && <p className="text-xs text-status-attention">The last update was rolled back: {st.lastRollback}. The Node runs the image from before it.</p>}
       </section>
 
-      {client && st && <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} status={st} onRun={(image, reboot, insecure) => run(() => client.updateImage({ image, reboot, insecureRegistry: insecure }), { kind: "update", target: image, reboot })} />}
+      {client && st && <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} status={st} queue={busy(snap)} onRun={async (image, reboot, insecure) => run(() => client.updateImage({ image, reboot, insecureRegistry: insecure }), { kind: "update", target: image, reboot })} />}
       <AlertDialog open={rollbackOpen} onOpenChange={setRollbackOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -270,7 +275,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
                 if (client) run(() => client.rollback({ reboot: true }), { kind: "rollback", reboot: true });
               }}
             >
-              Hold to roll back and restart
+              {busy(snap) ? "Hold to queue the roll back" : "Hold to roll back and restart"}
             </HoldButton>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -303,7 +308,7 @@ interface DepotImage {
 }
 
 /** Decisions 82, 91, 96: pick an image (Depots on the LAN offer theirs), restart now or later. */
-function UpdateDialog({ open, onClose, status, onRun }: { open: boolean; onClose: () => void; status: UpdateStatus; onRun: (image: string, reboot: boolean, insecure: boolean) => Promise<void> }) {
+function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; onClose: () => void; status: UpdateStatus; queue: boolean; onRun: (image: string, reboot: boolean, insecure: boolean) => Promise<void> }) {
   const [image, setImage] = useState(status.booted?.image ?? "");
   const [reboot, setReboot] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -366,6 +371,7 @@ function UpdateDialog({ open, onClose, status, onRun }: { open: boolean; onClose
             </span>
             <Switch checked={reboot} onCheckedChange={setReboot} />
           </label>
+          {queue && <p className="text-xs text-muted-foreground">Another Node is updating. This one joins the queue and starts once none is.</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -380,7 +386,7 @@ function UpdateDialog({ open, onClose, status, onRun }: { open: boolean; onClose
               onClose();
             }}
           >
-            Update
+            {queue ? "Queue update" : "Update"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -388,59 +394,41 @@ function UpdateDialog({ open, onClose, status, onRun }: { open: boolean; onClose
   );
 }
 
+/** Where this Node's job stands in the Console's queue, with Cancel. */
+function QueuedLine({ job, queue }: { job: Job; queue: Job[] }) {
+  if (job.phase !== "waiting") return null;
+  const ahead = queue.filter((j) => j.id < job.id);
+  const running = queue.find((j) => j.phase === "working" || j.phase === "down");
+  const failed = queue.find((j) => j.phase === "failed");
+  return (
+    <p className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
+      <ListOrdered className="size-3.5 text-muted-foreground" />
+      <span className="flex-1">
+        Queued: {describe(job.m)}
+        {ahead.length > 0 && `, ${ahead.length} ahead`}.{" "}
+        <span className="text-muted-foreground">{failed ? `Waits until ${failed.name}'s failed ${describe(failed.m).split(" ")[0]} is dismissed.` : running ? `Starts once ${running.name} is done.` : "Starts once no Node is updating."}</span>
+      </span>
+      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => remove(job.id)}>
+        Cancel
+      </Button>
+    </p>
+  );
+}
+
 /**
- * Replaces the details while an update, rollback or restart runs. Polls the
- * Node, treats connection failures as "restarting", and hands back once the
- * Node answers again (or the update failed without a restart).
+ * Replaces the details while this Node's update, rollback or restart runs:
+ * the Console's queue (215) does the polling and hands back once the Node
+ * answers again; a failure stays until dismissed, holding the queue.
  */
-function MaintenanceCard({ client, name, m, onDone }: { client: ReturnType<typeof createClient<typeof NodeService>>; name: string; m: Maintenance; onDone: () => void }) {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
-  const [phase, setPhase] = useState<"working" | "down" | "back" | "failed">("working");
-  const [failure, setFailure] = useState("");
-  const [seconds, setSeconds] = useState(0);
-  const expectReboot = m.kind === "reboot" || m.reboot;
+function MaintenanceCard({ job }: { job: Job }) {
+  const { name, m, phase } = job;
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    let stop = false;
-    let wentDown = false;
-    const started = Date.now();
-    const tick = async () => {
-      if (stop) return;
-      setSeconds(Math.round((Date.now() - started) / 1000));
-      try {
-        const st = (await client.getUpdateStatus({})).status;
-        if (stop || !st) return;
-        setStatus(st);
-        if (wentDown) {
-          setPhase("back");
-          stop = true;
-          setTimeout(onDone, 1500);
-          return;
-        }
-        if (st.state === UpdateStatus_State.FAILED) {
-          setPhase("failed");
-          setFailure(st.message);
-          stop = true;
-          return;
-        }
-        if (st.state === UpdateStatus_State.REBOOTING) setPhase("down");
-        else if (st.state === UpdateStatus_State.IDLE && !expectReboot) {
-          setPhase("back");
-          stop = true;
-          setTimeout(onDone, 1500);
-          return;
-        }
-      } catch {
-        wentDown = true;
-        setPhase("down");
-      }
-      if (!stop) setTimeout(tick, 1500);
-    };
-    tick();
-    return () => {
-      stop = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client]);
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const seconds = Math.max(0, Math.round((now - job.started) / 1000));
+  const waiting = useUpdateQueue().filter((j) => j.phase === "waiting").length;
   const what = m.kind === "update" ? `Updating ${name} to ${m.target}` : m.kind === "rollback" ? `Rolling ${name} back` : `Restarting ${name}`;
   return (
     <div className="space-y-3">
@@ -448,9 +436,9 @@ function MaintenanceCard({ client, name, m, onDone }: { client: ReturnType<typeo
       {phase === "working" && (
         <>
           <div className="h-1.5 overflow-hidden rounded bg-muted">
-            <div className="h-full rounded bg-status-starting transition-[width]" style={{ width: `${Math.round((status?.progress ?? 0) * 100)}%` }} />
+            <div className="h-full rounded bg-status-starting transition-[width]" style={{ width: `${Math.round(job.progress * 100)}%` }} />
           </div>
-          <p className="text-sm text-muted-foreground">{status?.message || "starting"}</p>
+          <p className="text-sm text-muted-foreground">{job.message || "starting"}</p>
         </>
       )}
       {phase === "down" && (
@@ -465,12 +453,14 @@ function MaintenanceCard({ client, name, m, onDone }: { client: ReturnType<typeo
       {phase === "back" && <p className="text-sm">{name} is back.</p>}
       {phase === "failed" && (
         <>
-          <p className="text-sm text-destructive">It failed: {failure}</p>
-          <Button size="sm" variant="outline" onClick={onDone}>
+          <p className="text-sm text-destructive">It failed: {job.message}</p>
+          {waiting > 0 && <p className="text-xs text-muted-foreground">The {waiting === 1 ? "queued update waits" : `${waiting} queued updates wait`} until you dismiss this.</p>}
+          <Button size="sm" variant="outline" onClick={() => remove(job.id)}>
             Back to the Node
           </Button>
         </>
       )}
+      {phase !== "failed" && waiting > 0 && <p className="text-xs text-muted-foreground">{waiting} more queued after this.</p>}
     </div>
   );
 }

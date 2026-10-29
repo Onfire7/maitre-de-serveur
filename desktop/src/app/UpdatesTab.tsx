@@ -95,6 +95,7 @@ export function UpdatesTab({ snap, state }: { snap: FleetSnapshot | undefined; s
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">What each Node runs</h2>
+        <p className="text-xs text-muted-foreground">Updates, roll backs and restarts run one Node at a time. Ask for several and they queue; each starts once no Node is updating.</p>
         {(snap?.nodes ?? []).length === 0 && <p className="text-sm text-muted-foreground">No Node answers yet.</p>}
         {[...(snap?.nodes ?? [])]
           .sort((a, b) => a.name.localeCompare(b.name))

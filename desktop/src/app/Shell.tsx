@@ -36,6 +36,7 @@ import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
 import { FleetPage } from "./FleetPage";
 import { recordMetrics } from "@/fleet/history";
+import { pump } from "@/fleet/updateQueue";
 import { PreferencesDialog } from "./Preferences";
 import { notices as computeNotices } from "./notices";
 import { useRoute } from "./routes";
@@ -49,6 +50,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const snap = fleet.data;
   // The Overview's trend lines (209) follow every sample, whichever tab is open.
   useEffect(() => recordMetrics(snap), [snap]);
+  // The update queue (215) starts its next Node once the Fleet shows none updating.
+  useEffect(() => pump(snap), [snap]);
   // Decision 169: the anchor holds older copies than another Node. Say so
   // and offer to read through that Node; never switch on our own.
   const behind = snap ? syncGaps(snap).find((g) => g.nodeId === snap.anchor.nodeId && !nodeDown(nodeWord(snap.status.get(g.aheadNodeId), Date.now()))) : undefined;
