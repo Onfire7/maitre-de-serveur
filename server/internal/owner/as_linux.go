@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -54,4 +55,13 @@ func become(id uint32) error {
 		return fmt.Errorf("could not act as owner %d", id)
 	}
 	return nil
+}
+
+// Credential is the identity As gives file operations, for a child
+// process's SysProcAttr; nil for id 0 or an agent that is not root.
+func Credential(id uint32) *syscall.Credential {
+	if id == 0 || os.Geteuid() != 0 {
+		return nil
+	}
+	return &syscall.Credential{Uid: id, Gid: id, Groups: []uint32{}}
 }

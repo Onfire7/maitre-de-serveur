@@ -5,6 +5,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 )
 
 // allPaths asks mergerfs which branches hold an entry (xattr
@@ -18,4 +20,7 @@ func allPaths(p string) []string {
 	return strings.Split(strings.TrimRight(string(buf[:n]), "\x00"), "\x00")
 }
 
-func sysProcAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{Setpgid: true} }
+// sysProcAttr starts a helper in its own process group, as the owner as.
+func sysProcAttr(as uint32) *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{Setpgid: true, Credential: owner.Credential(as)}
+}

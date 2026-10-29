@@ -665,7 +665,7 @@ func samePath(a, b string) (bool, error) {
 var progressRe = regexp.MustCompile(`^\s*([\d,]+)\s+\d+%`)
 
 // rsync copies src to dst with progress, then verifies with a checksum pass.
-// It runs as as (owner.Credential), root for 0.
+// It runs as as (owner.Credential, on Linux), root for 0.
 func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool, as uint32) error {
 	s, d := src, dst
 	if dir {
@@ -675,8 +675,7 @@ func (m *Manager) rsync(ctx context.Context, j *job, src, dst string, dir bool, 
 		args := append([]string{"-a", "--info=progress2", "--no-inc-recursive"}, extra...)
 		args = append(args, s, d)
 		cmd := exec.CommandContext(ctx, m.Rsync, args...)
-		cmd.SysProcAttr = sysProcAttr()
-		cmd.SysProcAttr.Credential = owner.Credential(as)
+		cmd.SysProcAttr = sysProcAttr(as)
 		out, err := cmd.StdoutPipe()
 		if err != nil {
 			return err

@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 )
 
 // Marker records in a shared folder which owner it was last given, so a
@@ -141,13 +140,4 @@ func makeAll(dir string, id uint32) error {
 		return err
 	}
 	return Apply(dir, id)
-}
-
-// Credential is the identity As gives file operations, for a child
-// process's SysProcAttr; nil for id 0 or an agent that is not root.
-func Credential(id uint32) *syscall.Credential {
-	if id == 0 || os.Geteuid() != 0 {
-		return nil
-	}
-	return &syscall.Credential{Uid: id, Gid: id, Groups: []uint32{}}
 }
