@@ -12,6 +12,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -128,7 +129,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if len(list) != 2 {
 		t.Fatalf("list %d", len(list))
 	}
-	logs, err := m.Logs(ctx, "jellyfin", 10)
+	logs, err := m.Logs(ctx, "jellyfin", "", 10)
 	if err != nil || len(logs) != 2 {
 		t.Fatalf("logs %v %v", logs, err)
 	}
@@ -156,3 +157,34 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 }
 
 func itoa(i int) string { return strconv.Itoa(i) }
+
+// With ValidateUnits on, every Catalog entry's rendered unit passes podman's
+// own Quadlet generator. Skipped where no generator is installed.
+func TestCatalogEntriesPassQuadlet(t *testing.T) {
+	if quadlet.Generator() == "" {
+		t.Skip("no Quadlet generator installed")
+	}
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range idx.Entries {
+		t.Run(e.ID, func(t *testing.T) {
+			res, err := services.Check(context.Background(), catalog.SpecFor(idx.Find(e.ID), "", nil, ""))
+			if err != nil {
+				t.Fatalf("%s rejected: %v", e.ID, err)
+			}
+			// The Catalog's entries need only the grants they declare
+			// (docs/popularity-and-grants.md, G2).
+			for _, p := range res.Protected {
+				declared := false
+				for _, g := range e.Grants {
+					declared = declared || g.Matches(p.Component, p.Option)
+				}
+				if !declared {
+					t.Errorf("%s needs a grant it does not declare: %+v", e.ID, p)
+				}
+			}
+		})
+	}
+}

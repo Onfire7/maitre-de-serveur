@@ -117,6 +117,8 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 		Version:       s.info.Version,
 		UptimeSeconds: uint64(time.Since(s.started).Seconds()),
 		DevMode:       s.info.DevMode,
+		// Capabilities the Console checks before offering a feature (plan C5).
+		Features: []string{"components"},
 	}
 	if s.Peers != nil {
 		info.Peers = s.Peers.Status(ctx)
@@ -148,7 +150,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", "fleet_domain", authz.KindGrant:
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", "fleet_domain", authz.KindGrant, "catalogs":
 		return true
 	}
 	return false

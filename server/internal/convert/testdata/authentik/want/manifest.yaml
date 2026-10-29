@@ -1,0 +1,59 @@
+id: authentik
+name: Authentik
+summary: Authentik, converted from a Compose file.
+category: tools
+version: 2026.8.5
+exposure: private
+host_ports:
+  - 9443/tcp
+web:
+  port: 9000
+  path: /
+  component: server
+volumes:
+  - name: certs
+    path: /certs
+  - name: custom_templates
+    path: /templates
+  - name: data
+    path: /data
+  - name: database
+    path: /var/lib/postgresql/data
+settings:
+  - key: AUTHENTIK_SECRET_KEY
+    label: Authentik secret key
+    type: password
+    default: generate
+  - key: PG_DB
+    label: Pg db
+    type: text
+    default: authentik
+  - key: PG_PASS
+    label: Pg pass
+    type: password
+    default: generate
+  - key: PG_USER
+    label: Pg user
+    type: text
+    default: authentik
+components:
+  - name: postgresql
+    image: docker.io/library/postgres:16-alpine@sha256:c6b76386d83bb4655b13afddb82d81def5abc2f4429accf81edce78df9ebd662
+    wait_healthy: true
+  - name: server
+    image: ghcr.io/goauthentik/server:2026.8.5@sha256:a743baeabbddce54ec0a3a33712c35938733383cd5d03e35d5f9b03eb551937d
+    after:
+      - postgresql
+  - name: worker
+    image: ghcr.io/goauthentik/server:2026.8.5@sha256:a743baeabbddce54ec0a3a33712c35938733383cd5d03e35d5f9b03eb551937d
+    after:
+      - postgresql
+source:
+  from: compose
+  url: https://example.invalid/authentik
+  licence: MIT
+  converted: "2026-10-29"
+unfinished:
+  - The web page is taken to be server's port 9000, of 2 published ports; confirm web.component and web.port
+  - worker mounts the Node's own /var/run/docker.sock, which Maître does not support yet (it needs SELinux letting a container use the Node's Podman socket (container_t to container_runtime_t) without turning SELinux off for it, and a warning that says the socket is root on the Node); drop it if the app works without it, or leave the entry out
+  - Write the entry's summary and description

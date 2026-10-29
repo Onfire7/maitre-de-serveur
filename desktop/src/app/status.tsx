@@ -5,10 +5,15 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { FleetService, NodeWord } from "@/fleet/useFleet";
 import bundledCatalog from "@/catalog/index.json";
-import type { CatalogIndex } from "@/services";
+import { catalogKey, type CatalogEntry, type CatalogIndex } from "@/services";
 
 const catalog = bundledCatalog as CatalogIndex;
-export const catalogById = new Map(catalog.entries.map((e) => [e.id, e]));
+export const catalogById = new Map<string, CatalogEntry>(catalog.entries.map((e) => [e.id, e]));
+
+/** User Catalogs' entries, as the Catalog page reads them, by catalogKey (plan C9). */
+export function registerEntries(entries: CatalogEntry[]) {
+  for (const e of entries) catalogById.set(catalogKey(e), e);
+}
 
 export type ServiceWord = FleetService["word"];
 export type { NodeWord };

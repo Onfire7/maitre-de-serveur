@@ -1004,7 +1004,10 @@ type Grant struct {
 	ImageRepository string `protobuf:"bytes,4,opt,name=image_repository,json=imageRepository,proto3" json:"image_repository,omitempty"`
 	GrantedUnixMs   int64  `protobuf:"varint,5,opt,name=granted_unix_ms,json=grantedUnixMs,proto3" json:"granted_unix_ms,omitempty"`
 	// The device that granted it, for the Console's list.
-	DeviceName    string `protobuf:"bytes,6,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
+	DeviceName string `protobuf:"bytes,6,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
+	// The component this option belongs to in a multi-container Service (plan
+	// C4); empty for a single-container Service, so existing grants still match.
+	Component     string `protobuf:"bytes,7,opt,name=component,proto3" json:"component,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1081,19 +1084,33 @@ func (x *Grant) GetDeviceName() string {
 	return ""
 }
 
+func (x *Grant) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
 // GrantsNeeded is the detail of a FailedPrecondition error from a Service
 // call when the Service's container definition has protected options
 // without grants (decision 189). The Console asks for each and retries.
 type GrantsNeeded struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	NodeId          string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Service         string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
-	ImageRepository string                 `protobuf:"bytes,3,opt,name=image_repository,json=imageRepository,proto3" json:"image_repository,omitempty"`
-	Options         []string               `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	NodeId  string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Service string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	// The image repository for a single-container Service. For a
+	// multi-container one it is empty; image_repositories gives one per option.
+	ImageRepository string   `protobuf:"bytes,3,opt,name=image_repository,json=imageRepository,proto3" json:"image_repository,omitempty"`
+	Options         []string `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty"`
 	// The grant record id for each option, in the same order.
-	GrantIds      []string `protobuf:"bytes,5,rep,name=grant_ids,json=grantIds,proto3" json:"grant_ids,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GrantIds []string `protobuf:"bytes,5,rep,name=grant_ids,json=grantIds,proto3" json:"grant_ids,omitempty"`
+	// For a multi-container Service, the component and image repository each
+	// option belongs to, parallel to options (plan C4). Empty for a
+	// single-container Service, where image_repository covers the one container.
+	Components        []string `protobuf:"bytes,6,rep,name=components,proto3" json:"components,omitempty"`
+	ImageRepositories []string `protobuf:"bytes,7,rep,name=image_repositories,json=imageRepositories,proto3" json:"image_repositories,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GrantsNeeded) Reset() {
@@ -1157,6 +1174,20 @@ func (x *GrantsNeeded) GetOptions() []string {
 func (x *GrantsNeeded) GetGrantIds() []string {
 	if x != nil {
 		return x.GrantIds
+	}
+	return nil
+}
+
+func (x *GrantsNeeded) GetComponents() []string {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *GrantsNeeded) GetImageRepositories() []string {
+	if x != nil {
+		return x.ImageRepositories
 	}
 	return nil
 }
@@ -1248,7 +1279,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"signer_key\x18\x01 \x01(\fR\tsignerKey\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12$\n" +
 	"\x0esigned_unix_ms\x18\x03 \x01(\x03R\fsignedUnixMs\x12\x12\n" +
-	"\x04body\x18\x04 \x01(\fR\x04body\"\xc6\x01\n" +
+	"\x04body\x18\x04 \x01(\fR\x04body\"\xe4\x01\n" +
 	"\x05Grant\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x16\n" +
@@ -1256,13 +1287,18 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x10image_repository\x18\x04 \x01(\tR\x0fimageRepository\x12&\n" +
 	"\x0fgranted_unix_ms\x18\x05 \x01(\x03R\rgrantedUnixMs\x12\x1f\n" +
 	"\vdevice_name\x18\x06 \x01(\tR\n" +
-	"deviceName\"\xa3\x01\n" +
+	"deviceName\x12\x1c\n" +
+	"\tcomponent\x18\a \x01(\tR\tcomponent\"\xf2\x01\n" +
 	"\fGrantsNeeded\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12)\n" +
 	"\x10image_repository\x18\x03 \x01(\tR\x0fimageRepository\x12\x18\n" +
 	"\aoptions\x18\x04 \x03(\tR\aoptions\x12\x1b\n" +
-	"\tgrant_ids\x18\x05 \x03(\tR\bgrantIdsBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\tgrant_ids\x18\x05 \x03(\tR\bgrantIds\x12\x1e\n" +
+	"\n" +
+	"components\x18\x06 \x03(\tR\n" +
+	"components\x12-\n" +
+	"\x12image_repositories\x18\a \x03(\tR\x11imageRepositoriesBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_fleet_proto_rawDescOnce sync.Once

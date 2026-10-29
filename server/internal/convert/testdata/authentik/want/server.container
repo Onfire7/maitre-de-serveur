@@ -1,0 +1,12 @@
+[Container]
+Image={{ .Image }}
+ShmSize=536870912
+Exec='server'
+Environment=AUTHENTIK_POSTGRESQL__HOST=postgresql
+Environment="AUTHENTIK_POSTGRESQL__NAME={{ .Settings.PG_DB }}"
+Environment="AUTHENTIK_POSTGRESQL__PASSWORD={{ .Settings.PG_PASS }}"
+Environment="AUTHENTIK_POSTGRESQL__USER={{ .Settings.PG_USER }}"
+Environment="AUTHENTIK_SECRET_KEY={{ .Settings.AUTHENTIK_SECRET_KEY }}"
+Volume={{ .Volumes.data }}:/data:z
+Volume={{ .Volumes.custom_templates }}:/templates:z
+PublishPort=9443:9443

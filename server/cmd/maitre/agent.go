@@ -428,7 +428,7 @@ func runAgent(args []string) error {
 		return 0
 	}
 	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
-		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf,
+		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf, ValidateUnits: true,
 		LocalPool: func(ctx context.Context, space string) (string, bool) {
 			spaces, _ := storage.Spaces(ctx, st)
 			for _, b := range spaces {

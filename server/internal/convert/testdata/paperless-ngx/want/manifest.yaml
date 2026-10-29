@@ -1,0 +1,46 @@
+id: paperless-ngx
+name: Paperless Ngx
+summary: Paperless Ngx, converted from a Compose file.
+category: tools
+version: latest
+exposure: private
+web:
+  port: 8000
+  path: /
+  component: webserver
+volumes:
+  - name: consume
+    path: /usr/src/paperless/consume
+  - name: data
+    path: /usr/src/paperless/data
+  - name: export
+    path: /usr/src/paperless/export
+  - name: media
+    path: /usr/src/paperless/media
+  - name: pgdata
+    path: /var/lib/postgresql
+  - name: redisdata
+    path: /data
+settings:
+  - key: PAPERLESS_SECRET_KEY
+    label: Paperless secret key
+    type: password
+    default: generate
+components:
+  - name: broker
+    image: docker.io/valkey/valkey:9-alpine@sha256:a3c5f319f608a456fe003d4bf07a27606910954d99e91febf3d62bbdaab3b7e3
+  - name: db
+    image: docker.io/library/postgres:18@sha256:5bd8250e56f78aac7f1e3991dc8ee4d167ef28fdb06173c695224e81e1a88fa5
+  - name: webserver
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest@sha256:42c10fc1ef6e3432a2fef9c8657832ac355ef371c50e3a5e41913f64d2d9b483
+    after:
+      - broker
+      - db
+source:
+  from: compose
+  url: https://example.invalid/paperless-ngx
+  licence: GPL-3.0
+  converted: "2026-10-29"
+unfinished:
+  - 'db: POSTGRES_PASSWORD is written into the file; make it a setting (default: generate) unless the app relies on this value'
+  - Write the entry's summary and description

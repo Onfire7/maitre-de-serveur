@@ -1,0 +1,53 @@
+id: immich
+name: Immich
+summary: Immich, converted from a Compose file.
+category: tools
+version: "3"
+exposure: private
+web:
+  port: 2283
+  path: /
+  component: immich-server
+volumes:
+  - name: library
+    path: /data
+  - name: model_cache
+    path: /cache
+  - name: postgres
+    path: /var/lib/postgresql/data
+settings:
+  - key: DB_DATABASE_NAME
+    label: Db database name
+    type: text
+    default: immich
+  - key: DB_PASSWORD
+    label: Db password
+    type: password
+    default: generate
+  - key: DB_USERNAME
+    label: Db username
+    type: text
+    default: postgres
+  - key: TZ
+    label: Time zone
+    type: timezone
+    default: auto
+components:
+  - name: database
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+  - name: immich-machine-learning
+    image: ghcr.io/immich-app/immich-machine-learning:v3@sha256:9487136a2383c0be91bbdd214bab8d198860e71952d881e37b2b60208f94b489
+  - name: immich-server
+    image: ghcr.io/immich-app/immich-server:v3@sha256:cbd5445f4678490793aa3a4123e716d127ae1b512833a139dbb764a81b6bb678
+    after:
+      - database
+      - redis
+  - name: redis
+    image: docker.io/valkey/valkey:9@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+source:
+  from: compose
+  url: https://example.invalid/immich
+  licence: AGPL-3.0
+  converted: "2026-10-29"
+unfinished:
+  - Write the entry's summary and description

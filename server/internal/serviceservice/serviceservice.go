@@ -15,6 +15,8 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/devices"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
 
@@ -55,6 +57,8 @@ type Service struct {
 	cat *Catalog
 	// OnChange runs after installs and removals so Caddy and mDNS can follow.
 	OnChange func()
+	// DevRoot is where ListDevices looks: /dev, swapped in tests.
+	DevRoot string
 }
 
 var _ maitrev1connect.ServiceServiceHandler = (*Service)(nil)
@@ -143,7 +147,7 @@ func (s *Service) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 
 // SetImage implements ServiceService (decision 195).
 func (s *Service) SetImage(ctx context.Context, req *maitrev1.SetImageRequest) (*maitrev1.SetImageResponse, error) {
-	st, err := s.mgr.SetImage(ctx, req.GetName(), req.GetImage())
+	st, err := s.mgr.SetImage(ctx, req.GetName(), req.GetImage(), req.GetComponent())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -172,11 +176,45 @@ func (s *Service) MoveVolume(ctx context.Context, req *maitrev1.MoveVolumeReques
 
 // GetServiceLogs implements ServiceService.
 func (s *Service) GetServiceLogs(ctx context.Context, req *maitrev1.GetServiceLogsRequest) (*maitrev1.GetServiceLogsResponse, error) {
-	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetLines())
+	lines, err := s.mgr.Logs(ctx, req.GetName(), req.GetComponent(), req.GetLines())
 	if err != nil {
 		return nil, mapErr(err)
 	}
 	return &maitrev1.GetServiceLogsResponse{Lines: lines}, nil
+}
+
+// CheckService implements ServiceService (plan C10): the Node's own check
+// of a spec, without installing it.
+func (s *Service) CheckService(ctx context.Context, req *maitrev1.CheckServiceRequest) (*maitrev1.CheckServiceResponse, error) {
+	if req.GetSpec() == nil {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "no service spec")
+	}
+	res, err := services.Check(ctx, req.GetSpec())
+	if err != nil {
+		if errors.Is(err, quadlet.ErrNoGenerator) {
+			return nil, connect.Errorf(connect.CodeUnavailable, "%v", err)
+		}
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+	}
+	out := &maitrev1.CheckServiceResponse{Units: res.Units}
+	for _, p := range res.Protected {
+		out.Protected = append(out.Protected, &maitrev1.ProtectedOption{Component: p.Component, ImageRepository: p.ImageRepository, Option: p.Option})
+	}
+	return out, nil
+}
+
+// ListDevices implements ServiceService (G5): this Node's devices a
+// device setting can name.
+func (s *Service) ListDevices(_ context.Context, req *maitrev1.ListDevicesRequest) (*maitrev1.ListDevicesResponse, error) {
+	root := s.DevRoot
+	if root == "" {
+		root = "/dev"
+	}
+	out := &maitrev1.ListDevicesResponse{}
+	for _, d := range devices.List(root, req.GetKind()) {
+		out.Devices = append(out.Devices, &maitrev1.Device{Path: d.Path, Kind: d.Kind, Name: d.Name})
+	}
+	return out, nil
 }
 
 func mapErr(err error) error {

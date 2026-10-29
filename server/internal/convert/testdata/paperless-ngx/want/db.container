@@ -1,0 +1,6 @@
+[Container]
+Image={{ .Image }}
+Environment=POSTGRES_DB=paperless
+Environment=POSTGRES_PASSWORD=paperless
+Environment=POSTGRES_USER=paperless
+Volume={{ .Volumes.pgdata }}:/var/lib/postgresql:Z

@@ -1,12 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogcheck"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/catalogsync"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/convert"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/icons"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/outdated"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/popularity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
 
@@ -16,17 +27,31 @@ import (
 func runCatalogIndex(args []string) error {
 	fs := flag.NewFlagSet("catalog-index", flag.ExitOnError)
 	out := fs.String("out", "", "write here instead of stdout")
+	lenient := fs.Bool("lenient", false, "a user's Catalog: list the entries that do not load as problems instead of failing")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: maitre catalog-index [--out index.json] <entries dir>")
+		return fmt.Errorf("usage: maitre catalog-index [--out index.json] [--lenient] <entries dir>")
 	}
-	idx, err := catalog.LoadDir(fs.Arg(0))
-	if err != nil {
-		return err
+	var v any
+	if *lenient {
+		idx, problems, err := catalog.LoadDirLenient(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		v = struct {
+			*catalog.Index
+			Problems []catalog.Problem `json:"problems,omitempty"`
+		}{idx, problems}
+	} else {
+		idx, err := catalog.LoadDir(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		v = idx
 	}
-	raw, err := json.MarshalIndent(idx, "", "  ")
+	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -36,6 +61,344 @@ func runCatalogIndex(args []string) error {
 		return err
 	}
 	return os.WriteFile(*out, raw, 0o644)
+}
+
+// runCatalogCheck is `maitre catalog-check <entries dir> [id...]`: renders
+// each entry (or the ones named) as a Node installs it and runs Podman's
+// Quadlet over the units, the Catalog's second check (plan C8). An entry
+// that needs a grant fails too: the Catalog's entries run inside Maître's
+// limits. CI runs it inside the maitre-server image, which has Quadlet.
+func runCatalogCheck(args []string) error {
+	fs := flag.NewFlagSet("catalog-check", flag.ExitOnError)
+	units := fs.Bool("units", false, "print the unit files each entry renders to")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 1 {
+		return fmt.Errorf("usage: maitre catalog-check [--units] <entries dir> [id...]")
+	}
+	idx, err := catalog.LoadDir(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	ids := fs.Args()[1:]
+	if len(ids) == 0 {
+		for _, e := range idx.Entries {
+			ids = append(ids, e.ID)
+		}
+	}
+	failed := 0
+	for _, id := range ids {
+		e := idx.Find(id)
+		if e == nil {
+			return fmt.Errorf("no entry %q", id)
+		}
+		res, err := catalogcheck.Check(context.Background(), e)
+		switch {
+		case err != nil:
+			failed++
+			fmt.Printf("FAIL %s: %s\n", id, strings.TrimPrefix(err.Error(), id+": "))
+		case len(res.Problems) > 0:
+			failed++
+			fmt.Printf("FAIL %s:\n", id)
+			for _, p := range res.Problems {
+				fmt.Printf("  %s\n", p)
+			}
+		case len(e.Grants) > 0:
+			fmt.Printf("ok   %s (%d grants declared)\n", id, len(e.Grants))
+		default:
+			fmt.Printf("ok   %s\n", id)
+		}
+		if *units && res != nil {
+			names := make([]string, 0, len(res.Units))
+			for n := range res.Units {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			for _, n := range names {
+				fmt.Printf("--- %s\n%s", n, res.Units[n])
+			}
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d of %d entries failed", failed, len(ids))
+	}
+	return nil
+}
+
+// runCatalog is `maitre catalog add <catalog folder> <compose file or
+// CasaOS app folder>`: converts a Compose file into a bundle in the
+// Catalog's entries (plan C10), printing the report at once and saving it
+// as CONVERSION.md. With --json the report and entry are printed as JSON
+// for the Console.
+func runCatalog(args []string) error {
+	if len(args) > 0 && args[0] == "icon" {
+		return runCatalogIcon(args[1:])
+	}
+	if len(args) > 0 && args[0] == "sync" {
+		return runCatalogSync(args[1:])
+	}
+	if len(args) > 0 && args[0] == "outdated" {
+		return runCatalogOutdated(args[1:])
+	}
+	if len(args) > 0 && args[0] == "popularity" {
+		return runCatalogPopularity(args[1:])
+	}
+	if len(args) == 0 || args[0] != "add" {
+		return fmt.Errorf("usage: maitre catalog add [--id id] [--url url] [--licence spdx] [--icon name] [--replace] [--json] <catalog folder> <compose file or folder>\n       maitre catalog icon <entry dir> [name in the icon packs]\n       maitre catalog outdated [--write] [--json] <entries dir>\n       maitre catalog popularity [--write] <entries dir>\n       maitre catalog sync [--branch b] <git url> <dir>")
+	}
+	fs := flag.NewFlagSet("catalog add", flag.ExitOnError)
+	id := fs.String("id", "", "the entry's id (default: the Compose project's name)")
+	url := fs.String("url", "", "where the Compose file was published")
+	licence := fs.String("licence", "", "the Compose file's licence, as an SPDX id")
+	replace := fs.Bool("replace", false, "convert over an existing entry")
+	asJSON := fs.Bool("json", false, "print the report and entry as JSON")
+	iconName := fs.String("icon", "", "the app's name in the icon packs (default: the entry's id; - for none)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if fs.NArg() != 2 {
+		return fmt.Errorf("usage: maitre catalog add [flags] <catalog folder> <compose file or folder>")
+	}
+	res, err := convert.Convert(context.Background(), convert.Options{Compose: fs.Arg(1), ID: *id, URL: *url, Licence: *licence})
+	if err != nil {
+		return err
+	}
+	written := ""
+	if res.Files != nil {
+		if written, err = convert.Write(fs.Arg(0), res, *replace); err != nil {
+			return err
+		}
+		// The icon, copied from a pack; a missing one is only noted.
+		if slug := *iconName; slug != "-" {
+			if slug == "" {
+				slug = res.Entry.ID
+			}
+			if icon, err := icons.Default().Fetch(context.Background(), slug); err != nil {
+				res.Report.Notes = append(res.Report.Notes, fmt.Sprintf("No icon copied (%s: %v); add one with `maitre catalog icon %s <name>`", slug, err, written))
+			} else if err := copyIcon(written, icon); err != nil {
+				return err
+			}
+		}
+	}
+	if *asJSON {
+		out, _ := json.MarshalIndent(map[string]any{"report": res.Report, "entry": res.Entry, "dir": written}, "", "  ")
+		fmt.Println(string(out))
+	} else {
+		name := fs.Arg(1)
+		if res.Entry != nil {
+			name = res.Entry.Name
+		}
+		fmt.Print(res.Report.Markdown(name, fs.Arg(1)))
+		if written != "" {
+			fmt.Printf("\nWritten to %s", written)
+			if len(res.Entry.Unfinished) > 0 {
+				fmt.Printf(", unfinished: %d to decide", len(res.Entry.Unfinished))
+			}
+			fmt.Println(".")
+		}
+	}
+	if res.Files == nil {
+		return fmt.Errorf("not converted: %d to fix first", len(res.Report.MustFix))
+	}
+	return nil
+}
+
+// runCatalogNotice is `maitre catalog-notice --out NOTICE <entries dir>`:
+// the Catalog's NOTICE, from its entries' sources (plan C11, C12).
+func runCatalogNotice(args []string) error {
+	fs := flag.NewFlagSet("catalog-notice", flag.ExitOnError)
+	out := fs.String("out", "", "write here instead of stdout")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: maitre catalog-notice [--out NOTICE] <entries dir>")
+	}
+	idx, err := catalog.LoadDir(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	if *out == "" {
+		_, err = fmt.Print(catalog.Notice(idx))
+		return err
+	}
+	return os.WriteFile(*out, []byte(catalog.Notice(idx)), 0o644)
+}
+
+// runCatalogIcon is `maitre catalog icon <entry dir> [name]`: copies the
+// app's icon from an icon pack into the entry and records where it came
+// from (plan C12). name is the app's name in the packs; the entry's id by
+// default.
+func runCatalogIcon(args []string) error {
+	if len(args) < 1 || len(args) > 2 {
+		return fmt.Errorf("usage: maitre catalog icon <entry dir> [name in the icon packs]")
+	}
+	dir := args[0]
+	slug := filepath.Base(filepath.Clean(dir))
+	if len(args) == 2 {
+		slug = args[1]
+	}
+	icon, err := icons.Default().Fetch(context.Background(), slug)
+	if err != nil {
+		return fmt.Errorf("%s: %w", slug, err)
+	}
+	if err := copyIcon(dir, icon); err != nil {
+		return err
+	}
+	fmt.Printf("%s: %s from %s (%s)\n", dir, icon.File, icon.Credit.Pack, icon.Credit.Licence)
+	return nil
+}
+
+// copyIcon writes an icon into an entry, replacing any other icon file.
+func copyIcon(dir string, icon *icons.Icon) error {
+	for _, old := range []string{"icon.svg", "icon.png"} {
+		if old != icon.File {
+			_ = os.Remove(filepath.Join(dir, old))
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, icon.File), icon.Body, 0o644); err != nil {
+		return err
+	}
+	return catalog.SetIcon(dir, icon.File, icon.Credit)
+}
+
+// runCatalogSync is `maitre catalog sync [--branch b] <git url> <dir>`: the
+// Console's clone of a git Catalog brought to the head of its branch (plan
+// C9). Prints the commit.
+func runCatalogSync(args []string) error {
+	fs := flag.NewFlagSet("catalog sync", flag.ExitOnError)
+	branch := fs.String("branch", "", "the branch to follow (default: the repository's own)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 2 {
+		return fmt.Errorf("usage: maitre catalog sync [--branch b] <git url> <dir>")
+	}
+	commit, err := catalogsync.Sync(context.Background(), fs.Arg(0), *branch, fs.Arg(1))
+	if err != nil {
+		return err
+	}
+	fmt.Println(commit)
+	return nil
+}
+
+// runCatalogOutdated is `maitre catalog outdated [--write] <entries dir>`:
+// which pinned images have a newer tag in their series, or were rebuilt
+// under the same tag (plan C13). --write repins the manifests. Fails when
+// an image could not be looked up, after reporting the rest.
+func runCatalogOutdated(args []string) error {
+	fs := flag.NewFlagSet("catalog outdated", flag.ExitOnError)
+	write := fs.Bool("write", false, "repin the entries' manifests")
+	asJSON := fs.Bool("json", false, "print the lookups as JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: maitre catalog outdated [--write] [--json] <entries dir>")
+	}
+	entries, err := outdated.Check(context.Background(), convert.Registry{}, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	failed := 0
+	for _, e := range entries {
+		if e.Error != "" {
+			failed++
+		}
+		for _, im := range e.Images {
+			if im.Error != "" {
+				failed++
+			}
+		}
+		if *write && e.Changed() {
+			if err := outdated.Write(filepath.Join(fs.Arg(0), e.ID), e); err != nil {
+				return err
+			}
+		}
+	}
+	if *asJSON {
+		out, _ := json.MarshalIndent(entries, "", "  ")
+		fmt.Println(string(out))
+	} else {
+		fmt.Print(outdated.Markdown(entries))
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d not looked up", failed)
+	}
+	return nil
+}
+
+// runCatalogPopularity is `maitre catalog popularity [--write] <entries
+// dir>`: the stars of each entry's project (docs/popularity-and-grants.md,
+// P3), most first. --write keeps them in the Catalog's popularity.json; a
+// project that could not be asked keeps its last count. Fails when one
+// could not, after reporting the rest.
+func runCatalogPopularity(args []string) error {
+	fs := flag.NewFlagSet("catalog popularity", flag.ExitOnError)
+	write := fs.Bool("write", false, "keep the counts in the Catalog's popularity.json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: maitre catalog popularity [--write] <entries dir>")
+	}
+	dir := fs.Arg(0)
+	idx, problems, err := catalog.LoadDirLenient(dir)
+	if err != nil {
+		return err
+	}
+	old, err := catalog.ReadPopularity(dir)
+	if err != nil {
+		return err
+	}
+	next := &catalog.Popularity{Checked: time.Now().UTC().Format("2006-01-02"), Stars: map[string]int{}}
+	var none, failed []string
+	f := popularity.Default()
+	for _, e := range idx.Entries {
+		if e.Project == "" {
+			none = append(none, e.ID)
+			continue
+		}
+		n, err := f.Stars(context.Background(), e.Project)
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", e.ID, err))
+			if n, ok := old.Stars[e.ID]; ok {
+				next.Stars[e.ID] = n
+			}
+			continue
+		}
+		next.Stars[e.ID] = n
+	}
+	ids := make([]string, 0, len(next.Stars))
+	for id := range next.Stars {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := next.Stars[ids[i]], next.Stars[ids[j]]
+		return a > b || a == b && ids[i] < ids[j]
+	})
+	for _, id := range ids {
+		fmt.Printf("%8d  %s\n", next.Stars[id], id)
+	}
+	for _, p := range problems {
+		fmt.Printf("not read: %s: %s\n", p.Entry, p.Error)
+	}
+	if len(none) > 0 {
+		fmt.Printf("no project: %s\n", strings.Join(none, ", "))
+	}
+	for _, f := range failed {
+		fmt.Printf("not looked up: %s\n", f)
+	}
+	if *write {
+		if err := catalog.WritePopularity(dir, next); err != nil {
+			return err
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("%d not looked up", len(failed))
+	}
+	return nil
 }
 
 // runNamesIndex is `maitre names-index --out names.json`: the shared Node

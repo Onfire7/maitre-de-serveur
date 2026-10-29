@@ -1,0 +1,10 @@
+[Container]
+Image={{ .Image }}
+Environment=PAPERLESS_DBENGINE=postgresql
+Environment=PAPERLESS_DBHOST=db
+Environment=PAPERLESS_REDIS=redis://broker:6379
+Environment="PAPERLESS_SECRET_KEY={{ .Settings.PAPERLESS_SECRET_KEY }}"
+Volume={{ .Volumes.data }}:/usr/src/paperless/data:Z
+Volume={{ .Volumes.media }}:/usr/src/paperless/media:Z
+Volume={{ .Volumes.export }}:/usr/src/paperless/export:Z
+Volume={{ .Volumes.consume }}:/usr/src/paperless/consume:Z

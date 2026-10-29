@@ -13,7 +13,7 @@ import { ServiceSpecSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb"
 import { ownSpacesOn, spacesOn, volumeDir } from "@/files/sources";
 import type { KnownNode } from "@/state";
 import { transportFor, type Target } from "@/transport";
-import { controlService, node, removeService, services, targetFor } from "./actions";
+import { controlService, needComponents, node, removeService, services, targetFor } from "./actions";
 import type { FleetService, FleetSnapshot } from "./useFleet";
 
 export interface VolumePlan {
@@ -159,6 +159,8 @@ export async function moveService(
   let step: StepId = "stop";
   let moved = 0;
   let removed = false;
+  // Before anything stops: a Node that cannot run it says so now.
+  await needComponents(to, s.spec, snap?.nodes.find((n) => n.nodeId === toNodeId)?.name);
 
   // Back to how it was, as far as it got: folders back, Service back, on again.
   const undo = async (why: unknown) => {

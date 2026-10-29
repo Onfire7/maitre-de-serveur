@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,8 @@ import (
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
+	"connectrpc.com/connect/v2/connectproto"
+	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
@@ -84,6 +87,8 @@ func runService(args []string) error {
 	wait := fs.Duration("wait", 0, "install: wait up to this long for the Service to be running and healthy")
 	setFlags := fs.String("set", "", "install: settings as key=value,key=value")
 	deleteData := fs.Bool("delete-data", false, "remove: also delete the Service's volumes")
+	allow := fs.Bool("allow", false, "install: sign, as this device, the grants the entry needs (decision 189), as the Console's Allow does")
+	without := fs.String("without", "", "install: the entry's optional features to leave out, comma separated (docs/popularity-and-grants.md, G8)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -141,7 +146,19 @@ func runService(args []string) error {
 				settings[k] = v
 			}
 		}
-		res, err := c.InstallService(ctx, &maitrev1.InstallServiceRequest{Spec: catalog.SpecFor(entry, fs.Arg(2), settings, "")})
+		var off []string
+		if *without != "" {
+			off = strings.Split(*without, ",")
+		}
+		spec := catalog.SpecWithout(entry, fs.Arg(2), settings, "", off)
+		res, err := c.InstallService(ctx, &maitrev1.InstallServiceRequest{Spec: spec})
+		if need := grantsNeeded(err); need != nil && *allow {
+			nodes := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
+			if err := signGrants(ctx, nodes, id, need); err != nil {
+				return err
+			}
+			res, err = c.InstallService(ctx, &maitrev1.InstallServiceRequest{Spec: spec})
+		}
 		if err != nil {
 			return err
 		}
@@ -211,4 +228,40 @@ func printStatus(s *maitrev1.ServiceStatus) {
 	}
 	fmt.Fprintf(os.Stdout, "%-14s %-9s%s restarts=%d %s %s\n", s.GetSpec().GetName(),
 		strings.TrimPrefix(s.GetState().String(), "STATE_"), health, s.GetRestarts(), s.GetUrl(), s.GetMessage())
+}
+
+// grantsNeeded is the GrantsNeeded detail of a refused Service call.
+func grantsNeeded(err error) *maitrev1.GrantsNeeded {
+	var ce *connect.Error
+	if !errors.As(err, &ce) || ce.Code() != connect.CodeFailedPrecondition {
+		return nil
+	}
+	for _, d := range ce.Details() {
+		if v, err := connectproto.UnmarshalErrorDetail(d); err == nil {
+			if n, ok := v.(*maitrev1.GrantsNeeded); ok {
+				return n
+			}
+		}
+	}
+	return nil
+}
+
+// signGrants signs a grant for each option, as this device, the way the
+// Console's Allow does.
+func signGrants(ctx context.Context, nodes maitrev1connect.NodeServiceClient, id *identity.Identity, need *maitrev1.GrantsNeeded) error {
+	for i, option := range need.GetOptions() {
+		g := &maitrev1.Grant{NodeId: need.GetNodeId(), Service: need.GetService(), Option: option, ImageRepository: need.GetImageRepository(), GrantedUnixMs: time.Now().UnixMilli(), DeviceName: "maitre service --allow"}
+		if i < len(need.GetComponents()) {
+			g.Component, g.ImageRepository = need.GetComponents()[i], need.GetImageRepositories()[i]
+		}
+		body, err := proto.Marshal(g)
+		if err != nil {
+			return err
+		}
+		if _, err := nodes.PutRecord(ctx, &maitrev1.PutRecordRequest{Record: signed(id, &maitrev1.Record{Kind: "grant", Id: need.GetGrantIds()[i], Body: body})}); err != nil {
+			return fmt.Errorf("grant %s: %w", option, err)
+		}
+		fmt.Printf("granted %s\n", option)
+	}
+	return nil
 }

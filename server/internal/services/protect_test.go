@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -56,35 +55,8 @@ func TestProtected(t *testing.T) {
 }
 
 // The Catalog's own entries need no grants.
-func TestCatalogNeedsNoGrants(t *testing.T) {
-	idx, err := catalog.LoadDir("../../../catalog/entries")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range idx.Entries {
-		body := strings.NewReplacer("{{ .Image }}", "img", "{{ .Name }}", "n", "{{ .Network }}", services.Network).Replace(e.Quadlet)
-		body = replaceTemplates(body)
-		if got := services.Protected(body, []string{"/pools"}); len(got) > 0 {
-			t.Errorf("%s: %q", e.ID, got)
-		}
-	}
-}
-
-// replaceTemplates puts a managed folder or a value for the rest.
-func replaceTemplates(s string) string {
-	for {
-		i := strings.Index(s, "{{")
-		if i < 0 {
-			return s
-		}
-		j := strings.Index(s[i:], "}}")
-		v := "x"
-		if strings.Contains(s[i:i+j], ".Volumes.") {
-			v = "/pools/v"
-		}
-		s = s[:i] + v + s[i+j+2:]
-	}
-}
+// The Catalog's entries need only the grants they declare: checked by
+// rendering each as a Node does, in internal/catalogcheck.
 
 func TestImageRepository(t *testing.T) {
 	for in, want := range map[string]string{
@@ -156,6 +128,55 @@ func TestGrantsGateInstall(t *testing.T) {
 	}
 }
 
+// G4: a granted Network=host Service is served on its own port of the
+// Node, which must be free.
+func TestHostNetwork(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	_ = os.MkdirAll(filepath.Join(pools, "general"), 0o755)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
+	spec := func(name string, port uint32) *maitrev1.ServiceSpec {
+		return &maitrev1.ServiceSpec{Name: name, Image: "docker.io/x/ha:1", WebPort: port, OptionalGrants: map[string]bool{"discovery": true},
+			Quadlet: "[Container]\nImage={{ .Image }}\n{{ if .Grants.discovery }}Network=host\n{{ else }}Network={{ .Network }}\n{{ end }}"}
+	}
+	grant := func(name string) {
+		id := services.GrantID("node-a", name, "", "Network=host")
+		b, _ := proto.Marshal(&maitrev1.Grant{NodeId: "node-a", Service: name, Option: "Network=host", ImageRepository: "docker.io/x/ha"})
+		if _, err := st.PutRaw(ctx, services.KindGrant, id, b, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	grant("ha")
+	s, err := m.Install(ctx, spec("ha", 8123))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.GetSpec().GetWebHostPort() != 8123 {
+		t.Errorf("web host port %d, want the app's own 8123", s.GetSpec().GetWebHostPort())
+	}
+	unit, _ := os.ReadFile(filepath.Join(dir, "units", "ha.container"))
+	if !strings.Contains(string(unit), "Network=host") || strings.Contains(string(unit), "PublishPort=") || strings.Contains(string(unit), "HostName=") {
+		t.Errorf("unit:\n%s", unit)
+	}
+	grant("ha2")
+	if _, err := m.Install(ctx, spec("ha2", 8123)); err == nil || !strings.Contains(err.Error(), "port 8123 of the Node itself, which ha already uses") {
+		t.Errorf("a second Service on port 8123: %v", err)
+	}
+	if _, err := m.Install(ctx, spec("ha2", 443)); err == nil || !strings.Contains(err.Error(), "Maître's web server") {
+		t.Errorf("the Node's own port 443: %v", err)
+	}
+	// With the feature off it is an ordinary Service, on a loopback port.
+	off := spec("ha3", 8123)
+	off.OptionalGrants["discovery"] = false
+	s, err = m.Install(ctx, off)
+	if err != nil || s.GetSpec().GetWebHostPort() == 8123 {
+		t.Fatalf("feature off: %v, port %d", err, s.GetSpec().GetWebHostPort())
+	}
+}
+
 func TestRenderKeepsSectionsApart(t *testing.T) {
 	spec := &maitrev1.ServiceSpec{Name: "x", Image: "img", WebPort: 80, WebHostPort: 20001,
 		Quadlet: "[Container]\nImage={{ .Image }}\n[Service]\nExecStartPre=/bin/true\n"}
@@ -174,6 +195,20 @@ func TestRenderKeepsSectionsApart(t *testing.T) {
 	spec.Quadlet = "[Container]\nImage={{ .Image }}\nNoNewPrivileges=false\n"
 	unit, _ = services.Render(spec, nil)
 	if strings.Count(string(unit), "NoNewPrivileges") != 1 {
+		t.Fatalf("unit:\n%s", unit)
+	}
+}
+
+// Quadlet copies values into ExecStart, where systemd expands $ and %; a
+// setting reaches the container as typed only with them doubled.
+func TestRenderEscapesSettingsForSystemd(t *testing.T) {
+	spec := &maitrev1.ServiceSpec{Name: "x", Image: "img", Settings: map[string]string{"PW": "a$b${c}%n"},
+		Quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=PW={{ .Settings.PW }}\n"}
+	unit, err := services.Render(spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(unit), "Environment=PW=a$$b$${c}%%n\n") {
 		t.Fatalf("unit:\n%s", unit)
 	}
 }

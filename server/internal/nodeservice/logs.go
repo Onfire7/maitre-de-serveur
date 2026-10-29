@@ -9,10 +9,13 @@ import (
 	"connectrpc.com/connect/v2"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
 
 // logSources are the journals the Console may read (decision 187): only
-// these, never an arbitrary unit. Services are added per Node.
+// these, never an arbitrary unit. Services are added per Node; a Service of
+// several components is listed whole (every component's journal, interleaved)
+// and once per component, as "service:<name>/<component>".
 var logSources = []struct {
 	id, label string
 	args      []string
@@ -44,7 +47,12 @@ func (s *Service) GetNodeLogs(ctx context.Context, req *maitrev1.GetNodeLogsRequ
 			name := st.GetSpec().GetName()
 			id := "service:" + name
 			res.Sources = append(res.Sources, &maitrev1.LogSource{Id: id, Label: name})
-			args[id] = []string{"-u", name + ".service"}
+			args[id] = unitArgs(st.GetSpec(), "")
+			for _, c := range st.GetSpec().GetComponents() {
+				cid := id + "/" + c.GetName()
+				res.Sources = append(res.Sources, &maitrev1.LogSource{Id: cid, Label: name + ": " + c.GetName()})
+				args[cid] = unitArgs(st.GetSpec(), c.GetName())
+			}
 		}
 	}
 	src := req.GetSource()
@@ -71,4 +79,14 @@ func (s *Service) GetNodeLogs(ctx context.Context, req *maitrev1.GetNodeLogsRequ
 		res.Lines = strings.Split(out, "\n")
 	}
 	return res, nil
+}
+
+// unitArgs is journalctl's -u flags for a Service, or one of its components.
+func unitArgs(spec *maitrev1.ServiceSpec, component string) []string {
+	units, _ := services.LogUnits(spec, component)
+	var a []string
+	for _, u := range units {
+		a = append(a, "-u", u)
+	}
+	return a
 }

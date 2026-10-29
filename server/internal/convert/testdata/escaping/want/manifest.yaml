@@ -1,0 +1,22 @@
+id: escaping
+name: Escaping
+summary: Escaping, converted from a Compose file.
+category: tools
+image: docker.io/library/nginx:1.29@sha256:97d5e3bcda8fca1ea00a97a0b24154a0e4a85453bc6df608eb937850fdb5f421
+version: "1.29"
+exposure: private
+web:
+  port: 80
+  path: /
+settings:
+  - key: API_TOKEN
+    label: Api token
+    type: password
+    default: generate
+source:
+  from: compose
+  url: https://example.invalid/escaping
+  licence: MIT
+  converted: "2026-10-29"
+unfinished:
+  - Write the entry's summary and description

@@ -1,0 +1,19 @@
+[Container]
+Image={{ .Image }}
+ContainerName={{ .Name }}
+Network={{ .Network }}
+AddDevice=/dev/dri:/dev/dri:rwm
+AddDevice=/dev/vcsm:/dev/vcsm:rwm
+AddDevice=/dev/vchiq:/dev/vchiq:rwm
+AddDevice=/dev/video10:/dev/video10:rwm
+AddDevice=/dev/video11:/dev/video11:rwm
+AddDevice=/dev/video12:/dev/video12:rwm
+Environment="PGID={{ .Settings.PGID }}"
+Environment="PUID={{ .Settings.PUID }}"
+Environment="TZ={{ .Settings.TZ }}"
+Volume={{ .Volumes.config }}:/config:Z
+Volume={{ .Volumes.media }}:/Media:z
+Volume=/opt/vc/lib:/opt/vc/lib
+PublishPort=8921:8920
+PublishPort=7359:7359
+PublishPort=1901:1900

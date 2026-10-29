@@ -419,6 +419,10 @@ message NodeInfo {
   // The address the internet sees this Node from (decision 112), looked up
   // through a public IP service; empty when unknown or offline.
   string public_ip = 9;
+  // Capabilities this Node's agent supports, so the Console can offer only
+  // what will work and otherwise say the Node needs updating (plan C5).
+  // "components" means multi-container Services (plan C1).
+  repeated string features = 11;
 }
 
 message GetNodeLogsRequest {

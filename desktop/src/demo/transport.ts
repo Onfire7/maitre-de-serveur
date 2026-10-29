@@ -11,7 +11,7 @@ import { FleetDomainSchema, GrantsNeededSchema, type EntryNode } from "@/gen/mai
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
-import { type DemoFleet, type DemoNode, demoFleet } from "./fleet";
+import { type DemoFleet, type DemoNode, demoFleet, NODE_A, protectedOptions, renderDemo } from "./fleet";
 import { demoHistory } from "./metrics";
 
 type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
@@ -51,6 +51,7 @@ const handlers: Record<string, Handler> = {
         version: "0.9.3",
         uptimeSeconds: BigInt(Math.max(0, Math.floor((f.now - me.bootedUnixMs) / 1000))),
         devMode: false,
+        features: ["components"],
         peers: f.nodes.filter((p) => p !== me).map((p) => ({ nodeId: p.nodeId, name: p.name, address: p.addr, online: p.reachable, lastSeenUnixMs: BigInt(p.lastSeenUnixMs), queued: p.reachable ? 0 : 1 })),
         portMapping: me.portMapping,
         publicIp: me.publicIp,
@@ -84,11 +85,14 @@ const handlers: Record<string, Handler> = {
       { id: "health", label: "Boot health checks" },
       { id: "kernel", label: "Kernel" },
       { id: "system", label: "Everything since boot" },
-      ...f.services.filter((s) => s.spec.nodeId === me.nodeId).map((s) => ({ id: `service:${s.spec.name}`, label: s.spec.name })),
+      ...f.services.filter((s) => s.spec.nodeId === me.nodeId).flatMap((s) => [{ id: `service:${s.spec.name}`, label: s.spec.name }, ...s.spec.components.map((c) => ({ id: `service:${s.spec.name}/${c.name}`, label: `${s.spec.name}: ${c.name}` }))]),
     ];
     const source = (i.source as string) || "agent";
     if (!sources.some((s) => s.id === source)) throw fail(Code.NotFound, `no log source "${source}" on this Node`);
-    if (source.startsWith("service:")) return { lines: f.logs(source.slice(8), 120), sources };
+    if (source.startsWith("service:")) {
+      const [name, component = ""] = source.slice(8).split("/");
+      return { lines: f.logs(name, 120, component), sources };
+    }
     const host = me.name.toLowerCase();
     const msgs: Record<string, string[]> = {
       agent: ["peers: synced with basalt (3 records)", "gossip: pushed status to 1 peer", "fleet status: answered GetFleetStatus", "files: listed media/Documents", "rollout: automatic updates are off", "warn: peer cedar silent for 62s"],
@@ -206,7 +210,7 @@ const handlers: Record<string, Handler> = {
   },
   "ServiceService/GetServiceLogs": (f, n, i, addr) => {
     needNode(n, addr);
-    return { lines: f.logs(i.name as string, (i.lines as number) || 200) };
+    return { lines: f.logs(i.name as string, (i.lines as number) || 200, (i.component as string) || "") };
   },
   "ServiceService/SetExposure": (f, n, i, addr) => {
     needNode(n, addr);
@@ -234,6 +238,27 @@ const handlers: Record<string, Handler> = {
     f.rebuildRecords();
     return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
   },
+  // Plan C10: the Node's check of a spec, without installing it.
+  "ServiceService/CheckService": (_f, n, i, addr) => {
+    needNode(n, addr);
+    const spec = i.spec as ServiceSpec;
+    const parts = spec.components?.length ? spec.components.map((c) => ({ name: c.name, image: c.image, quadlet: c.quadlet })) : [{ name: "", image: spec.image, quadlet: spec.quadlet }];
+    if (parts.some((p) => !p.quadlet.includes("[Container]"))) throw fail(Code.InvalidArgument, `${spec.name}: Quadlet rejected the unit: no [Container] group`);
+    return {
+      units: Object.fromEntries(parts.map((p) => [`${p.name ? `${spec.name}-${p.name}` : spec.name}.container`, p.quadlet])),
+      protected: parts.flatMap((p) => protectedOptions(renderDemo(p.quadlet, spec)).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
+    };
+  },
+  // G5: Node A has a Zigbee stick and a GPU plugged in; the others nothing.
+  "ServiceService/ListDevices": (_f, n, i, addr) => {
+    const node = needNode(n, addr);
+    const all = node.nodeId === NODE_A ? [
+      { path: "/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_4c004e-if00-port0", kind: "serial", name: "usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_4c004e-if00-port0" },
+      { path: "/dev/dri/renderD128", kind: "video", name: "GPU 128" },
+    ] : [];
+    const kind = (i as { kind?: string }).kind ?? "";
+    return { devices: all.filter((d) => !kind || d.kind === kind) };
+  },
   "ServiceService/SetImage": (f, n, i, addr) => {
     needNode(n, addr);
     const s = f.services.find((x) => x.spec.name === i.name);
@@ -242,9 +267,19 @@ const handlers: Record<string, Handler> = {
     if (!/^[a-z0-9]+([._-][a-z0-9]+)*(\.[a-z0-9-]+)*(:[0-9]{1,5})?(\/[a-z0-9]+([._-]+[a-z0-9]+)*)+(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$/.test(image)) throw fail(Code.InvalidArgument, `"${image}" is not an image reference such as docker.io/library/nginx:1.27`);
     // As the Node pins a tag to the digest it pulls.
     const pinned = image.includes("@") ? image : `${image}@sha256:${[...image].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16).padStart(8, "0").repeat(8)}`;
-    if (pinned !== s.spec.image) {
-      s.spec.previousImage = s.spec.image;
-      s.spec.image = pinned;
+    // One component, named or else every one on the same repository (plan C1).
+    const repo = (x: string) => x.replace(/@.*$/, "").replace(/:[^/:]*$/, "");
+    let holders: { image: string; previousImage: string }[] = [s.spec];
+    if (s.spec.components.length) {
+      holders = i.component ? s.spec.components.filter((c) => c.name === i.component) : s.spec.components.filter((c) => repo(c.image) === repo(pinned));
+      if (i.component && holders.length === 0) throw fail(Code.InvalidArgument, `${s.spec.name} has no component "${i.component}"`);
+      if (holders.length === 0) holders = s.spec.components;
+    }
+    for (const h of holders) {
+      if (pinned !== h.image) {
+        h.previousImage = h.image;
+        h.image = pinned;
+      }
     }
     const running = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
     f.rebuildRecords();

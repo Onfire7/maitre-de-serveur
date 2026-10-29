@@ -451,6 +451,7 @@ export function GrantsSheet({ service, target, snap, open, onClose }: { service:
               <li key={g.record.id} className="rounded-lg border p-3 text-sm">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
+                    {g.grant.component && <span className="mb-1 block text-xs font-medium">{g.grant.component}</span>}
                     <code className="block break-all font-mono text-xs">{g.grant.option}</code>
                     <span className="mt-1 block text-muted-foreground">{optionNote(g.grant.option)}</span>
                   </div>

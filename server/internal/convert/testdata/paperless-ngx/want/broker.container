@@ -1,0 +1,3 @@
+[Container]
+Image={{ .Image }}
+Volume={{ .Volumes.redisdata }}:/data:Z

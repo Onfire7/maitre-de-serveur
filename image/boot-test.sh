@@ -145,3 +145,20 @@ done
 grep -qi "uptime kuma" "$OUT/web.html"
 "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" list
 echo "boot-test: OK (Uptime Kuma installed from the Catalog and served at uptime-kuma.local)"
+
+# 6. Plan C8: every Catalog entry the change touches installs from the image's
+#    Catalog and becomes healthy, its declared grants allowed with every
+#    feature on. CATALOG_ENTRIES (from
+#    scripts/changed-entries.sh) names them; empty means none changed.
+for id in ${CATALOG_ENTRIES:-}; do
+  [ "$id" = uptime-kuma ] && continue
+  echo "boot-test: installing $id"
+  "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --wait 20m --allow install "$id" || {
+    echo "boot-test: $id did not become healthy"
+    "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" logs "$id" | tail -60
+    exit 1
+  }
+  echo "boot-test: OK ($id installed from the Catalog and healthy)"
+  # One at a time: the VM has room for one app beside Uptime Kuma.
+  "$MAITRE" service --identity "$DEV" --trust "$DEV/trusted" --addr "127.0.0.1:${FWD_PORT}" --delete-data remove "$id"
+done

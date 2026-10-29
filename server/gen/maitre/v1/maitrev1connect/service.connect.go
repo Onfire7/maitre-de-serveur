@@ -51,6 +51,11 @@ const (
 	ServiceServiceSetSettingsProcedure = "/maitre.v1.ServiceService/SetSettings"
 	// ServiceServiceSetImageProcedure is the procedure name of the ServiceService's SetImage RPC.
 	ServiceServiceSetImageProcedure = "/maitre.v1.ServiceService/SetImage"
+	// ServiceServiceCheckServiceProcedure is the procedure name of the ServiceService's CheckService
+	// RPC.
+	ServiceServiceCheckServiceProcedure = "/maitre.v1.ServiceService/CheckService"
+	// ServiceServiceListDevicesProcedure is the procedure name of the ServiceService's ListDevices RPC.
+	ServiceServiceListDevicesProcedure = "/maitre.v1.ServiceService/ListDevices"
 )
 
 var (
@@ -131,6 +136,20 @@ var (
 			Procedure:  ServiceServiceSetImageProcedure,
 		}
 	})
+	serviceServiceCheckServiceSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("CheckService"),
+			Procedure:  ServiceServiceCheckServiceProcedure,
+		}
+	})
+	serviceServiceListDevicesSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("ListDevices"),
+			Procedure:  ServiceServiceListDevicesProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -169,6 +188,19 @@ type ServiceServiceClient interface {
 	// pinned to its digest, the old one kept for Rollback, and the Service
 	// restarted if it was running.
 	SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error)
+	// CheckService renders a spec exactly as InstallService would and runs
+	// this Node's Quadlet over the units, without installing or pulling
+	// anything (plan C10): the Console's check of a converted Compose file.
+	// Optional: older Nodes answer Unimplemented, and the Console then says
+	// only its local checks ran. A spec Quadlet or the Node refuses fails
+	// with InvalidArgument and the reason.
+	CheckService(context.Context, *v1.CheckServiceRequest) (*v1.CheckServiceResponse, error)
+	// ListDevices lists this Node's devices a Catalog entry's device setting
+	// can name (docs/popularity-and-grants.md, G5): serial adapters such as
+	// Zigbee and Z-Wave sticks, and video devices for hardware decoding.
+	// Optional: older Nodes answer Unimplemented, and the Console then asks
+	// for a path.
+	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -213,6 +245,19 @@ type ServiceServiceHandler interface {
 	// pinned to its digest, the old one kept for Rollback, and the Service
 	// restarted if it was running.
 	SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error)
+	// CheckService renders a spec exactly as InstallService would and runs
+	// this Node's Quadlet over the units, without installing or pulling
+	// anything (plan C10): the Console's check of a converted Compose file.
+	// Optional: older Nodes answer Unimplemented, and the Console then says
+	// only its local checks ran. A spec Quadlet or the Node refuses fails
+	// with InvalidArgument and the reason.
+	CheckService(context.Context, *v1.CheckServiceRequest) (*v1.CheckServiceResponse, error)
+	// ListDevices lists this Node's devices a Catalog entry's device setting
+	// can name (docs/popularity-and-grants.md, G5): serial adapters such as
+	// Zigbee and Z-Wave sticks, and video devices for hardware decoding.
+	// Optional: older Nodes answer Unimplemented, and the Console then asks
+	// for a path.
+	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -231,6 +276,8 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceSetFoldersSpec(), Handler: adapter.setFolders},
 		connect.Method{Spec: serviceServiceSetSettingsSpec(), Handler: adapter.setSettings},
 		connect.Method{Spec: serviceServiceSetImageSpec(), Handler: adapter.setImage},
+		connect.Method{Spec: serviceServiceCheckServiceSpec(), Handler: adapter.checkService},
+		connect.Method{Spec: serviceServiceListDevicesSpec(), Handler: adapter.listDevices},
 	)
 }
 
@@ -279,6 +326,14 @@ func (UnimplementedServiceServiceHandler) SetSettings(context.Context, *v1.SetSe
 
 func (UnimplementedServiceServiceHandler) SetImage(context.Context, *v1.SetImageRequest) (*v1.SetImageResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetImage is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) CheckService(context.Context, *v1.CheckServiceRequest) (*v1.CheckServiceResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.CheckService is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.ListDevices is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -368,6 +423,22 @@ func (c *serviceServiceClient) SetSettings(ctx context.Context, req *v1.SetSetti
 func (c *serviceServiceClient) SetImage(ctx context.Context, req *v1.SetImageRequest) (*v1.SetImageResponse, error) {
 	var res v1.SetImageResponse
 	if err := c.client.CallUnary(ctx, serviceServiceSetImageSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) CheckService(ctx context.Context, req *v1.CheckServiceRequest) (*v1.CheckServiceResponse, error) {
+	var res v1.CheckServiceResponse
+	if err := c.client.CallUnary(ctx, serviceServiceCheckServiceSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) ListDevices(ctx context.Context, req *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
+	var res v1.ListDevicesResponse
+	if err := c.client.CallUnary(ctx, serviceServiceListDevicesSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -501,6 +572,30 @@ func (h serviceServiceHandler) setImage(ctx context.Context, _ connect.Spec, str
 		return err
 	}
 	res, err := h.svc.SetImage(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) checkService(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CheckServiceRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CheckService(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) listDevices(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListDevicesRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListDevices(ctx, &req)
 	if err != nil {
 		return err
 	}

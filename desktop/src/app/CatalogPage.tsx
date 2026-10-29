@@ -1,7 +1,9 @@
-// The Catalog as a card grid (decision 139) with the install sheet (151).
-// Step 3 fills the sheet's Options disclosure; here it asks name and Node.
+// The Catalog as a card grid (decision 139) or a list (217) with the
+// install sheet (151). Step 3 fills the sheet's Options disclosure; here it
+// asks name and Node.
 import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, Copy, Library, LayoutGrid, List, Star } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,35 +13,123 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { create } from "@bufbuild/protobuf";
-import { ServiceMountSchema, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { ServiceMountSchema, type Device, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEditor";
 import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
 import bundledCatalog from "@/catalog/index.json";
-import { specFor, type CatalogEntry, type CatalogIndex } from "@/services";
+import { GENERATE, catalogKey, formatStars, generatedSettings, sortEntries, specFor, type CatalogEntry, type CatalogIndex, type CatalogSort } from "@/services";
+import { changeCount, changesSince, lastSeen, markSeen, useCatalogs, type LoadedCatalog } from "@/fleet/catalogs";
+import { CatalogsSheet, ChangesDialog } from "./UserCatalogs";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { declined } from "@/fleet/grants";
-import { ServiceIcon } from "./status";
+import { registerEntries, ServiceIcon } from "./status";
 
 const catalog = bundledCatalog as CatalogIndex;
+const VIEW_KEY = "maitre.catalog.view";
+const SORT_KEY = "maitre.catalog.sort";
+type View = "grid" | "list";
 
-export function CatalogPage({ snap, onInstall }: { snap: FleetSnapshot | undefined; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
+/** A Node's devices of a kind (G5); undefined when the Node cannot list them. */
+export type ListDevices = (nodeId: string, kind: string) => Promise<Device[] | undefined>;
+
+export function CatalogPage({ snap, deviceId, onInstall, devices }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
+  // Which Catalog to show: all, the project's ("maitre"), or a user's (plan C9).
+  const [from, setFrom] = useState<string>("all");
+  const [manage, setManage] = useState(false);
+  // Cards or a list, kept on this device (217).
+  const [view, setView] = useState<View>(() => (localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid"));
+  const pickView = (v: View) => {
+    localStorage.setItem(VIEW_KEY, v);
+    setView(v);
+  };
+  // Most popular first by default (P5), kept on this device like the view.
+  const [sort, setSort] = useState<CatalogSort>(() => (localStorage.getItem(SORT_KEY) === "name" ? "name" : "popular"));
+  const pickSort = (v: CatalogSort) => {
+    localStorage.setItem(SORT_KEY, v);
+    setSort(v);
+  };
+  const [review, setReview] = useState<LoadedCatalog | null>(null);
+  const user = useCatalogs(snap?.records, deviceId);
+  const loaded = user.data ?? [];
+  useEffect(() => {
+    for (const l of loaded) {
+      registerEntries(l.entries);
+      // A Catalog seen for the first time is simply there; changes count from now.
+      if (!l.error && !l.elsewhere && !lastSeen(l.catalog.id)) markSeen(l);
+    }
+  }, [user.data]);
+  const all = useMemo(() => [...catalog.entries, ...loaded.flatMap((l) => l.entries)], [user.data]);
   // `?install=<catalog id>` opens the sheet on load (screenshot fixture).
   const [picked, setPicked] = useState<CatalogEntry | null>(() => catalog.entries.find((e) => e.id === new URLSearchParams(window.location.search).get("install")) ?? null);
-  const categories = useMemo(() => ["all", ...Array.from(new Set(catalog.entries.map((e) => e.category)))], []);
-  const entries = catalog.entries.filter((e) => (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary}`.toLowerCase().includes(q.toLowerCase())));
+  const categories = useMemo(() => ["all", ...Array.from(new Set(all.map((e) => e.category)))], [all]);
+  const entries = sortEntries(
+    all.filter((e) => (from === "all" || (e.catalog?.id ?? "maitre") === from) && (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary} ${e.category}`.toLowerCase().includes(q.toLowerCase()))),
+    sort,
+  );
   const installed = new Set(snap?.specs.map((s) => s.catalogId));
+  const changed = loaded.map((l) => ({ l, ch: changesSince(l) })).filter((x) => changeCount(x.ch) > 0);
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="h-full overflow-y-auto">
+    <div className="p-6">
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">Add a Service</h1>
-        <div className="relative ml-auto w-64">
+        <span className="text-sm text-muted-foreground">
+          {entries.length === all.length ? `${all.length} in the Catalog` : `${entries.length} of ${all.length}`}
+        </span>
+        <div className="ml-auto flex rounded-md border p-0.5 text-xs" role="group" aria-label="Sort">
+          {(
+            [
+              ["popular", "Popular", "Most popular first: by the stars of each app's project"],
+              ["name", "A–Z", "By name"],
+            ] as const
+          ).map(([v, label, title]) => (
+            <button key={v} title={title} aria-pressed={sort === v} onClick={() => pickSort(v)} className={cn("rounded px-2 py-1", sort === v ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-md border p-0.5" role="group" aria-label="View">
+          {(
+            [
+              ["grid", LayoutGrid, "Cards"],
+              ["list", List, "List"],
+            ] as const
+          ).map(([v, Icon, label]) => (
+            <button key={v} title={label} aria-label={label} aria-pressed={view === v} onClick={() => pickView(v)} className={cn("rounded px-1.5 py-1", view === v ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+              <Icon className="size-4" />
+            </button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setManage(true)}>
+          <Library /> Catalogs{loaded.length ? ` (${loaded.length + 1})` : ""}
+        </Button>
+        <div className="relative w-64">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the Catalog" className="pl-8" />
         </div>
       </div>
+      {changed.map(({ l, ch }) => (
+        <div key={l.catalog.id} className="mb-3 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">
+            <b>{l.catalog.name}</b> changed since you last looked: {[ch.added.length && `${ch.added.length} new`, ch.changed.length && `${ch.changed.length} changed`, ch.removed.length && `${ch.removed.length} removed`].filter(Boolean).join(", ")}.
+          </span>
+          <Button size="sm" variant="outline" onClick={() => setReview(l)}>
+            Review
+          </Button>
+        </div>
+      ))}
+      {loaded.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Catalog">
+          {[{ id: "all", name: "Every Catalog" }, { id: "maitre", name: "Maître Catalog" }, ...loaded.map((l) => l.catalog)].map((c) => (
+            <button key={c.id} onClick={() => setFrom(c.id)} className={cn("rounded-full border px-3 py-1 text-xs", from === c.id ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap gap-1.5">
         {categories.map((c) => (
           <button key={c} onClick={() => setCat(c)} className={cn("rounded-full border px-3 py-1 text-xs capitalize", cat === c ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")}>
@@ -47,16 +137,20 @@ export function CatalogPage({ snap, onInstall }: { snap: FleetSnapshot | undefin
           </button>
         ))}
       </div>
+      {entries.length === 0 && <p className="text-sm text-muted-foreground">Nothing in the Catalog matches.</p>}
+      {view === "grid" ? (
       <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
         {entries.map((e) => (
-          <button key={e.id} onClick={() => setPicked(e)} className="flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/30 hover:bg-accent/40">
+          <button key={catalogKey(e)} onClick={() => setPicked(e)} className="flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/30 hover:bg-accent/40">
             <div className="flex w-full items-center gap-3">
-              <ServiceIcon catalogId={e.id} word="Online" size={40} />
+              <ServiceIcon catalogId={catalogKey(e)} word="Online" size={40} />
               <div className="min-w-0">
                 <div className="truncate font-medium">{e.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  v{e.version}
-                  {installed.has(e.id) && " · installed"}
+                  v{e.version.replace(/^v/, "")}
+                  {installed.has(catalogKey(e)) && " · installed"}
+                  {e.unfinished?.length ? " · unfinished" : ""}
+                  {e.stars ? <Stars n={e.stars} /> : null}
                 </div>
               </div>
             </div>
@@ -67,17 +161,126 @@ export function CatalogPage({ snap, onInstall }: { snap: FleetSnapshot | undefin
               </Badge>
               {e.infrastructure && <Badge variant="outline">infrastructure</Badge>}
               {!e.web && <Badge variant="outline">headless</Badge>}
+              {e.catalog && <Badge variant="outline">{e.catalog.name}</Badge>}
             </div>
           </button>
         ))}
-        {entries.length === 0 && <p className="text-sm text-muted-foreground">Nothing in the Catalog matches.</p>}
       </div>
-      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} />
+      ) : (
+        <CatalogList entries={entries} installed={installed} onPick={setPicked} />
+      )}
+      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} devices={devices} />
+      <CatalogsSheet open={manage} onClose={() => setManage(false)} snap={snap} deviceId={deviceId} loaded={user.data} />
+      <ChangesDialog loaded={review} changes={review ? changesSince(review) : null} onClose={() => setReview(null)} />
+    </div>
     </div>
   );
 }
 
-function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
+const validDevice = (v: string) => v === "" || /^\/dev\/\S+$/.test(v);
+
+/**
+ * A device setting (G5): the Node's devices of the kind, or none. A Node
+ * that cannot list them (older) gets a path to type.
+ */
+function DeviceSetting({ label, kind, nodeId, list, value, onChange }: { label: string; kind: string; nodeId: string; list?: ListDevices; value: string; onChange: (v: string) => void }) {
+  const [found, setFound] = useState<Device[] | undefined | null>(null);
+  useEffect(() => {
+    let live = true;
+    setFound(null);
+    (list ? list(nodeId, kind) : Promise.resolve(undefined)).then(
+      (d) => live && setFound(d),
+      () => live && setFound(undefined),
+    );
+    return () => {
+      live = false;
+    };
+  }, [nodeId, kind, list]);
+  const NONE = "none";
+  return (
+    <>
+      <Label>{label}</Label>
+      {found ? (
+        <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+          <SelectTrigger size="sm" aria-label={label}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>None</SelectItem>
+            {found.map((d) => (
+              <SelectItem key={d.path} value={d.path}>
+                {d.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input aria-label={label} value={value} onChange={(e) => onChange(e.target.value.trim())} placeholder={found === null ? "Looking for devices…" : "/dev/serial/by-id/…, or leave empty for none"} />
+      )}
+      <p className="text-xs text-muted-foreground">
+        {found && found.length === 0 ? `This Node has no ${kind === "video" ? "video" : kind === "serial" ? "serial" : ""} device plugged in; plug it in and open this again, or install without.` : found ? "Plugged into this Node." : found === undefined ? "This Node cannot list its devices; type the path, or leave it empty." : ""}
+        {!validDevice(value) && <span className="block text-destructive">A device path starts with /dev/.</span>}
+      </p>
+    </>
+  );
+}
+
+/** A project's stars, rounded: the popularity the Catalog sorts by. */
+function Stars({ n, bare }: { n: number; bare?: boolean }) {
+  return (
+    <span title={`${n.toLocaleString()} stars on the app's project`}>
+      {bare ? "" : " · "}
+      <Star className="inline size-3 -translate-y-px" aria-hidden /> {formatStars(n)}
+    </span>
+  );
+}
+
+/** The Catalog as rows (217): one line each, for scanning hundreds. */
+function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; installed: Set<string | undefined>; onPick: (e: CatalogEntry) => void }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="@container overflow-hidden rounded-xl border bg-card">
+      <div className="grid grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_4rem_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_4rem_1fr_8rem_6rem_7rem] items-center gap-3 border-b bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <span />
+        <span>Name</span>
+        <span className="hidden text-right @xl:block" title="Stars of each app's project: the popularity the Catalog sorts by">Stars</span>
+        <span className="hidden @xl:block">What it does</span>
+        <span className="hidden @4xl:block">Category</span>
+        <span>Version</span>
+        <span className="hidden @4xl:block">Catalog</span>
+      </div>
+      <ul className="divide-y">
+        {entries.map((e) => (
+          <li key={catalogKey(e)} className="[content-visibility:auto] [contain-intrinsic-size:auto_41px]">
+            <button onClick={() => onPick(e)} className="grid w-full grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_4rem_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_4rem_1fr_8rem_6rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent/50">
+              <ServiceIcon catalogId={catalogKey(e)} word="Online" size={24} />
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-medium">{e.name}</span>
+                {installed.has(catalogKey(e)) && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px]">
+                    installed
+                  </Badge>
+                )}
+              </span>
+              <span className="hidden text-right text-xs tabular-nums text-muted-foreground @xl:block">{e.stars ? <Stars n={e.stars} bare /> : "–"}</span>
+              <span className="hidden truncate text-muted-foreground @xl:block" title={e.summary}>
+                {e.summary}
+                {e.unfinished?.length ? " · unfinished" : ""}
+                {e.infrastructure ? " · infrastructure" : ""}
+                {!e.web ? " · headless" : ""}
+              </span>
+              <span className="hidden truncate text-xs capitalize text-muted-foreground @4xl:block">{e.category}</span>
+              <span className="truncate font-mono text-xs text-muted-foreground">v{e.version.replace(/^v/, "")}</span>
+              <span className="hidden truncate text-xs text-muted-foreground @4xl:block">{e.catalog?.name ?? "Maître"}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
   const nodes = snap?.nodes ?? [];
   const spaces = snap?.spaces ?? [];
   const defaultSpace = spaces.find((s) => s.defaultForNew);
@@ -103,7 +306,11 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
     setSettings({});
     setError("");
   };
-  const settingValue = (key: string, def: string) => settings[key] ?? def;
+  // Passwords the entry has made up (plan C7): fresh for each entry opened.
+  const generated = useMemo(() => generatedSettings(entry), [entry?.id]);
+  const settingValue = (key: string, def: string) => settings[key] ?? generated[key] ?? def;
+  // A device the person typed must be one of the Node's (G5).
+  const badDevice = (entry?.settings ?? []).some((s) => s.type === "device" && !validDevice(settingValue(s.key, "")));
   // Only Spaces the chosen Node has (176); folders start from the Catalog's
   // hints (175) and follow a change of Node.
   const here = spacesOn(snap, effNode);
@@ -200,7 +407,9 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                   )}
                   {(entry.settings ?? []).map((s) => (
                     <div key={s.key} className="space-y-1.5">
-                      {s.type === "bool" ? (
+                      {s.type === "device" ? (
+                        <DeviceSetting label={s.label} kind={s.device ?? "any"} nodeId={effNode} list={devices} value={settingValue(s.key, "")} onChange={(v) => setSettings({ ...settings, [s.key]: v })} />
+                      ) : s.type === "bool" ? (
                         <label className="flex items-center justify-between gap-3 text-sm">
                           <span>{s.label}</span>
                           <Switch checked={settingValue(s.key, s.default ?? "") === "true"} onCheckedChange={(v) => setSettings({ ...settings, [s.key]: String(v) })} />
@@ -209,6 +418,14 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                         <>
                           <Label htmlFor={`set-${s.key}`}>{s.label}</Label>
                           <Input id={`set-${s.key}`} type={s.type === "password" ? "password" : s.type === "number" ? "number" : "text"} value={settingValue(s.key, s.default ?? "")} onChange={(e) => setSettings({ ...settings, [s.key]: e.target.value })} placeholder={s.type === "timezone" ? "auto = the Node's time zone" : ""} />
+                          {s.default === GENERATE && settings[s.key] === undefined && (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                              Made up for {entry.name}; it stays in the Service's settings.
+                              <button type="button" className="rounded p-0.5 hover:text-foreground" aria-label={`Copy ${s.label}`} onClick={() => navigator.clipboard?.writeText(generated[s.key]).then(() => toast("Copied"), () => toast.error("Could not copy"))}>
+                                <Copy className="size-3.5" />
+                              </button>
+                            </p>
+                          )}
                         </>
                       )}
                     </div>
@@ -217,10 +434,21 @@ function InstallSheet({ entry, snap, onClose, onInstall }: { entry: CatalogEntry
                 </div>
               </details>
               {error && <p className="text-sm text-destructive">{error}</p>}
+              {!!entry.unfinished?.length && (
+                <div className="rounded-md border border-status-attention/60 bg-status-attention/5 p-3 text-sm">
+                  <p className="font-medium">Not ready to install</p>
+                  <p className="mb-1 text-xs text-muted-foreground">This entry was converted from a Compose file, and someone still has to decide:</p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-xs">
+                    {entry.unfinished.map((u) => (
+                      <li key={u}>{u}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <SheetFooter>
               <Button
-                disabled={busy || !effName || taken.has(effName) || !effNode || !defaultSpace}
+                disabled={busy || !!entry.unfinished?.length || !effName || taken.has(effName) || !effNode || !defaultSpace || badDevice}
                 onClick={async () => {
                   setBusy(true);
                   setError("");

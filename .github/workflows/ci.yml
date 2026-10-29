@@ -123,11 +123,24 @@ jobs:
         with:
           go-version-file: server/go.mod
       - run: make image VERSION=${{ github.sha }}
+      # Plan C8, the Catalog's second check: every entry renders and passes
+      # the Quadlet of the image it ships in, with no grants needed.
+      - run: podman run --rm -v "$PWD/catalog/entries:/entries:ro,z" --entrypoint /usr/bin/maitre localhost/maitre-server:${{ github.sha }} catalog-check /entries
+      # The third check's list: entries this change touches.
+      - id: entries
+        run: |
+          base=${{ github.event.pull_request.base.sha || github.event.before }}
+          if git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --quiet --depth=1 origin "$base"; then
+            echo "ids=$(scripts/changed-entries.sh "$base" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          else echo "no base commit; no Catalog entries installed"; fi
       # Full Milestone 1 demo: boot the image as installer media, provision it
-      # from the host, reboot into the Node. Needs rootful podman + KVM.
+      # from the host, reboot into the Node. Needs rootful podman + KVM. Then
+      # the Catalog's third check: the changed entries install and are healthy.
       - run: |
           if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 qemu-utils ovmf && make image-boot VERSION=${{ github.sha }}; \
           else echo "no /dev/kvm on this runner; boot test skipped"; fi
+        env:
+          CATALOG_ENTRIES: ${{ steps.entries.outputs.ids }}
       # On main: publish the image to GHCR and build installer media that
       # pulls it from there, for `make dev-qemu` and for real USB sticks.
       - if: github.event_name == 'push'

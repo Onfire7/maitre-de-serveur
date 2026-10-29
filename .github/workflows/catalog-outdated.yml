@@ -1,0 +1,84 @@
+# Plan C13: once a week, repin the Catalog's images that moved (a newer tag
+# in the same series, or the same tag rebuilt), and refresh the stars the
+# Catalog page sorts by (docs/popularity-and-grants.md, P3). Then open pull
+# requests for it:
+# one in the Catalog's repository with the new pins, and one here moving the
+# submodule to them, which runs the Catalog's three checks like any change.
+# Needs a CATALOG_TOKEN secret: a token that can push branches and open pull
+# requests in both repositories (the workflow's own token cannot reach the
+# Catalog's, and pull requests it opens would not start CI).
+name: catalog-outdated
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: catalog-outdated
+
+jobs:
+  outdated:
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: catalog-outdated
+      GH_TOKEN: ${{ secrets.CATALOG_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.CATALOG_TOKEN }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - run: cd server && go build -o "$RUNNER_TEMP/maitre" ./cmd/maitre
+      # A lookup that fails is listed in the report, and fails the job at the
+      # end, after the rest are proposed.
+      - id: lookup
+        env:
+          # Reading stars needs no permission; the token lifts the hourly limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          "$RUNNER_TEMP/maitre" catalog outdated --write catalog/entries > "$RUNNER_TEMP/report.md"
+          images=$?
+          { echo; echo "## Popularity"; echo; echo '```'; "$RUNNER_TEMP/maitre" catalog popularity --write catalog/entries; stars=$?; echo '```'; } >> "$RUNNER_TEMP/report.md"
+          echo "status=$((images || stars))" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/report.md"
+      - name: Pull requests
+        run: |
+          set -eu
+          if git -C catalog diff --quiet; then echo "Every image is current, and no star count moved."; exit 0; fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          title="Catalog images and popularity ($(date -u +%F))"
+          report="$RUNNER_TEMP/report.md"
+          catalog_repo=$(git -C catalog remote get-url origin | sed -E 's#^https://github.com/##; s#\.git$##')
+
+          # The Catalog: its branch carries the new pins.
+          git -C catalog checkout -B "$BRANCH"
+          git -C catalog commit -qam "$title" -m "By \`maitre catalog outdated --write\`."
+          git -C catalog push -qf origin "$BRANCH"
+          if gh pr view "$BRANCH" -R "$catalog_repo" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" -R "$catalog_repo" --title "$title" --body-file "$report"
+          else
+            gh pr create -R "$catalog_repo" --head "$BRANCH" --title "$title" --body-file "$report"
+          fi
+          catalog_pr=$(gh pr view "$BRANCH" -R "$catalog_repo" --json url -q .url)
+
+          # Here: the submodule moved to them, so CI checks and boots them.
+          { cat "$report"; echo; echo "The Catalog's side: $catalog_pr. Merge it first, then this."; } > "$RUNNER_TEMP/body.md"
+          git checkout -B "$BRANCH"
+          git add catalog
+          git commit -qm "$title" -m "The Catalog submodule moved to $catalog_pr."
+          git push -qf origin "$BRANCH"
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
+      - if: steps.lookup.outputs.status != '0'
+        run: |
+          echo "::error::some images or projects could not be looked up; see the report above"
+          exit 1

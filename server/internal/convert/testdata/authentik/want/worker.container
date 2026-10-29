@@ -1,0 +1,14 @@
+[Container]
+Image={{ .Image }}
+User=root
+ShmSize=536870912
+Exec='worker'
+Environment=AUTHENTIK_POSTGRESQL__HOST=postgresql
+Environment="AUTHENTIK_POSTGRESQL__NAME={{ .Settings.PG_DB }}"
+Environment="AUTHENTIK_POSTGRESQL__PASSWORD={{ .Settings.PG_PASS }}"
+Environment="AUTHENTIK_POSTGRESQL__USER={{ .Settings.PG_USER }}"
+Environment="AUTHENTIK_SECRET_KEY={{ .Settings.AUTHENTIK_SECRET_KEY }}"
+Volume=/var/run/docker.sock:/var/run/docker.sock
+Volume={{ .Volumes.data }}:/data:z
+Volume={{ .Volumes.certs }}:/certs:Z
+Volume={{ .Volumes.custom_templates }}:/templates:z
