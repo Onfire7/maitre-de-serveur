@@ -1,7 +1,8 @@
-// The Catalog as a card grid (decision 139) with the install sheet (151).
-// Step 3 fills the sheet's Options disclosure; here it asks name and Node.
+// The Catalog as a card grid (decision 139) or a list (217) with the
+// install sheet (151). Step 3 fills the sheet's Options disclosure; here it
+// asks name and Node.
 import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronRight, Copy, Library } from "lucide-react";
+import { Search, ChevronRight, Copy, Library, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,8 @@ import { declined } from "@/fleet/grants";
 import { registerEntries, ServiceIcon } from "./status";
 
 const catalog = bundledCatalog as CatalogIndex;
+const VIEW_KEY = "maitre.catalog.view";
+type View = "grid" | "list";
 
 export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void> }) {
   const [q, setQ] = useState("");
@@ -32,6 +35,12 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
   // Which Catalog to show: all, the project's ("maitre"), or a user's (plan C9).
   const [from, setFrom] = useState<string>("all");
   const [manage, setManage] = useState(false);
+  // Cards or a list, kept on this device (217).
+  const [view, setView] = useState<View>(() => (localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid"));
+  const pickView = (v: View) => {
+    localStorage.setItem(VIEW_KEY, v);
+    setView(v);
+  };
   const [review, setReview] = useState<LoadedCatalog | null>(null);
   const user = useCatalogs(snap?.records, deviceId);
   const loaded = user.data ?? [];
@@ -46,14 +55,33 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
   // `?install=<catalog id>` opens the sheet on load (screenshot fixture).
   const [picked, setPicked] = useState<CatalogEntry | null>(() => catalog.entries.find((e) => e.id === new URLSearchParams(window.location.search).get("install")) ?? null);
   const categories = useMemo(() => ["all", ...Array.from(new Set(all.map((e) => e.category)))], [all]);
-  const entries = all.filter((e) => (from === "all" || (e.catalog?.id ?? "maitre") === from) && (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary}`.toLowerCase().includes(q.toLowerCase())));
+  // By name: with hundreds of entries the order has to be one a person can scan.
+  const entries = all
+    .filter((e) => (from === "all" || (e.catalog?.id ?? "maitre") === from) && (cat === "all" || e.category === cat) && (!q || `${e.name} ${e.summary} ${e.category}`.toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const installed = new Set(snap?.specs.map((s) => s.catalogId));
   const changed = loaded.map((l) => ({ l, ch: changesSince(l) })).filter((x) => changeCount(x.ch) > 0);
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="h-full overflow-y-auto">
+    <div className="p-6">
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">Add a Service</h1>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => setManage(true)}>
+        <span className="text-sm text-muted-foreground">
+          {entries.length === all.length ? `${all.length} in the Catalog` : `${entries.length} of ${all.length}`}
+        </span>
+        <div className="ml-auto flex rounded-md border p-0.5" role="group" aria-label="View">
+          {(
+            [
+              ["grid", LayoutGrid, "Cards"],
+              ["list", List, "List"],
+            ] as const
+          ).map(([v, Icon, label]) => (
+            <button key={v} title={label} aria-label={label} aria-pressed={view === v} onClick={() => pickView(v)} className={cn("rounded px-1.5 py-1", view === v ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
+              <Icon className="size-4" />
+            </button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setManage(true)}>
           <Library /> Catalogs{loaded.length ? ` (${loaded.length + 1})` : ""}
         </Button>
         <div className="relative w-64">
@@ -87,6 +115,8 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
           </button>
         ))}
       </div>
+      {entries.length === 0 && <p className="text-sm text-muted-foreground">Nothing in the Catalog matches.</p>}
+      {view === "grid" ? (
       <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
         {entries.map((e) => (
           <button key={catalogKey(e)} onClick={() => setPicked(e)} className="flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/30 hover:bg-accent/40">
@@ -112,11 +142,57 @@ export function CatalogPage({ snap, deviceId, onInstall }: { snap: FleetSnapshot
             </div>
           </button>
         ))}
-        {entries.length === 0 && <p className="text-sm text-muted-foreground">Nothing in the Catalog matches.</p>}
       </div>
+      ) : (
+        <CatalogList entries={entries} installed={installed} onPick={setPicked} />
+      )}
       <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} />
       <CatalogsSheet open={manage} onClose={() => setManage(false)} snap={snap} deviceId={deviceId} loaded={user.data} />
       <ChangesDialog loaded={review} changes={review ? changesSince(review) : null} onClose={() => setReview(null)} />
+    </div>
+    </div>
+  );
+}
+
+/** The Catalog as rows (217): one line each, for scanning hundreds. */
+function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; installed: Set<string | undefined>; onPick: (e: CatalogEntry) => void }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="@container overflow-hidden rounded-xl border bg-card">
+      <div className="grid grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_1fr_8rem_6rem_7rem] items-center gap-3 border-b bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <span />
+        <span>Name</span>
+        <span className="hidden @xl:block">What it does</span>
+        <span className="hidden @4xl:block">Category</span>
+        <span>Version</span>
+        <span className="hidden @4xl:block">Catalog</span>
+      </div>
+      <ul className="divide-y">
+        {entries.map((e) => (
+          <li key={catalogKey(e)} className="[content-visibility:auto] [contain-intrinsic-size:auto_41px]">
+            <button onClick={() => onPick(e)} className="grid w-full grid-cols-[28px_1fr_6rem] @xl:grid-cols-[28px_minmax(9rem,13rem)_1fr_6rem] @4xl:grid-cols-[28px_minmax(10rem,14rem)_1fr_8rem_6rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent/50">
+              <ServiceIcon catalogId={catalogKey(e)} word="Online" size={24} />
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-medium">{e.name}</span>
+                {installed.has(catalogKey(e)) && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 text-[10px]">
+                    installed
+                  </Badge>
+                )}
+              </span>
+              <span className="hidden truncate text-muted-foreground @xl:block" title={e.summary}>
+                {e.summary}
+                {e.unfinished?.length ? " · unfinished" : ""}
+                {e.infrastructure ? " · infrastructure" : ""}
+                {!e.web ? " · headless" : ""}
+              </span>
+              <span className="hidden truncate text-xs capitalize text-muted-foreground @4xl:block">{e.category}</span>
+              <span className="truncate font-mono text-xs text-muted-foreground">v{e.version.replace(/^v/, "")}</span>
+              <span className="hidden truncate text-xs text-muted-foreground @4xl:block">{e.catalog?.name ?? "Maître"}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
