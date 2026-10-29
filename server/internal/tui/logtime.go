@@ -26,21 +26,21 @@ const (
 	fineSpan = 6*time.Hour - 20*time.Second
 )
 
-// logEdge is the age of the newer edge of column c (0 is the oldest, the
-// last column is the latest reading).
-func logEdge(c int) time.Duration {
-	k := float64(histLen-2-c) / float64(histLen-1)
+// logEdge is the age of the newer edge of column c of n (0 is the oldest,
+// the last column is the latest reading).
+func logEdge(c, n int) time.Duration {
+	k := float64(n-2-c) / float64(n-1)
 	return time.Duration(float64(logNewest) * math.Pow(float64(logSpan)/float64(logNewest), k))
 }
 
-// logColumns averages a series into the chart's columns: each point counts
-// by how much of its step falls in the column. fine holds the last
-// fineSpan at 10 s, coarse the day at 1 minute; a column with no readings
-// is NaN. The last column is live.
-func logColumns(fine, coarse *maitrev1.MetricSeries, now time.Time, live float64) []float64 {
-	out := make([]float64, histLen)
-	for c := range histLen - 1 {
-		newer, older := logEdge(c), logEdge(c-1)
+// logColumns averages a series into n columns: each point counts by how
+// much of its step falls in the column. fine holds the last fineSpan at
+// 10 s, coarse the day at 1 minute; a column with no readings is NaN. The
+// last column is live.
+func logColumns(fine, coarse *maitrev1.MetricSeries, now time.Time, live float64, n int) []float64 {
+	out := make([]float64, n)
+	for c := range n - 1 {
+		newer, older := logEdge(c, n), logEdge(c-1, n)
 		from, to := now.Add(-older).UnixMilli(), now.Add(-newer).UnixMilli()
 		s := coarse
 		if older <= fineSpan && fine != nil {
@@ -48,7 +48,7 @@ func logColumns(fine, coarse *maitrev1.MetricSeries, now time.Time, live float64
 		}
 		out[c] = overlapAvg(s, from, to)
 	}
-	out[histLen-1] = live
+	out[n-1] = live
 	return out
 }
 
@@ -74,9 +74,10 @@ func overlapAvg(s *maitrev1.MetricSeries, from, to int64) float64 {
 	return sum / weight
 }
 
-// logAxis is the line under a chart: where 6 hours, 1 hour, 10 minutes and
-// 1 minute ago fall, between "24h" on the left and "now" on the right.
-func logAxis() string {
+// logAxis is the line under a chart of histLen cells drawn from n columns:
+// where 6 hours, 1 hour, 10 minutes and 1 minute ago fall, between "24h"
+// on the left and "now" on the right.
+func logAxis(n int) string {
 	row := []rune(strings.Repeat(" ", histLen+2))
 	put := func(at int, label string) {
 		r := []rune(label)
@@ -95,9 +96,9 @@ func logAxis() string {
 		label string
 	}{{6 * time.Hour, "6h"}, {time.Hour, "1h"}, {10 * time.Minute, "10m"}, {time.Minute, "1m"}} {
 		// The column holding that age, plus one for the chart's left edge.
-		for c := range histLen - 1 {
-			if logEdge(c) <= m.age {
-				put(c+1-len(m.label)/2, m.label)
+		for c := range n - 1 {
+			if logEdge(c, n) <= m.age {
+				put(c*histLen/n+1-len(m.label)/2, m.label)
 				break
 			}
 		}

@@ -45,6 +45,9 @@ func TestPagesRender(t *testing.T) {
 	if !strings.Contains(v, "uptime-kuma") || !strings.Contains(v, "CPU ▼") {
 		t.Errorf("containers page:\n%s", v)
 	}
+	if m.table.Cursor() != 0 {
+		t.Errorf("no row selected: cursor %d", m.table.Cursor())
+	}
 	// Sorted by CPU descending: uptime-kuma first.
 	if strings.Index(v, "uptime-kuma") > strings.Index(v, "jellyfin") {
 		t.Errorf("sort order wrong:\n%s", v)

@@ -68,7 +68,12 @@ var ErrQuit = errors.New("tui: quit")
 // Run drives the screen on stdin/stdout until ctx ends.
 func Run(ctx context.Context, src Source) error {
 	quietConsole()
+	mode := consoleSetup(os.Stdout)
+	if mode == consoleBraille {
+		useConsolePalette()
+	}
 	m := newModel(src)
+	m.braille = mode != consoleBlocks
 	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
 	_, err := p.Run()
 	if err != nil && ctx.Err() != nil {
@@ -128,8 +133,11 @@ type model struct {
 	follow     bool // keep the log scrolled to its end
 	confirm    bool // reboot confirmation pending
 	message    string
-	cpuHist    []float64 // percent, oldest first
+	cpuHist    []float64 // percent, oldest first, 2*histLen of them
 	memHist    []float64
+	// braille draws line charts of dots; false on a console whose font
+	// could not take them (bars, as before).
+	braille bool
 	// The stored series (decision 211); nil until the Node answers, or
 	// when it keeps none, and then the charts show cpuHist and memHist.
 	fine, coarse map[string]*maitrev1.MetricSeries
@@ -148,11 +156,11 @@ func (m *model) record() {
 	}
 	m.cpuHist = append(m.cpuHist, m.metrics.GetCpuPercent())
 	m.memHist = append(m.memHist, memPct)
-	if len(m.cpuHist) > histLen {
-		m.cpuHist = m.cpuHist[len(m.cpuHist)-histLen:]
+	if len(m.cpuHist) > 2*histLen {
+		m.cpuHist = m.cpuHist[len(m.cpuHist)-2*histLen:]
 	}
-	if len(m.memHist) > histLen {
-		m.memHist = m.memHist[len(m.memHist)-histLen:]
+	if len(m.memHist) > 2*histLen {
+		m.memHist = m.memHist[len(m.memHist)-2*histLen:]
 	}
 }
 
@@ -161,10 +169,11 @@ var columns = []string{"Name", "State", "CPU", "Memory", "Restarts", "Image"}
 func newModel(src Source) *model {
 	t := table.New(table.WithFocused(true), table.WithHeight(10))
 	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true).BorderBottom(true).BorderStyle(lipgloss.NormalBorder())
-	s.Selected = s.Selected.Reverse(true)
+	// Only the 8 colours the console keeps with braille (decision 212).
+	s.Header = s.Header.Bold(true).BorderBottom(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("6"))
+	s.Selected = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("6"))
 	t.SetStyles(s)
-	m := &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true, follow: true}
+	m := &model{src: src, status: src.Status(), metrics: src.Metrics(), table: t, units: src.Units(), sortCol: 2, sortDesc: true, follow: true, braille: true}
 	m.vp = viewport.New(80, 10)
 	m.record()
 	return m
@@ -418,6 +427,10 @@ func (m *model) layoutTable() {
 		out = append(out, table.Row{c.Name, c.State, fmt.Sprintf("%.1f%%", c.CPUPct), humanBytes(c.MemBytes), fmt.Sprint(c.Restarts), c.Image})
 	}
 	m.table.SetRows(out)
+	// A table made before it had rows has no row selected; pick the first.
+	if m.table.Cursor() < 0 && len(out) > 0 {
+		m.table.SetCursor(0)
+	}
 }
 
 func sortTitle(m *model, col int) string {
@@ -430,7 +443,8 @@ func sortTitle(m *model, col int) string {
 	return columns[col] + " ▲"
 }
 
-// Styles. Colours are the terminal's own 16, which the Linux console has.
+// Styles. Colours are the terminal's own; on the Linux console the screen
+// sets 8 of its own (decision 212) and useConsolePalette switches to them.
 var (
 	dim     = lipgloss.NewStyle().Faint(true)
 	bold    = lipgloss.NewStyle().Bold(true)
@@ -442,6 +456,12 @@ var (
 	panel   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
 	label   = lipgloss.NewStyle().Faint(true).Width(11)
 	keyHint = lipgloss.NewStyle().Faint(true)
+	// Chart colours by level: calm, then yellow from 60%, orange from 80%,
+	// red from 90%.
+	chartCalm   = accent
+	chartYellow = warn
+	chartOrange = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	chartRed    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	// The pager look from the Bubble Tea examples: a title box that opens
 	// into a rule, and a percentage box the rule runs into.
 	pagerTitle = func() lipgloss.Style {
@@ -455,6 +475,19 @@ var (
 		return pagerTitle.BorderStyle(b)
 	}()
 )
+
+// useConsolePalette restyles for the console's 8 colours (consolePalette):
+// grey instead of faint, nothing bold, orange in blue's slot.
+func useConsolePalette() {
+	grey := lipgloss.Color("5")
+	dim = lipgloss.NewStyle().Foreground(grey)
+	bold = lipgloss.NewStyle()
+	tabOn = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("6")).Padding(0, 1)
+	tabOff = lipgloss.NewStyle().Foreground(grey).Padding(0, 1)
+	label = lipgloss.NewStyle().Foreground(grey).Width(11)
+	keyHint = dim
+	chartOrange = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+}
 
 func (m *model) View() string {
 	var body string
@@ -553,14 +586,26 @@ func (m *model) viewStatus() string {
 		if mt.GetMemoryTotalBytes() > 0 {
 			memPct = 100 * float64(mt.GetMemoryUsedBytes()) / float64(mt.GetMemoryTotalBytes())
 		}
-		cpuCols, memCols, axis := m.cpuHist, m.memHist, ""
+		// Two columns per cell with braille, one with bars.
+		n := histLen
+		if m.braille {
+			n = 2 * histLen
+		}
+		cpuCols, memCols, axis := tail(m.cpuHist, n), tail(m.memHist, n), ""
 		if m.coarse != nil {
 			now := time.Now()
-			cpuCols = logColumns(m.fine["node/cpu"], m.coarse["node/cpu"], now, mt.GetCpuPercent())
-			memCols = logColumns(m.fine["node/memory"], m.coarse["node/memory"], now, memPct)
-			axis = dim.Render(logAxis())
+			cpuCols = logColumns(m.fine["node/cpu"], m.coarse["node/cpu"], now, mt.GetCpuPercent(), n)
+			memCols = logColumns(m.fine["node/memory"], m.coarse["node/memory"], now, memPct, n)
+			axis = dim.Render(logAxis(n))
 		}
-		rows := sparkline(cpuCols)
+		chart := sparkline
+		if m.braille {
+			chart = func(cols []float64) [3]string {
+				r := brailleChart(pad(cols, n), 3)
+				return [3]string{r[0], r[1], r[2]}
+			}
+		}
+		rows := chart(cpuCols)
 		res.WriteString(row("CPU", rows[0]))
 		res.WriteString(row("", fmt.Sprintf("%s %5.1f%%   load %.2f", rows[1], mt.GetCpuPercent(), mt.GetLoad_1M())))
 		res.WriteString(row("", rows[2]))
@@ -576,7 +621,7 @@ func (m *model) viewStatus() string {
 			w = max(w, len([]rune(x)))
 		}
 		pad := func(x string) string { return strings.Repeat(" ", w-len([]rune(x))) + x }
-		rows = sparkline(memCols)
+		rows = chart(memCols)
 		res.WriteString(row("Memory", rows[0]))
 		res.WriteString(row("", fmt.Sprintf("%s %3.0f%%   %s of %s", rows[1], memPct, pad(sizes[0]), pad(sizes[1]))))
 		res.WriteString(row("", rows[2]))
@@ -612,6 +657,23 @@ func (m *model) viewStatus() string {
 	return b.String()
 }
 
+// tail is the last n of xs.
+func tail(xs []float64, n int) []float64 {
+	return xs[max(0, len(xs)-n):]
+}
+
+// pad puts NaN (no reading) before xs to make n.
+func pad(xs []float64, n int) []float64 {
+	if len(xs) >= n {
+		return xs
+	}
+	out := make([]float64, n-len(xs), n)
+	for i := range out {
+		out[i] = math.NaN()
+	}
+	return append(out, xs...)
+}
+
 // cap is the edge on both sides of charts and gauges: a box-drawing bar
 // (in the console font) that stacks into one continuous edge.
 const cap = "│"
@@ -621,6 +683,7 @@ const cap = "│"
 // the same edge as the gauges on either side.
 func sparkline(hist []float64) [3]string {
 	const cols = histLen
+	hist = tail(hist, cols)
 	var grid [3][]rune
 	for r := range grid {
 		grid[r] = []rune(strings.Repeat(" ", cols))
