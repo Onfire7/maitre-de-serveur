@@ -25,7 +25,9 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # dracut-live builds the netboot installer initramfs (decision 79).
 # acl: setfacl for Spaces' shared folders (decision 182).
 # ktls-utils: tlshd, the TLS handshake for NFS over TLS (decision 188).
-RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils && dnf clean all
+# ipxe-bootimgs-x86: undionly.kpxe, how a Depot netboots BIOS machines
+# (decision 223); noarch, no dependencies.
+RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils ipxe-bootimgs-x86 && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).

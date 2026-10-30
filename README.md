@@ -80,7 +80,7 @@ make vm PXE=1 FRESH=1    # a VM that boots from the network; without the bridge 
                          # (add SERIAL=1 to make depot so the VM keeps its serial log; real machines get no serial console)
 ```
 
-Your router keeps handing out addresses; the Depot only tells UEFI machines where GRUB is. The machine boots the live Installer from RAM, shows the pairing code, and the Console installs it exactly like a media boot, except that bootc streams the image from the Depot straight to the disk. The same Node later takes updates from the Depot through the Console.
+Your router keeps handing out addresses; the Depot only tells PXE clients where to boot from: UEFI machines get shim and GRUB, legacy BIOS machines get iPXE. The machine boots the live Installer from RAM, shows the pairing code, and the Console installs it exactly like a media boot, except that bootc streams the image from the Depot straight to the disk. The same Node later takes updates from the Depot through the Console.
 
 In the Console, open the Node, and under "Maître Server image" enter `<workstation IP>:8080/maitre-server:dev` (the VM behind QEMU's NAT reaches the workstation as `10.0.2.2`). The Node stages the image with `bootc switch` and reboots into it when "Reboot now" is ticked; "Roll back" returns to the previous image. The Depot also publishes itself as `maitre-depot.local`.
 

@@ -16,6 +16,7 @@ interface FilesStatus {
   have_bytes: number;
   total_bytes: number;
   missing: string[];
+  bios?: boolean;
 }
 interface Progress {
   file: string;
@@ -31,9 +32,10 @@ interface Status {
   image: string;
   idle_seconds: number;
   clients: string[];
+  unsupported?: string[];
   last_error: string;
   adopted?: boolean;
-  events: { event: string; time: string; mac?: string; type?: string; file?: string; reason?: string }[];
+  events: { event: string; time: string; mac?: string; type?: string; firmware?: string; file?: string; reason?: string }[];
 }
 
 const IDLE_CHOICES: [number, string][] = [
@@ -169,7 +171,16 @@ export function NetbootPanel() {
             </Button>
             <span className="text-xs text-muted-foreground">Asks for your password: answering network boot requests needs administrator rights.</span>
           </div>
-          <p className="text-xs text-muted-foreground">Then turn the new machine on and pick network boot (UEFI). It appears above as an Installer once it is up, usually within two minutes.</p>
+          <p className="text-xs text-muted-foreground">Then turn the new machine on and pick network boot{files.bios ? " (UEFI or legacy PXE)" : " (UEFI)"}. It appears above as an Installer once it is up, usually within two minutes.</p>
+          {!files.bios && (
+            <p className="text-xs text-muted-foreground">
+              These boot files only start UEFI machines. Older machines with a legacy BIOS need files from a newer build;{" "}
+              <button type="button" className="underline" disabled={downloading} onClick={download}>
+                {downloading ? "downloading…" : `download again from ${source.label}`}
+              </button>{" "}
+              to get them if it has them.
+            </p>
+          )}
         </div>
       )}
       {running && status && (
@@ -178,10 +189,20 @@ export function NetbootPanel() {
             <span className="size-2 rounded-full bg-status-online" /> Answering network boot requests on {status.interface || "the network"} ({status.ip}). {status.idle_seconds > 0 ? `Turns off after ${IDLE_CHOICES.find(([v]) => v === status.idle_seconds)?.[1] ?? `${Math.round(status.idle_seconds / 60)} minutes`} without a machine booting.` : ""}
           </p>
           {status.adopted && <p className="text-xs text-muted-foreground">Still running from before this app was restarted{status.image ? <>, installing <code>{status.image}</code></> : ""}.</p>}
-          <p className="text-xs text-muted-foreground">{status.clients.length === 0 ? "No machine has asked yet. Turn one on and choose network boot." : `Machines that booted from here: ${status.clients.join(", ")}`}</p>
+          {(status.unsupported ?? []).map((u) => {
+            const [mac, firmware] = u.split(" ");
+            return (
+              <p key={u} className="text-xs text-status-attention">
+                {firmware === "bios"
+                  ? `The machine ${mac} asked to boot in legacy BIOS mode, which these boot files cannot start. Turn this off, download the boot files again from a Depot built with BIOS support, and turn it on again.`
+                  : `The machine ${mac} is not an x86-64 PC, so Maître cannot boot it.`}
+              </p>
+            );
+          })}
+          <p className="text-xs text-muted-foreground">{status.clients.length > 0 ? `Machines that booted from here: ${status.clients.join(", ")}` : status.unsupported?.length ? "No machine has booted from here yet." : "No machine has asked yet. Turn one on and choose network boot."}</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Activity</summary>
-            <pre className="mt-1 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">{status.events.map((e) => `${e.time.slice(11, 19)}  ${e.event}${e.mac ? ` ${e.mac} ${e.type ?? ""}` : ""}${e.file ? ` ${e.file}` : ""}${e.reason ? ` (${e.reason})` : ""}`).join("\n")}</pre>
+            <pre className="mt-1 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">{status.events.map((e) => `${e.time.slice(11, 19)}  ${e.event}${e.mac ? ` ${e.mac} ${e.type ?? ""}${e.firmware ? ` ${e.firmware}` : ""}` : ""}${e.file ? ` ${e.file}` : ""}${e.reason ? ` (${e.reason})` : ""}`).join("\n")}</pre>
           </details>
           <Button size="sm" variant="outline" onClick={() => invoke("netboot_stop").then(refresh)}>
             Turn off

@@ -81,7 +81,7 @@ func runNetboot(args []string) error {
 	if ifname == "" {
 		ifname, _ = depot.InterfaceFor(ip)
 	}
-	if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: *image, Insecure: *insecure, Serial: *serial}); err != nil {
+	if err := depot.WriteBootConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: *image, Insecure: *insecure, Serial: *serial}); err != nil {
 		return err
 	}
 	srv := &http.Server{Handler: depot.BootFileHandler(l), ReadHeaderTimeout: 10 * time.Second}

@@ -22,6 +22,11 @@ const MANIFEST: &str = "netboot.json";
 /// The only files a bundle may contain; manifest names outside this set are
 /// rejected, so a hostile manifest cannot pick where we write.
 const BOOT_FILES: [&str; 6] = ["shimx64.efi", "grubx64.efi", "mmx64.efi", "vmlinuz", "initramfs.img", "rootfs.squashfs"];
+/// Files a bundle may add under `optional` (decision 223): iPXE, which
+/// boots legacy BIOS machines. Kept out of `files`, which Desktops before it
+/// check strictly; unknown optional names are skipped, not refused.
+const OPTIONAL_FILES: [&str; 1] = [BIOS_FILE];
+const BIOS_FILE: &str = "undionly.kpxe";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Manifest {
@@ -30,6 +35,8 @@ pub struct Manifest {
     #[serde(default)]
     pub kernel: String,
     pub files: BTreeMap<String, ManifestFile>,
+    #[serde(default)]
+    pub optional: BTreeMap<String, ManifestFile>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -47,6 +54,8 @@ pub struct FilesStatus {
     pub have_bytes: u64,
     pub total_bytes: u64,
     pub missing: Vec<String>,
+    /// The bundle also boots legacy BIOS machines.
+    pub bios: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -66,6 +75,9 @@ pub struct Status {
     pub image: String,
     pub idle_seconds: u64,
     pub clients: Vec<String>,
+    /// Machines that asked but these boot files cannot start (decision 223),
+    /// as "mac firmware" ("bios", or "" for another architecture).
+    pub unsupported: Vec<String>,
     pub last_error: String,
     pub events: Vec<serde_json::Value>,
     /// Started by an earlier run of this app, which left it running
@@ -132,7 +144,7 @@ impl Netboot {
     pub fn files_status(data_dir: &Path) -> FilesStatus {
         let dir = Self::boot_dir(data_dir);
         let manifest: Option<Manifest> = fs::read(dir.join(MANIFEST)).ok().and_then(|b| serde_json::from_slice(&b).ok());
-        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![] };
+        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![], bios: false };
         let Some(m) = manifest else {
             return st;
         };
@@ -148,6 +160,7 @@ impl Netboot {
             }
         }
         st.ready = st.missing.is_empty() && !m.files.is_empty();
+        st.bios = m.optional.get(BIOS_FILE).is_some_and(|f| fs::metadata(dir.join(BIOS_FILE)).is_ok_and(|md| md.len() == f.size));
         st
     }
 
@@ -169,13 +182,20 @@ impl Netboot {
         if !manifest.files.is_empty() && manifest.files.len() != BOOT_FILES.len() {
             return Err("netboot.json is missing boot files; refusing this bundle".into());
         }
-        if manifest.files.values().any(|f| f.sha256.len() != 64 || !f.sha256.bytes().all(|b| b.is_ascii_hexdigit())) {
+        let optional: Vec<(&String, &ManifestFile)> = manifest.optional.iter().filter(|(n, _)| OPTIONAL_FILES.contains(&n.as_str())).collect();
+        if manifest.files.values().chain(optional.iter().map(|(_, f)| *f)).any(|f| f.sha256.len() != 64 || !f.sha256.bytes().all(|b| b.is_ascii_hexdigit())) {
             return Err("netboot.json has a malformed digest; refusing this bundle".into());
+        }
+        // An optional file this bundle lacks must not linger from an older one.
+        for name in OPTIONAL_FILES {
+            if !manifest.optional.contains_key(name) {
+                let _ = fs::remove_file(dir.join(name));
+            }
         }
         let emit = |p: Progress| {
             let _ = app.emit("netboot-progress", p);
         };
-        for (name, f) in &manifest.files {
+        for (name, f) in manifest.files.iter().chain(optional) {
             let path = dir.join(name);
             if let Ok(md) = fs::metadata(&path) {
                 if md.len() == f.size && file_sha256(&path)? == f.sha256 {
@@ -400,6 +420,14 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
                                     st.clients.push(mac);
                                 }
                             }
+                            "unsupported" => {
+                                let mac = v.get("mac").and_then(|x| x.as_str()).unwrap_or("");
+                                let fw = v.get("firmware").and_then(|x| x.as_str()).unwrap_or("");
+                                let entry = format!("{mac} {fw}");
+                                if !mac.is_empty() && !st.unsupported.contains(&entry) {
+                                    st.unsupported.push(entry);
+                                }
+                            }
                             "error" => st.last_error = explain(v.get("message").and_then(|x| x.as_str()).unwrap_or("")),
                             "stopped" => st.running = false,
                             _ => {}
@@ -453,6 +481,29 @@ mod tests {
         fs::write(&events, "{\"event\":\"error\",\"message\":\"tftp on udp/69: bind: address already in use\"}\n").unwrap();
         assert_eq!(left_running(&events), None, "one that failed to start is not running");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_bundle_with_ipxe_boots_bios_machines() {
+        let data = std::env::temp_dir().join(format!("maitre-nb-bios-{}", std::process::id()));
+        let dir = Netboot::boot_dir(&data);
+        fs::create_dir_all(&dir).unwrap();
+        let entry = |n: usize| format!("{{\"size\":{n},\"sha256\":\"{}\"}}", "0".repeat(64));
+        let files: Vec<String> = BOOT_FILES.iter().map(|f| format!("\"{f}\":{}", entry(f.len()))).collect();
+        for f in BOOT_FILES {
+            fs::write(dir.join(f), f).unwrap();
+        }
+        // An older Depot's manifest: no optional files.
+        fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"files\":{{{}}}}}", files.join(","))).unwrap();
+        let st = Netboot::files_status(&data);
+        assert!(st.ready && !st.bios);
+        fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"files\":{{{}}},\"optional\":{{\"undionly.kpxe\":{},\"future.bin\":{}}}}}", files.join(","), entry(4), entry(1))).unwrap();
+        assert!(!Netboot::files_status(&data).bios, "listed but not downloaded");
+        fs::write(dir.join(BIOS_FILE), "ipxe").unwrap();
+        let st = Netboot::files_status(&data);
+        assert!(st.ready && st.bios);
+        assert_eq!(st.total_bytes, BOOT_FILES.iter().map(|f| f.len() as u64).sum::<u64>(), "optional files are not counted as required");
+        let _ = fs::remove_dir_all(&data);
     }
 
     #[test]

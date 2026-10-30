@@ -187,7 +187,7 @@ func runDepotServe(args []string) error {
 			return fmt.Errorf("boot image %s:%s is not in the Depot (have %v)", imgName, imgTag, imgs)
 		}
 		ref = fmt.Sprintf("%s:%d/%s:%s", ip, port, imgName, imgTag)
-		if err := depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial}); err != nil {
+		if err := depot.WriteBootConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial}); err != nil {
 			return err
 		}
 		bootHint = fmt.Sprintf("  Netboot:  files ready; a netbooted machine installs %s\n            (proxyDHCP off: add --netboot with sudo so machines on the LAN find them)\n", ref)
@@ -227,7 +227,7 @@ func runDepotServe(args []string) error {
 		fmt.Printf("  Press Enter to rebuild and republish (%s).\n\n", *rebuild)
 		go rebuildOnEnter(ctx, log, *rebuild, func() {
 			if ref != "" {
-				_ = depot.WriteGrubConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial})
+				_ = depot.WriteBootConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: ref, Insecure: fmt.Sprintf("%s:%d", ip, port), Serial: *serial})
 			}
 			imgs, _ := (&depot.Registry{Dir: l.Images()}).Images()
 			for n, tags := range imgs {

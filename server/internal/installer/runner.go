@@ -81,9 +81,42 @@ func (r *BootcRunner) exec(ctx context.Context, stdout io.Writer, name string, a
 		return r.Exec(ctx, stdout, name, args...)
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = stdout
-	cmd.Stderr = stdout
-	return cmd.Run()
+	tail := &tailWriter{}
+	cmd.Stdout = io.MultiWriter(stdout, tail)
+	cmd.Stderr = cmd.Stdout
+	return tail.explain(cmd.Run())
+}
+
+// tailWriter keeps the end of a command's output, so a failure says more
+// than "exit status 1" (sfdisk out of room, mkfs refusing a device).
+type tailWriter struct{ buf []byte }
+
+func (t *tailWriter) Write(p []byte) (int, error) {
+	t.buf = append(t.buf, p...)
+	if len(t.buf) > 4096 {
+		t.buf = t.buf[len(t.buf)-4096:]
+	}
+	return len(p), nil
+}
+
+// explain adds the last three lines of output to err.
+func (t *tailWriter) explain(err error) error {
+	if err == nil {
+		return nil
+	}
+	var lines []string
+	for _, l := range strings.FieldsFunc(string(t.buf), func(r rune) bool { return r == '\n' || r == '\r' }) {
+		if l = strings.TrimSpace(l); l != "" {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) > 3 {
+		lines = lines[len(lines)-3:]
+	}
+	if len(lines) == 0 {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, strings.Join(lines, " / "))
 }
 
 // execPull is exec on a pseudo-terminal, so podman draws progress bars.

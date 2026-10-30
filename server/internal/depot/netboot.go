@@ -40,6 +40,15 @@ const (
 	BootInitrd = "initramfs.img" // dracut with dmsquash-live and livenet
 	BootRootFS = "rootfs.squashfs"
 	BootConfig = "grub.cfg"
+	// BootBIOS is what legacy BIOS PXE ROMs download: iPXE's UNDI build
+	// from the image's ipxe-bootimgs-x86, which drives the NIC through the
+	// ROM's own driver, so it works with any PXE 2.x card. GRUB cannot take
+	// this role: under proxyDHCP its BIOS build only sees the router's
+	// answer and never learns where the Depot is. iPXE asks again with user
+	// class "iPXE" and gets BootIPXE, which loads the kernel and initramfs
+	// over HTTP (decision 223). Optional: bundles built before it lack it.
+	BootBIOS = "undionly.kpxe"
+	BootIPXE = "boot.ipxe"
 	// BootManifest lists the files with digests, for downloads to verify.
 	BootManifest = "netboot.json"
 )
@@ -51,6 +60,10 @@ type Manifest struct {
 	Image  string                  `json:"image"`
 	Kernel string                  `json:"kernel,omitempty"`
 	Files  map[string]ManifestFile `json:"files"`
+	// Optional lists OptionalBootFiles present in the bundle. A separate
+	// field, because Desktops before decision 223 refuse a bundle whose
+	// files they do not know.
+	Optional map[string]ManifestFile `json:"optional,omitempty"`
 }
 
 // ManifestFile is one netboot file.
@@ -62,27 +75,51 @@ type ManifestFile struct {
 // BootFiles are the files a netboot needs, in download order.
 var BootFiles = []string{BootLoader, BootGrub, BootMok, BootKernel, BootInitrd, BootRootFS}
 
+// OptionalBootFiles add abilities when present: BIOS machines.
+var OptionalBootFiles = []string{BootBIOS}
+
 // WriteManifest hashes the boot files in l.Boot() and writes BootManifest.
 func WriteManifest(l Layout, image string) error {
 	m := Manifest{Image: image, Files: map[string]ManifestFile{}}
 	for _, name := range BootFiles {
-		f, err := os.Open(filepath.Join(l.Boot(), name))
+		mf, err := hashFile(filepath.Join(l.Boot(), name))
 		if err != nil {
 			return err
 		}
-		h := sha256.New()
-		n, err := io.Copy(h, f)
-		f.Close()
+		m.Files[name] = mf
+	}
+	for _, name := range OptionalBootFiles {
+		mf, err := hashFile(filepath.Join(l.Boot(), name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
-		m.Files[name] = ManifestFile{Size: n, SHA256: hex.EncodeToString(h.Sum(nil))}
+		if m.Optional == nil {
+			m.Optional = map[string]ManifestFile{}
+		}
+		m.Optional[name] = mf
 	}
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(l.Boot(), BootManifest), append(b, '\n'), 0o644)
+}
+
+func hashFile(p string) (ManifestFile, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return ManifestFile{}, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	if err != nil {
+		return ManifestFile{}, err
+	}
+	return ManifestFile{Size: n, SHA256: hex.EncodeToString(h.Sum(nil))}, nil
 }
 
 // ReadManifest reads BootManifest from l.Boot().
@@ -120,12 +157,16 @@ cp /usr/lib/modules/$kver/vmlinuz /out/vmlinuz.tmp
 cp /usr/lib/bootupd/updates/EFI/fedora/grubx64.efi /out/grubx64.efi.tmp
 cp /usr/lib/bootupd/updates/EFI/fedora/shimx64.efi /out/shimx64.efi.tmp
 cp /usr/lib/bootupd/updates/EFI/fedora/mmx64.efi /out/mmx64.efi.tmp
+rm -f /out/undionly.kpxe
+bios=
+if [ -f /usr/share/ipxe/undionly.kpxe ]; then cp /usr/share/ipxe/undionly.kpxe /out/undionly.kpxe.tmp; bios=undionly.kpxe
+else echo "image lacks ipxe-bootimgs-x86: BIOS machines will not netboot (rebuild it: make image)" >&2; fi
 echo "building live initramfs"
 dracut --force --quiet --no-hostonly --add "dmsquash-live livenet" --omit "ostree" --kver "$kver" /out/initramfs.img.tmp
 echo "squashing root (a few minutes)"
 mksquashfs / /out/rootfs.squashfs.tmp -quiet -no-progress -noappend -comp zstd -Xcompression-level 6 \
   -e proc sys dev run tmp out var/tmp var/cache boot/efi etc/hostname etc/hosts etc/resolv.conf
-for f in vmlinuz grubx64.efi shimx64.efi mmx64.efi initramfs.img rootfs.squashfs; do mv /out/$f.tmp /out/$f; chmod 644 /out/$f; done
+for f in vmlinuz grubx64.efi shimx64.efi mmx64.efi initramfs.img rootfs.squashfs $bios; do mv /out/$f.tmp /out/$f; chmod 644 /out/$f; done
 ls -la /out
 `
 	cmd := exec.CommandContext(ctx, "podman", "run", "--rm", "-v", out+":/out:Z", image, "bash", "-c", script)
@@ -140,8 +181,8 @@ ls -la /out
 // l.Boot() under /boot/: no listings, no other files, no symlinks followed
 // outside the directory's known names.
 func BootFileHandler(l Layout) http.Handler {
-	allowed := map[string]bool{BootManifest: true, BootConfig: true}
-	for _, f := range BootFiles {
+	allowed := map[string]bool{BootManifest: true, BootConfig: true, BootIPXE: true}
+	for _, f := range append(BootFiles, OptionalBootFiles...) {
 		allowed[f] = true
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,6 +193,12 @@ func BootFileHandler(l Layout) http.Handler {
 		}
 		http.ServeFile(w, r, filepath.Join(l.Boot(), name))
 	})
+}
+
+// HaveBIOS reports whether l.Boot() can boot BIOS machines.
+func HaveBIOS(l Layout) bool {
+	_, err := os.Stat(filepath.Join(l.Boot(), BootBIOS))
+	return err == nil
 }
 
 // HaveBootFiles reports whether l.Boot() holds a complete set.
@@ -179,31 +226,53 @@ type BootParams struct {
 	Serial bool
 }
 
+// netbootArgs is the Installer's kernel command line, shared by GRUB (UEFI)
+// and iPXE (BIOS).
+const netbootArgs = `{{define "args"}}root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 loglevel=4 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}{{end}}`
+
 // GRUB loads the kernel and initramfs over TFTP from the server it was
 // booted from (its HTTP client only speaks to port 80); dracut then fetches
 // the squashed root over HTTP from the Depot's port.
 // ASCII only in what GRUB prints: its console font has no "î".
-var grubTemplate = template.Must(template.New("grub.cfg").Parse(`# Written by maitre depot. Boots the Maitre Installer from the network.
+var grubTemplate = template.Must(template.New("grub.cfg").Parse(netbootArgs + `# Written by maitre depot. Boots the Maitre Installer from the network.
 set timeout=3
 set default=0
 menuentry "Install Maitre Server ({{.Image}})" {
   echo "Loading the Maitre Installer from {{.IP}}..."
-  linux /vmlinuz root=live:http://{{.IP}}:{{.HTTPPort}}/boot/rootfs.squashfs rd.live.image rd.live.overlay.overlayfs=1 rd.neednet=1 ip=dhcp rd.live.dir=/ enforcing=0 loglevel=4 console=tty0{{if .Serial}} console=ttyS0,115200n8{{end}} maitre.installer maitre.netboot maitre.image={{.Image}}{{if .Insecure}} maitre.insecure_registry={{.Insecure}}{{end}}
+  linux /vmlinuz {{template "args" .}}
   initrd /initramfs.img
 }
 `))
 
-// WriteGrubConfig renders grub.cfg into l.Boot(). It is written at the root
-// and under EFI/fedora/, the two places Fedora's GRUB looks when netbooted.
+// iPXE speaks HTTP to any port, so everything comes from the Depot's HTTP
+// server, much faster than TFTP through an old ROM.
+var ipxeTemplate = template.Must(template.New("boot.ipxe").Parse(netbootArgs + `#!ipxe
+# Written by maitre depot. Boots the Maitre Installer on BIOS machines.
+echo Loading the Maitre Installer from {{.IP}}...
+kernel http://{{.IP}}:{{.HTTPPort}}/boot/vmlinuz {{template "args" .}}
+initrd http://{{.IP}}:{{.HTTPPort}}/boot/initramfs.img
+boot
+`))
+
+// WriteBootConfig renders grub.cfg and boot.ipxe into l.Boot(). grub.cfg is
+// written at the root and under EFI/fedora/, the two places Fedora's GRUB
+// looks when netbooted.
 // Files are replaced by rename, so a copy left by an elevated run can still
 // be swapped out by the directory's owner, and anything written while
 // elevated is handed back to the invoking user.
-func WriteGrubConfig(l Layout, p BootParams) error {
-	var buf bytes.Buffer
-	if err := grubTemplate.Execute(&buf, p); err != nil {
+func WriteBootConfig(l Layout, p BootParams) error {
+	var grub, ipxe bytes.Buffer
+	if err := grubTemplate.Execute(&grub, p); err != nil {
 		return err
 	}
-	for _, rel := range []string{BootConfig, filepath.Join("EFI", "fedora", BootConfig)} {
+	if err := ipxeTemplate.Execute(&ipxe, p); err != nil {
+		return err
+	}
+	for rel, buf := range map[string]*bytes.Buffer{
+		BootConfig: &grub,
+		filepath.Join("EFI", "fedora", BootConfig): &grub,
+		BootIPXE: &ipxe,
+	} {
 		dst := filepath.Join(l.Boot(), rel)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
@@ -330,48 +399,113 @@ func (n *Netboot) Close() {
 	}
 }
 
-// handleDHCP answers PXE DISCOVER (port 67) and REQUEST (port 4011) from
-// x86-64 UEFI clients with the boot file, nothing else. The reply carries no
-// address: it only tells the firmware where GRUB is.
-func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv4) {
-	if m == nil || m.OpCode != dhcpv4.OpcodeBootRequest {
-		return
-	}
-	class := string(m.ClassIdentifier())
-	if !strings.HasPrefix(class, "PXEClient") {
-		return
-	}
+// Firmware kinds a PXE client may have.
+const (
+	FirmwareUEFI = "uefi"
+	FirmwareBIOS = "bios"
+)
+
+// clientFirmware tells x86-64 UEFI from legacy BIOS PXE clients, "" for
+// anything else (ARM, 32-bit UEFI). PXE 2.x ROMs older than RFC 4578 send
+// no architecture option, only "PXEClient:Arch:00000" in their class.
+func clientFirmware(m *dhcpv4.DHCPv4) string {
 	archs := m.ClientArch()
-	efi := false
+	if len(archs) == 0 {
+		class := string(m.ClassIdentifier())
+		if !strings.Contains(class, ":Arch:") || strings.Contains(class, ":Arch:00000") {
+			return FirmwareBIOS
+		}
+		return ""
+	}
 	for _, a := range archs {
-		if a == iana.EFI_X86_64 || a == iana.EFI_X86_64_HTTP || a == iana.EFI_BC {
-			efi = true
+		switch a {
+		case iana.EFI_X86_64, iana.EFI_X86_64_HTTP, iana.EFI_BC:
+			return FirmwareUEFI
+		case iana.INTEL_X86PC:
+			return FirmwareBIOS
 		}
 	}
-	if !efi {
-		n.Log.Warn("netboot: ignoring non-UEFI-x64 PXE client", "mac", m.ClientHWAddr.String(), "arch", archs)
-		return
+	return ""
+}
+
+// isIPXE reports an iPXE client, which must get the script, not iPXE again.
+func isIPXE(m *dhcpv4.DHCPv4) bool {
+	for _, c := range m.UserClass() {
+		if c == "iPXE" {
+			return true
+		}
 	}
-	var reply *dhcpv4.DHCPv4
-	var err error
+	return false
+}
+
+// pxeBypassDiscovery is option 43 telling a BIOS PXE ROM to boot the file
+// named in the offer instead of looking for boot servers (PXE spec,
+// PXE_DISCOVERY_CONTROL bit 3), as dnsmasq and pixiecore send.
+var pxeBypassDiscovery = []byte{6, 1, 8, 255}
+
+// reply builds the proxyDHCP answer to a PXE DISCOVER (port 67) or REQUEST
+// (port 4011): no address, only where the boot loader is. UEFI clients get
+// shim; BIOS clients get iPXE and then, from iPXE, its script. nil means
+// stay quiet; firmware says what asked.
+func (n *Netboot) reply(m *dhcpv4.DHCPv4) (reply *dhcpv4.DHCPv4, firmware string, err error) {
+	if m == nil || m.OpCode != dhcpv4.OpcodeBootRequest || !strings.HasPrefix(string(m.ClassIdentifier()), "PXEClient") {
+		return nil, "", nil
+	}
+	firmware = clientFirmware(m)
+	var file string
+	switch {
+	case firmware == FirmwareUEFI:
+		file = BootLoader
+	case firmware == FirmwareBIOS && !HaveBIOS(n.Layout):
+		return nil, firmware, nil
+	case firmware == FirmwareBIOS && isIPXE(m):
+		file = BootIPXE
+	case firmware == FirmwareBIOS:
+		file = BootBIOS
+	default:
+		return nil, firmware, nil
+	}
 	switch m.MessageType() {
 	case dhcpv4.MessageTypeDiscover:
 		reply, err = dhcpv4.NewReplyFromRequest(m, dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer))
 	case dhcpv4.MessageTypeRequest:
 		reply, err = dhcpv4.NewReplyFromRequest(m, dhcpv4.WithMessageType(dhcpv4.MessageTypeAck))
 	default:
-		return
+		return nil, firmware, nil
 	}
+	if err != nil {
+		return nil, firmware, err
+	}
+	reply.ServerIPAddr = n.IP
+	reply.BootFileName = file
+	reply.UpdateOption(dhcpv4.OptServerIdentifier(n.IP))
+	reply.UpdateOption(dhcpv4.OptClassIdentifier("PXEClient"))
+	if firmware == FirmwareBIOS {
+		reply.UpdateOption(dhcpv4.OptGeneric(dhcpv4.OptionVendorSpecificInformation, pxeBypassDiscovery))
+	}
+	if id := m.Options.Get(dhcpv4.OptionClientMachineIdentifier); id != nil {
+		reply.UpdateOption(dhcpv4.OptGeneric(dhcpv4.OptionClientMachineIdentifier, id))
+	}
+	return reply, firmware, nil
+}
+
+// handleDHCP sends reply's answer. A BIOS client the bundle cannot boot is
+// reported as an "unsupported" event so the Desktop can say why nothing
+// happens on that machine (its ROM shows PXE-E53).
+func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv4) {
+	reply, firmware, err := n.reply(m)
 	if err != nil {
 		n.Log.Error("netboot: build reply", "err", err)
 		return
 	}
-	reply.ServerIPAddr = n.IP
-	reply.BootFileName = BootLoader
-	reply.UpdateOption(dhcpv4.OptServerIdentifier(n.IP))
-	reply.UpdateOption(dhcpv4.OptClassIdentifier("PXEClient"))
-	if id := m.Options.Get(dhcpv4.OptionClientMachineIdentifier); id != nil {
-		reply.UpdateOption(dhcpv4.OptGeneric(dhcpv4.OptionClientMachineIdentifier, id))
+	if reply == nil {
+		if m != nil && strings.HasPrefix(string(m.ClassIdentifier()), "PXEClient") && m.MessageType() == dhcpv4.MessageTypeDiscover {
+			n.Log.Warn("netboot: cannot boot this PXE client", "mac", m.ClientHWAddr.String(), "firmware", firmware, "arch", m.ClientArch())
+			if n.OnEvent != nil {
+				n.OnEvent("unsupported", map[string]any{"mac": m.ClientHWAddr.String(), "firmware": firmware})
+			}
+		}
+		return
 	}
 	dst := peer
 	if ua, ok := peer.(*net.UDPAddr); ok && (ua.IP == nil || ua.IP.IsUnspecified()) {
@@ -381,9 +515,9 @@ func (n *Netboot) handleDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv
 		n.Log.Error("netboot: send reply", "err", err)
 		return
 	}
-	n.Log.Info("netboot: PXE client", "mac", m.ClientHWAddr.String(), "type", m.MessageType().String(), "to", dst.String(), "bootfile", BootLoader)
+	n.Log.Info("netboot: PXE client", "mac", m.ClientHWAddr.String(), "type", m.MessageType().String(), "to", dst.String(), "firmware", firmware, "bootfile", reply.BootFileName)
 	if n.OnEvent != nil {
-		n.OnEvent("client", map[string]any{"mac": m.ClientHWAddr.String(), "type": m.MessageType().String()})
+		n.OnEvent("client", map[string]any{"mac": m.ClientHWAddr.String(), "type": m.MessageType().String(), "firmware": firmware})
 	}
 }
 
