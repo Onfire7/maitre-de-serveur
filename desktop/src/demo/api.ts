@@ -40,4 +40,10 @@ export const demoApi = {
     if (addr !== f.installer.addr) throw new Error(`nothing answers at ${addr}`);
     return { fingerprint: f.installer.id, pairing_code: f.installer.pairingCode, public_key_pem: "demo" };
   },
+  peekKey: async (addr: string): Promise<Peek> => {
+    const f = demoFleet();
+    const n = f.nodeByAddr(addr);
+    if (n) return { fingerprint: n.nodeId, pairing_code: "", public_key_pem: "demo" };
+    return demoApi.peekInstaller(addr);
+  },
 };

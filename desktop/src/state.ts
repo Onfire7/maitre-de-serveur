@@ -48,6 +48,8 @@ const tauriApi = {
   createFleet: (name: string) => invoke<string>("create_fleet", { name }),
   discover: () => invoke<Found[]>("discover"),
   peekInstaller: (addr: string) => invoke<Peek>("peek_installer", { addr }),
+  /** Learn the key of whatever answers at addr (a Node too): the TLS handshake shows it. */
+  peekKey: (addr: string) => invoke<Peek>("peek_installer", { addr }),
 };
 
 /** The Console's own state and LAN discovery; the demo Fleet's when demo mode is on. */

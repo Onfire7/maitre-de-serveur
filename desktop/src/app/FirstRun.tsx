@@ -1,11 +1,11 @@
 // First run (decisions 134, 141): create a Fleet, keep its Recovery Phrase,
 // or get into an existing Fleet one of three ways. No sidebar yet.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { motion } from "motion/react";
-import { Boxes, KeyRound, Laptop, Hash, ArrowLeft, Dices } from "lucide-react";
+import { Boxes, KeyRound, Laptop, Hash, ArrowLeft, Dices, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found } from "@/state";
 import { adoptFleet, firstTrustingNode } from "@/fleet/join";
 import { signedRecord } from "@/fleet/sign";
+import { nodeAddr, typedNode, withTyped } from "@/fleet/address";
 
 export type FirstRunScreen = "welcome" | "join" | "recover" | "code";
 
@@ -141,9 +142,73 @@ function Back({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** A Node typed in by address, for networks where discovery finds nothing (decision 219). */
+function ByAddress({ typed, onAdd }: { typed: Found[]; onAdd: (f: Found) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<{ addr: string; detail: string } | null>(null);
+  const addr = nodeAddr(text);
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      const p = await api.peekKey(addr);
+      onAdd(typedNode(addr, p.fingerprint));
+      setText("");
+    } catch (e) {
+      setError({ addr, detail: String((e as Error).message ?? e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!open && typed.length === 0)
+    return (
+      <button onClick={() => setOpen(true)} className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <Network className="size-4" /> Node not found? Connect by IP address
+      </button>
+    );
+  return (
+    <div className="mt-4 space-y-2 rounded-lg border p-3">
+      <Label htmlFor="node-addr">Node's IP address</Label>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (addr) connect();
+        }}
+      >
+        <Input id="node-addr" autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="192.168.1.20" className="font-mono" />
+        <Button type="submit" variant="outline" disabled={busy || !addr}>
+          {busy ? "Connecting…" : "Connect"}
+        </Button>
+      </form>
+      <p className="text-xs text-muted-foreground">The Node's screen shows it under Network. Port {addr ? addr.replace(/^.*:/, "") : "7443"} unless you add another, as in 192.168.1.20:8443.</p>
+      {typed.map((t) => (
+        <p key={t.addresses[0]} className="text-xs">
+          <span className="mr-1.5 inline-block size-2 rounded-full bg-status-online" />A Node answered at <span className="font-mono">{t.addresses[0]}</span>
+        </p>
+      ))}
+      {error && (
+        <p className="text-xs text-destructive" title={error.detail}>
+          Nothing answered at <span className="font-mono">{error.addr}</span>. Check the address, and that this computer is on a network that reaches it.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function useTyped(): [Found[], (f: Found) => void] {
+  const [typed, setTyped] = useState<Found[]>([]);
+  return [typed, (f) => setTyped((t) => [...t.filter((x) => x.addresses[0] !== f.addresses[0]), f])];
+}
+
 export function JoinScreen({ device, onJoined, onCancel }: { device: DeviceInfo; onJoined: (s: ConsoleState) => void; onCancel: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [typed, addTyped] = useTyped();
+  const typedRef = useRef(typed);
+  typedRef.current = typed;
   useEffect(() => {
     let fullname = "";
     let stop = false;
@@ -153,7 +218,7 @@ export function JoinScreen({ device, onJoined, onCancel }: { device: DeviceInfo;
       .catch((e) => setError(String(e)));
     const tick = async () => {
       try {
-        const found = await api.discover();
+        const found = withTyped(await api.discover(), typedRef.current);
         const t = await firstTrustingNode(found);
         if (t && !stop) {
           stop = true;
@@ -181,13 +246,16 @@ export function JoinScreen({ device, onJoined, onCancel }: { device: DeviceInfo;
         </div>
       </div>
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+      <ByAddress typed={typed} onAdd={addTyped} />
     </Frame>
   );
 }
 
 export function RecoverScreen({ device, onJoined, onCancel }: { device: DeviceInfo; onJoined: (s: ConsoleState) => void; onCancel: () => void }) {
   const [phrase, setPhrase] = useState("");
-  const [nodes, setNodes] = useState<Found[]>([]);
+  const [found, setNodes] = useState<Found[]>([]);
+  const [typed, addTyped] = useTyped();
+  const nodes = withTyped(found, typed);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -201,7 +269,7 @@ export function RecoverScreen({ device, onJoined, onCancel }: { device: DeviceIn
     setBusy(true);
     setError("");
     try {
-      const found = await api.discover();
+      const found = withTyped(await api.discover(), typed);
       let last = "";
       for (const n of nodes)
         for (const addr of n.addresses) {
@@ -236,13 +304,18 @@ export function RecoverScreen({ device, onJoined, onCancel }: { device: DeviceIn
       <Button className="mt-4" disabled={busy || nodes.length === 0 || words.length !== 12} onClick={recover}>
         {busy ? "Recovering…" : "Recover"}
       </Button>
+      <div>
+        <ByAddress typed={typed} onAdd={addTyped} />
+      </div>
     </Frame>
   );
 }
 
 export function CodeScreen({ device, onJoined, onCancel, promote = false }: { device: DeviceInfo; onJoined: (s: ConsoleState) => void; onCancel: () => void; promote?: boolean }) {
   const [code, setCode] = useState("");
-  const [nodes, setNodes] = useState<Found[]>([]);
+  const [found, setNodes] = useState<Found[]>([]);
+  const [typed, addTyped] = useTyped();
+  const nodes = withTyped(found, typed);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -257,7 +330,7 @@ export function CodeScreen({ device, onJoined, onCancel, promote = false }: { de
     setBusy(true);
     setError("");
     try {
-      const found = await api.discover();
+      const found = withTyped(await api.discover(), typed);
       let last = "";
       for (const a of n.addresses) {
         const host = a.replace(/:\d+$/, "");
@@ -290,7 +363,15 @@ export function CodeScreen({ device, onJoined, onCancel, promote = false }: { de
           open.map((n) => (
             <div key={n.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
               <span>
-                <b>{n.name}</b> is accepting a code
+                {found.some((f) => f.id === n.id) ? (
+                  <>
+                    <b>{n.name}</b> is accepting a code
+                  </>
+                ) : (
+                  <>
+                    The Node at <b className="font-mono">{n.name}</b>
+                  </>
+                )}
               </span>
               <Button size="sm" disabled={busy || digits.length !== 8} onClick={() => authorize(n)}>
                 Join through {n.name}
@@ -300,6 +381,7 @@ export function CodeScreen({ device, onJoined, onCancel, promote = false }: { de
         )}
       </div>
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+      <ByAddress typed={typed} onAdd={addTyped} />
     </Frame>
   );
 }
