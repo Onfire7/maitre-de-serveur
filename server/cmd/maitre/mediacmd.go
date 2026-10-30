@@ -199,9 +199,33 @@ func runMediaWrite(args []string) error {
 	if err := out.Sync(); err != nil {
 		return err
 	}
+	// The image's GPT ends where the image does; strict firmware wants it
+	// at the stick's end, or does not list the stick (decision 221, revised).
+	if err := fitToDevice(*device); err != nil {
+		ev.emit("error", map[string]any{"message": "partition table: " + err.Error()})
+		return err
+	}
 	_ = exec.Command("udevadm", "settle").Run()
 	_ = exec.Command("eject", *device).Run()
 	ev.emit("done", map[string]any{"done": done})
 	depot.OwnByInvoker(*eventsFile)
 	return nil
+}
+
+// fitToDevice moves the written image's backup GPT to the end of device and
+// stretches its protective MBR across it.
+func fitToDevice(device string) error {
+	f, err := os.OpenFile(device, os.O_RDWR|os.O_SYNC, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	size, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
+	if _, err := depot.FitGPT(f, size/512); err != nil {
+		return err
+	}
+	return f.Sync()
 }

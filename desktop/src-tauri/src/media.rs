@@ -23,10 +23,16 @@ pub fn is_depot(source: &Option<String>) -> bool {
     source.as_deref() == Some("depot")
 }
 
+/// Bumped when the stick's layout changes, so an image built before is made again.
+/// 2: FAT32 and protective MBR as the specs write them (decision 221, revised).
+const DEPOT_FORMAT: u32 = 2;
+
 #[derive(Serialize, Deserialize, Default)]
 struct DepotInfo {
     image: String,
     insecure: String,
+    #[serde(default)]
+    format: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -71,7 +77,8 @@ impl Media {
         let p = Self::image_path(data_dir, depot);
         let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
         let installs = if depot {
-            fs::read(data_dir.join("media").join(DEPOT_INFO)).ok().and_then(|b| serde_json::from_slice::<DepotInfo>(&b).ok()).map(|i| i.image).unwrap_or_default()
+            // One from an older layout counts as not built, so the panel offers to build it again.
+            fs::read(data_dir.join("media").join(DEPOT_INFO)).ok().and_then(|b| serde_json::from_slice::<DepotInfo>(&b).ok()).filter(|i| i.format == DEPOT_FORMAT).map(|i| i.image).unwrap_or_default()
         } else {
             String::new()
         };
@@ -96,7 +103,7 @@ impl Media {
         if !out.status.success() {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
         }
-        let body = serde_json::to_vec(&DepotInfo { image: image.into(), insecure: insecure.into() }).map_err(|e| e.to_string())?;
+        let body = serde_json::to_vec(&DepotInfo { image: image.into(), insecure: insecure.into(), format: DEPOT_FORMAT }).map_err(|e| e.to_string())?;
         fs::write(&info, body).map_err(|e| e.to_string())?;
         Ok(Self::image_status(data_dir, true))
     }

@@ -2,6 +2,7 @@ package depot
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -174,5 +175,86 @@ func BuildStick(l Layout, out string, p StickParams, progress func(done, total i
 		os.Remove(tmp)
 		return err
 	}
+	f, err := os.OpenFile(tmp, os.O_RDWR, 0)
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := conform(f, int64(start), (part+2*mib)/sector); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return fmt.Errorf("conform: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
 	return os.Rename(tmp, out)
+}
+
+// conform fixes what the FAT32 writer leaves off the spec, the way
+// mkfs.fat writes it (decision 221, revised): the boot sector and its backup
+// say where the partition starts (hidden sectors) and give the usual
+// 255-head, 63-sector geometry, and /EFI's ".." points at the root as
+// cluster 0, not the root's own cluster. The protective MBR gets the spec's
+// CHS values.
+func conform(f *os.File, partStart int64, sectors int64) error {
+	le := binary.LittleEndian
+	base := partStart * sector
+	bs := make([]byte, sector)
+	if _, err := f.ReadAt(bs, base); err != nil {
+		return err
+	}
+	bps := int64(le.Uint16(bs[0x0B:]))
+	spc := int64(bs[0x0D])
+	rsvd := int64(le.Uint16(bs[0x0E:]))
+	fats := int64(bs[0x10])
+	fatSz := int64(le.Uint32(bs[0x24:]))
+	root := le.Uint32(bs[0x2C:])
+	backupAt := int64(le.Uint16(bs[0x32:]))
+	if bps != sector || spc == 0 || fatSz == 0 {
+		return fmt.Errorf("unexpected FAT32 boot sector (%d bytes per sector, %d per cluster)", bps, spc)
+	}
+	for _, at := range []int64{0, backupAt} {
+		b := make([]byte, sector)
+		if _, err := f.ReadAt(b, base+at*sector); err != nil {
+			return err
+		}
+		le.PutUint16(b[0x18:], 63)
+		le.PutUint16(b[0x1A:], 255)
+		le.PutUint32(b[0x1C:], uint32(partStart))
+		if _, err := f.WriteAt(b, base+at*sector); err != nil {
+			return err
+		}
+	}
+	clusterAt := func(c uint32) int64 { return base + (rsvd+fats*fatSz+int64(c-2)*spc)*sector }
+	dir := make([]byte, spc*sector)
+	if _, err := f.ReadAt(dir, clusterAt(root)); err != nil {
+		return err
+	}
+	for i := 0; i+32 <= len(dir); i += 32 {
+		e := dir[i : i+32]
+		if e[0] == 0 {
+			break
+		}
+		if string(e[:11]) != "EFI        " || e[11]&0x10 == 0 {
+			continue
+		}
+		efi := uint32(le.Uint16(e[20:]))<<16 | uint32(le.Uint16(e[26:]))
+		dotdot := make([]byte, 32)
+		at := clusterAt(efi) + 32
+		if _, err := f.ReadAt(dotdot, at); err != nil {
+			return err
+		}
+		if string(dotdot[:11]) == "..         " {
+			le.PutUint16(dotdot[20:], 0)
+			le.PutUint16(dotdot[26:], 0)
+			if _, err := f.WriteAt(dotdot, at); err != nil {
+				return err
+			}
+		}
+		break
+	}
+	_, err := FitGPT(f, sectors)
+	return err
 }
