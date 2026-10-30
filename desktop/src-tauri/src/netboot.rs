@@ -68,6 +68,9 @@ pub struct Status {
     pub clients: Vec<String>,
     pub last_error: String,
     pub events: Vec<serde_json::Value>,
+    /// Started by an earlier run of this app, which left it running
+    /// (decision 222); found from its events file and its answering port.
+    pub adopted: bool,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +87,41 @@ pub struct StartOptions {
 pub struct Netboot {
     child: Mutex<Option<Child>>,
     status: Arc<Mutex<Status>>,
+    /// Whether this run has looked for a helper an earlier run left behind.
+    looked: Mutex<bool>,
+}
+
+/// Where a helper that said "ready" (and has not said "stopped") serves its
+/// boot files, read from its events file.
+pub fn left_running(events: &Path) -> Option<String> {
+    let text = fs::read_to_string(events).ok()?;
+    let mut addr = None;
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+        match v.get("event").and_then(|e| e.as_str()) {
+            Some("ready") => {
+                let ip = v.get("ip").and_then(|x| x.as_str()).unwrap_or("");
+                let port = v.get("http_port").and_then(|x| x.as_u64()).unwrap_or(0);
+                addr = (!ip.is_empty() && port > 0).then(|| format!("{ip}:{port}"));
+            }
+            Some("stopped") => addr = None,
+            _ => {}
+        }
+    }
+    addr
+}
+
+/// Whether something still accepts connections at addr (the helper's boot file server).
+fn answers(addr: &str) -> bool {
+    addr.parse::<std::net::SocketAddr>().map(|a| std::net::TcpStream::connect_timeout(&a, Duration::from_millis(300)).is_ok()).unwrap_or(false)
+}
+
+/// The helper's port error, in words: who else may hold the ports.
+fn explain(message: &str) -> String {
+    if message.contains("address already in use") {
+        return "Something else on this computer already answers network boot requests (ports 67, 69 or 4011): another network boot from Maître that this app cannot see, a Depot started with NETBOOT=1, or a DHCP or TFTP server such as dnsmasq. Stop it, then turn this on again.".into();
+    }
+    message.into()
 }
 
 impl Netboot {
@@ -196,9 +234,29 @@ impl Netboot {
         Err("the maitre helper is not bundled with this build".into())
     }
 
+    /// Pick up a helper an earlier run of this app left running, once per run:
+    /// its events file says it is ready and its boot file server answers.
+    /// Turn off then stops it like one started here (both use the stop file).
+    pub fn adopt(&self, app: &AppHandle, data_dir: &Path) -> bool {
+        let events = Self::boot_dir(data_dir).join("events.jsonl");
+        let Some(addr) = left_running(&events) else { return false };
+        if !answers(&addr) {
+            return false;
+        }
+        *self.status.lock().unwrap() = Status { adopted: true, ..Default::default() };
+        let status = self.status.clone();
+        let app = app.clone();
+        // Replays the file from the start: ready, clients, then whatever comes.
+        std::thread::spawn(move || tail_events(app, events, status));
+        true
+    }
+
     pub fn start(&self, app: AppHandle, data_dir: &Path, opts: StartOptions) -> Result<(), String> {
         if self.child.lock().unwrap().as_mut().map(|c| c.try_wait().ok().flatten().is_none()).unwrap_or(false) {
             return Err("netboot is already running".into());
+        }
+        if self.status.lock().unwrap().running || self.adopt(&app, data_dir) {
+            return Err("Network boot is already running on this computer, from before this app was restarted. Turn it off first.".into());
         }
         let dir = Self::boot_dir(data_dir);
         let helper = Self::helper_path()?;
@@ -246,8 +304,21 @@ impl Netboot {
         self.status.lock().unwrap().running = false;
     }
 
-    pub fn status(&self) -> Status {
+    pub fn status(&self, app: &AppHandle, data_dir: &Path) -> Status {
+        let first = !std::mem::replace(&mut *self.looked.lock().unwrap(), true);
+        if first && self.child.lock().unwrap().is_none() && self.adopt(app, data_dir) {
+            // Give the replay a moment so the first answer already shows it.
+            std::thread::sleep(Duration::from_millis(300));
+        }
         let mut st = self.status.lock().unwrap().clone();
+        // Nothing to reap for an adopted helper: it is gone when its port is.
+        if st.adopted && st.running {
+            let addr = left_running(&Self::boot_dir(data_dir).join("events.jsonl"));
+            if !addr.as_deref().map(answers).unwrap_or(false) {
+                self.status.lock().unwrap().running = false;
+                st.running = false;
+            }
+        }
         if let Some(c) = self.child.lock().unwrap().as_mut() {
             if let Ok(Some(code)) = c.try_wait() {
                 if st.running && st.last_error.is_empty() && !code.success() {
@@ -315,6 +386,13 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
                                 st.running = true;
                                 st.ip = v.get("ip").and_then(|x| x.as_str()).unwrap_or("").into();
                                 st.interface = v.get("interface").and_then(|x| x.as_str()).unwrap_or("").into();
+                                // What an adopted helper serves; the same as asked for one started here.
+                                if let Some(image) = v.get("image").and_then(|x| x.as_str()) {
+                                    st.image = image.into();
+                                }
+                                if let Some(idle) = v.get("idle_seconds").and_then(|x| x.as_u64()) {
+                                    st.idle_seconds = idle;
+                                }
                             }
                             "client" => {
                                 let mac = v.get("mac").and_then(|x| x.as_str()).unwrap_or("").to_string();
@@ -322,7 +400,7 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
                                     st.clients.push(mac);
                                 }
                             }
-                            "error" => st.last_error = v.get("message").and_then(|x| x.as_str()).unwrap_or("").into(),
+                            "error" => st.last_error = explain(v.get("message").and_then(|x| x.as_str()).unwrap_or("")),
                             "stopped" => st.running = false,
                             _ => {}
                         }
@@ -356,4 +434,30 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     let mut h = Sha256::new();
     std::io::copy(&mut f, &mut h).map_err(|e| e.to_string())?;
     Ok(hex::encode(h.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_helper_is_left_running_until_it_says_stopped() {
+        let dir = std::env::temp_dir().join(format!("maitre-nb-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let events = dir.join("events.jsonl");
+        assert_eq!(left_running(&events), None, "no file");
+        fs::write(&events, "{\"event\":\"ready\",\"ip\":\"192.168.4.54\",\"http_port\":38123}\n{\"event\":\"client\",\"mac\":\"aa\"}\n").unwrap();
+        assert_eq!(left_running(&events).as_deref(), Some("192.168.4.54:38123"));
+        fs::write(&events, "{\"event\":\"ready\",\"ip\":\"192.168.4.54\",\"http_port\":38123}\n{\"event\":\"stopped\",\"reason\":\"requested\"}\n").unwrap();
+        assert_eq!(left_running(&events), None);
+        fs::write(&events, "{\"event\":\"error\",\"message\":\"tftp on udp/69: bind: address already in use\"}\n").unwrap();
+        assert_eq!(left_running(&events), None, "one that failed to start is not running");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_taken_port_is_explained() {
+        assert!(explain("tftp on udp/69: listen udp4 192.168.4.54:69: bind: address already in use (run with sudo?)").contains("Something else on this computer"));
+        assert_eq!(explain("no LAN address"), "no LAN address");
+    }
 }

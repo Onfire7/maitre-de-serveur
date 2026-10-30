@@ -32,6 +32,7 @@ interface Status {
   idle_seconds: number;
   clients: string[];
   last_error: string;
+  adopted?: boolean;
   events: { event: string; time: string; mac?: string; type?: string; file?: string; reason?: string }[];
 }
 
@@ -176,6 +177,7 @@ export function NetbootPanel() {
           <p className="flex items-center gap-2">
             <span className="size-2 rounded-full bg-status-online" /> Answering network boot requests on {status.interface || "the network"} ({status.ip}). {status.idle_seconds > 0 ? `Turns off after ${IDLE_CHOICES.find(([v]) => v === status.idle_seconds)?.[1] ?? `${Math.round(status.idle_seconds / 60)} minutes`} without a machine booting.` : ""}
           </p>
+          {status.adopted && <p className="text-xs text-muted-foreground">Still running from before this app was restarted{status.image ? <>, installing <code>{status.image}</code></> : ""}.</p>}
           <p className="text-xs text-muted-foreground">{status.clients.length === 0 ? "No machine has asked yet. Turn one on and choose network boot." : `Machines that booted from here: ${status.clients.join(", ")}`}</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Activity</summary>

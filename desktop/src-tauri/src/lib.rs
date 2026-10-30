@@ -266,8 +266,8 @@ fn netboot_stop(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
-fn netboot_status(state: State<'_, AppState>) -> netboot::Status {
-    state.netboot.status()
+fn netboot_status(app: tauri::AppHandle, state: State<'_, AppState>) -> netboot::Status {
+    state.netboot.status(&app, &state.data_dir)
 }
 
 /// Six-digit code for a device key (decision 99), for the asking Console's own
