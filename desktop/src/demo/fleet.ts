@@ -433,9 +433,9 @@ export class DemoFleet {
     for (const s of this.services) out.push(this.rec("service", s.spec.name, s.spec.nodeId, toBinary(ServiceSpecSchema, s.spec)));
     out.push(this.rec("update_policy", "fleet", NODE_A, toBinary(UpdatePolicySchema, create(UpdatePolicySchema, { automatic: true, windowStartHour: 3, windowEndHour: 5, stageHours: 24, paused: false }))));
     out.push(this.rec("tailscale", "fleet", NODE_A, toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: "k7Hs2demoClientId", oauthClientSecret: "tskey-client-demo", tag: "tag:maitre", addedUnixMs: BigInt(this.now - 12 * 86400_000) }))));
-    out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
-    // Keep tombstones, and grants, which the model does not hold.
-    for (const r of this.records) if ((r.deleted || r.kind === "grant" || r.kind === "catalogs") && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
+    if (!this.records.some((r) => r.kind === "public_settings")) out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
+    // Keep tombstones, and the kinds the model does not hold (grants, Catalogs, the domain, the certificate email).
+    for (const r of this.records) if ((r.deleted || ["grant", "catalogs", "fleet_domain", "public_settings"].includes(r.kind)) && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
     this.records = out;
     this.changed();
   }

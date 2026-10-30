@@ -5,6 +5,7 @@
 // before it has read the Fleet.
 import { fromBinary } from "@bufbuild/protobuf";
 import { FleetDomainSchema, type FleetDomain, type Record as Rec } from "@/gen/maitre/v1/fleet_pb";
+import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import type { FleetSnapshot } from "./useFleet";
 
 export const DOMAIN_KIND = "fleet_domain";
@@ -14,6 +15,12 @@ export type Role = "app" | "web";
 const DOMAIN_KEY = "maitre.fleet.domain";
 const HOLDER_KEY = "maitre.fleet.appHolder";
 const NAME_KEY = "maitre.fleet.domainName";
+
+/** The Fleet's one email for Let's Encrypt (decision 114), kept in public_settings. */
+export function acmeEmail(records: Rec[] | undefined): string {
+  const r = records?.find((x) => x.kind === "public_settings" && !x.deleted);
+  return r ? fromBinary(PublicSettingsSchema, r.body).acmeEmail : "";
+}
 
 export function fleetDomain(records: Rec[] | undefined): FleetDomain | undefined {
   const r = records?.find((x) => x.kind === DOMAIN_KIND && !x.deleted);

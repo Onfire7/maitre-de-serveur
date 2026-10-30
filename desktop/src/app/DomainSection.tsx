@@ -12,13 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import { EntryNodeSchema, FleetDomainSchema, type EntryNode, type FleetDomain } from "@/gen/maitre/v1/fleet_pb";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { transportFor } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { currentRecord, putSigned } from "@/fleet/sign";
-import { APP_PORT, DOMAIN_KIND, fleetDomain, holderOf, validDomain, type Role } from "@/fleet/domain";
+import { APP_PORT, DOMAIN_KIND, acmeEmail, fleetDomain, holderOf, validDomain, type Role } from "@/fleet/domain";
 import { NodeMark } from "./status";
 
 const AUTO = "auto";
@@ -99,6 +100,7 @@ export function DomainSection({ snap }: { snap: FleetSnapshot | undefined }) {
             </p>
           </div>
         )}
+        <CertEmail snap={snap} />
       </div>
       <EntryCard
         role="app"
@@ -172,6 +174,48 @@ function EntryCard({ role, icon, title, detail, snap, entry, disabled, onChange 
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** One optional email for the whole Fleet, given to Let's Encrypt (decisions 114, 220). */
+function CertEmail({ snap }: { snap: FleetSnapshot | undefined }) {
+  const qc = useQueryClient();
+  const saved = acmeEmail(snap?.records);
+  const [email, setEmail] = useState(saved);
+  useEffect(() => setEmail(saved), [saved]);
+  const e = email.trim();
+  const ok = e === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  async function save() {
+    if (!snap) return;
+    try {
+      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "public_settings", id: "fleet", body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: e })) }, currentRecord(snap.records, "public_settings", "fleet"));
+      toast.success(e ? `Certificate notices go to ${e}` : "No email for certificate notices");
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+    } catch (err) {
+      toast.error(String((err as Error).message ?? err));
+    }
+  }
+  return (
+    <div className="space-y-1.5 border-t pt-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-64 flex-1 space-y-1.5">
+          <Label htmlFor="acme-email">Email for certificate notices</Label>
+          <Input id="acme-email" type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="you@example.com" className="text-sm" />
+        </div>
+        {e !== saved && (
+          <>
+            <Button variant="outline" onClick={() => setEmail(saved)}>
+              Cancel
+            </Button>
+            <Button disabled={!ok} onClick={save}>
+              {e ? "Save" : "Remove"}
+            </Button>
+          </>
+        )}
+      </div>
+      {!ok && <p className="text-xs text-destructive">That is not an email address.</p>}
+      <p className="text-xs text-muted-foreground">Optional, for every Service published at its own address. Let's Encrypt writes there when a certificate is about to expire without renewing, and about policy changes. Nothing else.</p>
     </div>
   );
 }

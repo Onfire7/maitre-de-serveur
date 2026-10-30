@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { EntryNodeSchema, FleetDomainSchema, RecordSchema } from "@/gen/maitre/v1/fleet_pb";
 import type { FleetSnapshot } from "./useFleet";
-import { domainAddr, domainOrder, fleetDomainName, holderOf, rememberDomain, validDomain } from "./domain";
+import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
+import { acmeEmail, domainAddr, domainOrder, fleetDomainName, holderOf, rememberDomain, validDomain } from "./domain";
 
 function snapWith(app: boolean, holder?: string): FleetSnapshot {
   const body = toBinary(FleetDomainSchema, create(FleetDomainSchema, { domain: "home.example.com", app: create(EntryNodeSchema, { enabled: app }) }));
@@ -37,5 +38,14 @@ describe("the Fleet's domain", () => {
     expect(validDomain("nas.local")).toBe(false);
     expect(validDomain("Home.Example.com")).toBe(false);
     expect(validDomain("localhost")).toBe(false);
+  });
+});
+
+describe("the certificate email", () => {
+  it("is the Fleet's public_settings, ignoring a deleted one", () => {
+    const rec = (deleted: boolean) => create(RecordSchema, { kind: "public_settings", id: "fleet", deleted, body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "me@example.com" })) });
+    expect(acmeEmail([rec(false)])).toBe("me@example.com");
+    expect(acmeEmail([rec(true)])).toBe("");
+    expect(acmeEmail(undefined)).toBe("");
   });
 });

@@ -5,7 +5,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
 import { FolderSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,11 +18,9 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { cn } from "@/lib/utils";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
-import { PublicSettingsSchema } from "@/gen/maitre/v1/service_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { services as serviceClient } from "@/fleet/actions";
-import { currentRecord, putSigned } from "@/fleet/sign";
 import { declined, grantsOf, optionNote, revokeGrant } from "@/fleet/grants";
 import { ServiceIcon } from "./status";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,7 +28,7 @@ import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 import { FoldersEditor, type Folders } from "@/files/FoldersEditor";
 import { folderSource, ownSpacesOn } from "@/files/sources";
-import { fleetDomainName } from "@/fleet/domain";
+import { acmeEmail, fleetDomain, fleetDomainName } from "@/fleet/domain";
 
 export type SheetKind = "ports" | "grants";
 
@@ -58,35 +55,21 @@ export function AccessEditor({ service, target, snap }: { service: FleetService;
   const qc = useQueryClient();
   const { go } = useRoute();
   const info = useNodeInfo(target, true);
+  // Decision 220: under the Fleet's domain by default, so there is nothing to type.
+  const domain = fleetDomain(snap?.records)?.domain || fleetDomainName();
+  const defaultHost = domain ? `${service.spec.name}.${domain}` : "";
   const [choice, setChoice] = useState(service.spec.exposure || "private");
-  const [host, setHost] = useState(service.spec.publicHost || "");
+  const [host, setHost] = useState(service.spec.publicHost || defaultHost);
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
   const reset = () => {
     setChoice(service.spec.exposure || "private");
-    setHost(service.spec.publicHost || "");
+    setHost(service.spec.publicHost || defaultHost);
     setAck(false);
   };
   // Changed elsewhere (or applied here): show what it is now.
-  useEffect(reset, [service.spec.name, service.spec.exposure, service.spec.publicHost]);
-  // Decision 114: one optional email for the whole Fleet, given to Let's Encrypt.
-  const savedEmail = (() => {
-    const r = snap?.records.find((r) => r.kind === "public_settings" && !r.deleted);
-    return r ? fromBinary(PublicSettingsSchema, r.body).acmeEmail : "";
-  })();
-  const [email, setEmail] = useState(savedEmail);
-  useEffect(() => setEmail(savedEmail), [savedEmail]);
-  const emailOk = email.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  async function saveEmail() {
-    if (!snap) return;
-    try {
-      await putSigned({ addr: snap.anchor.addr, fingerprint: snap.anchor.nodeId }, { kind: "public_settings", id: "fleet", body: toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: email.trim() })) }, currentRecord(snap.records, "public_settings", "fleet"));
-      toast.success("Certificate notices go to " + (email.trim() || "nobody"));
-      qc.invalidateQueries({ queryKey: ["fleet"] });
-    } catch (e) {
-      toast.error(String((e as Error).message ?? e));
-    }
-  }
+  useEffect(reset, [service.spec.name, service.spec.exposure, service.spec.publicHost, defaultHost]);
+  const email = acmeEmail(snap?.records);
   const name = service.spec.name;
   const remoteReady = info.data?.tailscale?.state === "Running";
   const canPublic = !service.spec.infrastructure;
@@ -130,13 +113,24 @@ export function AccessEditor({ service, target, snap }: { service: FleetService;
             <div className="space-y-3 rounded-lg border p-3 text-sm">
               <div className="space-y-1.5">
                 <Label htmlFor="exp-host">Host name</Label>
-                <Input id="exp-host" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder={fleetDomainName() ? `${service.spec.name}.${fleetDomainName()}` : "photos.example.com"} />
+                <Input id="exp-host" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder={defaultHost || "photos.example.com"} />
                 {h && !hostOk && <p className="text-xs text-destructive">That is not a public host name.</p>}
+                {domain && h !== defaultHost && hostOk && (
+                  <button className="text-xs text-muted-foreground underline" onClick={() => setHost(defaultHost)}>
+                    Use {defaultHost}
+                  </button>
+                )}
               </div>
               <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">
-                <li>
-                  At your domain's DNS, make an <b className="text-foreground">A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{info.data?.publicIp || "this Node's public address (still being looked up)"}</code>.
-                </li>
+                {domain && h.endsWith(`.${domain}`) ? (
+                  <li>
+                    The <code>*.{domain}</code> record you made for your domain already points <code>{h}</code> home.
+                  </li>
+                ) : (
+                  <li>
+                    At your domain's DNS, make an <b className="text-foreground">A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{info.data?.publicIp || "this Node's public address (still being looked up)"}</code>.
+                  </li>
+                )}
                 <li>
                   The Node asks your router to send ports <b className="text-foreground">80</b> and <b className="text-foreground">443</b> to it{portMapping.startsWith("router:") ? <>, found <b className="text-foreground">{portMapping.slice(8)}</b></> : portMapping ? <>: {portMapping}</> : ""}. If the router will not, forward those two ports to this Node at <code>{target?.addr}</code> yourself.
                   {service.status?.forwardState && <span className="block">Now: {service.status.forwardState}</span>}
@@ -144,17 +138,19 @@ export function AccessEditor({ service, target, snap }: { service: FleetService;
                 <li>The Node then gets a certificate from Let's Encrypt on its own and keeps it renewed.</li>
               </ol>
               <p className="text-xs text-muted-foreground">If your home address changes, the record has to follow it; the Node says when the two no longer match.</p>
-              <div className="space-y-1.5">
-                <Label htmlFor="exp-email">Email for certificate notices</Label>
-                <div className="flex gap-2">
-                  <Input id="exp-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-                  <Button variant="outline" disabled={!emailOk || email.trim() === savedEmail} onClick={saveEmail}>
-                    Save
-                  </Button>
-                </div>
-                {!emailOk && <p className="text-xs text-destructive">That is not an email address.</p>}
-                <p className="text-xs text-muted-foreground">Optional, shared by all your addresses. Let's Encrypt writes there when a certificate is about to expire without renewing, and about policy changes. Nothing else.</p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {email ? (
+                  <>
+                    Let's Encrypt writes to <b className="text-foreground">{email}</b> about certificates.
+                  </>
+                ) : (
+                  "No email is set for certificate notices."
+                )}{" "}
+                <button className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
+                  {email ? "Change it" : "Set one"}
+                </button>{" "}
+                with your domain on the Remote tab.
+              </p>
             </div>
           )}
           {isPublic && (
