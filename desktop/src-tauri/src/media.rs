@@ -14,6 +14,20 @@ use tauri::{AppHandle, Emitter};
 
 pub const RELEASE_IMAGE: &str = "https://github.com/Onfire7/maitre-de-serveur/releases/latest/download/maitre-installer.img.xz";
 const FILE: &str = "maitre-installer.img.xz";
+/// A stick built from a Depot's netboot files (decision 221), and what it installs.
+const DEPOT_FILE: &str = "maitre-depot.img";
+const DEPOT_INFO: &str = "maitre-depot.json";
+
+/// Which image a stick gets: the release's, or one built from a Depot's boot files.
+pub fn is_depot(source: &Option<String>) -> bool {
+    source.as_deref() == Some("depot")
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct DepotInfo {
+    image: String,
+    insecure: String,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Disk {
@@ -30,6 +44,8 @@ pub struct ImageStatus {
     pub path: String,
     pub ready: bool,
     pub size_bytes: u64,
+    /// For a Depot stick: the image its Installer installs.
+    pub installs: String,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -47,14 +63,42 @@ pub struct Media {
 }
 
 impl Media {
-    fn image_path(data_dir: &Path) -> PathBuf {
-        data_dir.join("media").join(FILE)
+    fn image_path(data_dir: &Path, depot: bool) -> PathBuf {
+        data_dir.join("media").join(if depot { DEPOT_FILE } else { FILE })
     }
 
-    pub fn image_status(data_dir: &Path) -> ImageStatus {
-        let p = Self::image_path(data_dir);
+    pub fn image_status(data_dir: &Path, depot: bool) -> ImageStatus {
+        let p = Self::image_path(data_dir, depot);
         let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
-        ImageStatus { path: p.to_string_lossy().into_owned(), ready: size > 0, size_bytes: size }
+        let installs = if depot {
+            fs::read(data_dir.join("media").join(DEPOT_INFO)).ok().and_then(|b| serde_json::from_slice::<DepotInfo>(&b).ok()).map(|i| i.image).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        ImageStatus { path: p.to_string_lossy().into_owned(), ready: size > 0, size_bytes: size, installs }
+    }
+
+    /// Build a stick image from the netboot files in `boot_dir` with the
+    /// helper (unprivileged, about a second), installing `image`.
+    pub fn build(helper: &Path, data_dir: &Path, boot_dir: &Path, image: &str, insecure: &str) -> Result<ImageStatus, String> {
+        let dir = data_dir.join("media");
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let info = dir.join(DEPOT_INFO);
+        let _ = fs::remove_file(&info);
+        let out = Command::new(helper)
+            .args(["media", "build", "--boot"])
+            .arg(boot_dir)
+            .arg("--out")
+            .arg(Self::image_path(data_dir, true))
+            .args(["--image", image, "--insecure-registry", insecure])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        }
+        let body = serde_json::to_vec(&DepotInfo { image: image.into(), insecure: insecure.into() }).map_err(|e| e.to_string())?;
+        fs::write(&info, body).map_err(|e| e.to_string())?;
+        Ok(Self::image_status(data_dir, true))
     }
 
     /// Download the image from `url` (empty: the latest release), emitting `media-progress`.
@@ -84,8 +128,8 @@ impl Media {
             }
         }
         drop(out);
-        fs::rename(&tmp, Self::image_path(&data_dir)).map_err(|e| e.to_string())?;
-        Ok(Self::image_status(&data_dir))
+        fs::rename(&tmp, Self::image_path(&data_dir, false)).map_err(|e| e.to_string())?;
+        Ok(Self::image_status(&data_dir, false))
     }
 
     /// Removable disks, through the helper (no elevation needed to list).
@@ -98,13 +142,13 @@ impl Media {
     }
 
     /// Write the image to `device`, elevated; progress arrives as `media-progress`.
-    pub fn write(&self, app: AppHandle, data_dir: &Path, helper: &Path, device: String, elevate: impl Fn(&Path, &[String]) -> Result<std::process::Child, String>) -> Result<(), String> {
+    pub fn write(&self, app: AppHandle, data_dir: &Path, helper: &Path, device: String, depot: bool, elevate: impl Fn(&Path, &[String]) -> Result<std::process::Child, String>) -> Result<(), String> {
         if self.status.lock().unwrap().running {
             return Err("a write is already running".into());
         }
-        let image = Self::image_path(data_dir);
+        let image = Self::image_path(data_dir, depot);
         if !image.exists() {
-            return Err("download the installer image first".into());
+            return Err(if depot { "get the Installer from the Depot first" } else { "download the installer image first" }.into());
         }
         let events = data_dir.join("media").join("events.jsonl");
         let _ = fs::remove_file(&events);

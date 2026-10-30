@@ -7,7 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Found } from "@/state";
+import { depotImage, useDepots } from "@/fleet/depots";
 
 interface FilesStatus {
   dir: string;
@@ -34,12 +34,6 @@ interface Status {
   last_error: string;
   events: { event: string; time: string; mac?: string; type?: string; file?: string; reason?: string }[];
 }
-interface Depot {
-  registry: string;
-  images: Record<string, { tag: string; version?: string }[]>;
-  host: string;
-  addr: string;
-}
 
 const IDLE_CHOICES: [number, string][] = [
   [15 * 60, "15 minutes"],
@@ -52,7 +46,7 @@ const gb = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6
 export function NetbootPanel() {
   const [files, setFiles] = useState<FilesStatus | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [depots, setDepots] = useState<Depot[]>([]);
+  const depots = useDepots();
   const [depotAddr, setDepotAddr] = useState("");
   const [progress, setProgress] = useState<Progress | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -72,36 +66,18 @@ export function NetbootPanel() {
     const t = setInterval(() => invoke<Status>("netboot_status").then(setStatus).catch(() => {}), 2000);
     const unlistenP = listen<Progress>("netboot-progress", (e) => setProgress(e.payload));
     const unlistenE = listen("netboot-event", () => invoke<Status>("netboot_status").then(setStatus).catch(() => {}));
-    const scan = async () => {
-      const found = (await invoke<Found[]>("discover").catch(() => [] as Found[])).filter((f) => f.kind === "depot");
-      const out: Depot[] = [];
-      for (const f of found) {
-        const addr = f.addresses[0];
-        if (!addr) continue;
-        try {
-          const d = (await (await fetch(`http://${addr}/api/images`, { signal: AbortSignal.timeout(3000) })).json()) as Depot;
-          out.push({ ...d, host: f.name, addr });
-        } catch {
-          /* not answering */
-        }
-      }
-      setDepots(out);
-      setDepotAddr((cur) => (out.some((d) => d.addr === cur) ? cur : ""));
-    };
-    scan();
-    const ts = setInterval(scan, 10000);
     return () => {
       clearInterval(t);
-      clearInterval(ts);
       unlistenP.then((f) => f()).catch(() => {});
       unlistenE.then((f) => f()).catch(() => {});
     };
   }, []);
   const depot = depots.find((d) => d.addr === depotAddr) ?? null;
   const viaDepot = useDepot && depot !== null;
-  const source = viaDepot ? { label: `the Depot on ${depot!.host} (${depot!.registry})`, base: `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
-  const depotRef = viaDepot ? (Object.entries(depot!.images).flatMap(([n, tags]) => tags.map((t) => `${depot!.registry}/${n}:${t.tag}`))[0] ?? "") : "";
-  const depotVersion = viaDepot ? (Object.values(depot!.images).flat()[0]?.version ?? "") : "";
+  const offered = viaDepot ? depotImage(depot!) : null;
+  const source = viaDepot ? { label: `the Depot on ${depot!.host} (${depot!.registry})`, base: offered?.boot ?? `http://${depot!.registry}/boot/` } : { label: "the latest release", base: "" };
+  const depotRef = offered?.ref ?? "";
+  const depotVersion = offered?.version ?? "";
   const image = viaDepot ? depotRef : files?.image || "";
   const insecure = viaDepot ? depot!.registry : "";
   async function download() {

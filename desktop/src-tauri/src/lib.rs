@@ -353,9 +353,18 @@ fn sign_record(state: State<'_, AppState>, kind: String, id: String, body: Vec<u
     Ok(SignedRecord { signer_key: s.signer_key, signature: s.signature, signed_unix_ms })
 }
 
+/// source: "depot" for a stick built from a Depot's netboot files, else the release image.
 #[tauri::command]
-fn media_image(state: State<'_, AppState>) -> media::ImageStatus {
-    media::Media::image_status(&state.data_dir)
+fn media_image(state: State<'_, AppState>, source: Option<String>) -> media::ImageStatus {
+    media::Media::image_status(&state.data_dir, media::is_depot(&source))
+}
+
+/// Build a stick image from the netboot files already downloaded (decision 221).
+#[tauri::command]
+async fn media_build(state: State<'_, AppState>, image: String, insecure: String) -> Result<media::ImageStatus, String> {
+    let helper = netboot::Netboot::helper_path()?;
+    let data_dir = state.data_dir.clone();
+    tauri::async_runtime::spawn_blocking(move || media::Media::build(&helper, &data_dir, &netboot::Netboot::boot_dir(&data_dir), &image, &insecure)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -369,9 +378,9 @@ fn media_disks() -> Result<Vec<media::Disk>, String> {
 }
 
 #[tauri::command]
-fn media_write(app: tauri::AppHandle, state: State<'_, AppState>, device: String) -> Result<(), String> {
+fn media_write(app: tauri::AppHandle, state: State<'_, AppState>, device: String, source: Option<String>) -> Result<(), String> {
     let helper = netboot::Netboot::helper_path()?;
-    state.media.write(app, &state.data_dir, &helper, device, netboot::elevated)
+    state.media.write(app, &state.data_dir, &helper, device, media::is_depot(&source), netboot::elevated)
 }
 
 #[tauri::command]
@@ -438,6 +447,7 @@ pub fn run() {
             recover_with_phrase,
             sign_record,
             media_image,
+            media_build,
             media_download,
             media_disks,
             media_write,

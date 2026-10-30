@@ -87,7 +87,7 @@ pub struct Netboot {
 }
 
 impl Netboot {
-    fn boot_dir(data_dir: &Path) -> PathBuf {
+    pub fn boot_dir(data_dir: &Path) -> PathBuf {
         data_dir.join("netboot")
     }
 

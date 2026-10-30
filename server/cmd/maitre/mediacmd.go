@@ -16,16 +16,19 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 )
 
-// runMedia is `maitre media <list|write>`: the Console's "Prepare an
-// installer USB" (Milestone 7). list runs unprivileged; write runs elevated
-// like netboot and reports progress as JSON lines (and to --events-file).
+// runMedia is `maitre media <list|build|write>`: the Console's "Prepare an
+// installer USB" (Milestone 7). list and build run unprivileged; write runs
+// elevated like netboot and reports progress as JSON lines (and to
+// --events-file).
 func runMedia(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: maitre media <list|write> [flags]")
+		return errors.New("usage: maitre media <list|build|write> [flags]")
 	}
 	switch args[0] {
 	case "list":
 		return runMediaList()
+	case "build":
+		return runMediaBuild(args[1:])
 	case "write":
 		return runMediaWrite(args[1:])
 	}
@@ -96,6 +99,37 @@ func runMediaList() error {
 		disks = []mediaDisk{}
 	}
 	return json.NewEncoder(os.Stdout).Encode(disks)
+}
+
+// runMediaBuild makes a raw installer image from netboot files (decision
+// 221), so a Depot's build goes on a stick without a release.
+func runMediaBuild(args []string) error {
+	fs := flag.NewFlagSet("media build", flag.ContinueOnError)
+	boot := fs.String("boot", "", "directory holding the netboot files")
+	out := fs.String("out", "", "raw image to write")
+	image := fs.String("image", "", "image the Installer installs, e.g. 192.168.1.5:8080/maitre-server:dev")
+	insecure := fs.String("insecure-registry", "", "registry host:port to pull from without TLS (a Depot)")
+	serial := fs.Bool("serial", false, "add a serial console (VMs)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *boot == "" || *out == "" || *image == "" {
+		return errors.New("--boot, --out and --image are required")
+	}
+	ev := &eventLog{}
+	last := time.Now()
+	err := depot.BuildStick(depot.Layout{Dir: *boot, BootDir: *boot}, *out, depot.StickParams{Image: *image, Insecure: *insecure, Serial: *serial}, func(done, total int64) {
+		if time.Since(last) > 500*time.Millisecond {
+			ev.emit("progress", map[string]any{"done": done, "total": total})
+			last = time.Now()
+		}
+	})
+	if err != nil {
+		ev.emit("error", map[string]any{"message": err.Error()})
+		return err
+	}
+	ev.emit("done", map[string]any{"image": *image})
+	return nil
 }
 
 // runMediaWrite copies an image (raw, or xz-compressed raw) onto a disk.

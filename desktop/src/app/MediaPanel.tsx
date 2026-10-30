@@ -1,6 +1,9 @@
 // Milestone 7: prepare an installer USB from the Console. The image is
 // downloaded once; writing runs the bundled helper elevated. The disk's
 // model must be typed back (the guard), since everything on it is erased.
+// With a Depot on the network the stick can carry its build instead: the
+// Depot's netboot files, made into a stick that installs its newest image
+// (decision 221).
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -10,11 +13,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
+import { depotImage, useDepots } from "@/fleet/depots";
+
+const RELEASE = "release";
 
 interface ImageStatus {
   path: string;
   ready: boolean;
   size_bytes: number;
+  installs: string;
+}
+interface BootProgress {
+  file: string;
+  done: number;
+  total: number;
+  finished: boolean;
 }
 interface Disk {
   device: string;
@@ -40,9 +53,17 @@ export function MediaPanel() {
   const [progress, setProgress] = useState<WriteStatus | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const depots = useDepots();
+  // The one Depot on the network is offered first; with several, the user picks.
+  const [picked, setPicked] = useState<string | null>(null);
+  const sourceKey = picked ?? (depots.length === 1 ? depots[0].addr : RELEASE);
+  const depot = depots.find((d) => d.addr === sourceKey) ?? null;
+  const offered = depot ? depotImage(depot) : null;
+  const viaDepot = !!depot && !!offered;
+  const [boot, setBoot] = useState<BootProgress | null>(null);
   const refresh = async () => {
     try {
-      setImage(await invoke<ImageStatus>("media_image"));
+      setImage(await invoke<ImageStatus>("media_image", { source: viaDepot ? "depot" : RELEASE }));
       setDisks((await invoke<Disk[]>("media_disks")).filter((d) => d.removable));
     } catch (e) {
       setError(String((e as Error).message ?? e));
@@ -51,12 +72,33 @@ export function MediaPanel() {
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viaDepot]);
+  useEffect(() => {
     const un = listen<WriteStatus>("media-progress", (e) => setProgress(e.payload));
+    const unBoot = listen<BootProgress>("netboot-progress", (e) => setBoot(e.payload));
     return () => {
-      clearInterval(t);
       un.then((f) => f()).catch(() => {});
+      unBoot.then((f) => f()).catch(() => {});
     };
   }, []);
+  // A Depot stick is ready when it installs what the Depot offers now.
+  const ready = !!image?.ready && (!viaDepot || image.installs === offered!.ref);
+  async function fromDepot() {
+    setDownloading(true);
+    setError("");
+    try {
+      await invoke("netboot_download", { base: offered!.boot });
+      setBoot(null);
+      setImage(await invoke<ImageStatus>("media_build", { image: offered!.ref, insecure: offered!.insecure }));
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    } finally {
+      setDownloading(false);
+      setBoot(null);
+    }
+  }
   const writing = progress?.running ?? false;
   const expected = chosen ? chosen.model || chosen.device : "";
   return (
@@ -66,7 +108,53 @@ export function MediaPanel() {
         <div className="text-xs text-muted-foreground">For machines that cannot boot from the network.</div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
-      {image && !image.ready && (
+      {depots.length > 0 && !writing && (
+        <div className="space-y-1.5">
+          <RadioGroup value={sourceKey} onValueChange={(v) => (setPicked(v), setChosen(null), setTyped(""))} className="gap-1.5" aria-label="What the stick installs">
+            {depots.map((d) => {
+              const o = depotImage(d);
+              return (
+                <label key={d.addr} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-2.5", sourceKey === d.addr && "border-primary", !o && "cursor-not-allowed opacity-60")}>
+                  <RadioGroupItem value={d.addr} disabled={!o} className="mt-0.5" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">From the Depot on {d.host}</span>
+                    <span className="block text-xs text-muted-foreground">{o ? <>Your own build, <code>{o.ref}</code>{o.version && ` (version ${o.version})`}, over plain HTTP on this network. No release needed.</> : "It has no image to install yet."}</span>
+                  </span>
+                </label>
+              );
+            })}
+            <label className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-2.5", sourceKey === RELEASE && "border-primary")}>
+              <RadioGroupItem value={RELEASE} className="mt-0.5" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">The latest release</span>
+                <span className="block text-xs text-muted-foreground">Downloaded once from GitHub.</span>
+              </span>
+            </label>
+          </RadioGroup>
+          {depots.length > 1 && <p className="text-xs text-status-attention">More than one Depot is announcing itself on this network. Only use one you know is yours.</p>}
+        </div>
+      )}
+      {viaDepot && image && !ready && !writing && (
+        <div className="space-y-2">
+          {downloading && boot && !boot.finished && (
+            <div>
+              <div className="h-1.5 rounded bg-muted">
+                <div className="h-1.5 rounded bg-status-starting" style={{ width: `${boot.total ? (boot.done / boot.total) * 100 : 0}%` }} />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {boot.file}: {Math.round(boot.done / 1e6)} of {Math.round(boot.total / 1e6)} MB
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={downloading} onClick={fromDepot}>
+              {downloading ? "Getting it…" : image.installs ? "Update from the Depot" : "Get the Installer from the Depot"}
+            </Button>
+            <span className="text-xs text-muted-foreground">{image.installs ? <>The stick image on this computer installs <code>{image.installs}</code>.</> : "About 1.2 GB, once; what network boot already fetched is reused."}</span>
+          </div>
+        </div>
+      )}
+      {!viaDepot && image && !image.ready && (
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -89,9 +177,11 @@ export function MediaPanel() {
           <span className="text-xs text-muted-foreground">Once, from the latest release.</span>
         </div>
       )}
-      {image?.ready && !writing && !progress?.finished && (
+      {ready && !writing && !progress?.finished && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Plug in a USB stick of 8 GB or more. Everything on it will be erased.</p>
+          <p className="text-xs text-muted-foreground">
+            {viaDepot ? <>The stick installs <code>{offered!.ref}</code> from the Depot on {depot!.host}. </> : ""}Plug in a USB stick of {viaDepot ? "2" : "8"} GB or more. Everything on it will be erased.
+          </p>
           {disks.length === 0 ? (
             <p className="text-xs text-muted-foreground">No removable disk found yet.</p>
           ) : (
@@ -125,7 +215,7 @@ export function MediaPanel() {
                   onClick={async () => {
                     setError("");
                     try {
-                      await invoke("media_write", { device: chosen.device });
+                      await invoke("media_write", { device: chosen.device, source: viaDepot ? "depot" : RELEASE });
                       setProgress({ running: true, done: 0, total: 0, finished: false, error: "" });
                     } catch (e) {
                       setError(String((e as Error).message ?? e));
