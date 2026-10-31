@@ -1,8 +1,10 @@
 package installer
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -67,5 +69,47 @@ func TestRootSizeFor(t *testing.T) {
 		if err != nil || got != c.want {
 			t.Errorf("%d data=%v: got %q %v, want %q", c.disk, c.data, got, err, c.want)
 		}
+	}
+}
+
+// Before bootc wipes a disk, what the live system holds on it is let go of,
+// innermost first (decision 271).
+func TestReleaseDisk(t *testing.T) {
+	const tree = `{"blockdevices":[{"path":"/dev/sda","type":"disk","fstype":null,"mountpoints":[null],"children":[
+	 {"path":"/dev/sda1","type":"part","fstype":"vfat","mountpoints":["/run/maitre-browse/sda1"]},
+	 {"path":"/dev/sda2","type":"part","fstype":"swap","mountpoints":["[SWAP]"]},
+	 {"path":"/dev/sda3","type":"part","fstype":"LVM2_member","mountpoints":[null],"children":[
+	  {"path":"/dev/mapper/fedora-root","type":"lvm","fstype":"xfs","mountpoints":[null]},
+	  {"path":"/dev/mapper/fedora-home","type":"lvm","fstype":"crypto_LUKS","mountpoints":[null],"children":[
+	   {"path":"/dev/mapper/luks-home","type":"crypt","fstype":"ext4","mountpoints":["/mnt/home"]}]}]},
+	 {"path":"/dev/sda4","type":"part","fstype":"linux_raid_member","mountpoints":[null],"children":[
+	  {"path":"/dev/md127","type":"raid1","fstype":"ext4","mountpoints":[null]}]}]}]}`
+	var ran []string
+	r := &BootcRunner{Exec: func(_ context.Context, stdout io.Writer, name string, args ...string) error {
+		ran = append(ran, name+" "+strings.Join(args, " "))
+		switch name {
+		case "lsblk":
+			io.WriteString(stdout, tree)
+		case "pvs":
+			io.WriteString(stdout, "  fedora\n")
+		}
+		return nil
+	}}
+	r.releaseDisk(context.Background(), "/dev/sda")
+	want := []string{
+		"lsblk -J -b -o PATH,TYPE,FSTYPE,MOUNTPOINTS /dev/sda",
+		"umount /run/maitre-browse/sda1",
+		"swapoff /dev/sda2",
+		"lvchange -an /dev/mapper/fedora-root",
+		"umount /mnt/home",
+		"cryptsetup close /dev/mapper/luks-home",
+		"lvchange -an /dev/mapper/fedora-home",
+		"pvs --noheadings -o vg_name /dev/sda3",
+		"vgchange -an fedora",
+		"mdadm --stop /dev/md127",
+		"udevadm settle",
+	}
+	if got := strings.Join(ran, "\n"); got != strings.Join(want, "\n") {
+		t.Errorf("ran:\n%s\nwant:\n%s", got, strings.Join(want, "\n"))
 	}
 }

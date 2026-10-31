@@ -34,6 +34,8 @@ const (
 	InstallerServiceListFolderProcedure = "/maitre.v1.InstallerService/ListFolder"
 	// InstallerServiceRestartProcedure is the procedure name of the InstallerService's Restart RPC.
 	InstallerServiceRestartProcedure = "/maitre.v1.InstallerService/Restart"
+	// InstallerServiceGetLogsProcedure is the procedure name of the InstallerService's GetLogs RPC.
+	InstallerServiceGetLogsProcedure = "/maitre.v1.InstallerService/GetLogs"
 )
 
 var (
@@ -65,6 +67,13 @@ var (
 			Procedure:  InstallerServiceRestartProcedure,
 		}
 	})
+	installerServiceGetLogsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_installer_proto.Services().ByName("InstallerService").Methods().ByName("GetLogs"),
+			Procedure:  InstallerServiceGetLogsProcedure,
+		}
+	})
 )
 
 // InstallerServiceClient is a client for the maitre.v1.InstallerService service.
@@ -84,6 +93,9 @@ type InstallerServiceClient interface {
 	// failed install or to boot new boot files. Refused while installing.
 	// Installers before it answer Unimplemented.
 	Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error)
+	// The Installer's own log (its journal), newest last (decision 271), so
+	// a failed install can be read without the machine's screen.
+	GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error)
 }
 
 // NewInstallerServiceClient constructs a client for the maitre.v1.InstallerService service.
@@ -109,6 +121,9 @@ type InstallerServiceHandler interface {
 	// failed install or to boot new boot files. Refused while installing.
 	// Installers before it answer Unimplemented.
 	Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error)
+	// The Installer's own log (its journal), newest last (decision 271), so
+	// a failed install can be read without the machine's screen.
+	GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error)
 }
 
 // RegisterInstallerServiceHandler registers svc as the maitre.v1.InstallerService implementation on
@@ -120,6 +135,7 @@ func RegisterInstallerServiceHandler(server *connect.Server, svc InstallerServic
 		connect.Method{Spec: installerServiceProvisionSpec(), Handler: adapter.provision},
 		connect.Method{Spec: installerServiceListFolderSpec(), Handler: adapter.listFolder},
 		connect.Method{Spec: installerServiceRestartSpec(), Handler: adapter.restart},
+		connect.Method{Spec: installerServiceGetLogsSpec(), Handler: adapter.getLogs},
 	)
 }
 
@@ -140,6 +156,10 @@ func (UnimplementedInstallerServiceHandler) ListFolder(context.Context, *v1.List
 
 func (UnimplementedInstallerServiceHandler) Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.Restart is not implemented")
+}
+
+func (UnimplementedInstallerServiceHandler) GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.GetLogs is not implemented")
 }
 
 type installerServiceClient struct {
@@ -173,6 +193,14 @@ func (c *installerServiceClient) ListFolder(ctx context.Context, req *v1.ListFol
 func (c *installerServiceClient) Restart(ctx context.Context, req *v1.RestartRequest) (*v1.RestartResponse, error) {
 	var res v1.RestartResponse
 	if err := c.client.CallUnary(ctx, installerServiceRestartSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *installerServiceClient) GetLogs(ctx context.Context, req *v1.GetLogsRequest) (*v1.GetLogsResponse, error) {
+	var res v1.GetLogsResponse
+	if err := c.client.CallUnary(ctx, installerServiceGetLogsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -222,6 +250,18 @@ func (h installerServiceHandler) restart(ctx context.Context, _ connect.Spec, st
 		return err
 	}
 	res, err := h.svc.Restart(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h installerServiceHandler) getLogs(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetLogsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetLogs(ctx, &req)
 	if err != nil {
 		return err
 	}

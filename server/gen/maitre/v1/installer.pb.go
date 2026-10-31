@@ -1056,6 +1056,95 @@ func (*RestartResponse) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{13}
 }
 
+type GetLogsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How many lines from the end; 0 means 200.
+	Lines         int32 `protobuf:"varint,1,opt,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogsRequest) Reset() {
+	*x = GetLogsRequest{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogsRequest) ProtoMessage() {}
+
+func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogsRequest.ProtoReflect.Descriptor instead.
+func (*GetLogsRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetLogsRequest) GetLines() int32 {
+	if x != nil {
+		return x.Lines
+	}
+	return 0
+}
+
+type GetLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Lines         []string               `protobuf:"bytes,1,rep,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogsResponse) Reset() {
+	*x = GetLogsResponse{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogsResponse) ProtoMessage() {}
+
+func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogsResponse.ProtoReflect.Descriptor instead.
+func (*GetLogsResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetLogsResponse) GetLines() []string {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
 var File_maitre_v1_installer_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_installer_proto_rawDesc = "" +
@@ -1145,13 +1234,18 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\arecords\x18\b \x03(\v2\x11.maitre.v1.RecordR\arecords\"\x13\n" +
 	"\x11ProvisionResponse\"\x10\n" +
 	"\x0eRestartRequest\"\x11\n" +
-	"\x0fRestartResponse2\xd2\x02\n" +
+	"\x0fRestartResponse\"&\n" +
+	"\x0eGetLogsRequest\x12\x14\n" +
+	"\x05lines\x18\x01 \x01(\x05R\x05lines\"'\n" +
+	"\x0fGetLogsResponse\x12\x14\n" +
+	"\x05lines\x18\x01 \x03(\tR\x05lines2\x96\x03\n" +
 	"\x10InstallerService\x12c\n" +
 	"\x12GetInstallerStatus\x12$.maitre.v1.GetInstallerStatusRequest\x1a%.maitre.v1.GetInstallerStatusResponse\"\x00\x12H\n" +
 	"\tProvision\x12\x1b.maitre.v1.ProvisionRequest\x1a\x1c.maitre.v1.ProvisionResponse\"\x00\x12K\n" +
 	"\n" +
 	"ListFolder\x12\x1c.maitre.v1.ListFolderRequest\x1a\x1d.maitre.v1.ListFolderResponse\"\x00\x12B\n" +
-	"\aRestart\x12\x19.maitre.v1.RestartRequest\x1a\x1a.maitre.v1.RestartResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\aRestart\x12\x19.maitre.v1.RestartRequest\x1a\x1a.maitre.v1.RestartResponse\"\x00\x12B\n" +
+	"\aGetLogs\x12\x19.maitre.v1.GetLogsRequest\x1a\x1a.maitre.v1.GetLogsResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_installer_proto_rawDescOnce sync.Once
@@ -1166,7 +1260,7 @@ func file_maitre_v1_installer_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_installer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_maitre_v1_installer_proto_goTypes = []any{
 	(Provisioning_Phase)(0),            // 0: maitre.v1.Provisioning.Phase
 	(*GetInstallerStatusRequest)(nil),  // 1: maitre.v1.GetInstallerStatusRequest
@@ -1183,10 +1277,12 @@ var file_maitre_v1_installer_proto_goTypes = []any{
 	(*ProvisionResponse)(nil),          // 12: maitre.v1.ProvisionResponse
 	(*RestartRequest)(nil),             // 13: maitre.v1.RestartRequest
 	(*RestartResponse)(nil),            // 14: maitre.v1.RestartResponse
-	(*Fleet)(nil),                      // 15: maitre.v1.Fleet
-	(*TrustedDevice)(nil),              // 16: maitre.v1.TrustedDevice
-	(*Node)(nil),                       // 17: maitre.v1.Node
-	(*Record)(nil),                     // 18: maitre.v1.Record
+	(*GetLogsRequest)(nil),             // 15: maitre.v1.GetLogsRequest
+	(*GetLogsResponse)(nil),            // 16: maitre.v1.GetLogsResponse
+	(*Fleet)(nil),                      // 17: maitre.v1.Fleet
+	(*TrustedDevice)(nil),              // 18: maitre.v1.TrustedDevice
+	(*Node)(nil),                       // 19: maitre.v1.Node
+	(*Record)(nil),                     // 20: maitre.v1.Record
 }
 var file_maitre_v1_installer_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetInstallerStatusResponse.status:type_name -> maitre.v1.InstallerStatus
@@ -1196,20 +1292,22 @@ var file_maitre_v1_installer_proto_depIdxs = []int32{
 	6,  // 4: maitre.v1.Disk.partitions:type_name -> maitre.v1.Partition
 	9,  // 5: maitre.v1.ListFolderResponse.entries:type_name -> maitre.v1.FolderEntry
 	0,  // 6: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
-	15, // 7: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
-	16, // 8: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
-	17, // 9: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
-	18, // 10: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
+	17, // 7: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
+	18, // 8: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
+	19, // 9: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
+	20, // 10: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
 	1,  // 11: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
 	11, // 12: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
 	7,  // 13: maitre.v1.InstallerService.ListFolder:input_type -> maitre.v1.ListFolderRequest
 	13, // 14: maitre.v1.InstallerService.Restart:input_type -> maitre.v1.RestartRequest
-	2,  // 15: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
-	12, // 16: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
-	8,  // 17: maitre.v1.InstallerService.ListFolder:output_type -> maitre.v1.ListFolderResponse
-	14, // 18: maitre.v1.InstallerService.Restart:output_type -> maitre.v1.RestartResponse
-	15, // [15:19] is the sub-list for method output_type
-	11, // [11:15] is the sub-list for method input_type
+	15, // 15: maitre.v1.InstallerService.GetLogs:input_type -> maitre.v1.GetLogsRequest
+	2,  // 16: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
+	12, // 17: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
+	8,  // 18: maitre.v1.InstallerService.ListFolder:output_type -> maitre.v1.ListFolderResponse
+	14, // 19: maitre.v1.InstallerService.Restart:output_type -> maitre.v1.RestartResponse
+	16, // 20: maitre.v1.InstallerService.GetLogs:output_type -> maitre.v1.GetLogsResponse
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -1227,7 +1325,7 @@ func file_maitre_v1_installer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_installer_proto_rawDesc), len(file_maitre_v1_installer_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

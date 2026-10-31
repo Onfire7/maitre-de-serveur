@@ -19,6 +19,7 @@ import type { ConsoleState, Found } from "@/state";
 import { randomNodeName } from "@/names";
 import { formatBytes, ago } from "@/lib/format";
 import { NetbootPanel, restartInstaller } from "./NetbootPanel";
+import { InstallerLogs } from "./InstallerLogs";
 import { MediaPanel } from "./MediaPanel";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
@@ -45,6 +46,8 @@ export function NodesTab({
   // `?node=<letter>` opens that Node's details on load (screenshot fixture).
   const fixtureLetter = useState(() => new URLSearchParams(window.location.search).get("node"))[0];
   const installers = found.filter((f) => f.kind === "installer");
+  // The Installer whose log is open (decision 271).
+  const [logsOf, setLogsOf] = useState<{ addr: string; label: string } | null>(null);
   const knownIds = new Set(state.nodes.map((n) => n.node_id));
   return (
     <div className="space-y-8">
@@ -57,6 +60,7 @@ export function NodesTab({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Add a Node</h2>
+        {logsOf && <InstallerLogs addr={logsOf.addr} label={logsOf.label} onClose={() => setLogsOf(null)} />}
         {installers.length === 0 ? (
           <p className="text-sm text-muted-foreground">Boot a machine from the Maître installer and it appears here. Looking on this network…</p>
         ) : (
@@ -70,6 +74,9 @@ export function NodesTab({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setLogsOf({ addr: f.addresses[0], label: f.machine || f.addresses[0] })}>
+                    Installer log
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => restartInstaller(f.addresses[0], f.machine || "The machine")}>
                     Restart
                   </Button>

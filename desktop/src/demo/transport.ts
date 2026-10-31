@@ -484,6 +484,11 @@ const handlers: Record<string, Handler> = {
     return {};
   },
 
+  "InstallerService/GetLogs": (f, _n, _i, addr) => {
+    const ins = f.installer;
+    if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
+    return { lines: ['time=2026-10-31T19:26:12Z level=INFO msg="maitre installer" installer_id=' + ins.id, "time=2026-10-31T19:26:12Z level=INFO msg=listening addr=0.0.0.0:7443", ...ins.log.map((l) => `time=2026-10-31T19:27:00Z level=INFO msg="bootc" out="${l}"`)] };
+  },
   "InstallerService/Restart": (f, _n, _i, addr) => {
     const ins = f.installer;
     if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);

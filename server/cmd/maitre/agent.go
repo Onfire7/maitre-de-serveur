@@ -1272,6 +1272,15 @@ func runInstaller(args []string) error {
 	if !*noReboot {
 		opts.Reboot = func() error { return exec.Command("systemctl", "reboot").Run() }
 	}
+	if *fake == "" {
+		opts.Logs = func(ctx context.Context, n int) ([]string, error) {
+			return tui.JournalLogs(ctx, "maitre-installer.service", n)
+		}
+	} else {
+		opts.Logs = func(context.Context, int) ([]string, error) {
+			return []string{"level=INFO msg=\"maitre installer\" fake=true", "level=INFO msg=listening addr=0.0.0.0:7443"}, nil
+		}
+	}
 	in := installer.New(id, opts)
 	if *fake == "" {
 		ensureHostname(log, "maitre-installer-"+id.Fingerprint()[:8])

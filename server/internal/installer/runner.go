@@ -2,6 +2,7 @@ package installer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
@@ -170,6 +171,8 @@ func (r *BootcRunner) execPull(ctx context.Context, stdout io.Writer, name strin
 
 // Install implements Runner.
 func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress) error {
+	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "releasing "+plan.TargetDisk)
+	r.releaseDisk(ctx, plan.TargetDisk)
 	if r.Direct {
 		if err := r.installDirect(ctx, plan, progress); err != nil {
 			return err
@@ -237,6 +240,58 @@ func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Pro
 		return fmt.Errorf("bootc install: %w", err)
 	}
 	return nil
+}
+
+// releaseDisk lets go of whatever the live system holds on the target disk
+// so bootc's wipe finds it free (decision 271): mounts, swap, LVM volume
+// groups the kernel activated on finding their partitions, RAID arrays it
+// assembled, and opened encrypted volumes. Innermost first, so a volume on
+// an array on a partition is released in order. Best effort: a hold that
+// stays makes bootc fail with the device's name, as before.
+func (r *BootcRunner) releaseDisk(ctx context.Context, disk string) {
+	var out strings.Builder
+	if err := r.exec(ctx, &out, "lsblk", "-J", "-b", "-o", "PATH,TYPE,FSTYPE,MOUNTPOINTS", disk); err != nil {
+		return
+	}
+	var parsed lsblkOut
+	if json.Unmarshal([]byte(out.String()), &parsed) != nil {
+		return
+	}
+	var release func(d lsblkDev)
+	release = func(d lsblkDev) {
+		for _, c := range d.Children {
+			release(c)
+		}
+		for _, m := range d.Mountpoints {
+			if m != nil && *m != "" && *m != "[SWAP]" {
+				_ = r.exec(ctx, io.Discard, "umount", *m)
+			}
+		}
+		fstype := deref(d.FSType)
+		if fstype == "swap" {
+			_ = r.exec(ctx, io.Discard, "swapoff", d.Path)
+		}
+		switch {
+		case d.Type == "lvm":
+			_ = r.exec(ctx, io.Discard, "lvchange", "-an", d.Path)
+		case d.Type == "crypt":
+			_ = r.exec(ctx, io.Discard, "cryptsetup", "close", d.Path)
+		case strings.HasPrefix(d.Type, "raid"):
+			_ = r.exec(ctx, io.Discard, "mdadm", "--stop", d.Path)
+		}
+		if fstype == "LVM2_member" {
+			var vg strings.Builder
+			if err := r.exec(ctx, &vg, "pvs", "--noheadings", "-o", "vg_name", d.Path); err == nil {
+				if name := strings.TrimSpace(vg.String()); name != "" {
+					_ = r.exec(ctx, io.Discard, "vgchange", "-an", name)
+				}
+			}
+		}
+	}
+	for _, d := range parsed.Blockdevices {
+		release(d)
+	}
+	_ = r.exec(ctx, io.Discard, "udevadm", "settle")
 }
 
 // rootSize is bootc's --root-size for the target: RootSize when the disk

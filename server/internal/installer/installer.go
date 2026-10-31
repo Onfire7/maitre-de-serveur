@@ -37,6 +37,9 @@ type Options struct {
 	Runner Runner
 	// Reboot is called after a successful install.
 	Reboot func() error
+	// Logs returns the last n lines of the Installer's own log, for GetLogs
+	// (decision 271); nil means the Installer has none to give.
+	Logs func(ctx context.Context, n int) ([]string, error)
 	// Disks lists candidate disks; defaults to the lsblk-based Disks.
 	Disks func(ctx context.Context) ([]*maitrev1.Disk, error)
 	// Backups finds Node backups on attached Drives; defaults to scanning
@@ -243,6 +246,25 @@ func (in *Installer) Restart(ctx context.Context, _ *maitrev1.RestartRequest) (*
 		}
 	}()
 	return &maitrev1.RestartResponse{}, nil
+}
+
+// GetLogs implements InstallerService (decision 271).
+func (in *Installer) GetLogs(ctx context.Context, req *maitrev1.GetLogsRequest) (*maitrev1.GetLogsResponse, error) {
+	if _, ok := peer.From(ctx); !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "no client key")
+	}
+	if in.opts.Logs == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Installer keeps no log to show")
+	}
+	n := int(req.GetLines())
+	if n <= 0 || n > 2000 {
+		n = 200
+	}
+	lines, err := in.opts.Logs(ctx, n)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err.Error())
+	}
+	return &maitrev1.GetLogsResponse{Lines: lines}, nil
 }
 
 // Folder lists one folder of a partition, for ListFolder and the machine's

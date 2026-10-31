@@ -27,6 +27,9 @@ service InstallerService {
   // failed install or to boot new boot files. Refused while installing.
   // Installers before it answer Unimplemented.
   rpc Restart(RestartRequest) returns (RestartResponse) {}
+  // The Installer's own log (its journal), newest last (decision 271), so
+  // a failed install can be read without the machine's screen.
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {}
 }
 
 message GetInstallerStatusRequest {}
@@ -176,3 +179,12 @@ message ProvisionResponse {}
 message RestartRequest {}
 
 message RestartResponse {}
+
+message GetLogsRequest {
+  // How many lines from the end; 0 means 200.
+  int32 lines = 1;
+}
+
+message GetLogsResponse {
+  repeated string lines = 1;
+}
