@@ -91,8 +91,24 @@ The one Space new Service volumes go to unless the user picks another. A Fleet w
 _Avoid_: Primary, main storage
 
 **Parity Drive**:
-A Drive on a Node dedicated to parity data protecting every other Drive on that Node. Excluded from all Spaces.
+A Drive on a Node dedicated to SnapRAID parity for the Spaces on that Node's other Drives that have a Parity Level. Excluded from all Spaces (ADR 0009).
 _Avoid_: Parity disk, backup drive
+
+**Parity Level**:
+A Space option (Off, 1, 2): how many failed Drives on one Node its files survive, from that Node's Parity Drives. Updated on a schedule, so recent changes are not yet covered.
+_Avoid_: RAID level, redundancy
+
+A Space option (1, 2, 3, no more than its Drives on separate disks): the minimum number of Drives holding each of its files. The agent copies a file soon after it changes and checks every file hourly.
+A Space option (1, 2, 3): the minimum number of Drives holding each of its files, kept by a pass the agent runs.
+_Avoid_: Replicas, mirrors, duplicates
+
+**Mirrored Drive**:
+Two whole disks formatted together as btrfs RAID1, seen and used as a single Drive. For app data and databases. Belongs only to Mirrored Spaces, which take no other Drives.
+_Avoid_: RAID1 pair, mirror set
+
+**Drain**:
+Moving a Drive's files to other Drives of the same Spaces before the Drive leaves them; the Drive stays readable but takes no new files meanwhile.
+_Avoid_: Evacuate, migrate (for this), empty
 
 **Adopt**:
 Bringing an existing Drive and its data into a Node without reformatting it.

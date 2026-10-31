@@ -26,6 +26,7 @@ import { StorageService, SpaceSchema, DriveRecordSchema, type Drive, type DriveR
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
+import type { FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
 import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import { currentRecord, putSigned } from "@/fleet/sign";
@@ -33,6 +34,10 @@ import type { ConsoleState } from "@/state";
 import { nextOwnerId } from "@/fleet/owners";
 import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
+// ADR 0009: a Space's protection on its card and the Parity Drive switch
+// on each Drive row; the Protection tab has the rest.
+import { coverage, roleOf } from "@/protection";
+import { CopiesControl, LevelControl, MakeParityDialog, ParityOffDialog, ParitySwitch, WordPill } from "./ProtectionControls";
 
 // How a Space fills its Drives: decision 201 adds the least free ones (the
 // fullest Drive first); 202 makes local Drives first a switch of its own.
@@ -163,8 +168,13 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{s.name}</span>
                     {s.requireTags.length === 0 && s.nodeIds.length === 0 && (
-                      <Badge variant="outline" className="text-muted-foreground" title="No tag rule: it takes every Drive">
-                        any Drive
+                      <Badge variant="outline" className="text-muted-foreground" title={s.mirrored ? "No tag rule: it takes every Mirrored Drive" : "No tag rule: it takes every plain Drive"}>
+                        {s.mirrored ? "any Mirrored Drive" : "any Drive"}
+                      </Badge>
+                    )}
+                    {s.mirrored && (
+                      <Badge variant="outline" title="Only Mirrored Drives, which belong to no plain Space (decision 255)">
+                        Mirrored Drives only
                       </Badge>
                     )}
                     {s.requireTags.map((t) => (
@@ -245,6 +255,7 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
                       </Tooltip>
                     )}
                   </div>
+                  <ProtectionRow space={s} snap={snap} />
                 </div>
                 <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setRemoving(s)}>
                   <Trash2 /> Remove
@@ -258,7 +269,7 @@ export function StorageTab({ snap, state }: { snap: FleetSnapshot | undefined; s
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Drives</h2>
         {nodes.map((n) => (
-          <NodeDrives key={n.nodeId} allDrives={drives} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()))} spaces={spaces} />
+          <NodeDrives key={n.nodeId} allDrives={drives} nodeId={n.nodeId} name={n.name} target={targetFor(snap, state.nodes, n.nodeId)} unreachable={nodeDown(nodeWord(snap?.status.get(n.nodeId), Date.now()))} spaces={spaces} status={snap?.status.get(n.nodeId)} />
         ))}
       </section>
 
@@ -378,11 +389,12 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
   const [preferLocal, setPreferLocal] = useState(true);
   const [spanning, setSpanning] = useState(false);
   const [exclusive, setExclusive] = useState(false);
+  const [mirrored, setMirrored] = useState(false);
   const [busy, setBusy] = useState(false);
   const tagList = tags.split(/[,\s]+/).filter(Boolean);
-  const preview = drives.filter((d) => tagList.every((x) => [...d.autoTags, ...d.tags].includes(x)));
+  const preview = drives.filter((d) => (d.role === "mirrored") === mirrored && d.role !== "parity" && tagList.every((x) => [...d.autoTags, ...d.tags].includes(x)));
   const allTags = Array.from(new Set(drives.flatMap((d) => [...d.autoTags, ...d.tags]))).sort();
-  const reset = () => (setName(""), setTags(""), setPlacement("most_free"), setPreferLocal(true), setSpanning(false), setExclusive(false));
+  const reset = () => (setName(""), setTags(""), setPlacement("most_free"), setPreferLocal(true), setSpanning(false), setExclusive(false), setMirrored(false));
   return (
     <Dialog
       open={open}
@@ -470,6 +482,13 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
             </span>
             <Switch checked={exclusive} onCheckedChange={setExclusive} />
           </label>
+          <label className="flex items-center justify-between text-sm">
+            <span>
+              Mirrored Drives only
+              <span className="block text-xs text-muted-foreground">Takes Mirrored Drives and nothing else, so every file in it is on two disks at once. For app data and databases. A plain Space never takes a Mirrored Drive.</span>
+            </span>
+            <Switch checked={mirrored} onCheckedChange={setMirrored} />
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => (onClose(), reset())}>
@@ -481,7 +500,7 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
               setBusy(true);
               const id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
               try {
-                await onAdd(withFill(create(SpaceSchema, { spaceId: id, name: name.trim(), placement, requireTags: tagList, spanNodes: spanning, exclusive, defaultForNew: spaces.length === 0, priority: spaces.length, createdUnixMs: BigInt(Date.now()) }), placement, spanning && preferLocal));
+                await onAdd(withFill(create(SpaceSchema, { spaceId: id, name: name.trim(), placement, requireTags: tagList, spanNodes: spanning, exclusive, mirrored, parityLevel: mirrored || spaces.length === 0 ? 0 : 1, defaultForNew: spaces.length === 0, priority: spaces.length, createdUnixMs: BigInt(Date.now()) }), placement, spanning && preferLocal));
                 toast.success(`${name.trim()} added${spaces.length === 0 ? " and marked as the default" : ""}`);
                 onClose();
                 reset();
@@ -500,7 +519,7 @@ function AddSpaceDialog({ open, onClose, spaces, drives, nodeName, onAdd }: { op
   );
 }
 
-function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { nodeId: string; name: string; target: Target | undefined; unreachable: boolean; spaces: Space[]; allDrives: DriveRecord[] }) {
+function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives, status }: { nodeId: string; name: string; target: Target | undefined; unreachable: boolean; spaces: Space[]; allDrives: DriveRecord[]; status: FleetNodeStatus | undefined }) {
   const qc = useQueryClient();
   const { go } = useRoute();
   const client = useMemo(() => (target ? createClient(StorageService, transportFor(target)) : undefined), [target?.addr, target?.fingerprint]);
@@ -513,6 +532,7 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
   });
   const [dialog, setDialog] = useState<{ kind: "adopt" | "format" | "forget"; drive: Drive } | null>(null);
   const [tagging, setTagging] = useState<Drive | null>(null);
+  const [ask, setAsk] = useState<{ on: boolean; drive: Drive } | null>(null);
   const allTags = [...new Set(allDrives.flatMap((d) => [...d.autoTags, ...d.tags]))];
   const openDrive = (d: Drive) => go({ name: "fleet", tab: "files", files: { nodeId, driveId: d.driveId } });
   const refresh = () => {
@@ -550,11 +570,17 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
                   ) : (
                     <span className="font-medium">{d.record?.name || d.label || d.model}</span>
                   )}
-                  {d.adopted ? idx.length ? idx.map((i) => (
-                        <Badge key={i} variant="secondary">
-                          <span className="size-2 rounded-full" style={{ background: colorOf(spaces[i], spaces) }} /> {spaces[i].name}
-                        </Badge>
-                      )) : <Badge variant="outline">no Space</Badge> : <Badge variant="outline">not used</Badge>}
+                  {d.record && roleOf(d.record) === "parity" && <Badge variant="secondary">Parity Drive</Badge>}
+                  {d.record && roleOf(d.record) === "mirrored" && <Badge variant="outline">Mirrored Drive</Badge>}
+                  {d.record?.draining && <Badge variant="outline">emptying</Badge>}
+                  {d.adopted && d.record && roleOf(d.record) !== "parity" && idx.length === 0 && <Badge variant="outline">no Space</Badge>}
+                  {d.adopted &&
+                    idx.map((i) => (
+                      <Badge key={i} variant="secondary">
+                        <span className="size-2 rounded-full" style={{ background: colorOf(spaces[i], spaces) }} /> {spaces[i].name}
+                      </Badge>
+                    ))}
+                  {!d.adopted && <Badge variant="outline">not used</Badge>}
                   {d.record?.origin === "internal" && <span className="text-xs text-muted-foreground">built in</span>}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground">
@@ -594,7 +620,8 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
                   </div>
                 )}
               </div>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
+                {d.adopted && <ParitySwitch drive={d} status={status} onAsk={(on) => setAsk({ on, drive: d })} />}
                 {!d.adopted && d.fstype && (
                   <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "adopt", drive: d })}>
                     Adopt
@@ -635,6 +662,8 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives }: { 
           onClose={() => setTagging(null)}
         />
       )}
+      {target && ask?.on && <MakeParityDialog target={target} nodeName={name} drive={ask.drive} spaces={spaces} onDone={() => (setAsk(null), refresh())} />}
+      {target && ask && !ask.on && ask.drive.record && <ParityOffDialog target={target} nodeName={name} drive={ask.drive.record} losing={spaces.filter((s) => s.parityLevel > 0 && !s.mirrored && allDrives.some((x) => x.nodeId === nodeId && spacesOf(x, spaces).includes(s.spaceId)))} onDone={() => (setAsk(null), refresh())} />}
       {client && dialog && <DriveDialog kind={dialog.kind} drive={dialog.drive} client={client} onDone={() => (setDialog(null), refresh())} />}
     </div>
   );
@@ -869,5 +898,34 @@ function ColorEdge({ space, color, onPick }: { space: Space; color: string; onPi
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** A Space's protection on its card (ADR 0009), with the Protection tab one click away. */
+function ProtectionRow({ space, snap }: { space: Space; snap: FleetSnapshot | undefined }) {
+  const { go } = useRoute();
+  const spaces = snap?.spaces ?? [];
+  const protectedSomehow = space.mirrored || space.parityLevel > 0 || space.copies > 1;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+      <span className="flex items-center gap-1.5">
+        Parity <LevelControl space={space} snap={snap} size="xs" />
+      </span>
+      <span className="flex items-center gap-1.5">
+        Copies <CopiesControl space={space} snap={snap} size="xs" />
+      </span>
+      {protectedSomehow &&
+        (snap?.nodes ?? []).map((n) => {
+          const c = coverage(space, n.nodeId, spaces, snap?.drives ?? [], snap?.status.get(n.nodeId), n.name);
+          return c ? (
+            <span key={n.nodeId} className="flex items-center gap-1" title={c.why}>
+              {n.name} <WordPill word={c.word} />
+            </span>
+          ) : null;
+        })}
+      <button className="text-muted-foreground underline-offset-2 hover:underline" onClick={() => go({ name: "fleet", tab: "protection" })}>
+        Protection tab
+      </button>
+    </div>
   );
 }

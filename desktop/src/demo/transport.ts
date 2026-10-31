@@ -13,6 +13,7 @@ import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
 import { type DemoFleet, type DemoNode, demoFleet, NODE_A, protectedOptions, renderDemo } from "./fleet";
 import { demoHistory } from "./metrics";
+import { cancelDrain, checkParity, copiesStatuses, drainsOf, makeMirrored, mirrorStatuses, parityStatus, planDrain, protectNow, replaceDrive, setParity, startDrain } from "./protection";
 
 type Handler = (fleet: DemoFleet, node: DemoNode | undefined, input: Record<string, unknown>, addr: string) => unknown;
 
@@ -138,6 +139,10 @@ const handlers: Record<string, Handler> = {
       problems: p === me ? [] : (p.problems ?? []),
       syncGaps: p === me ? f.syncGaps : [],
       entries: demoEntries(f, p),
+      parity: parityStatus(f, p),
+      drains: drainsOf(f, p.nodeId).filter((j) => j.state === "queued" || j.state === "running"),
+      copies: copiesStatuses(f, p),
+      mirrors: mirrorStatuses(f, p),
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.
@@ -315,8 +320,23 @@ const handlers: Record<string, Handler> = {
   // StorageService
   "StorageService/ListDrives": (f, n, _i, addr) => {
     const me = needNode(n, addr);
-    return { drives: f.drives.filter((d) => d.nodeId === me.nodeId).map(({ nodeId: _n, ...d }) => d) };
+    return { drives: f.drives.filter((d) => d.nodeId === me.nodeId && !d.missing).map(({ nodeId: _n, missing: _m, ...d }) => d) };
   },
+  // ADR 0009: Drain, Parity Drives, Replace, Mirrored Drives, copies.
+  "StorageService/PlanDrain": (f, n, i, addr) => ({ plan: planDrain(f, needNode(n, addr), i.driveId as string, (i.looseToSpace as string) ?? "") }),
+  "StorageService/DrainDrive": (f, n, i, addr) => ({ job: startDrain(f, needNode(n, addr), i.driveId as string, (i.looseToSpace as string) ?? "", (i.confirm as string) ?? "", (i.purpose as string) ?? "") }),
+  "StorageService/ListDrains": (f, n, _i, addr) => ({ jobs: drainsOf(f, needNode(n, addr).nodeId) }),
+  "StorageService/CancelDrain": (f, n, i, addr) => (needNode(n, addr), cancelDrain(f, i.jobId as string), {}),
+  "StorageService/CheckParityDrive": (f, n, i, addr) => checkParity(f, needNode(n, addr), (i.driveId as string) ?? "", (i.device as string) ?? "", (i.looseToSpace as string) ?? ""),
+  "StorageService/SetParityDrive": (f, n, i, addr) => setParity(f, needNode(n, addr), i as Parameters<typeof setParity>[2]),
+  "StorageService/ProtectNow": (f, n, _i, addr) => (protectNow(f, needNode(n, addr)), {}),
+  "StorageService/ReplaceDrive": (f, n, i, addr) => ({ drive: replaceDrive(f, needNode(n, addr), i.failedDriveId as string, i.device as string, (i.confirm as string) ?? "") }),
+  "StorageService/GetParityStatus": (f, n, _i, addr) => ({ status: parityStatus(f, needNode(n, addr)) }),
+  "StorageService/MakeMirroredDrive": (f, n, i, addr) => ({ drive: makeMirrored(f, needNode(n, addr), (i.devices as string[]) ?? [], (i.name as string) ?? "", (i.tags as string[]) ?? [], (i.confirm as string) ?? "") }),
+  "StorageService/ReplaceMirrorDisk": () => {
+    throw fail(Code.FailedPrecondition, "demo: both disks of every Mirrored Drive are present");
+  },
+  "StorageService/CopiesNow": (_f, n, _i, addr) => (needNode(n, addr), {}),
   "StorageService/DriveContents": () => ({ entries: ["Downloads", "old-backups"], usedBytes: 130n * 1024n ** 3n, empty: false }),
   "StorageService/AdoptDrive": () => {
     throw fail(Code.Unimplemented, "demo: no unadopted Drives on this Node");

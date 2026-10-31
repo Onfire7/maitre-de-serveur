@@ -54,7 +54,7 @@ func runPoolUp(args []string) error {
 	for _, e := range errs {
 		fmt.Fprintln(os.Stderr, "pool-up:", e)
 	}
-	bySpace, err := sm.LocalBranches(ctx)
+	bySpace, noCreate, err := sm.LocalBranches(ctx)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func runPoolUp(args []string) error {
 	}
 	for space, branches := range bySpace {
 		storage.MarkSpaceFolders(branches)
-		if err := pool.Assemble(ctx, space, branches, len(branches), placement[space]); err != nil {
+		if err := pool.Assemble(ctx, space, branches, len(branches), placement[space], noCreate); err != nil {
 			fmt.Fprintln(os.Stderr, "pool-up:", err)
 		} else if len(branches) > 0 {
 			fmt.Printf("pool-up: Pool %s over %s\n", space, strings.Join(branches, ", "))

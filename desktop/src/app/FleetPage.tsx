@@ -11,6 +11,7 @@ import { LogsTab } from "./LogsTab";
 import { FLEET_TABS, FLEET_TAB_LABEL, useRoute, type FleetTab } from "./routes";
 import { NodesTab } from "./NodesTab";
 import { StorageTab } from "./StorageTab";
+import { ProtectionTab } from "./ProtectionTab";
 import { UpdatesTab } from "./UpdatesTab";
 import { DevicesTab } from "./DevicesTab";
 import { RemoteTab } from "./RemoteTab";
@@ -84,6 +85,7 @@ export function FleetPage({
         {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
         {tab === "services" && <ServicesTab snap={snap} state={state} services={services} onAct={onAct} now={now} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}
+        {tab === "protection" && <ProtectionTab snap={snap} state={state} />}
         {tab === "files" && <FilesTab snap={snap} state={state} initial={files} services={services} />}
         {tab === "logs" && <LogsTab snap={snap} state={state} initial={logs} />}
         {tab === "devices" && <DevicesTab snap={snap} device={device} found={found} onPromote={onPromote} scoped={scoped} />}

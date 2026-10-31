@@ -19,6 +19,7 @@ import {
 } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceSpecSchema, ServiceStatus_State, type ServiceSpec, type ServiceStatus, PublicSettingsSchema, UserCatalogsSchema } from "@/gen/maitre/v1/service_pb";
 import { MY_FOLDER } from "./catalogs";
+import { scenario, tickProtection, type DemoDrain, type NodeParity } from "./protection";
 import { DriveRecordSchema, SpaceSchema, type Drive, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import { UpdateStatus_State, type UpdateStatus } from "@/gen/maitre/v1/node_pb";
@@ -157,6 +158,8 @@ export interface DemoDrive extends Omit<Drive, "$typeName" | "record" | "folders
   nodeId: string;
   record?: DriveRecord;
   folders: { name: string; kind: "space" | "orphan" | "unsorted"; spaceId: string }[];
+  /** A Drive that stopped answering (`?scenario=failed`): its record stays, ListDrives does not show it. */
+  missing?: boolean;
 }
 
 interface FileNode {
@@ -282,6 +285,9 @@ export class DemoFleet {
   spaces: Space[];
   drives: DemoDrive[];
   records: Rec[] = [];
+  /** ADR 0009: Drains under way and each Node's parity, from ./protection. */
+  drains: DemoDrain[] = [];
+  parity = new Map<string, NodeParity>();
   jobs: DemoJob[] = [];
   trustedDevices = [
     { deviceId: DEVICE_ID, name: "Sean's laptop", recoveryOnly: false, addedUnixMs: Date.now() - 30 * 86400_000, nodeScope: "" },
@@ -337,12 +343,15 @@ export class DemoFleet {
       },
     ];
     this.spaces = [
-      create(SpaceSchema, { spaceId: "general", name: "General", placement: "local_first", requireTags: [], nodeIds: [], priority: 0, createdUnixMs: BigInt(t - 30 * 86400_000), spanNodes: false, exclusive: false, defaultForNew: true, ownerId: 61000 }),
-      create(SpaceSchema, { spaceId: "media", name: "Media", placement: "most_free", requireTags: ["hdd"], nodeIds: [], priority: 10, createdUnixMs: BigInt(t - 20 * 86400_000), spanNodes: true, exclusive: true, defaultForNew: false, ownerId: 61001 }),
+      create(SpaceSchema, { spaceId: "general", name: "General", placement: "local_first", requireTags: [], nodeIds: [], priority: 0, createdUnixMs: BigInt(t - 30 * 86400_000), spanNodes: false, exclusive: false, defaultForNew: true, ownerId: 61000, color: "oklch(0.72 0.17 55)" }),
+      // ADR 0009: a Mirrored Space (decision 255) for app data, and Media at Parity Level 1.
+      create(SpaceSchema, { spaceId: "appdata", name: "App data", placement: "most_free", requireTags: [], nodeIds: [], priority: 5, createdUnixMs: BigInt(t - 10 * 86400_000), spanNodes: false, exclusive: false, defaultForNew: false, ownerId: 61002, color: "oklch(0.65 0.15 145)", mirrored: true }),
+      create(SpaceSchema, { spaceId: "media", name: "Media", placement: "most_free", requireTags: ["hdd"], nodeIds: [], priority: 10, createdUnixMs: BigInt(t - 20 * 86400_000), spanNodes: true, exclusive: true, defaultForNew: false, ownerId: 61001, color: "oklch(0.62 0.14 250)", parityLevel: 1 }),
     ];
     const drive = (nodeId: string, id: string, name: string, model: string, size: number, free: number, { record: recOpts, ...opts }: Partial<DemoDrive> = {}): DemoDrive => ({
       nodeId,
       device: opts.device ?? `/dev/${id}`,
+      disk: opts.disk ?? opts.device ?? `/dev/${id}`,
       driveId: id,
       model,
       serial: "SN" + id.toUpperCase(),
@@ -360,16 +369,29 @@ export class DemoFleet {
       suggestedName: "",
       spaces: opts.spaces ?? ["general"],
       folders: opts.folders ?? [{ name: "general", kind: "space", spaceId: "general" }],
-      record: create(DriveRecordSchema, { driveId: id, nodeId, name, model, serial: "SN" + id.toUpperCase(), sizeBytes: BigInt(Math.round(size)), fstype: "ext4", autoTags: opts.autoTags ?? ["hdd"], tags: recOpts?.tags ?? [], origin: recOpts?.origin ?? "formatted", addedUnixMs: BigInt(t - 25 * 86400_000) }),
+      record: create(DriveRecordSchema, { driveId: id, nodeId, name, model, serial: "SN" + id.toUpperCase(), sizeBytes: BigInt(Math.round(size)), fstype: "ext4", autoTags: opts.autoTags ?? ["hdd"], tags: recOpts?.tags ?? [], origin: recOpts?.origin ?? "formatted", addedUnixMs: BigInt(t - 25 * 86400_000), role: recOpts?.role ?? "", disks: recOpts?.disks ?? [] }),
       ...opts,
     });
     this.drives = [
       drive(NODE_A, "nvme0n1", "Apollo", "Samsung 980 PRO", 0.9 * TiB, 0.55 * TiB, { device: "/dev/nvme0n1", rotational: false, transport: "nvme", autoTags: ["ssd", "internal"], spaces: ["general"], record: { origin: "internal", tags: [] } as unknown as DriveRecord }),
-      drive(NODE_A, "sda", "Atlas", "WD Red Plus 4TB", 4 * TiB, 0.8 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }] }),
+      drive(NODE_A, "sda", "Atlas", "WD Red Plus 4TB", 4 * TiB, 2.1 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }] }),
       drive(NODE_A, "sdb", "Aspen", "WD Red Plus 4TB", 4 * TiB, 2.9 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "photos-2019", kind: "orphan", spaceId: "photos" }] }),
+      // ADR 0009: a Drive with unsorted files that could become a second Parity Drive, Alder's Parity Drive, and a Mirrored Drive on Basalt.
+      drive(NODE_A, "sdc", "Ash", "Toshiba N300 6TB", 6 * TiB, 4.5 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }] }),
+      drive(NODE_A, "sdd", "Arbor", "Seagate IronWolf 8TB", 8 * TiB, 8 * TiB, { spaces: [], folders: [], record: { role: "parity", tags: [] } as unknown as DriveRecord }),
+      drive(NODE_B, "sdb", "Bluff", "2 × Samsung 870 EVO 2TB", 2 * TiB, 1.4 * TiB, { device: "/dev/sdb + /dev/sdc", disk: "/dev/sdb", rotational: false, autoTags: ["ssd", "medium"], spaces: ["appdata"], folders: [{ name: "appdata", kind: "space", spaceId: "appdata" }], record: { role: "mirrored", disks: ["S6PNNS0T123456A", "S6PNNS0T123457B"], tags: [] } as unknown as DriveRecord }),
       drive(NODE_B, "nvme0n1", "Birch", "Kingston NV2", 0.5 * TiB, 0.42 * TiB, { device: "/dev/nvme0n1", rotational: false, transport: "nvme", autoTags: ["ssd", "internal"], record: { origin: "internal", tags: [] } as unknown as DriveRecord }),
-      drive(NODE_B, "sda", "Basin", "Seagate IronWolf 8TB", 8 * TiB, 0.55 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }, { name: "old-backups", kind: "unsorted", spaceId: "" }], record: { origin: "adopted", tags: [] } as unknown as DriveRecord }),
+      drive(NODE_B, "sda", "Basin", "Seagate IronWolf 8TB", 8 * TiB, 3.0 * TiB, { spaces: ["media"], folders: [{ name: "media", kind: "space", spaceId: "media" }, { name: "Downloads", kind: "unsorted", spaceId: "" }, { name: "old-backups", kind: "unsorted", spaceId: "" }], record: { origin: "adopted", tags: [] } as unknown as DriveRecord }),
+      // Two blank disks on Basalt, for a Mirrored Drive or a Parity Drive.
+      ...["sdd", "sde"].map((id) => ({ ...drive(NODE_B, id, "", "Crucial MX500 2TB", 2 * TiB, 2 * TiB, { spaces: [], folders: [] }), adopted: false, record: undefined, fstype: "", suggestedName: "Bramble" })),
     ];
+    // ADR 0009's screenshot fixtures: a held parity update, or a failed Drive.
+    if (scenario === "failed") {
+      const atlas = this.drives.find((d) => d.driveId === "sda" && d.nodeId === NODE_A)!;
+      atlas.missing = true;
+      this.parity.set(NODE_A, { lastSync: t - 9 * 3600_000, lastScrub: t - 3 * 86400_000, job: "", progress: 0, jobDriveId: "", held: "Atlas is not connected. A sync now would record its files as deleted.", unprotected: 214, missing: ["sda"] });
+    }
+    if (scenario === "held") this.parity.set(NODE_A, { lastSync: t - 33 * 3600_000, lastScrub: t - 3 * 86400_000, job: "", progress: 0, jobDriveId: "", held: "1412 of 22780 protected files (6%) were deleted since the last sync. If that was not you, they can still be restored; a sync now makes it final.", unprotected: 1412, missing: [] });
     this.services = [
       this.service(specFromCatalog("jellyfin", "jellyfin", NODE_A, 20001, { quadlet: catalogEntries.find((c) => c.id === "jellyfin")!.quadlet.replace("[Container]\n", "[Container]\nAddDevice=/dev/dri\n") }), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
       this.service(specFromCatalog("adguard-home", "adguard", NODE_A, 20002), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
@@ -544,6 +566,7 @@ export class DemoFleet {
   tick(nowMs = Date.now()) {
     this.now = nowMs;
     this.tickCount++;
+    tickProtection(this);
     for (const n of this.nodes) {
       if (n.rebootAt && this.now >= n.rebootAt) {
         n.rebootAt = undefined;

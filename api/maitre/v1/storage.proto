@@ -24,7 +24,282 @@ service StorageService {
   // ForgetDrive removes a Drive from the Node: unmounted, record deleted,
   // data left on the device untouched. The caller repeats the Drive's name.
   rpc ForgetDrive(ForgetDriveRequest) returns (ForgetDriveResponse) {}
+  // PlanDrain says what emptying a Drive would move where (ADR 0009,
+  // decision 247), with warnings and what blocks it. Optional: older Nodes
+  // answer Unimplemented.
+  rpc PlanDrain(PlanDrainRequest) returns (PlanDrainResponse) {}
+  // DrainDrive empties a Drive: each Space's files to that Space's other
+  // Drives, loose files into a Space the caller picks. The Drive stays in
+  // its Pools, taking no new files, until none of a Space's files remain.
+  // Refused while the plan has blockers. The caller repeats the Drive's name.
+  rpc DrainDrive(DrainDriveRequest) returns (DrainDriveResponse) {}
+  // ListDrains lists this Node's Drain jobs, newest last.
+  rpc ListDrains(ListDrainsRequest) returns (ListDrainsResponse) {}
+  // CancelDrain stops a Drain; files already moved stay moved, the rest
+  // stay on the Drive, which takes new files again.
+  rpc CancelDrain(CancelDrainRequest) returns (CancelDrainResponse) {}
+  // CheckParityDrive says whether a Drive can become a Parity Drive
+  // (decisions 227, 239, 240) and what its Drain would do.
+  rpc CheckParityDrive(CheckParityDriveRequest) returns (CheckParityDriveResponse) {}
+  // SetParityDrive turns the Parity Drive toggle (decisions 225, 241,
+  // 245). On: the Drive is Drained, then formatted and given role parity,
+  // and the first sync runs. Off: the parity files are deleted and the
+  // Drive returns to the Spaces its rules match. The caller repeats the
+  // Drive's name.
+  rpc SetParityDrive(SetParityDriveRequest) returns (SetParityDriveResponse) {}
+  // ProtectNow runs a parity sync on this Node now (decision 230).
+  rpc ProtectNow(ProtectNowRequest) returns (ProtectNowResponse) {}
+  // ReplaceDrive puts a new disk in a failed Drive's place (decision 232):
+  // formats it, gives it the failed Drive's name, tags and SnapRAID name,
+  // and rebuilds its files from parity. The caller repeats the new disk's
+  // model (or path), as for FormatDrive.
+  rpc ReplaceDrive(ReplaceDriveRequest) returns (ReplaceDriveResponse) {}
+  // ParityStatus is this Node's parity in detail: arrays, last sync and
+  // scrub, the running job, and why a sync was held.
+  rpc GetParityStatus(GetParityStatusRequest) returns (GetParityStatusResponse) {}
+  // MakeMirroredDrive formats two blank disks together as one btrfs RAID1
+  // filesystem and records it as a Mirrored Drive (decision 254). The
+  // caller repeats the first disk's model (or path).
+  rpc MakeMirroredDrive(MakeMirroredDriveRequest) returns (MakeMirroredDriveResponse) {}
+  // ReplaceMirrorDisk puts a new disk in a Mirrored Drive's failed disk's
+  // place (btrfs replace). The Drive is mounted degraded for it only here,
+  // on the user's word. The caller repeats the new disk's model (or path).
+  rpc ReplaceMirrorDisk(ReplaceMirrorDiskRequest) returns (ReplaceMirrorDiskResponse) {}
+  // CopiesNow runs the copy pass for every Space on this Node now.
+  rpc CopiesNow(CopiesNowRequest) returns (CopiesNowResponse) {}
 }
+
+message MakeMirroredDriveRequest {
+  // Exactly two devices, both blank or to be erased.
+  repeated string devices = 1;
+  string name = 2;
+  repeated string tags = 3;
+  // Must equal the first device's model (or path).
+  string confirm = 4;
+}
+message MakeMirroredDriveResponse {
+  Drive drive = 1;
+}
+
+message ReplaceMirrorDiskRequest {
+  string drive_id = 1;
+  string device = 2;
+  string confirm = 3;
+}
+message ReplaceMirrorDiskResponse {
+  Drive drive = 1;
+}
+
+message CopiesNowRequest {}
+message CopiesNowResponse {}
+
+// MirrorStatus is one Mirrored Drive's health on its Node, gossiped.
+message MirrorStatus {
+  string drive_id = 1;
+  // A disk of the pair that is gone, by serial (or btrfs device id); "".
+  string missing_disk = 2;
+  // Read, write and checksum errors btrfs counted since the last reset.
+  uint64 errors = 3;
+  // A replace in progress: its share done, 0..1; -1 when none.
+  double replacing = 4;
+}
+
+// CopiesStatus is how one Space's Copies stand on one Node, gossiped.
+message CopiesStatus {
+  string space_id = 1;
+  // Files holding fewer copies than the Space asks, after the last pass.
+  uint32 short_files = 2;
+  // The most copies this Node can give the Space: its Drives of the Space
+  // on separate disks (decision 259).
+  uint32 max_copies = 3;
+  int64 last_pass_unix_ms = 4;
+  // Set while a pass runs.
+  bool running = 5;
+}
+
+message CheckParityDriveRequest {
+  // A Drive by id, or a disk not yet adopted by device (decision 243).
+  string drive_id = 1;
+  string device = 2;
+  string loose_to_space = 3;
+}
+message CheckParityDriveResponse {
+  // Why it cannot be a Parity Drive; empty when it can.
+  repeated string blockers = 1;
+  repeated string warnings = 2;
+  // For an adopted Drive: what its Drain would move.
+  DrainPlan plan = 3;
+  // The most protected data any one Drive of this Node holds, which the
+  // Parity Drive must be at least as large as (decision 227).
+  uint64 largest_protected_bytes = 4;
+  // The Spaces that gain protection on this Node, by id.
+  repeated string protects = 5;
+}
+
+message SetParityDriveRequest {
+  string drive_id = 1;
+  // For a disk not yet adopted (drive_id empty): its device and a name.
+  string device = 2;
+  string name = 3;
+  bool parity = 4;
+  string loose_to_space = 5;
+  // Must equal the Drive's name (or, for a disk not yet adopted, its
+  // model or path, as for FormatDrive).
+  string confirm = 6;
+}
+message SetParityDriveResponse {
+  // Set when a Drain must run first; the Drive becomes a Parity Drive when
+  // it finishes.
+  DrainJob job = 1;
+  Drive drive = 2;
+}
+
+message ProtectNowRequest {}
+message ProtectNowResponse {}
+
+message ReplaceDriveRequest {
+  string failed_drive_id = 1;
+  string device = 2;
+  string confirm = 3;
+}
+message ReplaceDriveResponse {
+  Drive drive = 1;
+}
+
+message GetParityStatusRequest {}
+message GetParityStatusResponse {
+  ParityStatus status = 1;
+}
+
+// ParityStatus is one Node's parity (ADR 0009), gossiped in FleetNodeStatus.
+message ParityStatus {
+  // Parity Drives by id, in order: Parity Drive 1 holds every array's
+  // first parity file, Parity Drive 2 the second.
+  repeated string parity_drive_ids = 1;
+  int64 last_sync_unix_ms = 2;
+  int64 last_scrub_unix_ms = 3;
+  // The running job, if any: "sync", "scrub", "fix" or "", with its
+  // progress (0..1) and the Drive being rebuilt for "fix".
+  string job = 4;
+  double progress = 5;
+  string job_drive_id = 6;
+  // Files changed since the last sync, so not yet covered.
+  uint32 unprotected_files = 7;
+  // Why the last automatic sync did not run (decision 231); "" when it ran.
+  string held = 8;
+  // The next scheduled sync.
+  int64 next_sync_unix_ms = 9;
+  // Drives the last sync or scrub found missing or failing, by id.
+  repeated string missing_drive_ids = 10;
+  // Each array: its level and the Drives in it, so the Console can tell
+  // which Spaces are covered here.
+  repeated ParityArray arrays = 11;
+  // A Drive whose record says replaced_by, being rebuilt or done.
+  string last_error = 12;
+}
+
+message ParityArray {
+  uint32 level = 1;
+  repeated string drive_ids = 2;
+  repeated string space_ids = 3;
+  // Set when the Node has fewer Parity Drives than the level needs: the
+  // array runs at the lower level.
+  uint32 level_got = 4;
+}
+
+// ProtectionSchedule is when parity syncs and scrubs run (decisions 230,
+// 248): the kind "protection" Record with id "fleet" is the Fleet's
+// default; one with a Node's id overrides it for that Node.
+message ProtectionSchedule {
+  // "HH:MM" in the Node's time zone.
+  string sync_time = 1;
+  // Days of the week the sync runs, 0 = Sunday; empty means every day.
+  repeated uint32 sync_days = 2;
+  // Days between scrubs; 0 means 7.
+  uint32 scrub_every_days = 3;
+  // Share of the data a scrub checks each time, percent; 0 means 8.
+  uint32 scrub_percent = 4;
+  // Syncs held by decision 231 wait for the user; when true, a held sync
+  // runs anyway at the next schedule ("I know, carry on").
+  bool override_once = 5;
+}
+
+// DrainMove is one part of a Drain: a Space's files on the Drive, or its
+// loose files, and where they go.
+message DrainMove {
+  // The Space whose folder moves, or "" for loose files (Unsorted files
+  // and Orphan Folders, which land in <to_space>/From <Drive name>/).
+  string space_id = 1;
+  string to_space = 2;
+  uint64 bytes = 3;
+  // The Drives on this Node that take the files, by id.
+  repeated string to_drive_ids = 4;
+  // Set when this Node's Drives lack room and a Spanning Space's files go
+  // to its Pool on another Node instead (decision 238).
+  string to_node_id = 5;
+}
+
+message DrainPlan {
+  repeated DrainMove moves = 1;
+  // Things worth knowing that do not stop the Drain.
+  repeated string warnings = 2;
+  // Why the Drain cannot start (decision 246): resolve these first.
+  repeated string blockers = 3;
+  uint64 bytes = 4;
+}
+
+message PlanDrainRequest {
+  string drive_id = 1;
+  // Where loose files go; "" when the Drive has none.
+  string loose_to_space = 2;
+}
+message PlanDrainResponse {
+  DrainPlan plan = 1;
+}
+
+message DrainDriveRequest {
+  string drive_id = 1;
+  string loose_to_space = 2;
+  // Must equal the Drive's name.
+  string confirm = 3;
+  // Why: "parity" (the Drive becomes a Parity Drive once empty), "remove",
+  // or "" (just empty it).
+  string purpose = 4;
+}
+message DrainDriveResponse {
+  DrainJob job = 1;
+}
+
+// DrainJob is one Drain, running or finished.
+message DrainJob {
+  string job_id = 1;
+  string drive_id = 2;
+  // queued | running | done | failed | cancelled
+  string state = 3;
+  string message = 4;
+  uint64 bytes_done = 5;
+  uint64 bytes_total = 6;
+  // The entry being copied right now.
+  string current = 7;
+  string purpose = 8;
+  // Notes added as it runs: a Space that moved over the network, a Service
+  // stopped and started.
+  repeated string notes = 9;
+  int64 started_unix_ms = 10;
+  int64 finished_unix_ms = 11;
+  // The Spaces drained; empty means every Space on the Drive, and loose files.
+  repeated string space_ids = 12;
+  DrainPlan plan = 13;
+}
+
+message ListDrainsRequest {}
+message ListDrainsResponse {
+  repeated DrainJob jobs = 1;
+}
+message CancelDrainRequest {
+  string job_id = 1;
+}
+message CancelDrainResponse {}
 
 // DriveRecord is the kind "drive" Record body, owned by the Node holding
 // the Drive.
@@ -44,6 +319,25 @@ message DriveRecord {
   // "adopted" (existing data kept) or "formatted".
   string origin = 10;
   int64 added_unix_ms = 11;
+  // ADR 0009. "" or "data": a Drive of its Spaces. "parity": holds the
+  // Node's SnapRAID parity files and matches no Space (decision 225).
+  // "mirrored": two disks as btrfs RAID1, one Drive; belongs only to
+  // Mirrored Spaces (decisions 254, 255).
+  string role = 12;
+  // Set on a failed Drive's record once a new disk took its place
+  // (decision 232): the drive_id of the replacement.
+  string replaced_by = 13;
+  // For a Mirrored Drive: the serials of its two disks, so a missing one
+  // can be named.
+  repeated string disks = 14;
+  // Decision 247: this Drive is being emptied. It stays in its Pools but
+  // takes no new files, and leaves each Pool once none of that Space's
+  // files remain on it. Cleared when the Drain finishes or is cancelled.
+  bool draining = 15;
+  // The name SnapRAID knows this Drive by: its drive_id, or the drive_id
+  // of the failed Drive it replaced (decision 232), so parity still
+  // matches its files.
+  string snapraid_name = 16;
 }
 
 // Drive is a block device as the Console sees it: live facts plus the
@@ -78,6 +372,9 @@ message Drive {
   // that were on the Drive before it was adopted (unsorted). Decision 124:
   // nothing here is ever deleted by the Node; the file manager moves it.
   repeated DriveFolder folders = 19;
+  // The whole disk this device is, or is a partition of (decision 239: a
+  // Parity Drive or a copy may not share a disk with another Drive).
+  string disk = 20;
 }
 
 message DriveFolder {
@@ -184,4 +481,18 @@ message Space {
   // The colour the Console shows it in, #rrggbb (decision 204); empty:
   // one picked by its place in the list.
   string color = 13;
+  // ADR 0009, decision 237: how many failed Drives this Space's files
+  // survive on each Node, from SnapRAID parity: 0 (off), 1 or 2. Ignored
+  // for a Mirrored Space (decision 256).
+  uint32 parity_level = 14;
+  // Decision 253: the least number of Drives holding each file, 1 to 3;
+  // 0 reads as 1. Never more than the Space's Drives on separate disks
+  // (decision 259).
+  uint32 copies = 15;
+  // Decision 251: for a Space that spans Nodes with copies > 1, place the
+  // copies on different Nodes when it can.
+  bool copies_on_different_nodes = 16;
+  // Decision 255: this Space takes Mirrored Drives only; a plain Space
+  // takes none. Chosen when the Space is made.
+  bool mirrored = 17;
 }

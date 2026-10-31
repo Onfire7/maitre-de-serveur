@@ -10,7 +10,970 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/storage.proto.
  */
 export const file_maitre_v1_storage: GenFile = /*@__PURE__*/
-  fileDesc("ChdtYWl0cmUvdjEvc3RvcmFnZS5wcm90bxIJbWFpdHJlLnYxIskBCgtEcml2ZVJlY29yZBIQCghkcml2ZV9pZBgBIAEoCRIPCgdub2RlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSDQoFbW9kZWwYBCABKAkSDgoGc2VyaWFsGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAQSDgoGZnN0eXBlGAcgASgJEhEKCWF1dG9fdGFncxgIIAMoCRIMCgR0YWdzGAkgAygJEg4KBm9yaWdpbhgKIAEoCRIVCg1hZGRlZF91bml4X21zGAsgASgDIooDCgVEcml2ZRIOCgZkZXZpY2UYASABKAkSEAoIZHJpdmVfaWQYAiABKAkSDQoFbW9kZWwYAyABKAkSDgoGc2VyaWFsGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSEQoJcmVtb3ZhYmxlGAYgASgIEhIKCnJvdGF0aW9uYWwYByABKAgSEQoJdHJhbnNwb3J0GAggASgJEg4KBmZzdHlwZRgJIAEoCRINCgVsYWJlbBgKIAEoCRIOCgZzeXN0ZW0YCyABKAgSDwoHYWRvcHRlZBgMIAEoCBISCgptb3VudF9wYXRoGA0gASgJEiYKBnJlY29yZBgOIAEoCzIWLm1haXRyZS52MS5Ecml2ZVJlY29yZBIRCglhdXRvX3RhZ3MYDyADKAkSEgoKZnJlZV9ieXRlcxgQIAEoBBIWCg5zdWdnZXN0ZWRfbmFtZRgRIAEoCRIOCgZzcGFjZXMYEiADKAkSJwoHZm9sZGVycxgTIAMoCzIWLm1haXRyZS52MS5Ecml2ZUZvbGRlciI7CgtEcml2ZUZvbGRlchIMCgRuYW1lGAEgASgJEgwKBGtpbmQYAiABKAkSEAoIc3BhY2VfaWQYAyABKAkiEwoRTGlzdERyaXZlc1JlcXVlc3QiNgoSTGlzdERyaXZlc1Jlc3BvbnNlEiAKBmRyaXZlcxgBIAMoCzIQLm1haXRyZS52MS5Ecml2ZSImChREcml2ZUNvbnRlbnRzUmVxdWVzdBIOCgZkZXZpY2UYASABKAkiSwoVRHJpdmVDb250ZW50c1Jlc3BvbnNlEg8KB2VudHJpZXMYASADKAkSEgoKdXNlZF9ieXRlcxgCIAEoBBINCgVlbXB0eRgDIAEoCCI/ChFBZG9wdERyaXZlUmVxdWVzdBIOCgZkZXZpY2UYASABKAkSDAoEbmFtZRgCIAEoCRIMCgR0YWdzGAMgAygJIjUKEkFkb3B0RHJpdmVSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSJRChJGb3JtYXREcml2ZVJlcXVlc3QSDgoGZGV2aWNlGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEdGFncxgDIAMoCRIPCgdjb25maXJtGAQgASgJIjYKE0Zvcm1hdERyaXZlUmVzcG9uc2USHwoFZHJpdmUYASABKAsyEC5tYWl0cmUudjEuRHJpdmUiQwoTU2V0RHJpdmVUYWdzUmVxdWVzdBIQCghkcml2ZV9pZBgBIAEoCRIMCgR0YWdzGAIgAygJEgwKBG5hbWUYAyABKAkiNwoUU2V0RHJpdmVUYWdzUmVzcG9uc2USHwoFZHJpdmUYASABKAsyEC5tYWl0cmUudjEuRHJpdmUiNwoSRm9yZ2V0RHJpdmVSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEg8KB2NvbmZpcm0YAiABKAkiFQoTRm9yZ2V0RHJpdmVSZXNwb25zZSKEAgoFU3BhY2USEAoIc3BhY2VfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglwbGFjZW1lbnQYAyABKAkSFAoMcmVxdWlyZV90YWdzGAQgAygJEhAKCG5vZGVfaWRzGAUgAygJEhAKCHByaW9yaXR5GAYgASgFEhcKD2NyZWF0ZWRfdW5peF9tcxgHIAEoAxISCgpzcGFuX25vZGVzGAggASgIEhEKCWV4Y2x1c2l2ZRgJIAEoCBIXCg9kZWZhdWx0X2Zvcl9uZXcYCiABKAgSEAoIb3duZXJfaWQYCyABKA0SFAoMcHJlZmVyX2xvY2FsGAwgASgIEg0KBWNvbG9yGA0gASgJMvMDCg5TdG9yYWdlU2VydmljZRJLCgpMaXN0RHJpdmVzEhwubWFpdHJlLnYxLkxpc3REcml2ZXNSZXF1ZXN0Gh0ubWFpdHJlLnYxLkxpc3REcml2ZXNSZXNwb25zZSIAElQKDURyaXZlQ29udGVudHMSHy5tYWl0cmUudjEuRHJpdmVDb250ZW50c1JlcXVlc3QaIC5tYWl0cmUudjEuRHJpdmVDb250ZW50c1Jlc3BvbnNlIgASSwoKQWRvcHREcml2ZRIcLm1haXRyZS52MS5BZG9wdERyaXZlUmVxdWVzdBodLm1haXRyZS52MS5BZG9wdERyaXZlUmVzcG9uc2UiABJOCgtGb3JtYXREcml2ZRIdLm1haXRyZS52MS5Gb3JtYXREcml2ZVJlcXVlc3QaHi5tYWl0cmUudjEuRm9ybWF0RHJpdmVSZXNwb25zZSIAElEKDFNldERyaXZlVGFncxIeLm1haXRyZS52MS5TZXREcml2ZVRhZ3NSZXF1ZXN0Gh8ubWFpdHJlLnYxLlNldERyaXZlVGFnc1Jlc3BvbnNlIgASTgoLRm9yZ2V0RHJpdmUSHS5tYWl0cmUudjEuRm9yZ2V0RHJpdmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLkZvcmdldERyaXZlUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChdtYWl0cmUvdjEvc3RvcmFnZS5wcm90bxIJbWFpdHJlLnYxIlgKGE1ha2VNaXJyb3JlZERyaXZlUmVxdWVzdBIPCgdkZXZpY2VzGAEgAygJEgwKBG5hbWUYAiABKAkSDAoEdGFncxgDIAMoCRIPCgdjb25maXJtGAQgASgJIjwKGU1ha2VNaXJyb3JlZERyaXZlUmVzcG9uc2USHwoFZHJpdmUYASABKAsyEC5tYWl0cmUudjEuRHJpdmUiTQoYUmVwbGFjZU1pcnJvckRpc2tSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEg4KBmRldmljZRgCIAEoCRIPCgdjb25maXJtGAMgASgJIjwKGVJlcGxhY2VNaXJyb3JEaXNrUmVzcG9uc2USHwoFZHJpdmUYASABKAsyEC5tYWl0cmUudjEuRHJpdmUiEgoQQ29waWVzTm93UmVxdWVzdCITChFDb3BpZXNOb3dSZXNwb25zZSJZCgxNaXJyb3JTdGF0dXMSEAoIZHJpdmVfaWQYASABKAkSFAoMbWlzc2luZ19kaXNrGAIgASgJEg4KBmVycm9ycxgDIAEoBBIRCglyZXBsYWNpbmcYBCABKAEidQoMQ29waWVzU3RhdHVzEhAKCHNwYWNlX2lkGAEgASgJEhMKC3Nob3J0X2ZpbGVzGAIgASgNEhIKCm1heF9jb3BpZXMYAyABKA0SGQoRbGFzdF9wYXNzX3VuaXhfbXMYBCABKAMSDwoHcnVubmluZxgFIAEoCCJTChdDaGVja1Bhcml0eURyaXZlUmVxdWVzdBIQCghkcml2ZV9pZBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSFgoObG9vc2VfdG9fc3BhY2UYAyABKAkilQEKGENoZWNrUGFyaXR5RHJpdmVSZXNwb25zZRIQCghibG9ja2VycxgBIAMoCRIQCgh3YXJuaW5ncxgCIAMoCRIiCgRwbGFuGAMgASgLMhQubWFpdHJlLnYxLkRyYWluUGxhbhIfChdsYXJnZXN0X3Byb3RlY3RlZF9ieXRlcxgEIAEoBBIQCghwcm90ZWN0cxgFIAMoCSKAAQoVU2V0UGFyaXR5RHJpdmVSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEg4KBmRldmljZRgCIAEoCRIMCgRuYW1lGAMgASgJEg4KBnBhcml0eRgEIAEoCBIWCg5sb29zZV90b19zcGFjZRgFIAEoCRIPCgdjb25maXJtGAYgASgJIlsKFlNldFBhcml0eURyaXZlUmVzcG9uc2USIAoDam9iGAEgASgLMhMubWFpdHJlLnYxLkRyYWluSm9iEh8KBWRyaXZlGAIgASgLMhAubWFpdHJlLnYxLkRyaXZlIhMKEVByb3RlY3ROb3dSZXF1ZXN0IhQKElByb3RlY3ROb3dSZXNwb25zZSJPChNSZXBsYWNlRHJpdmVSZXF1ZXN0EhcKD2ZhaWxlZF9kcml2ZV9pZBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSDwoHY29uZmlybRgDIAEoCSI3ChRSZXBsYWNlRHJpdmVSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSIYChZHZXRQYXJpdHlTdGF0dXNSZXF1ZXN0IkIKF0dldFBhcml0eVN0YXR1c1Jlc3BvbnNlEicKBnN0YXR1cxgBIAEoCzIXLm1haXRyZS52MS5QYXJpdHlTdGF0dXMirwIKDFBhcml0eVN0YXR1cxIYChBwYXJpdHlfZHJpdmVfaWRzGAEgAygJEhkKEWxhc3Rfc3luY191bml4X21zGAIgASgDEhoKEmxhc3Rfc2NydWJfdW5peF9tcxgDIAEoAxILCgNqb2IYBCABKAkSEAoIcHJvZ3Jlc3MYBSABKAESFAoMam9iX2RyaXZlX2lkGAYgASgJEhkKEXVucHJvdGVjdGVkX2ZpbGVzGAcgASgNEgwKBGhlbGQYCCABKAkSGQoRbmV4dF9zeW5jX3VuaXhfbXMYCSABKAMSGQoRbWlzc2luZ19kcml2ZV9pZHMYCiADKAkSJgoGYXJyYXlzGAsgAygLMhYubWFpdHJlLnYxLlBhcml0eUFycmF5EhIKCmxhc3RfZXJyb3IYDCABKAkiVQoLUGFyaXR5QXJyYXkSDQoFbGV2ZWwYASABKA0SEQoJZHJpdmVfaWRzGAIgAygJEhEKCXNwYWNlX2lkcxgDIAMoCRIRCglsZXZlbF9nb3QYBCABKA0iggEKElByb3RlY3Rpb25TY2hlZHVsZRIRCglzeW5jX3RpbWUYASABKAkSEQoJc3luY19kYXlzGAIgAygNEhgKEHNjcnViX2V2ZXJ5X2RheXMYAyABKA0SFQoNc2NydWJfcGVyY2VudBgEIAEoDRIVCg1vdmVycmlkZV9vbmNlGAUgASgIImgKCURyYWluTW92ZRIQCghzcGFjZV9pZBgBIAEoCRIQCgh0b19zcGFjZRgCIAEoCRINCgVieXRlcxgDIAEoBBIUCgx0b19kcml2ZV9pZHMYBCADKAkSEgoKdG9fbm9kZV9pZBgFIAEoCSJjCglEcmFpblBsYW4SIwoFbW92ZXMYASADKAsyFC5tYWl0cmUudjEuRHJhaW5Nb3ZlEhAKCHdhcm5pbmdzGAIgAygJEhAKCGJsb2NrZXJzGAMgAygJEg0KBWJ5dGVzGAQgASgEIjwKEFBsYW5EcmFpblJlcXVlc3QSEAoIZHJpdmVfaWQYASABKAkSFgoObG9vc2VfdG9fc3BhY2UYAiABKAkiNwoRUGxhbkRyYWluUmVzcG9uc2USIgoEcGxhbhgBIAEoCzIULm1haXRyZS52MS5EcmFpblBsYW4iXwoRRHJhaW5Ecml2ZVJlcXVlc3QSEAoIZHJpdmVfaWQYASABKAkSFgoObG9vc2VfdG9fc3BhY2UYAiABKAkSDwoHY29uZmlybRgDIAEoCRIPCgdwdXJwb3NlGAQgASgJIjYKEkRyYWluRHJpdmVSZXNwb25zZRIgCgNqb2IYASABKAsyEy5tYWl0cmUudjEuRHJhaW5Kb2IikAIKCERyYWluSm9iEg4KBmpvYl9pZBgBIAEoCRIQCghkcml2ZV9pZBgCIAEoCRINCgVzdGF0ZRgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEhIKCmJ5dGVzX2RvbmUYBSABKAQSEwoLYnl0ZXNfdG90YWwYBiABKAQSDwoHY3VycmVudBgHIAEoCRIPCgdwdXJwb3NlGAggASgJEg0KBW5vdGVzGAkgAygJEhcKD3N0YXJ0ZWRfdW5peF9tcxgKIAEoAxIYChBmaW5pc2hlZF91bml4X21zGAsgASgDEhEKCXNwYWNlX2lkcxgMIAMoCRIiCgRwbGFuGA0gASgLMhQubWFpdHJlLnYxLkRyYWluUGxhbiITChFMaXN0RHJhaW5zUmVxdWVzdCI3ChJMaXN0RHJhaW5zUmVzcG9uc2USIQoEam9icxgBIAMoCzITLm1haXRyZS52MS5EcmFpbkpvYiIkChJDYW5jZWxEcmFpblJlcXVlc3QSDgoGam9iX2lkGAEgASgJIhUKE0NhbmNlbERyYWluUmVzcG9uc2UipAIKC0RyaXZlUmVjb3JkEhAKCGRyaXZlX2lkGAEgASgJEg8KB25vZGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRINCgVtb2RlbBgEIAEoCRIOCgZzZXJpYWwYBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoBBIOCgZmc3R5cGUYByABKAkSEQoJYXV0b190YWdzGAggAygJEgwKBHRhZ3MYCSADKAkSDgoGb3JpZ2luGAogASgJEhUKDWFkZGVkX3VuaXhfbXMYCyABKAMSDAoEcm9sZRgMIAEoCRITCgtyZXBsYWNlZF9ieRgNIAEoCRINCgVkaXNrcxgOIAMoCRIQCghkcmFpbmluZxgPIAEoCBIVCg1zbmFwcmFpZF9uYW1lGBAgASgJIpgDCgVEcml2ZRIOCgZkZXZpY2UYASABKAkSEAoIZHJpdmVfaWQYAiABKAkSDQoFbW9kZWwYAyABKAkSDgoGc2VyaWFsGAQgASgJEhIKCnNpemVfYnl0ZXMYBSABKAQSEQoJcmVtb3ZhYmxlGAYgASgIEhIKCnJvdGF0aW9uYWwYByABKAgSEQoJdHJhbnNwb3J0GAggASgJEg4KBmZzdHlwZRgJIAEoCRINCgVsYWJlbBgKIAEoCRIOCgZzeXN0ZW0YCyABKAgSDwoHYWRvcHRlZBgMIAEoCBISCgptb3VudF9wYXRoGA0gASgJEiYKBnJlY29yZBgOIAEoCzIWLm1haXRyZS52MS5Ecml2ZVJlY29yZBIRCglhdXRvX3RhZ3MYDyADKAkSEgoKZnJlZV9ieXRlcxgQIAEoBBIWCg5zdWdnZXN0ZWRfbmFtZRgRIAEoCRIOCgZzcGFjZXMYEiADKAkSJwoHZm9sZGVycxgTIAMoCzIWLm1haXRyZS52MS5Ecml2ZUZvbGRlchIMCgRkaXNrGBQgASgJIjsKC0RyaXZlRm9sZGVyEgwKBG5hbWUYASABKAkSDAoEa2luZBgCIAEoCRIQCghzcGFjZV9pZBgDIAEoCSITChFMaXN0RHJpdmVzUmVxdWVzdCI2ChJMaXN0RHJpdmVzUmVzcG9uc2USIAoGZHJpdmVzGAEgAygLMhAubWFpdHJlLnYxLkRyaXZlIiYKFERyaXZlQ29udGVudHNSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCSJLChVEcml2ZUNvbnRlbnRzUmVzcG9uc2USDwoHZW50cmllcxgBIAMoCRISCgp1c2VkX2J5dGVzGAIgASgEEg0KBWVtcHR5GAMgASgIIj8KEUFkb3B0RHJpdmVSZXF1ZXN0Eg4KBmRldmljZRgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHRhZ3MYAyADKAkiNQoSQWRvcHREcml2ZVJlc3BvbnNlEh8KBWRyaXZlGAEgASgLMhAubWFpdHJlLnYxLkRyaXZlIlEKEkZvcm1hdERyaXZlUmVxdWVzdBIOCgZkZXZpY2UYASABKAkSDAoEbmFtZRgCIAEoCRIMCgR0YWdzGAMgAygJEg8KB2NvbmZpcm0YBCABKAkiNgoTRm9ybWF0RHJpdmVSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSJDChNTZXREcml2ZVRhZ3NSZXF1ZXN0EhAKCGRyaXZlX2lkGAEgASgJEgwKBHRhZ3MYAiADKAkSDAoEbmFtZRgDIAEoCSI3ChRTZXREcml2ZVRhZ3NSZXNwb25zZRIfCgVkcml2ZRgBIAEoCzIQLm1haXRyZS52MS5Ecml2ZSI3ChJGb3JnZXREcml2ZVJlcXVlc3QSEAoIZHJpdmVfaWQYASABKAkSDwoHY29uZmlybRgCIAEoCSIVChNGb3JnZXREcml2ZVJlc3BvbnNlIt8CCgVTcGFjZRIQCghzcGFjZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCXBsYWNlbWVudBgDIAEoCRIUCgxyZXF1aXJlX3RhZ3MYBCADKAkSEAoIbm9kZV9pZHMYBSADKAkSEAoIcHJpb3JpdHkYBiABKAUSFwoPY3JlYXRlZF91bml4X21zGAcgASgDEhIKCnNwYW5fbm9kZXMYCCABKAgSEQoJZXhjbHVzaXZlGAkgASgIEhcKD2RlZmF1bHRfZm9yX25ldxgKIAEoCBIQCghvd25lcl9pZBgLIAEoDRIUCgxwcmVmZXJfbG9jYWwYDCABKAgSDQoFY29sb3IYDSABKAkSFAoMcGFyaXR5X2xldmVsGA4gASgNEg4KBmNvcGllcxgPIAEoDRIhChljb3BpZXNfb25fZGlmZmVyZW50X25vZGVzGBAgASgIEhAKCG1pcnJvcmVkGBEgASgIMukLCg5TdG9yYWdlU2VydmljZRJLCgpMaXN0RHJpdmVzEhwubWFpdHJlLnYxLkxpc3REcml2ZXNSZXF1ZXN0Gh0ubWFpdHJlLnYxLkxpc3REcml2ZXNSZXNwb25zZSIAElQKDURyaXZlQ29udGVudHMSHy5tYWl0cmUudjEuRHJpdmVDb250ZW50c1JlcXVlc3QaIC5tYWl0cmUudjEuRHJpdmVDb250ZW50c1Jlc3BvbnNlIgASSwoKQWRvcHREcml2ZRIcLm1haXRyZS52MS5BZG9wdERyaXZlUmVxdWVzdBodLm1haXRyZS52MS5BZG9wdERyaXZlUmVzcG9uc2UiABJOCgtGb3JtYXREcml2ZRIdLm1haXRyZS52MS5Gb3JtYXREcml2ZVJlcXVlc3QaHi5tYWl0cmUudjEuRm9ybWF0RHJpdmVSZXNwb25zZSIAElEKDFNldERyaXZlVGFncxIeLm1haXRyZS52MS5TZXREcml2ZVRhZ3NSZXF1ZXN0Gh8ubWFpdHJlLnYxLlNldERyaXZlVGFnc1Jlc3BvbnNlIgASTgoLRm9yZ2V0RHJpdmUSHS5tYWl0cmUudjEuRm9yZ2V0RHJpdmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLkZvcmdldERyaXZlUmVzcG9uc2UiABJICglQbGFuRHJhaW4SGy5tYWl0cmUudjEuUGxhbkRyYWluUmVxdWVzdBocLm1haXRyZS52MS5QbGFuRHJhaW5SZXNwb25zZSIAEksKCkRyYWluRHJpdmUSHC5tYWl0cmUudjEuRHJhaW5Ecml2ZVJlcXVlc3QaHS5tYWl0cmUudjEuRHJhaW5Ecml2ZVJlc3BvbnNlIgASSwoKTGlzdERyYWlucxIcLm1haXRyZS52MS5MaXN0RHJhaW5zUmVxdWVzdBodLm1haXRyZS52MS5MaXN0RHJhaW5zUmVzcG9uc2UiABJOCgtDYW5jZWxEcmFpbhIdLm1haXRyZS52MS5DYW5jZWxEcmFpblJlcXVlc3QaHi5tYWl0cmUudjEuQ2FuY2VsRHJhaW5SZXNwb25zZSIAEl0KEENoZWNrUGFyaXR5RHJpdmUSIi5tYWl0cmUudjEuQ2hlY2tQYXJpdHlEcml2ZVJlcXVlc3QaIy5tYWl0cmUudjEuQ2hlY2tQYXJpdHlEcml2ZVJlc3BvbnNlIgASVwoOU2V0UGFyaXR5RHJpdmUSIC5tYWl0cmUudjEuU2V0UGFyaXR5RHJpdmVSZXF1ZXN0GiEubWFpdHJlLnYxLlNldFBhcml0eURyaXZlUmVzcG9uc2UiABJLCgpQcm90ZWN0Tm93EhwubWFpdHJlLnYxLlByb3RlY3ROb3dSZXF1ZXN0Gh0ubWFpdHJlLnYxLlByb3RlY3ROb3dSZXNwb25zZSIAElEKDFJlcGxhY2VEcml2ZRIeLm1haXRyZS52MS5SZXBsYWNlRHJpdmVSZXF1ZXN0Gh8ubWFpdHJlLnYxLlJlcGxhY2VEcml2ZVJlc3BvbnNlIgASWgoPR2V0UGFyaXR5U3RhdHVzEiEubWFpdHJlLnYxLkdldFBhcml0eVN0YXR1c1JlcXVlc3QaIi5tYWl0cmUudjEuR2V0UGFyaXR5U3RhdHVzUmVzcG9uc2UiABJgChFNYWtlTWlycm9yZWREcml2ZRIjLm1haXRyZS52MS5NYWtlTWlycm9yZWREcml2ZVJlcXVlc3QaJC5tYWl0cmUudjEuTWFrZU1pcnJvcmVkRHJpdmVSZXNwb25zZSIAEmAKEVJlcGxhY2VNaXJyb3JEaXNrEiMubWFpdHJlLnYxLlJlcGxhY2VNaXJyb3JEaXNrUmVxdWVzdBokLm1haXRyZS52MS5SZXBsYWNlTWlycm9yRGlza1Jlc3BvbnNlIgASSAoJQ29waWVzTm93EhsubWFpdHJlLnYxLkNvcGllc05vd1JlcXVlc3QaHC5tYWl0cmUudjEuQ29waWVzTm93UmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+
+/**
+ * @generated from message maitre.v1.MakeMirroredDriveRequest
+ */
+export type MakeMirroredDriveRequest = Message<"maitre.v1.MakeMirroredDriveRequest"> & {
+  /**
+   * Exactly two devices, both blank or to be erased.
+   *
+   * @generated from field: repeated string devices = 1;
+   */
+  devices: string[];
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: repeated string tags = 3;
+   */
+  tags: string[];
+
+  /**
+   * Must equal the first device's model (or path).
+   *
+   * @generated from field: string confirm = 4;
+   */
+  confirm: string;
+};
+
+/**
+ * Describes the message maitre.v1.MakeMirroredDriveRequest.
+ * Use `create(MakeMirroredDriveRequestSchema)` to create a new message.
+ */
+export const MakeMirroredDriveRequestSchema: GenMessage<MakeMirroredDriveRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 0);
+
+/**
+ * @generated from message maitre.v1.MakeMirroredDriveResponse
+ */
+export type MakeMirroredDriveResponse = Message<"maitre.v1.MakeMirroredDriveResponse"> & {
+  /**
+   * @generated from field: maitre.v1.Drive drive = 1;
+   */
+  drive?: Drive | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.MakeMirroredDriveResponse.
+ * Use `create(MakeMirroredDriveResponseSchema)` to create a new message.
+ */
+export const MakeMirroredDriveResponseSchema: GenMessage<MakeMirroredDriveResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 1);
+
+/**
+ * @generated from message maitre.v1.ReplaceMirrorDiskRequest
+ */
+export type ReplaceMirrorDiskRequest = Message<"maitre.v1.ReplaceMirrorDiskRequest"> & {
+  /**
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * @generated from field: string device = 2;
+   */
+  device: string;
+
+  /**
+   * @generated from field: string confirm = 3;
+   */
+  confirm: string;
+};
+
+/**
+ * Describes the message maitre.v1.ReplaceMirrorDiskRequest.
+ * Use `create(ReplaceMirrorDiskRequestSchema)` to create a new message.
+ */
+export const ReplaceMirrorDiskRequestSchema: GenMessage<ReplaceMirrorDiskRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 2);
+
+/**
+ * @generated from message maitre.v1.ReplaceMirrorDiskResponse
+ */
+export type ReplaceMirrorDiskResponse = Message<"maitre.v1.ReplaceMirrorDiskResponse"> & {
+  /**
+   * @generated from field: maitre.v1.Drive drive = 1;
+   */
+  drive?: Drive | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.ReplaceMirrorDiskResponse.
+ * Use `create(ReplaceMirrorDiskResponseSchema)` to create a new message.
+ */
+export const ReplaceMirrorDiskResponseSchema: GenMessage<ReplaceMirrorDiskResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 3);
+
+/**
+ * @generated from message maitre.v1.CopiesNowRequest
+ */
+export type CopiesNowRequest = Message<"maitre.v1.CopiesNowRequest"> & {
+};
+
+/**
+ * Describes the message maitre.v1.CopiesNowRequest.
+ * Use `create(CopiesNowRequestSchema)` to create a new message.
+ */
+export const CopiesNowRequestSchema: GenMessage<CopiesNowRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 4);
+
+/**
+ * @generated from message maitre.v1.CopiesNowResponse
+ */
+export type CopiesNowResponse = Message<"maitre.v1.CopiesNowResponse"> & {
+};
+
+/**
+ * Describes the message maitre.v1.CopiesNowResponse.
+ * Use `create(CopiesNowResponseSchema)` to create a new message.
+ */
+export const CopiesNowResponseSchema: GenMessage<CopiesNowResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 5);
+
+/**
+ * MirrorStatus is one Mirrored Drive's health on its Node, gossiped.
+ *
+ * @generated from message maitre.v1.MirrorStatus
+ */
+export type MirrorStatus = Message<"maitre.v1.MirrorStatus"> & {
+  /**
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * A disk of the pair that is gone, by serial (or btrfs device id); "".
+   *
+   * @generated from field: string missing_disk = 2;
+   */
+  missingDisk: string;
+
+  /**
+   * Read, write and checksum errors btrfs counted since the last reset.
+   *
+   * @generated from field: uint64 errors = 3;
+   */
+  errors: bigint;
+
+  /**
+   * A replace in progress: its share done, 0..1; -1 when none.
+   *
+   * @generated from field: double replacing = 4;
+   */
+  replacing: number;
+};
+
+/**
+ * Describes the message maitre.v1.MirrorStatus.
+ * Use `create(MirrorStatusSchema)` to create a new message.
+ */
+export const MirrorStatusSchema: GenMessage<MirrorStatus> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 6);
+
+/**
+ * CopiesStatus is how one Space's Copies stand on one Node, gossiped.
+ *
+ * @generated from message maitre.v1.CopiesStatus
+ */
+export type CopiesStatus = Message<"maitre.v1.CopiesStatus"> & {
+  /**
+   * @generated from field: string space_id = 1;
+   */
+  spaceId: string;
+
+  /**
+   * Files holding fewer copies than the Space asks, after the last pass.
+   *
+   * @generated from field: uint32 short_files = 2;
+   */
+  shortFiles: number;
+
+  /**
+   * The most copies this Node can give the Space: its Drives of the Space
+   * on separate disks (decision 259).
+   *
+   * @generated from field: uint32 max_copies = 3;
+   */
+  maxCopies: number;
+
+  /**
+   * @generated from field: int64 last_pass_unix_ms = 4;
+   */
+  lastPassUnixMs: bigint;
+
+  /**
+   * Set while a pass runs.
+   *
+   * @generated from field: bool running = 5;
+   */
+  running: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.CopiesStatus.
+ * Use `create(CopiesStatusSchema)` to create a new message.
+ */
+export const CopiesStatusSchema: GenMessage<CopiesStatus> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 7);
+
+/**
+ * @generated from message maitre.v1.CheckParityDriveRequest
+ */
+export type CheckParityDriveRequest = Message<"maitre.v1.CheckParityDriveRequest"> & {
+  /**
+   * A Drive by id, or a disk not yet adopted by device (decision 243).
+   *
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * @generated from field: string device = 2;
+   */
+  device: string;
+
+  /**
+   * @generated from field: string loose_to_space = 3;
+   */
+  looseToSpace: string;
+};
+
+/**
+ * Describes the message maitre.v1.CheckParityDriveRequest.
+ * Use `create(CheckParityDriveRequestSchema)` to create a new message.
+ */
+export const CheckParityDriveRequestSchema: GenMessage<CheckParityDriveRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 8);
+
+/**
+ * @generated from message maitre.v1.CheckParityDriveResponse
+ */
+export type CheckParityDriveResponse = Message<"maitre.v1.CheckParityDriveResponse"> & {
+  /**
+   * Why it cannot be a Parity Drive; empty when it can.
+   *
+   * @generated from field: repeated string blockers = 1;
+   */
+  blockers: string[];
+
+  /**
+   * @generated from field: repeated string warnings = 2;
+   */
+  warnings: string[];
+
+  /**
+   * For an adopted Drive: what its Drain would move.
+   *
+   * @generated from field: maitre.v1.DrainPlan plan = 3;
+   */
+  plan?: DrainPlan | undefined;
+
+  /**
+   * The most protected data any one Drive of this Node holds, which the
+   * Parity Drive must be at least as large as (decision 227).
+   *
+   * @generated from field: uint64 largest_protected_bytes = 4;
+   */
+  largestProtectedBytes: bigint;
+
+  /**
+   * The Spaces that gain protection on this Node, by id.
+   *
+   * @generated from field: repeated string protects = 5;
+   */
+  protects: string[];
+};
+
+/**
+ * Describes the message maitre.v1.CheckParityDriveResponse.
+ * Use `create(CheckParityDriveResponseSchema)` to create a new message.
+ */
+export const CheckParityDriveResponseSchema: GenMessage<CheckParityDriveResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 9);
+
+/**
+ * @generated from message maitre.v1.SetParityDriveRequest
+ */
+export type SetParityDriveRequest = Message<"maitre.v1.SetParityDriveRequest"> & {
+  /**
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * For a disk not yet adopted (drive_id empty): its device and a name.
+   *
+   * @generated from field: string device = 2;
+   */
+  device: string;
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * @generated from field: bool parity = 4;
+   */
+  parity: boolean;
+
+  /**
+   * @generated from field: string loose_to_space = 5;
+   */
+  looseToSpace: string;
+
+  /**
+   * Must equal the Drive's name (or, for a disk not yet adopted, its
+   * model or path, as for FormatDrive).
+   *
+   * @generated from field: string confirm = 6;
+   */
+  confirm: string;
+};
+
+/**
+ * Describes the message maitre.v1.SetParityDriveRequest.
+ * Use `create(SetParityDriveRequestSchema)` to create a new message.
+ */
+export const SetParityDriveRequestSchema: GenMessage<SetParityDriveRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 10);
+
+/**
+ * @generated from message maitre.v1.SetParityDriveResponse
+ */
+export type SetParityDriveResponse = Message<"maitre.v1.SetParityDriveResponse"> & {
+  /**
+   * Set when a Drain must run first; the Drive becomes a Parity Drive when
+   * it finishes.
+   *
+   * @generated from field: maitre.v1.DrainJob job = 1;
+   */
+  job?: DrainJob | undefined;
+
+  /**
+   * @generated from field: maitre.v1.Drive drive = 2;
+   */
+  drive?: Drive | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.SetParityDriveResponse.
+ * Use `create(SetParityDriveResponseSchema)` to create a new message.
+ */
+export const SetParityDriveResponseSchema: GenMessage<SetParityDriveResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 11);
+
+/**
+ * @generated from message maitre.v1.ProtectNowRequest
+ */
+export type ProtectNowRequest = Message<"maitre.v1.ProtectNowRequest"> & {
+};
+
+/**
+ * Describes the message maitre.v1.ProtectNowRequest.
+ * Use `create(ProtectNowRequestSchema)` to create a new message.
+ */
+export const ProtectNowRequestSchema: GenMessage<ProtectNowRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 12);
+
+/**
+ * @generated from message maitre.v1.ProtectNowResponse
+ */
+export type ProtectNowResponse = Message<"maitre.v1.ProtectNowResponse"> & {
+};
+
+/**
+ * Describes the message maitre.v1.ProtectNowResponse.
+ * Use `create(ProtectNowResponseSchema)` to create a new message.
+ */
+export const ProtectNowResponseSchema: GenMessage<ProtectNowResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 13);
+
+/**
+ * @generated from message maitre.v1.ReplaceDriveRequest
+ */
+export type ReplaceDriveRequest = Message<"maitre.v1.ReplaceDriveRequest"> & {
+  /**
+   * @generated from field: string failed_drive_id = 1;
+   */
+  failedDriveId: string;
+
+  /**
+   * @generated from field: string device = 2;
+   */
+  device: string;
+
+  /**
+   * @generated from field: string confirm = 3;
+   */
+  confirm: string;
+};
+
+/**
+ * Describes the message maitre.v1.ReplaceDriveRequest.
+ * Use `create(ReplaceDriveRequestSchema)` to create a new message.
+ */
+export const ReplaceDriveRequestSchema: GenMessage<ReplaceDriveRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 14);
+
+/**
+ * @generated from message maitre.v1.ReplaceDriveResponse
+ */
+export type ReplaceDriveResponse = Message<"maitre.v1.ReplaceDriveResponse"> & {
+  /**
+   * @generated from field: maitre.v1.Drive drive = 1;
+   */
+  drive?: Drive | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.ReplaceDriveResponse.
+ * Use `create(ReplaceDriveResponseSchema)` to create a new message.
+ */
+export const ReplaceDriveResponseSchema: GenMessage<ReplaceDriveResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 15);
+
+/**
+ * @generated from message maitre.v1.GetParityStatusRequest
+ */
+export type GetParityStatusRequest = Message<"maitre.v1.GetParityStatusRequest"> & {
+};
+
+/**
+ * Describes the message maitre.v1.GetParityStatusRequest.
+ * Use `create(GetParityStatusRequestSchema)` to create a new message.
+ */
+export const GetParityStatusRequestSchema: GenMessage<GetParityStatusRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 16);
+
+/**
+ * @generated from message maitre.v1.GetParityStatusResponse
+ */
+export type GetParityStatusResponse = Message<"maitre.v1.GetParityStatusResponse"> & {
+  /**
+   * @generated from field: maitre.v1.ParityStatus status = 1;
+   */
+  status?: ParityStatus | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.GetParityStatusResponse.
+ * Use `create(GetParityStatusResponseSchema)` to create a new message.
+ */
+export const GetParityStatusResponseSchema: GenMessage<GetParityStatusResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 17);
+
+/**
+ * ParityStatus is one Node's parity (ADR 0009), gossiped in FleetNodeStatus.
+ *
+ * @generated from message maitre.v1.ParityStatus
+ */
+export type ParityStatus = Message<"maitre.v1.ParityStatus"> & {
+  /**
+   * Parity Drives by id, in order: Parity Drive 1 holds every array's
+   * first parity file, Parity Drive 2 the second.
+   *
+   * @generated from field: repeated string parity_drive_ids = 1;
+   */
+  parityDriveIds: string[];
+
+  /**
+   * @generated from field: int64 last_sync_unix_ms = 2;
+   */
+  lastSyncUnixMs: bigint;
+
+  /**
+   * @generated from field: int64 last_scrub_unix_ms = 3;
+   */
+  lastScrubUnixMs: bigint;
+
+  /**
+   * The running job, if any: "sync", "scrub", "fix" or "", with its
+   * progress (0..1) and the Drive being rebuilt for "fix".
+   *
+   * @generated from field: string job = 4;
+   */
+  job: string;
+
+  /**
+   * @generated from field: double progress = 5;
+   */
+  progress: number;
+
+  /**
+   * @generated from field: string job_drive_id = 6;
+   */
+  jobDriveId: string;
+
+  /**
+   * Files changed since the last sync, so not yet covered.
+   *
+   * @generated from field: uint32 unprotected_files = 7;
+   */
+  unprotectedFiles: number;
+
+  /**
+   * Why the last automatic sync did not run (decision 231); "" when it ran.
+   *
+   * @generated from field: string held = 8;
+   */
+  held: string;
+
+  /**
+   * The next scheduled sync.
+   *
+   * @generated from field: int64 next_sync_unix_ms = 9;
+   */
+  nextSyncUnixMs: bigint;
+
+  /**
+   * Drives the last sync or scrub found missing or failing, by id.
+   *
+   * @generated from field: repeated string missing_drive_ids = 10;
+   */
+  missingDriveIds: string[];
+
+  /**
+   * Each array: its level and the Drives in it, so the Console can tell
+   * which Spaces are covered here.
+   *
+   * @generated from field: repeated maitre.v1.ParityArray arrays = 11;
+   */
+  arrays: ParityArray[];
+
+  /**
+   * A Drive whose record says replaced_by, being rebuilt or done.
+   *
+   * @generated from field: string last_error = 12;
+   */
+  lastError: string;
+};
+
+/**
+ * Describes the message maitre.v1.ParityStatus.
+ * Use `create(ParityStatusSchema)` to create a new message.
+ */
+export const ParityStatusSchema: GenMessage<ParityStatus> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 18);
+
+/**
+ * @generated from message maitre.v1.ParityArray
+ */
+export type ParityArray = Message<"maitre.v1.ParityArray"> & {
+  /**
+   * @generated from field: uint32 level = 1;
+   */
+  level: number;
+
+  /**
+   * @generated from field: repeated string drive_ids = 2;
+   */
+  driveIds: string[];
+
+  /**
+   * @generated from field: repeated string space_ids = 3;
+   */
+  spaceIds: string[];
+
+  /**
+   * Set when the Node has fewer Parity Drives than the level needs: the
+   * array runs at the lower level.
+   *
+   * @generated from field: uint32 level_got = 4;
+   */
+  levelGot: number;
+};
+
+/**
+ * Describes the message maitre.v1.ParityArray.
+ * Use `create(ParityArraySchema)` to create a new message.
+ */
+export const ParityArraySchema: GenMessage<ParityArray> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 19);
+
+/**
+ * ProtectionSchedule is when parity syncs and scrubs run (decisions 230,
+ * 248): the kind "protection" Record with id "fleet" is the Fleet's
+ * default; one with a Node's id overrides it for that Node.
+ *
+ * @generated from message maitre.v1.ProtectionSchedule
+ */
+export type ProtectionSchedule = Message<"maitre.v1.ProtectionSchedule"> & {
+  /**
+   * "HH:MM" in the Node's time zone.
+   *
+   * @generated from field: string sync_time = 1;
+   */
+  syncTime: string;
+
+  /**
+   * Days of the week the sync runs, 0 = Sunday; empty means every day.
+   *
+   * @generated from field: repeated uint32 sync_days = 2;
+   */
+  syncDays: number[];
+
+  /**
+   * Days between scrubs; 0 means 7.
+   *
+   * @generated from field: uint32 scrub_every_days = 3;
+   */
+  scrubEveryDays: number;
+
+  /**
+   * Share of the data a scrub checks each time, percent; 0 means 8.
+   *
+   * @generated from field: uint32 scrub_percent = 4;
+   */
+  scrubPercent: number;
+
+  /**
+   * Syncs held by decision 231 wait for the user; when true, a held sync
+   * runs anyway at the next schedule ("I know, carry on").
+   *
+   * @generated from field: bool override_once = 5;
+   */
+  overrideOnce: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.ProtectionSchedule.
+ * Use `create(ProtectionScheduleSchema)` to create a new message.
+ */
+export const ProtectionScheduleSchema: GenMessage<ProtectionSchedule> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 20);
+
+/**
+ * DrainMove is one part of a Drain: a Space's files on the Drive, or its
+ * loose files, and where they go.
+ *
+ * @generated from message maitre.v1.DrainMove
+ */
+export type DrainMove = Message<"maitre.v1.DrainMove"> & {
+  /**
+   * The Space whose folder moves, or "" for loose files (Unsorted files
+   * and Orphan Folders, which land in <to_space>/From <Drive name>/).
+   *
+   * @generated from field: string space_id = 1;
+   */
+  spaceId: string;
+
+  /**
+   * @generated from field: string to_space = 2;
+   */
+  toSpace: string;
+
+  /**
+   * @generated from field: uint64 bytes = 3;
+   */
+  bytes: bigint;
+
+  /**
+   * The Drives on this Node that take the files, by id.
+   *
+   * @generated from field: repeated string to_drive_ids = 4;
+   */
+  toDriveIds: string[];
+
+  /**
+   * Set when this Node's Drives lack room and a Spanning Space's files go
+   * to its Pool on another Node instead (decision 238).
+   *
+   * @generated from field: string to_node_id = 5;
+   */
+  toNodeId: string;
+};
+
+/**
+ * Describes the message maitre.v1.DrainMove.
+ * Use `create(DrainMoveSchema)` to create a new message.
+ */
+export const DrainMoveSchema: GenMessage<DrainMove> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 21);
+
+/**
+ * @generated from message maitre.v1.DrainPlan
+ */
+export type DrainPlan = Message<"maitre.v1.DrainPlan"> & {
+  /**
+   * @generated from field: repeated maitre.v1.DrainMove moves = 1;
+   */
+  moves: DrainMove[];
+
+  /**
+   * Things worth knowing that do not stop the Drain.
+   *
+   * @generated from field: repeated string warnings = 2;
+   */
+  warnings: string[];
+
+  /**
+   * Why the Drain cannot start (decision 246): resolve these first.
+   *
+   * @generated from field: repeated string blockers = 3;
+   */
+  blockers: string[];
+
+  /**
+   * @generated from field: uint64 bytes = 4;
+   */
+  bytes: bigint;
+};
+
+/**
+ * Describes the message maitre.v1.DrainPlan.
+ * Use `create(DrainPlanSchema)` to create a new message.
+ */
+export const DrainPlanSchema: GenMessage<DrainPlan> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 22);
+
+/**
+ * @generated from message maitre.v1.PlanDrainRequest
+ */
+export type PlanDrainRequest = Message<"maitre.v1.PlanDrainRequest"> & {
+  /**
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * Where loose files go; "" when the Drive has none.
+   *
+   * @generated from field: string loose_to_space = 2;
+   */
+  looseToSpace: string;
+};
+
+/**
+ * Describes the message maitre.v1.PlanDrainRequest.
+ * Use `create(PlanDrainRequestSchema)` to create a new message.
+ */
+export const PlanDrainRequestSchema: GenMessage<PlanDrainRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 23);
+
+/**
+ * @generated from message maitre.v1.PlanDrainResponse
+ */
+export type PlanDrainResponse = Message<"maitre.v1.PlanDrainResponse"> & {
+  /**
+   * @generated from field: maitre.v1.DrainPlan plan = 1;
+   */
+  plan?: DrainPlan | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.PlanDrainResponse.
+ * Use `create(PlanDrainResponseSchema)` to create a new message.
+ */
+export const PlanDrainResponseSchema: GenMessage<PlanDrainResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 24);
+
+/**
+ * @generated from message maitre.v1.DrainDriveRequest
+ */
+export type DrainDriveRequest = Message<"maitre.v1.DrainDriveRequest"> & {
+  /**
+   * @generated from field: string drive_id = 1;
+   */
+  driveId: string;
+
+  /**
+   * @generated from field: string loose_to_space = 2;
+   */
+  looseToSpace: string;
+
+  /**
+   * Must equal the Drive's name.
+   *
+   * @generated from field: string confirm = 3;
+   */
+  confirm: string;
+
+  /**
+   * Why: "parity" (the Drive becomes a Parity Drive once empty), "remove",
+   * or "" (just empty it).
+   *
+   * @generated from field: string purpose = 4;
+   */
+  purpose: string;
+};
+
+/**
+ * Describes the message maitre.v1.DrainDriveRequest.
+ * Use `create(DrainDriveRequestSchema)` to create a new message.
+ */
+export const DrainDriveRequestSchema: GenMessage<DrainDriveRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 25);
+
+/**
+ * @generated from message maitre.v1.DrainDriveResponse
+ */
+export type DrainDriveResponse = Message<"maitre.v1.DrainDriveResponse"> & {
+  /**
+   * @generated from field: maitre.v1.DrainJob job = 1;
+   */
+  job?: DrainJob | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.DrainDriveResponse.
+ * Use `create(DrainDriveResponseSchema)` to create a new message.
+ */
+export const DrainDriveResponseSchema: GenMessage<DrainDriveResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 26);
+
+/**
+ * DrainJob is one Drain, running or finished.
+ *
+ * @generated from message maitre.v1.DrainJob
+ */
+export type DrainJob = Message<"maitre.v1.DrainJob"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+
+  /**
+   * @generated from field: string drive_id = 2;
+   */
+  driveId: string;
+
+  /**
+   * queued | running | done | failed | cancelled
+   *
+   * @generated from field: string state = 3;
+   */
+  state: string;
+
+  /**
+   * @generated from field: string message = 4;
+   */
+  message: string;
+
+  /**
+   * @generated from field: uint64 bytes_done = 5;
+   */
+  bytesDone: bigint;
+
+  /**
+   * @generated from field: uint64 bytes_total = 6;
+   */
+  bytesTotal: bigint;
+
+  /**
+   * The entry being copied right now.
+   *
+   * @generated from field: string current = 7;
+   */
+  current: string;
+
+  /**
+   * @generated from field: string purpose = 8;
+   */
+  purpose: string;
+
+  /**
+   * Notes added as it runs: a Space that moved over the network, a Service
+   * stopped and started.
+   *
+   * @generated from field: repeated string notes = 9;
+   */
+  notes: string[];
+
+  /**
+   * @generated from field: int64 started_unix_ms = 10;
+   */
+  startedUnixMs: bigint;
+
+  /**
+   * @generated from field: int64 finished_unix_ms = 11;
+   */
+  finishedUnixMs: bigint;
+
+  /**
+   * The Spaces drained; empty means every Space on the Drive, and loose files.
+   *
+   * @generated from field: repeated string space_ids = 12;
+   */
+  spaceIds: string[];
+
+  /**
+   * @generated from field: maitre.v1.DrainPlan plan = 13;
+   */
+  plan?: DrainPlan | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.DrainJob.
+ * Use `create(DrainJobSchema)` to create a new message.
+ */
+export const DrainJobSchema: GenMessage<DrainJob> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 27);
+
+/**
+ * @generated from message maitre.v1.ListDrainsRequest
+ */
+export type ListDrainsRequest = Message<"maitre.v1.ListDrainsRequest"> & {
+};
+
+/**
+ * Describes the message maitre.v1.ListDrainsRequest.
+ * Use `create(ListDrainsRequestSchema)` to create a new message.
+ */
+export const ListDrainsRequestSchema: GenMessage<ListDrainsRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 28);
+
+/**
+ * @generated from message maitre.v1.ListDrainsResponse
+ */
+export type ListDrainsResponse = Message<"maitre.v1.ListDrainsResponse"> & {
+  /**
+   * @generated from field: repeated maitre.v1.DrainJob jobs = 1;
+   */
+  jobs: DrainJob[];
+};
+
+/**
+ * Describes the message maitre.v1.ListDrainsResponse.
+ * Use `create(ListDrainsResponseSchema)` to create a new message.
+ */
+export const ListDrainsResponseSchema: GenMessage<ListDrainsResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 29);
+
+/**
+ * @generated from message maitre.v1.CancelDrainRequest
+ */
+export type CancelDrainRequest = Message<"maitre.v1.CancelDrainRequest"> & {
+  /**
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message maitre.v1.CancelDrainRequest.
+ * Use `create(CancelDrainRequestSchema)` to create a new message.
+ */
+export const CancelDrainRequestSchema: GenMessage<CancelDrainRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 30);
+
+/**
+ * @generated from message maitre.v1.CancelDrainResponse
+ */
+export type CancelDrainResponse = Message<"maitre.v1.CancelDrainResponse"> & {
+};
+
+/**
+ * Describes the message maitre.v1.CancelDrainResponse.
+ * Use `create(CancelDrainResponseSchema)` to create a new message.
+ */
+export const CancelDrainResponseSchema: GenMessage<CancelDrainResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_storage, 31);
 
 /**
  * DriveRecord is the kind "drive" Record body, owned by the Node holding
@@ -81,6 +1044,50 @@ export type DriveRecord = Message<"maitre.v1.DriveRecord"> & {
    * @generated from field: int64 added_unix_ms = 11;
    */
   addedUnixMs: bigint;
+
+  /**
+   * ADR 0009. "" or "data": a Drive of its Spaces. "parity": holds the
+   * Node's SnapRAID parity files and matches no Space (decision 225).
+   * "mirrored": two disks as btrfs RAID1, one Drive; belongs only to
+   * Mirrored Spaces (decisions 254, 255).
+   *
+   * @generated from field: string role = 12;
+   */
+  role: string;
+
+  /**
+   * Set on a failed Drive's record once a new disk took its place
+   * (decision 232): the drive_id of the replacement.
+   *
+   * @generated from field: string replaced_by = 13;
+   */
+  replacedBy: string;
+
+  /**
+   * For a Mirrored Drive: the serials of its two disks, so a missing one
+   * can be named.
+   *
+   * @generated from field: repeated string disks = 14;
+   */
+  disks: string[];
+
+  /**
+   * Decision 247: this Drive is being emptied. It stays in its Pools but
+   * takes no new files, and leaves each Pool once none of that Space's
+   * files remain on it. Cleared when the Drain finishes or is cancelled.
+   *
+   * @generated from field: bool draining = 15;
+   */
+  draining: boolean;
+
+  /**
+   * The name SnapRAID knows this Drive by: its drive_id, or the drive_id
+   * of the failed Drive it replaced (decision 232), so parity still
+   * matches its files.
+   *
+   * @generated from field: string snapraid_name = 16;
+   */
+  snapraidName: string;
 };
 
 /**
@@ -88,7 +1095,7 @@ export type DriveRecord = Message<"maitre.v1.DriveRecord"> & {
  * Use `create(DriveRecordSchema)` to create a new message.
  */
 export const DriveRecordSchema: GenMessage<DriveRecord> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 0);
+  messageDesc(file_maitre_v1_storage, 32);
 
 /**
  * Drive is a block device as the Console sees it: live facts plus the
@@ -207,6 +1214,14 @@ export type Drive = Message<"maitre.v1.Drive"> & {
    * @generated from field: repeated maitre.v1.DriveFolder folders = 19;
    */
   folders: DriveFolder[];
+
+  /**
+   * The whole disk this device is, or is a partition of (decision 239: a
+   * Parity Drive or a copy may not share a disk with another Drive).
+   *
+   * @generated from field: string disk = 20;
+   */
+  disk: string;
 };
 
 /**
@@ -214,7 +1229,7 @@ export type Drive = Message<"maitre.v1.Drive"> & {
  * Use `create(DriveSchema)` to create a new message.
  */
 export const DriveSchema: GenMessage<Drive> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 1);
+  messageDesc(file_maitre_v1_storage, 33);
 
 /**
  * @generated from message maitre.v1.DriveFolder
@@ -245,7 +1260,7 @@ export type DriveFolder = Message<"maitre.v1.DriveFolder"> & {
  * Use `create(DriveFolderSchema)` to create a new message.
  */
 export const DriveFolderSchema: GenMessage<DriveFolder> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 2);
+  messageDesc(file_maitre_v1_storage, 34);
 
 /**
  * @generated from message maitre.v1.ListDrivesRequest
@@ -258,7 +1273,7 @@ export type ListDrivesRequest = Message<"maitre.v1.ListDrivesRequest"> & {
  * Use `create(ListDrivesRequestSchema)` to create a new message.
  */
 export const ListDrivesRequestSchema: GenMessage<ListDrivesRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 3);
+  messageDesc(file_maitre_v1_storage, 35);
 
 /**
  * @generated from message maitre.v1.ListDrivesResponse
@@ -275,7 +1290,7 @@ export type ListDrivesResponse = Message<"maitre.v1.ListDrivesResponse"> & {
  * Use `create(ListDrivesResponseSchema)` to create a new message.
  */
 export const ListDrivesResponseSchema: GenMessage<ListDrivesResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 4);
+  messageDesc(file_maitre_v1_storage, 36);
 
 /**
  * @generated from message maitre.v1.DriveContentsRequest
@@ -292,7 +1307,7 @@ export type DriveContentsRequest = Message<"maitre.v1.DriveContentsRequest"> & {
  * Use `create(DriveContentsRequestSchema)` to create a new message.
  */
 export const DriveContentsRequestSchema: GenMessage<DriveContentsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 5);
+  messageDesc(file_maitre_v1_storage, 37);
 
 /**
  * @generated from message maitre.v1.DriveContentsResponse
@@ -321,7 +1336,7 @@ export type DriveContentsResponse = Message<"maitre.v1.DriveContentsResponse"> &
  * Use `create(DriveContentsResponseSchema)` to create a new message.
  */
 export const DriveContentsResponseSchema: GenMessage<DriveContentsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 6);
+  messageDesc(file_maitre_v1_storage, 38);
 
 /**
  * @generated from message maitre.v1.AdoptDriveRequest
@@ -348,7 +1363,7 @@ export type AdoptDriveRequest = Message<"maitre.v1.AdoptDriveRequest"> & {
  * Use `create(AdoptDriveRequestSchema)` to create a new message.
  */
 export const AdoptDriveRequestSchema: GenMessage<AdoptDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 7);
+  messageDesc(file_maitre_v1_storage, 39);
 
 /**
  * @generated from message maitre.v1.AdoptDriveResponse
@@ -365,7 +1380,7 @@ export type AdoptDriveResponse = Message<"maitre.v1.AdoptDriveResponse"> & {
  * Use `create(AdoptDriveResponseSchema)` to create a new message.
  */
 export const AdoptDriveResponseSchema: GenMessage<AdoptDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 8);
+  messageDesc(file_maitre_v1_storage, 40);
 
 /**
  * @generated from message maitre.v1.FormatDriveRequest
@@ -399,7 +1414,7 @@ export type FormatDriveRequest = Message<"maitre.v1.FormatDriveRequest"> & {
  * Use `create(FormatDriveRequestSchema)` to create a new message.
  */
 export const FormatDriveRequestSchema: GenMessage<FormatDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 9);
+  messageDesc(file_maitre_v1_storage, 41);
 
 /**
  * @generated from message maitre.v1.FormatDriveResponse
@@ -416,7 +1431,7 @@ export type FormatDriveResponse = Message<"maitre.v1.FormatDriveResponse"> & {
  * Use `create(FormatDriveResponseSchema)` to create a new message.
  */
 export const FormatDriveResponseSchema: GenMessage<FormatDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 10);
+  messageDesc(file_maitre_v1_storage, 42);
 
 /**
  * @generated from message maitre.v1.SetDriveTagsRequest
@@ -443,7 +1458,7 @@ export type SetDriveTagsRequest = Message<"maitre.v1.SetDriveTagsRequest"> & {
  * Use `create(SetDriveTagsRequestSchema)` to create a new message.
  */
 export const SetDriveTagsRequestSchema: GenMessage<SetDriveTagsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 11);
+  messageDesc(file_maitre_v1_storage, 43);
 
 /**
  * @generated from message maitre.v1.SetDriveTagsResponse
@@ -460,7 +1475,7 @@ export type SetDriveTagsResponse = Message<"maitre.v1.SetDriveTagsResponse"> & {
  * Use `create(SetDriveTagsResponseSchema)` to create a new message.
  */
 export const SetDriveTagsResponseSchema: GenMessage<SetDriveTagsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 12);
+  messageDesc(file_maitre_v1_storage, 44);
 
 /**
  * @generated from message maitre.v1.ForgetDriveRequest
@@ -484,7 +1499,7 @@ export type ForgetDriveRequest = Message<"maitre.v1.ForgetDriveRequest"> & {
  * Use `create(ForgetDriveRequestSchema)` to create a new message.
  */
 export const ForgetDriveRequestSchema: GenMessage<ForgetDriveRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 13);
+  messageDesc(file_maitre_v1_storage, 45);
 
 /**
  * @generated from message maitre.v1.ForgetDriveResponse
@@ -497,7 +1512,7 @@ export type ForgetDriveResponse = Message<"maitre.v1.ForgetDriveResponse"> & {
  * Use `create(ForgetDriveResponseSchema)` to create a new message.
  */
 export const ForgetDriveResponseSchema: GenMessage<ForgetDriveResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 14);
+  messageDesc(file_maitre_v1_storage, 46);
 
 /**
  * Space is a Storage Space (decisions 121-128, replacing Tiers): a place for
@@ -609,6 +1624,40 @@ export type Space = Message<"maitre.v1.Space"> & {
    * @generated from field: string color = 13;
    */
   color: string;
+
+  /**
+   * ADR 0009, decision 237: how many failed Drives this Space's files
+   * survive on each Node, from SnapRAID parity: 0 (off), 1 or 2. Ignored
+   * for a Mirrored Space (decision 256).
+   *
+   * @generated from field: uint32 parity_level = 14;
+   */
+  parityLevel: number;
+
+  /**
+   * Decision 253: the least number of Drives holding each file, 1 to 3;
+   * 0 reads as 1. Never more than the Space's Drives on separate disks
+   * (decision 259).
+   *
+   * @generated from field: uint32 copies = 15;
+   */
+  copies: number;
+
+  /**
+   * Decision 251: for a Space that spans Nodes with copies > 1, place the
+   * copies on different Nodes when it can.
+   *
+   * @generated from field: bool copies_on_different_nodes = 16;
+   */
+  copiesOnDifferentNodes: boolean;
+
+  /**
+   * Decision 255: this Space takes Mirrored Drives only; a plain Space
+   * takes none. Chosen when the Space is made.
+   *
+   * @generated from field: bool mirrored = 17;
+   */
+  mirrored: boolean;
 };
 
 /**
@@ -616,7 +1665,7 @@ export type Space = Message<"maitre.v1.Space"> & {
  * Use `create(SpaceSchema)` to create a new message.
  */
 export const SpaceSchema: GenMessage<Space> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_storage, 15);
+  messageDesc(file_maitre_v1_storage, 47);
 
 /**
  * StorageService manages one Node's Drives (Milestone 4). Tiers are
@@ -689,6 +1738,145 @@ export const StorageService: GenService<{
     methodKind: "unary";
     input: typeof ForgetDriveRequestSchema;
     output: typeof ForgetDriveResponseSchema;
+  },
+  /**
+   * PlanDrain says what emptying a Drive would move where (ADR 0009,
+   * decision 247), with warnings and what blocks it. Optional: older Nodes
+   * answer Unimplemented.
+   *
+   * @generated from rpc maitre.v1.StorageService.PlanDrain
+   */
+  planDrain: {
+    methodKind: "unary";
+    input: typeof PlanDrainRequestSchema;
+    output: typeof PlanDrainResponseSchema;
+  },
+  /**
+   * DrainDrive empties a Drive: each Space's files to that Space's other
+   * Drives, loose files into a Space the caller picks. The Drive stays in
+   * its Pools, taking no new files, until none of a Space's files remain.
+   * Refused while the plan has blockers. The caller repeats the Drive's name.
+   *
+   * @generated from rpc maitre.v1.StorageService.DrainDrive
+   */
+  drainDrive: {
+    methodKind: "unary";
+    input: typeof DrainDriveRequestSchema;
+    output: typeof DrainDriveResponseSchema;
+  },
+  /**
+   * ListDrains lists this Node's Drain jobs, newest last.
+   *
+   * @generated from rpc maitre.v1.StorageService.ListDrains
+   */
+  listDrains: {
+    methodKind: "unary";
+    input: typeof ListDrainsRequestSchema;
+    output: typeof ListDrainsResponseSchema;
+  },
+  /**
+   * CancelDrain stops a Drain; files already moved stay moved, the rest
+   * stay on the Drive, which takes new files again.
+   *
+   * @generated from rpc maitre.v1.StorageService.CancelDrain
+   */
+  cancelDrain: {
+    methodKind: "unary";
+    input: typeof CancelDrainRequestSchema;
+    output: typeof CancelDrainResponseSchema;
+  },
+  /**
+   * CheckParityDrive says whether a Drive can become a Parity Drive
+   * (decisions 227, 239, 240) and what its Drain would do.
+   *
+   * @generated from rpc maitre.v1.StorageService.CheckParityDrive
+   */
+  checkParityDrive: {
+    methodKind: "unary";
+    input: typeof CheckParityDriveRequestSchema;
+    output: typeof CheckParityDriveResponseSchema;
+  },
+  /**
+   * SetParityDrive turns the Parity Drive toggle (decisions 225, 241,
+   * 245). On: the Drive is Drained, then formatted and given role parity,
+   * and the first sync runs. Off: the parity files are deleted and the
+   * Drive returns to the Spaces its rules match. The caller repeats the
+   * Drive's name.
+   *
+   * @generated from rpc maitre.v1.StorageService.SetParityDrive
+   */
+  setParityDrive: {
+    methodKind: "unary";
+    input: typeof SetParityDriveRequestSchema;
+    output: typeof SetParityDriveResponseSchema;
+  },
+  /**
+   * ProtectNow runs a parity sync on this Node now (decision 230).
+   *
+   * @generated from rpc maitre.v1.StorageService.ProtectNow
+   */
+  protectNow: {
+    methodKind: "unary";
+    input: typeof ProtectNowRequestSchema;
+    output: typeof ProtectNowResponseSchema;
+  },
+  /**
+   * ReplaceDrive puts a new disk in a failed Drive's place (decision 232):
+   * formats it, gives it the failed Drive's name, tags and SnapRAID name,
+   * and rebuilds its files from parity. The caller repeats the new disk's
+   * model (or path), as for FormatDrive.
+   *
+   * @generated from rpc maitre.v1.StorageService.ReplaceDrive
+   */
+  replaceDrive: {
+    methodKind: "unary";
+    input: typeof ReplaceDriveRequestSchema;
+    output: typeof ReplaceDriveResponseSchema;
+  },
+  /**
+   * ParityStatus is this Node's parity in detail: arrays, last sync and
+   * scrub, the running job, and why a sync was held.
+   *
+   * @generated from rpc maitre.v1.StorageService.GetParityStatus
+   */
+  getParityStatus: {
+    methodKind: "unary";
+    input: typeof GetParityStatusRequestSchema;
+    output: typeof GetParityStatusResponseSchema;
+  },
+  /**
+   * MakeMirroredDrive formats two blank disks together as one btrfs RAID1
+   * filesystem and records it as a Mirrored Drive (decision 254). The
+   * caller repeats the first disk's model (or path).
+   *
+   * @generated from rpc maitre.v1.StorageService.MakeMirroredDrive
+   */
+  makeMirroredDrive: {
+    methodKind: "unary";
+    input: typeof MakeMirroredDriveRequestSchema;
+    output: typeof MakeMirroredDriveResponseSchema;
+  },
+  /**
+   * ReplaceMirrorDisk puts a new disk in a Mirrored Drive's failed disk's
+   * place (btrfs replace). The Drive is mounted degraded for it only here,
+   * on the user's word. The caller repeats the new disk's model (or path).
+   *
+   * @generated from rpc maitre.v1.StorageService.ReplaceMirrorDisk
+   */
+  replaceMirrorDisk: {
+    methodKind: "unary";
+    input: typeof ReplaceMirrorDiskRequestSchema;
+    output: typeof ReplaceMirrorDiskResponseSchema;
+  },
+  /**
+   * CopiesNow runs the copy pass for every Space on this Node now.
+   *
+   * @generated from rpc maitre.v1.StorageService.CopiesNow
+   */
+  copiesNow: {
+    methodKind: "unary";
+    input: typeof CopiesNowRequestSchema;
+    output: typeof CopiesNowResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_storage, 0);

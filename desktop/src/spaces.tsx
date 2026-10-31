@@ -50,11 +50,17 @@ export function useSpaces(state: ConsoleState) {
   return { spaces, drives, nodes, put };
 }
 
-/** Mirrors storage.SpacesOf on the Go side: spaces sorted highest priority first. */
+/**
+ * Mirrors storage.SpacesOf on the Go side: spaces sorted highest priority
+ * first. A Parity Drive is in no Space; a Mirrored Drive only in Mirrored
+ * Spaces, and a plain Drive never in one (ADR 0009, decisions 225, 255).
+ */
 export function spacesOf(d: DriveRecord, spaces: Space[]): string[] {
+  if (d.role === "parity") return [];
   const have = new Set([...d.autoTags, ...d.tags]);
   const out: string[] = [];
   for (const b of spaces) {
+    if (b.mirrored !== (d.role === "mirrored")) continue;
     if (!b.requireTags.every((x) => have.has(x))) continue;
     if (b.nodeIds.length > 0 && !b.nodeIds.includes(d.nodeId)) continue;
     if (b.exclusive) return [b.spaceId];

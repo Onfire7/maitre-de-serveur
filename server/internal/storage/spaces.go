@@ -63,8 +63,37 @@ func ValidateSpace(b *maitrev1.Space) error {
 		return errors.New("a Space's colour is #rrggbb")
 	case b.GetOwnerId() != 0 && OwnerOf(b) == 0:
 		return fmt.Errorf("a Space's owner id is between %d and %d", MinOwnerID, MaxOwnerID)
+	case b.GetParityLevel() > 2:
+		return errors.New("a Space's Parity Level is 0, 1 or 2")
+	case b.GetCopies() > 3:
+		return errors.New("a Space keeps 1, 2 or 3 copies")
+	case b.GetMirrored() && b.GetParityLevel() > 0:
+		return errors.New("a Mirrored Space has no Parity Level; its Drives already survive a failed disk")
 	}
 	return nil
+}
+
+// Copies is how many Drives must hold each of a Space's files: at least 1.
+func Copies(b *maitrev1.Space) int {
+	if b.GetCopies() < 1 {
+		return 1
+	}
+	return int(b.GetCopies())
+}
+
+// Drive roles (DriveRecord.role, ADR 0009).
+const (
+	RoleData     = "data"
+	RoleParity   = "parity"
+	RoleMirrored = "mirrored"
+)
+
+// RoleOf is a Drive's role, RoleData when the record has none.
+func RoleOf(d *maitrev1.DriveRecord) string {
+	if r := d.GetRole(); r != "" {
+		return r
+	}
+	return RoleData
 }
 
 // Owner ids a Space may have (decision 189): never a system account, and
@@ -84,8 +113,22 @@ func OwnerOf(b *maitrev1.Space) uint32 {
 }
 
 // matches reports whether a Space's rule selects a Drive. An empty rule
-// selects every Drive.
+// selects every plain Drive. A Parity Drive matches nothing (decision
+// 225); a Mirrored Drive matches only Mirrored Spaces, and a plain Drive
+// never matches one (decision 255), whatever their tags.
 func matches(b *maitrev1.Space, d *maitrev1.DriveRecord) bool {
+	switch RoleOf(d) {
+	case RoleParity:
+		return false
+	case RoleMirrored:
+		if !b.GetMirrored() {
+			return false
+		}
+	default:
+		if b.GetMirrored() {
+			return false
+		}
+	}
 	have := map[string]bool{}
 	for _, t := range d.GetAutoTags() {
 		have[t] = true
@@ -145,16 +188,21 @@ func DefaultSpace(spaces []*maitrev1.Space) *maitrev1.Space {
 // LocalBranches groups this Node's mounted Drives' Space folders by Space: the
 // branch lists each Pool is assembled from. Every Space gets an entry, empty
 // when no local Drive belongs to it. Folders are created as needed.
-func (m *Manager) LocalBranches(ctx context.Context) (map[string][]string, error) {
+//
+// Decision 247: a Drive that is draining, or that a rule no longer selects,
+// stays a branch of each Space whose folder on it still holds files, marked
+// no-create (noCreate), so its files stay visible until Drain has moved them.
+func (m *Manager) LocalBranches(ctx context.Context) (branches map[string][]string, noCreate map[string]bool, err error) {
 	spaces, err := Spaces(ctx, m.st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	records, err := store.ListLive(ctx, m.st, KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := map[string][]string{}
+	noCreate = map[string]bool{}
 	for _, b := range spaces {
 		out[b.GetSpaceId()] = nil
 	}
@@ -166,15 +214,49 @@ func (m *Manager) LocalBranches(ctx context.Context) (map[string][]string, error
 		if !mounted(dir) {
 			continue
 		}
+		mine := map[string]bool{}
 		for _, id := range SpacesOf(r, spaces) {
+			mine[id] = true
 			branch := filepath.Join(dir, id)
 			if err := os.MkdirAll(branch, 0o755); err != nil {
 				continue
 			}
+			if r.GetDraining() {
+				noCreate[branch] = true
+			}
 			out[id] = append(out[id], branch)
 		}
+		if RoleOf(r) == RoleParity {
+			continue
+		}
+		for _, b := range spaces {
+			id := b.GetSpaceId()
+			if mine[id] {
+				continue
+			}
+			branch := filepath.Join(dir, id)
+			if HasFiles(branch) {
+				noCreate[branch] = true
+				out[id] = append(out[id], branch)
+			}
+		}
 	}
-	return out, nil
+	return out, noCreate, nil
+}
+
+// HasFiles reports whether a Space folder holds anything besides the Space
+// marker: what keeps a Drive in a Pool while it drains.
+func HasFiles(branch string) bool {
+	entries, err := os.ReadDir(branch)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Name() != spaceMarker {
+			return true
+		}
+	}
+	return false
 }
 
 // Folders describes the top-level folders of a mounted Drive (decision 124:
@@ -344,3 +426,51 @@ func (m *Manager) MoveRootFilesIntoSpace(ctx context.Context, spaceID string) er
 
 // PoolDir is where a Space's Pool is mounted on a Node.
 func PoolDir(spaceID string) string { return filepath.Join(pool.PoolsDir, spaceID) }
+
+// ParityDriveCounts is how many Parity Drives each Node of the Fleet has,
+// from the synced Drive records.
+func ParityDriveCounts(ctx context.Context, st *store.Store) map[string]int {
+	out := map[string]int{}
+	records, err := store.ListLive(ctx, st, KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
+	if err != nil {
+		return out
+	}
+	for _, r := range records {
+		if RoleOf(r) == RoleParity && r.GetReplacedBy() == "" {
+			out[r.GetNodeId()]++
+		}
+	}
+	return out
+}
+
+// UnprotectedNoCreate is noCreate widened for a Spanning Space with a
+// Parity Level (decision 258): the branches of Nodes with fewer Parity
+// Drives than the level take no new files, as long as some Node has
+// enough. local are this Node's branches, remote the peers' Pools at
+// RemoteDir/<node_id>/<space>.
+func UnprotectedNoCreate(noCreate map[string]bool, local, remote []string, self string, level int, counts map[string]int) map[string]bool {
+	able := counts[self] >= level
+	for _, r := range remote {
+		if counts[filepath.Base(filepath.Dir(r))] >= level {
+			able = true
+		}
+	}
+	if !able {
+		return noCreate
+	}
+	out := map[string]bool{}
+	for k, v := range noCreate {
+		out[k] = v
+	}
+	if counts[self] < level {
+		for _, b := range local {
+			out[b] = true
+		}
+	}
+	for _, r := range remote {
+		if counts[filepath.Base(filepath.Dir(r))] < level {
+			out[r] = true
+		}
+	}
+	return out
+}

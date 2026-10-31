@@ -43,3 +43,10 @@ func TestPlan(t *testing.T) {
 		t.Errorf("least_free: %+v", got)
 	}
 }
+
+func TestBranches(t *testing.T) {
+	got := Branches([]string{"/a/x", "/b/x", "/c/x"}, map[string]bool{"/b/x": true})
+	if got != "/a/x:/b/x=NC:/c/x" {
+		t.Fatalf("Branches = %q", got)
+	}
+}

@@ -5,6 +5,7 @@ package maitre.v1;
 import "maitre/v1/fleet.proto";
 import "maitre/v1/installer.proto";
 import "maitre/v1/service.proto";
+import "maitre/v1/storage.proto";
 import "maitre/v1/tailscale.proto";
 
 option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
@@ -197,6 +198,15 @@ message FleetNodeStatus {
   // elected and asks the router to forward their ports here. Gossiped so
   // every Node elects the same one and keeps it, and the Console shows it.
   repeated EntryHold entries = 18;
+  // This Node's parity (ADR 0009): Parity Drives, last sync, a running
+  // job, held syncs. Unset from a Node without parity support.
+  ParityStatus parity = 19;
+  // This Node's Drain jobs that are queued or running (decision 247).
+  repeated DrainJob drains = 20;
+  // Copies per Space (decisions 249-253) and Mirrored Drives' health
+  // (254) on this Node.
+  repeated CopiesStatus copies = 21;
+  repeated MirrorStatus mirrors = 22;
 }
 
 // EntryHold is one entry role a Node holds and how its forwarding stands.

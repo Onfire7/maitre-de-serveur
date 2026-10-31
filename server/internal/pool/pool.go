@@ -73,18 +73,33 @@ func PlacementOf(placement string, preferLocal bool) Placement {
 
 // Assemble mounts (or re-shapes in place) the Pool of one Space over its
 // branches: this Node's Space folders first (local of them), then peers'
-// Pools. Idempotent; an empty branch list unmounts.
-func Assemble(ctx context.Context, space string, branches []string, local int, p Placement) error {
-	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, p)
+// Pools. Idempotent; an empty branch list unmounts. Branches in noCreate
+// take no new files (mergerfs "=NC", decision 247): a draining Drive's
+// files stay visible while they move.
+func Assemble(ctx context.Context, space string, branches []string, local int, p Placement, noCreate map[string]bool) error {
+	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, p, noCreate)
 }
 
 // AssembleShared mounts the local-only Pool of one Space at
 // SharedDir/<space>, over this Node's own branches.
-func AssembleShared(ctx context.Context, space string, branches []string, p Placement) error {
-	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), p)
+func AssembleShared(ctx context.Context, space string, branches []string, p Placement, noCreate map[string]bool) error {
+	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), p, noCreate)
 }
 
-func assemble(ctx context.Context, mount, fsname string, branches []string, local int, p Placement) error {
+// Branches writes the branch list as mergerfs takes it, a no-create branch
+// as "<path>=NC".
+func Branches(branches []string, noCreate map[string]bool) string {
+	out := make([]string, len(branches))
+	for i, b := range branches {
+		out[i] = b
+		if noCreate[b] {
+			out[i] += "=NC"
+		}
+	}
+	return strings.Join(out, ":")
+}
+
+func assemble(ctx context.Context, mount, fsname string, branches []string, local int, p Placement, noCreate map[string]bool) error {
 	space := filepath.Base(mount)
 	if len(branches) == 0 {
 		if mounted(mount) {
@@ -98,14 +113,14 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 	branches, create := Plan(p, branches, local, statBranch)
 	if mounted(mount) {
 		ctl := filepath.Join(mount, ".mergerfs")
-		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", strings.Join(branches, ":"), ctl).CombinedOutput(); err != nil {
+		if out, err := exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.branches", "-v", Branches(branches, noCreate), ctl).CombinedOutput(); err != nil {
 			return fmt.Errorf("update %s branches: %v: %s", space, err, out)
 		}
 		_ = exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.category.create", "-v", create, ctl).Run()
 		return nil
 	}
 	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=" + fsname
-	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, strings.Join(branches, ":"), mount).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, Branches(branches, noCreate), mount).CombinedOutput(); err != nil {
 		return fmt.Errorf("mergerfs %s: %v: %s", space, err, out)
 	}
 	return nil

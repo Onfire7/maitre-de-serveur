@@ -38,6 +38,36 @@ const (
 	StorageServiceSetDriveTagsProcedure = "/maitre.v1.StorageService/SetDriveTags"
 	// StorageServiceForgetDriveProcedure is the procedure name of the StorageService's ForgetDrive RPC.
 	StorageServiceForgetDriveProcedure = "/maitre.v1.StorageService/ForgetDrive"
+	// StorageServicePlanDrainProcedure is the procedure name of the StorageService's PlanDrain RPC.
+	StorageServicePlanDrainProcedure = "/maitre.v1.StorageService/PlanDrain"
+	// StorageServiceDrainDriveProcedure is the procedure name of the StorageService's DrainDrive RPC.
+	StorageServiceDrainDriveProcedure = "/maitre.v1.StorageService/DrainDrive"
+	// StorageServiceListDrainsProcedure is the procedure name of the StorageService's ListDrains RPC.
+	StorageServiceListDrainsProcedure = "/maitre.v1.StorageService/ListDrains"
+	// StorageServiceCancelDrainProcedure is the procedure name of the StorageService's CancelDrain RPC.
+	StorageServiceCancelDrainProcedure = "/maitre.v1.StorageService/CancelDrain"
+	// StorageServiceCheckParityDriveProcedure is the procedure name of the StorageService's
+	// CheckParityDrive RPC.
+	StorageServiceCheckParityDriveProcedure = "/maitre.v1.StorageService/CheckParityDrive"
+	// StorageServiceSetParityDriveProcedure is the procedure name of the StorageService's
+	// SetParityDrive RPC.
+	StorageServiceSetParityDriveProcedure = "/maitre.v1.StorageService/SetParityDrive"
+	// StorageServiceProtectNowProcedure is the procedure name of the StorageService's ProtectNow RPC.
+	StorageServiceProtectNowProcedure = "/maitre.v1.StorageService/ProtectNow"
+	// StorageServiceReplaceDriveProcedure is the procedure name of the StorageService's ReplaceDrive
+	// RPC.
+	StorageServiceReplaceDriveProcedure = "/maitre.v1.StorageService/ReplaceDrive"
+	// StorageServiceGetParityStatusProcedure is the procedure name of the StorageService's
+	// GetParityStatus RPC.
+	StorageServiceGetParityStatusProcedure = "/maitre.v1.StorageService/GetParityStatus"
+	// StorageServiceMakeMirroredDriveProcedure is the procedure name of the StorageService's
+	// MakeMirroredDrive RPC.
+	StorageServiceMakeMirroredDriveProcedure = "/maitre.v1.StorageService/MakeMirroredDrive"
+	// StorageServiceReplaceMirrorDiskProcedure is the procedure name of the StorageService's
+	// ReplaceMirrorDisk RPC.
+	StorageServiceReplaceMirrorDiskProcedure = "/maitre.v1.StorageService/ReplaceMirrorDisk"
+	// StorageServiceCopiesNowProcedure is the procedure name of the StorageService's CopiesNow RPC.
+	StorageServiceCopiesNowProcedure = "/maitre.v1.StorageService/CopiesNow"
 )
 
 var (
@@ -83,6 +113,90 @@ var (
 			Procedure:  StorageServiceForgetDriveProcedure,
 		}
 	})
+	storageServicePlanDrainSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("PlanDrain"),
+			Procedure:  StorageServicePlanDrainProcedure,
+		}
+	})
+	storageServiceDrainDriveSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("DrainDrive"),
+			Procedure:  StorageServiceDrainDriveProcedure,
+		}
+	})
+	storageServiceListDrainsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("ListDrains"),
+			Procedure:  StorageServiceListDrainsProcedure,
+		}
+	})
+	storageServiceCancelDrainSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("CancelDrain"),
+			Procedure:  StorageServiceCancelDrainProcedure,
+		}
+	})
+	storageServiceCheckParityDriveSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("CheckParityDrive"),
+			Procedure:  StorageServiceCheckParityDriveProcedure,
+		}
+	})
+	storageServiceSetParityDriveSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("SetParityDrive"),
+			Procedure:  StorageServiceSetParityDriveProcedure,
+		}
+	})
+	storageServiceProtectNowSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("ProtectNow"),
+			Procedure:  StorageServiceProtectNowProcedure,
+		}
+	})
+	storageServiceReplaceDriveSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("ReplaceDrive"),
+			Procedure:  StorageServiceReplaceDriveProcedure,
+		}
+	})
+	storageServiceGetParityStatusSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("GetParityStatus"),
+			Procedure:  StorageServiceGetParityStatusProcedure,
+		}
+	})
+	storageServiceMakeMirroredDriveSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("MakeMirroredDrive"),
+			Procedure:  StorageServiceMakeMirroredDriveProcedure,
+		}
+	})
+	storageServiceReplaceMirrorDiskSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("ReplaceMirrorDisk"),
+			Procedure:  StorageServiceReplaceMirrorDiskProcedure,
+		}
+	})
+	storageServiceCopiesNowSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_storage_proto.Services().ByName("StorageService").Methods().ByName("CopiesNow"),
+			Procedure:  StorageServiceCopiesNowProcedure,
+		}
+	})
 )
 
 // StorageServiceClient is a client for the maitre.v1.StorageService service.
@@ -104,6 +218,49 @@ type StorageServiceClient interface {
 	// ForgetDrive removes a Drive from the Node: unmounted, record deleted,
 	// data left on the device untouched. The caller repeats the Drive's name.
 	ForgetDrive(context.Context, *v1.ForgetDriveRequest) (*v1.ForgetDriveResponse, error)
+	// PlanDrain says what emptying a Drive would move where (ADR 0009,
+	// decision 247), with warnings and what blocks it. Optional: older Nodes
+	// answer Unimplemented.
+	PlanDrain(context.Context, *v1.PlanDrainRequest) (*v1.PlanDrainResponse, error)
+	// DrainDrive empties a Drive: each Space's files to that Space's other
+	// Drives, loose files into a Space the caller picks. The Drive stays in
+	// its Pools, taking no new files, until none of a Space's files remain.
+	// Refused while the plan has blockers. The caller repeats the Drive's name.
+	DrainDrive(context.Context, *v1.DrainDriveRequest) (*v1.DrainDriveResponse, error)
+	// ListDrains lists this Node's Drain jobs, newest last.
+	ListDrains(context.Context, *v1.ListDrainsRequest) (*v1.ListDrainsResponse, error)
+	// CancelDrain stops a Drain; files already moved stay moved, the rest
+	// stay on the Drive, which takes new files again.
+	CancelDrain(context.Context, *v1.CancelDrainRequest) (*v1.CancelDrainResponse, error)
+	// CheckParityDrive says whether a Drive can become a Parity Drive
+	// (decisions 227, 239, 240) and what its Drain would do.
+	CheckParityDrive(context.Context, *v1.CheckParityDriveRequest) (*v1.CheckParityDriveResponse, error)
+	// SetParityDrive turns the Parity Drive toggle (decisions 225, 241,
+	// 245). On: the Drive is Drained, then formatted and given role parity,
+	// and the first sync runs. Off: the parity files are deleted and the
+	// Drive returns to the Spaces its rules match. The caller repeats the
+	// Drive's name.
+	SetParityDrive(context.Context, *v1.SetParityDriveRequest) (*v1.SetParityDriveResponse, error)
+	// ProtectNow runs a parity sync on this Node now (decision 230).
+	ProtectNow(context.Context, *v1.ProtectNowRequest) (*v1.ProtectNowResponse, error)
+	// ReplaceDrive puts a new disk in a failed Drive's place (decision 232):
+	// formats it, gives it the failed Drive's name, tags and SnapRAID name,
+	// and rebuilds its files from parity. The caller repeats the new disk's
+	// model (or path), as for FormatDrive.
+	ReplaceDrive(context.Context, *v1.ReplaceDriveRequest) (*v1.ReplaceDriveResponse, error)
+	// ParityStatus is this Node's parity in detail: arrays, last sync and
+	// scrub, the running job, and why a sync was held.
+	GetParityStatus(context.Context, *v1.GetParityStatusRequest) (*v1.GetParityStatusResponse, error)
+	// MakeMirroredDrive formats two blank disks together as one btrfs RAID1
+	// filesystem and records it as a Mirrored Drive (decision 254). The
+	// caller repeats the first disk's model (or path).
+	MakeMirroredDrive(context.Context, *v1.MakeMirroredDriveRequest) (*v1.MakeMirroredDriveResponse, error)
+	// ReplaceMirrorDisk puts a new disk in a Mirrored Drive's failed disk's
+	// place (btrfs replace). The Drive is mounted degraded for it only here,
+	// on the user's word. The caller repeats the new disk's model (or path).
+	ReplaceMirrorDisk(context.Context, *v1.ReplaceMirrorDiskRequest) (*v1.ReplaceMirrorDiskResponse, error)
+	// CopiesNow runs the copy pass for every Space on this Node now.
+	CopiesNow(context.Context, *v1.CopiesNowRequest) (*v1.CopiesNowResponse, error)
 }
 
 // NewStorageServiceClient constructs a client for the maitre.v1.StorageService service. Multiple
@@ -131,6 +288,49 @@ type StorageServiceHandler interface {
 	// ForgetDrive removes a Drive from the Node: unmounted, record deleted,
 	// data left on the device untouched. The caller repeats the Drive's name.
 	ForgetDrive(context.Context, *v1.ForgetDriveRequest) (*v1.ForgetDriveResponse, error)
+	// PlanDrain says what emptying a Drive would move where (ADR 0009,
+	// decision 247), with warnings and what blocks it. Optional: older Nodes
+	// answer Unimplemented.
+	PlanDrain(context.Context, *v1.PlanDrainRequest) (*v1.PlanDrainResponse, error)
+	// DrainDrive empties a Drive: each Space's files to that Space's other
+	// Drives, loose files into a Space the caller picks. The Drive stays in
+	// its Pools, taking no new files, until none of a Space's files remain.
+	// Refused while the plan has blockers. The caller repeats the Drive's name.
+	DrainDrive(context.Context, *v1.DrainDriveRequest) (*v1.DrainDriveResponse, error)
+	// ListDrains lists this Node's Drain jobs, newest last.
+	ListDrains(context.Context, *v1.ListDrainsRequest) (*v1.ListDrainsResponse, error)
+	// CancelDrain stops a Drain; files already moved stay moved, the rest
+	// stay on the Drive, which takes new files again.
+	CancelDrain(context.Context, *v1.CancelDrainRequest) (*v1.CancelDrainResponse, error)
+	// CheckParityDrive says whether a Drive can become a Parity Drive
+	// (decisions 227, 239, 240) and what its Drain would do.
+	CheckParityDrive(context.Context, *v1.CheckParityDriveRequest) (*v1.CheckParityDriveResponse, error)
+	// SetParityDrive turns the Parity Drive toggle (decisions 225, 241,
+	// 245). On: the Drive is Drained, then formatted and given role parity,
+	// and the first sync runs. Off: the parity files are deleted and the
+	// Drive returns to the Spaces its rules match. The caller repeats the
+	// Drive's name.
+	SetParityDrive(context.Context, *v1.SetParityDriveRequest) (*v1.SetParityDriveResponse, error)
+	// ProtectNow runs a parity sync on this Node now (decision 230).
+	ProtectNow(context.Context, *v1.ProtectNowRequest) (*v1.ProtectNowResponse, error)
+	// ReplaceDrive puts a new disk in a failed Drive's place (decision 232):
+	// formats it, gives it the failed Drive's name, tags and SnapRAID name,
+	// and rebuilds its files from parity. The caller repeats the new disk's
+	// model (or path), as for FormatDrive.
+	ReplaceDrive(context.Context, *v1.ReplaceDriveRequest) (*v1.ReplaceDriveResponse, error)
+	// ParityStatus is this Node's parity in detail: arrays, last sync and
+	// scrub, the running job, and why a sync was held.
+	GetParityStatus(context.Context, *v1.GetParityStatusRequest) (*v1.GetParityStatusResponse, error)
+	// MakeMirroredDrive formats two blank disks together as one btrfs RAID1
+	// filesystem and records it as a Mirrored Drive (decision 254). The
+	// caller repeats the first disk's model (or path).
+	MakeMirroredDrive(context.Context, *v1.MakeMirroredDriveRequest) (*v1.MakeMirroredDriveResponse, error)
+	// ReplaceMirrorDisk puts a new disk in a Mirrored Drive's failed disk's
+	// place (btrfs replace). The Drive is mounted degraded for it only here,
+	// on the user's word. The caller repeats the new disk's model (or path).
+	ReplaceMirrorDisk(context.Context, *v1.ReplaceMirrorDiskRequest) (*v1.ReplaceMirrorDiskResponse, error)
+	// CopiesNow runs the copy pass for every Space on this Node now.
+	CopiesNow(context.Context, *v1.CopiesNowRequest) (*v1.CopiesNowResponse, error)
 }
 
 // RegisterStorageServiceHandler registers svc as the maitre.v1.StorageService implementation on
@@ -144,6 +344,18 @@ func RegisterStorageServiceHandler(server *connect.Server, svc StorageServiceHan
 		connect.Method{Spec: storageServiceFormatDriveSpec(), Handler: adapter.formatDrive},
 		connect.Method{Spec: storageServiceSetDriveTagsSpec(), Handler: adapter.setDriveTags},
 		connect.Method{Spec: storageServiceForgetDriveSpec(), Handler: adapter.forgetDrive},
+		connect.Method{Spec: storageServicePlanDrainSpec(), Handler: adapter.planDrain},
+		connect.Method{Spec: storageServiceDrainDriveSpec(), Handler: adapter.drainDrive},
+		connect.Method{Spec: storageServiceListDrainsSpec(), Handler: adapter.listDrains},
+		connect.Method{Spec: storageServiceCancelDrainSpec(), Handler: adapter.cancelDrain},
+		connect.Method{Spec: storageServiceCheckParityDriveSpec(), Handler: adapter.checkParityDrive},
+		connect.Method{Spec: storageServiceSetParityDriveSpec(), Handler: adapter.setParityDrive},
+		connect.Method{Spec: storageServiceProtectNowSpec(), Handler: adapter.protectNow},
+		connect.Method{Spec: storageServiceReplaceDriveSpec(), Handler: adapter.replaceDrive},
+		connect.Method{Spec: storageServiceGetParityStatusSpec(), Handler: adapter.getParityStatus},
+		connect.Method{Spec: storageServiceMakeMirroredDriveSpec(), Handler: adapter.makeMirroredDrive},
+		connect.Method{Spec: storageServiceReplaceMirrorDiskSpec(), Handler: adapter.replaceMirrorDisk},
+		connect.Method{Spec: storageServiceCopiesNowSpec(), Handler: adapter.copiesNow},
 	)
 }
 
@@ -172,6 +384,54 @@ func (UnimplementedStorageServiceHandler) SetDriveTags(context.Context, *v1.SetD
 
 func (UnimplementedStorageServiceHandler) ForgetDrive(context.Context, *v1.ForgetDriveRequest) (*v1.ForgetDriveResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.ForgetDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) PlanDrain(context.Context, *v1.PlanDrainRequest) (*v1.PlanDrainResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.PlanDrain is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) DrainDrive(context.Context, *v1.DrainDriveRequest) (*v1.DrainDriveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.DrainDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) ListDrains(context.Context, *v1.ListDrainsRequest) (*v1.ListDrainsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.ListDrains is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) CancelDrain(context.Context, *v1.CancelDrainRequest) (*v1.CancelDrainResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.CancelDrain is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) CheckParityDrive(context.Context, *v1.CheckParityDriveRequest) (*v1.CheckParityDriveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.CheckParityDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) SetParityDrive(context.Context, *v1.SetParityDriveRequest) (*v1.SetParityDriveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.SetParityDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) ProtectNow(context.Context, *v1.ProtectNowRequest) (*v1.ProtectNowResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.ProtectNow is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) ReplaceDrive(context.Context, *v1.ReplaceDriveRequest) (*v1.ReplaceDriveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.ReplaceDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) GetParityStatus(context.Context, *v1.GetParityStatusRequest) (*v1.GetParityStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.GetParityStatus is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) MakeMirroredDrive(context.Context, *v1.MakeMirroredDriveRequest) (*v1.MakeMirroredDriveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.MakeMirroredDrive is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) ReplaceMirrorDisk(context.Context, *v1.ReplaceMirrorDiskRequest) (*v1.ReplaceMirrorDiskResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.ReplaceMirrorDisk is not implemented")
+}
+
+func (UnimplementedStorageServiceHandler) CopiesNow(context.Context, *v1.CopiesNowRequest) (*v1.CopiesNowResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.StorageService.CopiesNow is not implemented")
 }
 
 type storageServiceClient struct {
@@ -221,6 +481,102 @@ func (c *storageServiceClient) SetDriveTags(ctx context.Context, req *v1.SetDriv
 func (c *storageServiceClient) ForgetDrive(ctx context.Context, req *v1.ForgetDriveRequest) (*v1.ForgetDriveResponse, error) {
 	var res v1.ForgetDriveResponse
 	if err := c.client.CallUnary(ctx, storageServiceForgetDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) PlanDrain(ctx context.Context, req *v1.PlanDrainRequest) (*v1.PlanDrainResponse, error) {
+	var res v1.PlanDrainResponse
+	if err := c.client.CallUnary(ctx, storageServicePlanDrainSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) DrainDrive(ctx context.Context, req *v1.DrainDriveRequest) (*v1.DrainDriveResponse, error) {
+	var res v1.DrainDriveResponse
+	if err := c.client.CallUnary(ctx, storageServiceDrainDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) ListDrains(ctx context.Context, req *v1.ListDrainsRequest) (*v1.ListDrainsResponse, error) {
+	var res v1.ListDrainsResponse
+	if err := c.client.CallUnary(ctx, storageServiceListDrainsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) CancelDrain(ctx context.Context, req *v1.CancelDrainRequest) (*v1.CancelDrainResponse, error) {
+	var res v1.CancelDrainResponse
+	if err := c.client.CallUnary(ctx, storageServiceCancelDrainSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) CheckParityDrive(ctx context.Context, req *v1.CheckParityDriveRequest) (*v1.CheckParityDriveResponse, error) {
+	var res v1.CheckParityDriveResponse
+	if err := c.client.CallUnary(ctx, storageServiceCheckParityDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) SetParityDrive(ctx context.Context, req *v1.SetParityDriveRequest) (*v1.SetParityDriveResponse, error) {
+	var res v1.SetParityDriveResponse
+	if err := c.client.CallUnary(ctx, storageServiceSetParityDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) ProtectNow(ctx context.Context, req *v1.ProtectNowRequest) (*v1.ProtectNowResponse, error) {
+	var res v1.ProtectNowResponse
+	if err := c.client.CallUnary(ctx, storageServiceProtectNowSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) ReplaceDrive(ctx context.Context, req *v1.ReplaceDriveRequest) (*v1.ReplaceDriveResponse, error) {
+	var res v1.ReplaceDriveResponse
+	if err := c.client.CallUnary(ctx, storageServiceReplaceDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) GetParityStatus(ctx context.Context, req *v1.GetParityStatusRequest) (*v1.GetParityStatusResponse, error) {
+	var res v1.GetParityStatusResponse
+	if err := c.client.CallUnary(ctx, storageServiceGetParityStatusSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) MakeMirroredDrive(ctx context.Context, req *v1.MakeMirroredDriveRequest) (*v1.MakeMirroredDriveResponse, error) {
+	var res v1.MakeMirroredDriveResponse
+	if err := c.client.CallUnary(ctx, storageServiceMakeMirroredDriveSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) ReplaceMirrorDisk(ctx context.Context, req *v1.ReplaceMirrorDiskRequest) (*v1.ReplaceMirrorDiskResponse, error) {
+	var res v1.ReplaceMirrorDiskResponse
+	if err := c.client.CallUnary(ctx, storageServiceReplaceMirrorDiskSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *storageServiceClient) CopiesNow(ctx context.Context, req *v1.CopiesNowRequest) (*v1.CopiesNowResponse, error) {
+	var res v1.CopiesNowResponse
+	if err := c.client.CallUnary(ctx, storageServiceCopiesNowSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -294,6 +650,150 @@ func (h storageServiceHandler) forgetDrive(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.ForgetDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) planDrain(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PlanDrainRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PlanDrain(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) drainDrive(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.DrainDriveRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.DrainDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) listDrains(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListDrainsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListDrains(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) cancelDrain(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CancelDrainRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CancelDrain(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) checkParityDrive(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CheckParityDriveRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CheckParityDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) setParityDrive(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetParityDriveRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetParityDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) protectNow(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ProtectNowRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ProtectNow(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) replaceDrive(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ReplaceDriveRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ReplaceDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) getParityStatus(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetParityStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetParityStatus(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) makeMirroredDrive(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.MakeMirroredDriveRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.MakeMirroredDrive(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) replaceMirrorDisk(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ReplaceMirrorDiskRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ReplaceMirrorDisk(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h storageServiceHandler) copiesNow(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CopiesNowRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CopiesNow(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -33,8 +33,10 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/copies"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/drain"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/entry"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
@@ -46,6 +48,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/metrics"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/parity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peers"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
@@ -525,15 +528,17 @@ func runAgent(args []string) error {
 		for _, e := range errs {
 			log.Warn("drive", "err", e)
 		}
-		bySpace, err := stor.LocalBranches(ctx)
+		bySpace, noCreate, err := stor.LocalBranches(ctx)
 		if err != nil {
 			log.Warn("spaces", "err", err)
 			return
 		}
 		spaces, _ := storage.Spaces(ctx, st)
 		placement := map[string]pool.Placement{}
+		spaceByID := map[string]*maitrev1.Space{}
 		for _, b := range spaces {
 			placement[b.GetSpaceId()] = pool.PlacementOf(b.GetPlacement(), b.GetPreferLocal())
+			spaceByID[b.GetSpaceId()] = b
 		}
 		// Spanning Tiers (105, 106): peers' Pools after our own Drives. The
 		// default Tier can span too (user, 2026-10-26: "every Drive, across
@@ -568,16 +573,23 @@ func runAgent(args []string) error {
 				requestAssemble()
 			})
 		}
+		// Decision 258: a Spanning Space with a Parity Level puts new files
+		// only on Nodes with enough Parity Drives for it, when any has.
+		parityCount := storage.ParityDriveCounts(ctx, st)
 		var spaceIDs []string
 		for space, branches := range bySpace {
 			spaceIDs = append(spaceIDs, space)
 			storage.MarkSpaceFolders(branches)
 			all := append(append([]string(nil), branches...), remote[space]...)
-			if err := pool.Assemble(ctx, space, all, len(branches), placement[space]); err != nil {
+			nc := noCreate
+			if b := spaceByID[space]; b.GetSpanNodes() && b.GetParityLevel() > 0 && !b.GetMirrored() {
+				nc = storage.UnprotectedNoCreate(noCreate, branches, remote[space], id.Fingerprint(), int(b.GetParityLevel()), parityCount)
+			}
+			if err := pool.Assemble(ctx, space, all, len(branches), placement[space], nc); err != nil {
 				log.Warn("pool", "space", space, "err", err)
 			}
 			// What peers mount: our own branches only (decision 188).
-			if err := pool.AssembleShared(ctx, space, branches, placement[space]); err != nil {
+			if err := pool.AssembleShared(ctx, space, branches, placement[space], noCreate); err != nil {
 				log.Warn("shared pool", "space", space, "err", err)
 			}
 		}
@@ -652,6 +664,58 @@ func runAgent(args []string) error {
 	}
 	assemblePools()
 	ssvc2 := storageservice.New(stor)
+	// ADR 0009: Drain empties a Drive (a Parity Drive to be, a rule change
+	// that took it out of a Space) without its files vanishing from Pools.
+	dm := drain.New(st, log, id.Fingerprint())
+	dm.StateFile = filepath.Join(*state, "drains.json")
+	dm.Services = mgr.Drainer()
+	dm.OnChange = stor.OnChange
+	ssvc2.Drains = dm
+	go dm.Run(ctx)
+	// SnapRAID parity per Space on this Node's Parity Drives, synced on
+	// the schedule; status travels with the gossip.
+	pmgr := parity.New(st, log, id.Fingerprint(), stor, dm)
+	pmgr.StateFile = filepath.Join(*state, "parity.json")
+	ssvc2.Parity = pmgr
+	go pmgr.Schedule(ctx)
+	svc.Parity = pmgr.Status
+	svc.Drains = dm.Jobs
+	// Copies per Space: changed files copied as they go quiet, a full pass
+	// each hour; Mirrored Drives checked for the gossip.
+	cm := copies.New(st, log, id.Fingerprint(), stor)
+	ssvc2.Copies = cm
+	go cm.Run(ctx)
+	go cm.Watch(ctx)
+	svc.Copies = cm.Statuses
+	svc.Mirrors = cachedMirrors(stor.MirrorStatuses, 5*time.Minute)
+	// A Space's Parity Level or a Drive change reshapes the arrays.
+	withParity := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withParity(r)
+		if r.GetKind() == storage.KindSpace || r.GetKind() == storage.KindDrive {
+			go func() {
+				if _, err := pmgr.WriteConfigs(ctx); err != nil {
+					log.Warn("parity configs", "err", err)
+				}
+			}()
+		}
+	}
+	// A Space or Drive record that changed may have taken a Drive out of a
+	// Space: its files there move to the Space's other Drives (247).
+	requestSweep := func() {
+		go func() {
+			time.Sleep(2 * time.Second)
+			dm.Sweep(ctx)
+		}()
+	}
+	withDrain := svc.OnChange
+	svc.OnChange = func(r *maitrev1.Record) {
+		withDrain(r)
+		if r.GetKind() == storage.KindSpace || (r.GetKind() == storage.KindDrive && r.GetOwnerNodeId() == id.Fingerprint()) {
+			requestSweep()
+		}
+	}
+	requestSweep()
 	var hostAd *mdns.Advertisement
 	// Decision 218: the roles this Node holds (the router forwards the app's
 	// port, or the web's, here), what the domain's DNS says, and the
@@ -1378,5 +1442,21 @@ func recordHistory(ctx context.Context, log *slog.Logger, hist *history.Store, s
 				swept = now
 			}
 		}
+	}
+}
+
+// cachedMirrors asks btrfs about the Mirrored Drives at most every so
+// often; the gossip asks every five seconds.
+func cachedMirrors(check func(context.Context) []*maitrev1.MirrorStatus, every time.Duration) func(context.Context) []*maitrev1.MirrorStatus {
+	var mu sync.Mutex
+	var last []*maitrev1.MirrorStatus
+	var at time.Time
+	return func(ctx context.Context) []*maitrev1.MirrorStatus {
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(at) >= every {
+			last, at = check(ctx), time.Now()
+		}
+		return last
 	}
 }

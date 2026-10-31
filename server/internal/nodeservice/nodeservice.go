@@ -17,6 +17,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/parity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
@@ -43,6 +44,14 @@ type Service struct {
 	OnChange func(*maitrev1.Record)
 	// Entries are the entry roles this Node holds (decision 218), gossiped.
 	Entries func() []*maitrev1.EntryHold
+	// Parity is this Node's parity status and Drains its running Drain
+	// jobs (ADR 0009), gossiped; nil when the Node has neither.
+	Parity func(ctx context.Context) *maitrev1.ParityStatus
+	Drains func() []*maitrev1.DrainJob
+	// Copies and Mirrors are each Space's copies and each Mirrored
+	// Drive's health here (ADR 0009), gossiped.
+	Copies  func() []*maitrev1.CopiesStatus
+	Mirrors func(ctx context.Context) []*maitrev1.MirrorStatus
 	// Metrics supplies GetNodeMetrics; nil means empty readings.
 	Metrics func() *maitrev1.NodeMetrics
 	// History holds the long-term metrics (decision 210); nil answers
@@ -198,6 +207,15 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
 		}
 	}
+	if in.GetKind() == parity.KindSchedule && !in.GetDeleted() {
+		var sch maitrev1.ProtectionSchedule
+		if err := proto.Unmarshal(in.GetBody(), &sch); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "bad protection schedule")
+		}
+		if err := parity.ValidateSchedule(&sch); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+		}
+	}
 	if in.GetKind() == store.KindNode && in.GetId() != s.id.Fingerprint() && in.GetDeleted() {
 		// Removing a Node from the Fleet (guard on the Console side): a
 		// tombstone in the Node's own name, so it wins everywhere.
@@ -348,6 +366,22 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	if s.Entries != nil {
 		self.Entries = s.Entries()
 	}
+	if s.Parity != nil {
+		self.Parity = s.Parity(ctx)
+	}
+	if s.Drains != nil {
+		for _, j := range s.Drains() {
+			if j.GetState() == "queued" || j.GetState() == "running" {
+				self.Drains = append(self.Drains, j)
+			}
+		}
+	}
+	if s.Copies != nil {
+		self.Copies = s.Copies()
+	}
+	if s.Mirrors != nil {
+		self.Mirrors = s.Mirrors(ctx)
+	}
 	return self
 }
 
@@ -395,6 +429,8 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.UpdateAvailable = last.GetUpdateAvailable()
 				st.SyncGaps = last.GetSyncGaps()
 				st.Entries = last.GetEntries()
+				st.Parity, st.Drains = last.GetParity(), last.GetDrains()
+				st.Copies, st.Mirrors = last.GetCopies(), last.GetMirrors()
 			}
 			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)
