@@ -57,7 +57,7 @@ const IDLE_CHOICES: [number, string][] = [
 const gb = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6).toFixed(0)} MB`);
 
 /** Asks the Installer at addr to restart the machine (decision 270). */
-async function restartInstaller(addr: string, label: string) {
+export async function restartInstaller(addr: string, label: string) {
   try {
     const p = await api.peekInstaller(addr);
     await createClient(InstallerService, transportFor({ addr, fingerprint: p.fingerprint })).restart({});

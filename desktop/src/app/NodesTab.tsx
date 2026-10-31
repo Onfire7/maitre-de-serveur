@@ -18,7 +18,7 @@ import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import type { ConsoleState, Found } from "@/state";
 import { randomNodeName } from "@/names";
 import { formatBytes, ago } from "@/lib/format";
-import { NetbootPanel } from "./NetbootPanel";
+import { NetbootPanel, restartInstaller } from "./NetbootPanel";
 import { MediaPanel } from "./MediaPanel";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
@@ -69,9 +69,14 @@ export function NodesTab({
                     {f.addresses[0]} · installer {f.id.slice(0, 8)}
                   </div>
                 </div>
-                <Button size="sm" onClick={() => go({ name: "add-node", addr: f.addresses[0], installerId: f.id })}>
-                  Set up
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => restartInstaller(f.addresses[0], f.machine || "The machine")}>
+                    Restart
+                  </Button>
+                  <Button size="sm" onClick={() => go({ name: "add-node", addr: f.addresses[0], installerId: f.id })}>
+                    Set up
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
