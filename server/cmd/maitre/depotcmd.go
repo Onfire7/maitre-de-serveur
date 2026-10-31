@@ -82,6 +82,13 @@ func runDepotPublish(args []string) error {
 		return err
 	}
 	fmt.Printf("published %s as %s:%s in %s (%s)\n", image, *name, *tag, l.Images(), time.Since(started).Round(time.Second))
+	// Boot files the Depot already has would otherwise boot an Installer
+	// older than the image it installs (decision 266): rebuild them from
+	// this image whether or not --netboot was given.
+	if !*netboot && depot.HaveBootFiles(l) {
+		fmt.Printf("rebuilding the netboot files in %s, which were built from an earlier image\n", l.Boot())
+		*netboot = true
+	}
 	if *netboot {
 		started = time.Now()
 		if err := depot.BuildBootFiles(context.Background(), l, image, *imageRef, os.Stdout, os.Stderr); err != nil {
