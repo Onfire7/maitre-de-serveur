@@ -79,7 +79,12 @@ func Handler(l Layout, registry string) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"registry": registry, "images": imgs})
 	})
-	mux.Handle("/boot/", http.StripPrefix("/boot/", http.FileServer(http.Dir(l.Boot()))))
+	boot := http.StripPrefix("/boot/", http.FileServer(http.Dir(l.Boot())))
+	mux.HandleFunc("/boot/", func(w http.ResponseWriter, r *http.Request) {
+		// As for /api/images: the Console's webview may read the manifest.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		boot.ServeHTTP(w, r)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)

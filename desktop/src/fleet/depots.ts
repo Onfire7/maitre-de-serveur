@@ -51,11 +51,14 @@ export function useDepots(): Depot[] {
   return depots;
 }
 
-/** The boot files a Depot serves, by name, from its netboot.json. */
+/**
+ * The boot files a Depot serves now, by name, from its netboot.json. Read
+ * by the Rust side: the webview cannot, as a Depot from before decision 263
+ * sends no CORS header for /boot/.
+ */
 export async function depotBootDigests(base: string): Promise<Record<string, string> | null> {
   try {
-    const m = (await (await fetch(`${base}netboot.json`, { signal: AbortSignal.timeout(3000) })).json()) as { files?: Record<string, { sha256?: string }> };
-    return Object.fromEntries(Object.entries(m.files ?? {}).map(([n, f]) => [n, f.sha256 ?? ""]));
+    return await invoke<Record<string, string>>("netboot_depot_digests", { base });
   } catch {
     return null;
   }

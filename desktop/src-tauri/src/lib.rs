@@ -250,6 +250,11 @@ fn netboot_files(state: State<'_, AppState>) -> netboot::FilesStatus {
 /// base: URL ending in "/" where netboot.json and the files live
 /// (a Depot's /boot/ or the GitHub release); empty means the release.
 #[tauri::command]
+async fn netboot_depot_digests(base: String) -> Result<std::collections::BTreeMap<String, String>, String> {
+    netboot::Netboot::depot_digests(base).await
+}
+
+#[tauri::command]
 async fn netboot_download(app: tauri::AppHandle, state: State<'_, AppState>, base: String) -> Result<netboot::FilesStatus, String> {
     let base = if base.is_empty() { netboot::RELEASE_BASE.to_string() } else { base };
     netboot::Netboot::download(app, state.data_dir.clone(), base).await
@@ -454,6 +459,7 @@ pub fn run() {
             media_status,
             netboot_files,
             netboot_download,
+            netboot_depot_digests,
             netboot_start,
             netboot_stop,
             netboot_status

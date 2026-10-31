@@ -152,12 +152,12 @@ impl Netboot {
             return st;
         };
         st.image = m.image.clone();
+        st.digests = digests_of(&m);
         for (name, f) in &m.files {
             if !BOOT_FILES.contains(&name.as_str()) {
                 continue;
             }
             st.total_bytes += f.size;
-            st.digests.insert(name.clone(), f.sha256.clone());
             match fs::metadata(dir.join(name)) {
                 Ok(md) if md.len() == f.size => st.have_bytes += f.size,
                 _ => st.missing.push(name.clone()),
@@ -166,6 +166,16 @@ impl Netboot {
         st.ready = st.missing.is_empty() && !m.files.is_empty();
         st.bios = m.optional.get(BIOS_FILE).is_some_and(|f| fs::metadata(dir.join(BIOS_FILE)).is_ok_and(|md| md.len() == f.size));
         st
+    }
+
+    /// The digests of the boot files a Depot serves now, by name, from its
+    /// manifest (decision 263). Fetched here, not by the webview: a Depot
+    /// from before this sends no CORS header for /boot/.
+    pub async fn depot_digests(base: String) -> Result<BTreeMap<String, String>, String> {
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build().map_err(|e| e.to_string())?;
+        let raw = client.get(format!("{base}{MANIFEST}")).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+        let manifest: Manifest = serde_json::from_slice(&raw).map_err(|e| format!("netboot.json: {e}"))?;
+        Ok(digests_of(&manifest))
     }
 
     /// Download the bundle from `base` (ending in `/`) into the data dir,
@@ -459,6 +469,11 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
         }
         std::thread::sleep(Duration::from_millis(500));
     }
+}
+
+/// Each required boot file's digest, as the manifest lists it.
+fn digests_of(m: &Manifest) -> BTreeMap<String, String> {
+    m.files.iter().filter(|(n, _)| BOOT_FILES.contains(&n.as_str())).map(|(n, f)| (n.clone(), f.sha256.clone())).collect()
 }
 
 fn file_sha256(path: &Path) -> Result<String, String> {
