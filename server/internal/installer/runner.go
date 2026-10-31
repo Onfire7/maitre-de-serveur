@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,8 +61,12 @@ type Runner interface {
 const (
 	ConfigLabel = "maitre-config"
 	DataLabel   = "maitre-data"
-	// RootSize leaves room for the config and data partitions after the OS.
+	// RootSize leaves room for the config and data partitions after the OS;
+	// a disk too small for it gets what it can spare (decision 269).
 	RootSize = "32G"
+	// MinRoot is the least the OS partition may be: the image is about 2 GB
+	// installed, and updates keep a second copy.
+	MinRoot = 8 << 30
 	// ConfigSize is tiny: it holds keys and the kilobyte-scale Fleet database.
 	ConfigSize = "512M"
 )
@@ -187,6 +192,10 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 	}
 
 	progress(maitrev1.Provisioning_PHASE_INSTALLING, 50, "writing the OS to "+plan.TargetDisk)
+	root, err := r.rootSize(ctx, plan)
+	if err != nil {
+		return err
+	}
 	install := &progressWriter{onLine: func(l string) {
 		progress(maitrev1.Provisioning_PHASE_INSTALLING, 60, strings.TrimSpace(l))
 	}}
@@ -194,7 +203,7 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/dev:/dev", "-v", "/var/lib/containers:/var/lib/containers",
 		plan.ImageRef,
-		"bootc", "install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
+		"bootc", "install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", root,
 		"--target-imgref", plan.ImageRef, "--skip-fetch-check"}
 	args = append(args, consoleKargs()...)
 	if err := r.exec(ctx, install, "podman", append(args, plan.TargetDisk)...); err != nil {
@@ -208,6 +217,10 @@ func (r *BootcRunner) Install(ctx context.Context, plan Plan, progress Progress)
 // progress lines; they are relayed as the message.
 func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Progress) error {
 	progress(maitrev1.Provisioning_PHASE_INSTALLING, 0, "writing Maître Server to "+plan.TargetDisk)
+	root, err := r.rootSize(ctx, plan)
+	if err != nil {
+		return err
+	}
 	install := &progressWriter{onLine: func(l string) {
 		if l = strings.TrimSpace(l); l != "" {
 			progress(maitrev1.Provisioning_PHASE_INSTALLING, 30, l)
@@ -217,13 +230,46 @@ func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Pro
 	if src == "" {
 		src = "docker://" + plan.ImageRef
 	}
-	args := []string{"install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", RootSize,
+	args := []string{"install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", root,
 		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check"}
 	args = append(args, consoleKargs()...)
 	if err := r.exec(ctx, install, "bootc", append(args, plan.TargetDisk)...); err != nil {
 		return fmt.Errorf("bootc install: %w", err)
 	}
 	return nil
+}
+
+// rootSize is bootc's --root-size for the target: RootSize when the disk
+// has room for it and the partitions added after, less on a small disk
+// (a 29 GiB USB stick), and an error when even MinRoot does not fit.
+func (r *BootcRunner) rootSize(ctx context.Context, plan Plan) (string, error) {
+	var out strings.Builder
+	if err := r.exec(ctx, &out, "lsblk", "-bdno", "SIZE", plan.TargetDisk); err != nil {
+		return RootSize, nil
+	}
+	size, err := strconv.ParseInt(strings.TrimSpace(out.String()), 10, 64)
+	if err != nil || size <= 0 {
+		return RootSize, nil
+	}
+	return rootSizeFor(size, plan.DataPartition)
+}
+
+// rootSizeFor is rootSize's arithmetic. bootc puts 1 MiB of BIOS boot and
+// a 512 MiB ESP before the root; the config partition follows it, then the
+// data partition if wanted, which is given at least 2 GiB to be worth having.
+func rootSizeFor(disk int64, data bool) (string, error) {
+	reserve := int64(1<<30) + 512<<20
+	if data {
+		reserve += 2 << 30
+	}
+	root := disk - reserve
+	if root >= 32<<30 {
+		return RootSize, nil
+	}
+	if root < MinRoot {
+		return "", fmt.Errorf("the disk is too small: %.1f GiB; Maître needs at least %d GiB%s", float64(disk)/(1<<30), (MinRoot+reserve)>>30, map[bool]string{true: " with a data partition", false: ""}[data])
+	}
+	return fmt.Sprintf("%dM", root>>20), nil
 }
 
 // consoleKargs passes the Installer's own console= arguments on to the

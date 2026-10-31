@@ -3,6 +3,7 @@ package installer
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -37,5 +38,34 @@ func TestTailWriterPicksTheErrorLineOverADump(t *testing.T) {
 	}
 	if Output(errors.New("plain")) != nil {
 		t.Error("a plain error has no output")
+	}
+}
+
+// A small disk gets a smaller root so the config (and data) partition still
+// fits after it; a disk with no room for even MinRoot is refused (decision 269).
+func TestRootSizeFor(t *testing.T) {
+	for _, c := range []struct {
+		disk int64
+		data bool
+		want string
+	}{
+		{1 << 40, true, "32G"},
+		{40 << 30, false, "32G"},
+		{31042043904, false, "28068M"}, // the 28.9 GiB stick, less 1.5 GiB
+		{31042043904, true, "26020M"},
+		{16 << 30, false, "14848M"},
+		{8 << 30, false, ""},
+		{10 << 30, true, ""},
+	} {
+		got, err := rootSizeFor(c.disk, c.data)
+		if c.want == "" {
+			if err == nil || !strings.Contains(err.Error(), "too small") {
+				t.Errorf("%d data=%v: want too small, got %q %v", c.disk, c.data, got, err)
+			}
+			continue
+		}
+		if err != nil || got != c.want {
+			t.Errorf("%d data=%v: got %q %v, want %q", c.disk, c.data, got, err, c.want)
+		}
 	}
 }
