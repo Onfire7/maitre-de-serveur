@@ -244,7 +244,7 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		}
 		rec, err := s.store.Get(ctx, store.KindNode, in.GetId(), &maitrev1.Node{})
 		if err != nil {
-			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+			return nil, connect.Errorf(connect.CodeInternal, "node %s after introduction: %v", in.GetId()[:min(8, len(in.GetId()))], err)
 		}
 		if added {
 			if s.OnChange != nil {

@@ -2,7 +2,7 @@
 // pairing code, name the Node and pick its disk, then watch the install.
 // Reports progress up so the sidebar can show the new Node as Provisioning.
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@connectrpc/connect";
+import { ConnectError, createClient } from "@connectrpc/connect";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { Dices, Check, X, HardDrive, Usb, FolderSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -201,7 +201,12 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
       onProgress({ name: restore ? (status?.backups.find((b) => b.nodeId === restore)?.nodeName ?? name) : name, percent: 0, message: "starting" });
       if (!restore && sponsor) {
         const body = toBinary(NodeSchema, create(NodeSchema, { nodeId: fp, name: name.trim(), publicKeyPem: pem, addresses: [addr], provisionedUnixMs: BigInt(Date.now()) }));
-        await putSigned(sponsor, { kind: "node", id: fp, body });
+        try {
+          await putSigned(sponsor, { kind: "node", id: fp, body });
+        } catch (e) {
+          // The install goes on without it; the Fleet would not know the Node.
+          throw new Error(`The install is running, but the Fleet's Node at ${sponsor.addr} would not record the new Node: ${ConnectError.from(e).rawMessage}`);
+        }
       }
     } catch (e) {
       setError(String((e as Error).message ?? e));

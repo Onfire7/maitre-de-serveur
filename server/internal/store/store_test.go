@@ -132,3 +132,34 @@ func TestApplyTombstoneFromTheWire(t *testing.T) {
 		t.Fatal("the record should be gone on b")
 	}
 }
+
+// A Node removed and set up again from the same Installer boot comes back
+// past its tombstone, with a version every Node applies (decision 272).
+func TestIntroduceRevivesARemovedNode(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, "sponsor")
+	n := &maitrev1.Node{NodeId: "n2", Name: "Avalon", PublicKeyPem: "pem"}
+	if added, err := s.Introduce(ctx, n); err != nil || !added {
+		t.Fatalf("first: %v %v", added, err)
+	}
+	if added, err := s.Introduce(ctx, n); err != nil || added {
+		t.Fatalf("a live Node is left alone: %v %v", added, err)
+	}
+	if _, err := s.Tombstone(ctx, store.KindNode, "n2", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Get(ctx, store.KindNode, "n2", nil); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("not removed: %v", err)
+	}
+	added, err := s.Introduce(ctx, &maitrev1.Node{NodeId: "n2", Name: "Avalon", PublicKeyPem: "pem2"})
+	if err != nil || !added {
+		t.Fatalf("revive: %v %v", added, err)
+	}
+	rec, err := s.Get(ctx, store.KindNode, "n2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.GetVersion() != 2 || rec.GetOwnerNodeId() != "n2" || rec.GetDeleted() {
+		t.Errorf("revived record: %+v", rec)
+	}
+}

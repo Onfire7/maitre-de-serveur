@@ -156,11 +156,24 @@ func (s *Store) Introduce(ctx context.Context, node *maitrev1.Node) (bool, error
 }
 
 // IntroduceSigned is Introduce with a Trusted Device's signed Node record
-// (decision 189), kept with its signature.
+// (decision 189), kept with its signature. A Node removed earlier under the
+// same id (an install tried again from the same Installer boot, after its
+// first attempt's Node was removed) is revived past its tombstone (decision
+// 272): the version advances so every Node applies it. A live Node is left
+// as it is.
 func (s *Store) IntroduceSigned(ctx context.Context, rec *maitrev1.Record) (bool, error) {
 	body := rec.GetBody()
 	if body == nil {
 		body = []byte{}
+	}
+	cur, err := s.getRaw(ctx, KindNode, rec.GetId())
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return false, err
+	}
+	if cur != nil && cur.Deleted {
+		_, err := s.db.ExecContext(ctx, `UPDATE records SET version=?, updated_unix_ms=?, body=?, deleted=0, signer_key=?, signature=?, signed_unix_ms=? WHERE kind=? AND id=?`,
+			cur.Version+1, s.now().UnixMilli(), body, nz(rec.GetSignerKey()), nz(rec.GetSignature()), rec.GetSignedUnixMs(), KindNode, rec.GetId())
+		return err == nil, err
 	}
 	res, err := s.db.ExecContext(ctx, `
 INSERT OR IGNORE INTO records (kind, id, owner_node_id, version, updated_unix_ms, body, deleted, signer_key, signature, signed_unix_ms)
