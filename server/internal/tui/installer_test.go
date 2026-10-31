@@ -15,11 +15,12 @@ import (
 type fakeInstaller struct {
 	code    string
 	phase   maitrev1.Provisioning_Phase
+	output  []string
 	folders map[string][]*maitrev1.FolderEntry
 }
 
 func (f *fakeInstaller) Status() InstallerStatus {
-	return InstallerStatus{Version: "test", Machine: "OptiPlex 7080", Identity: "0123456789abcdef0123", Addresses: []string{"192.168.4.81"}, Image: "ghcr.io/onfire7/maitre-server:stable", Code: f.code, Provisioning: &maitrev1.Provisioning{Phase: f.phase, Percent: 42, Message: "writing the image"}}
+	return InstallerStatus{Version: "test", Machine: "OptiPlex 7080", Identity: "0123456789abcdef0123", Addresses: []string{"192.168.4.81"}, Image: "ghcr.io/onfire7/maitre-server:stable", Code: f.code, Provisioning: &maitrev1.Provisioning{Phase: f.phase, Percent: 42, Message: "writing the image", Output: f.output}}
 }
 
 var testDisks = []*maitrev1.Disk{
@@ -102,7 +103,22 @@ func TestInstallerPages(t *testing.T) {
 	if v := m.View(); !strings.Contains(v, "42%") || !strings.Contains(v, "Do not power off") {
 		t.Errorf("no progress:\n%s", v)
 	}
+	// A failure shows the failing command's last lines.
+	src.phase = maitrev1.Provisioning_PHASE_FAILED
+	src.output = []string{"Running bootupctl backend install", "ERROR Installing to disk: Task bootupctl backend install failed: exit status 1", "Command {", strings.Repeat("x", 200), "}"}
+	m.Update(tickMsg{})
+	v = m.View()
+	show(t, "failed", v)
+	if !strings.Contains(v, "Install failed") || !strings.Contains(v, "ERROR Installing to disk") || !strings.Contains(v, "…") {
+		t.Errorf("failure without the command's output:\n%s", v)
+	}
+	for i, l := range strings.Split(v, "\n") {
+		if w := lipgloss.Width(l); w > 110 {
+			t.Errorf("failed line %d is %d wide", i, w)
+		}
+	}
 	src.phase = maitrev1.Provisioning_PHASE_IDLE
+	src.output = nil
 
 	// Disks: every disk with what it holds.
 	drive(t, m, "2")

@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/format";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
-import { InstallerService, Provisioning_Phase, type InstallerStatus } from "@/gen/maitre/v1/installer_pb";
+import { InstallerService, Provisioning_Phase, type InstallerStatus, type Provisioning as InstallerProvisioning } from "@/gen/maitre/v1/installer_pb";
 import { NodeSchema, TrustedDeviceSchema, type Node as FleetNode, type Record as Rec, type TrustedDevice } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
@@ -38,6 +38,22 @@ export interface Provisioning {
   name: string;
   percent: number;
   message: string;
+}
+
+/** An Install the Installer gave up on: why, and what the failing command printed
+ * (decision 265; Installers before it send no output). */
+export function InstallFailed({ prov }: { prov: InstallerProvisioning }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-destructive">Install failed: {prov.message}</p>
+      {prov.output.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">What the installer printed ({prov.output.length} lines)</summary>
+          <pre className="mt-1 max-h-48 overflow-auto rounded-md border bg-muted/30 p-2 whitespace-pre-wrap break-all">{prov.output.join("\n")}</pre>
+        </details>
+      )}
+    </div>
+  );
 }
 
 export function AddNode({ found, device, state, snap, onCancel, onProvisioned, onProgress }: { found: Found; device: DeviceInfo; state: ConsoleState; snap: FleetSnapshot | undefined; onCancel: () => void; onProvisioned: (node: KnownNode) => void; onProgress: (p: Provisioning | null) => void }) {
@@ -324,7 +340,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
             </label>
           )}
           {(error || pollError) && <p className="text-sm text-destructive">{error || pollError}</p>}
-          {prov?.phase === Provisioning_Phase.FAILED && <p className="text-sm text-destructive">Install failed: {prov.message}</p>}
+          {prov?.phase === Provisioning_Phase.FAILED && <InstallFailed prov={prov} />}
           <div className="flex gap-2">
             <Button disabled={!chosen || (!restore && !name.trim()) || usbNeedsData} onClick={provision}>
               {restore ? "Restore" : "Install"}

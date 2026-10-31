@@ -767,7 +767,11 @@ type Provisioning struct {
 	Phase   Provisioning_Phase     `protobuf:"varint,1,opt,name=phase,proto3,enum=maitre.v1.Provisioning_Phase" json:"phase,omitempty"`
 	Message string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	// 0..100 within the current phase.
-	Percent       uint32 `protobuf:"varint,3,opt,name=percent,proto3" json:"percent,omitempty"`
+	Percent uint32 `protobuf:"varint,3,opt,name=percent,proto3" json:"percent,omitempty"`
+	// When the phase is FAILED: the last lines the failing command printed
+	// (bootc, sfdisk, mkfs), so the reason can be read without the machine's
+	// journal (decision 265). Installers before it send none.
+	Output        []string `protobuf:"bytes,4,rep,name=output,proto3" json:"output,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -821,6 +825,13 @@ func (x *Provisioning) GetPercent() uint32 {
 		return x.Percent
 	}
 	return 0
+}
+
+func (x *Provisioning) GetOutput() []string {
+	if x != nil {
+		return x.Output
+	}
+	return nil
 }
 
 type ProvisionRequest struct {
@@ -1036,11 +1047,12 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12(\n" +
 	"\x10modified_unix_ms\x18\x04 \x01(\x03R\x0emodifiedUnixMs\x12\x12\n" +
-	"\x04link\x18\x05 \x01(\bR\x04link\"\xfc\x01\n" +
+	"\x04link\x18\x05 \x01(\bR\x04link\"\x94\x02\n" +
 	"\fProvisioning\x123\n" +
 	"\x05phase\x18\x01 \x01(\x0e2\x1d.maitre.v1.Provisioning.PhaseR\x05phase\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
-	"\apercent\x18\x03 \x01(\rR\apercent\"\x82\x01\n" +
+	"\apercent\x18\x03 \x01(\rR\apercent\x12\x16\n" +
+	"\x06output\x18\x04 \x03(\tR\x06output\"\x82\x01\n" +
 	"\x05Phase\x12\x15\n" +
 	"\x11PHASE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

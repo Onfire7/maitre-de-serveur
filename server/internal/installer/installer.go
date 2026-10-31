@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -290,6 +291,12 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		in.prov = &maitrev1.Provisioning{Phase: phase, Percent: pct, Message: msg}
 		in.mu.Unlock()
 	}
+	fail := func(err error) {
+		slog.Error("install failed", "err", err)
+		in.mu.Lock()
+		in.prov = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_FAILED, Message: err.Error(), Output: Output(err)}
+		in.mu.Unlock()
+	}
 	err := in.opts.Runner.Install(ctx, Plan{
 		ImageRef:      in.opts.ImageRef,
 		Source:        in.opts.Source,
@@ -305,7 +312,7 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		RestoreNodeID: req.GetRestoreNodeId(),
 	}, progress)
 	if err != nil {
-		progress(maitrev1.Provisioning_PHASE_FAILED, 0, err.Error())
+		fail(err)
 		return
 	}
 	progress(maitrev1.Provisioning_PHASE_REBOOTING, 100, "installed; rebooting")

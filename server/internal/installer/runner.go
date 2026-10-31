@@ -2,12 +2,15 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -82,7 +85,10 @@ func (r *BootcRunner) exec(ctx context.Context, stdout io.Writer, name string, a
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	tail := &tailWriter{}
-	cmd.Stdout = io.MultiWriter(stdout, tail)
+	// Every line goes to the journal too, so the machine's Log page and
+	// journalctl have the whole story of a failed command (decision 265).
+	journal := &progressWriter{onLine: func(l string) { slog.Info(name, "out", strings.TrimSpace(l)) }}
+	cmd.Stdout = io.MultiWriter(stdout, tail, journal)
 	cmd.Stderr = cmd.Stdout
 	return tail.explain(cmd.Run())
 }
@@ -93,13 +99,38 @@ type tailWriter struct{ buf []byte }
 
 func (t *tailWriter) Write(p []byte) (int, error) {
 	t.buf = append(t.buf, p...)
-	if len(t.buf) > 4096 {
-		t.buf = t.buf[len(t.buf)-4096:]
+	if len(t.buf) > 8192 {
+		t.buf = t.buf[len(t.buf)-8192:]
 	}
 	return len(p), nil
 }
 
-// explain adds the last three lines of output to err.
+// OutputError is a failed command with the end of what it printed, for the
+// Installer to show in full (decision 265).
+type OutputError struct {
+	Err   error
+	Lines []string
+}
+
+func (e *OutputError) Error() string { return e.Err.Error() }
+func (e *OutputError) Unwrap() error { return e.Err }
+
+// Output returns the lines a failed command printed, if err carries them.
+func Output(err error) []string {
+	var oe *OutputError
+	if errors.As(err, &oe) {
+		return oe.Lines
+	}
+	return nil
+}
+
+// errorLine marks the line that names what went wrong, as bootc ("ERROR
+// Installing to disk"), sfdisk ("Failed to add") and mkfs put it.
+var errorLine = regexp.MustCompile(`(?i)\b(error|failed|cannot|can't|unable|denied|no such|not found|refused|invalid)\b`)
+
+// explain adds three lines of output to err, ending at the last line that
+// names an error rather than at the very end: bootc follows its error with a
+// many-line dump of the command it ran, whose tail says nothing.
 func (t *tailWriter) explain(err error) error {
 	if err == nil {
 		return nil
@@ -110,13 +141,18 @@ func (t *tailWriter) explain(err error) error {
 			lines = append(lines, l)
 		}
 	}
-	if len(lines) > 3 {
-		lines = lines[len(lines)-3:]
-	}
 	if len(lines) == 0 {
 		return err
 	}
-	return fmt.Errorf("%w: %s", err, strings.Join(lines, " / "))
+	end := len(lines)
+	for i := len(lines) - 1; i >= 0; i-- {
+		if errorLine.MatchString(lines[i]) {
+			end = i + 1
+			break
+		}
+	}
+	start := max(0, end-3)
+	return &OutputError{Err: fmt.Errorf("%w: %s", err, strings.Join(lines[start:end], " / ")), Lines: lines}
 }
 
 // execPull is exec on a pseudo-terminal, so podman draws progress bars.

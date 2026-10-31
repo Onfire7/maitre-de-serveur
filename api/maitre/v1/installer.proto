@@ -136,6 +136,10 @@ message Provisioning {
   string message = 2;
   // 0..100 within the current phase.
   uint32 percent = 3;
+  // When the phase is FAILED: the last lines the failing command printed
+  // (bootc, sfdisk, mkfs), so the reason can be read without the machine's
+  // journal (decision 265). Installers before it send none.
+  repeated string output = 4;
 }
 
 message ProvisionRequest {

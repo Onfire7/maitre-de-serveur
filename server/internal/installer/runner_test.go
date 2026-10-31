@@ -21,3 +21,21 @@ func TestTailWriterExplainsAFailure(t *testing.T) {
 		t.Errorf("no output: %q", err)
 	}
 }
+
+// bootc follows its error with a pretty-printed dump of the command it ran;
+// the failure names the error, and keeps every line for the Installer.
+func TestTailWriterPicksTheErrorLineOverADump(t *testing.T) {
+	tw := &tailWriter{}
+	fmt.Fprint(tw, "Running bootupctl backend install\nERROR Installing to disk: Task bootupctl backend install failed: exit status 1\nCommand {\n    program: \"bootupctl\",\n    args: [\n        \"backend\",\n    ],\n    create_pidfd: false,\n}\n")
+	err := tw.explain(errors.New("exit status 1"))
+	want := "exit status 1: Running bootupctl backend install / ERROR Installing to disk: Task bootupctl backend install failed: exit status 1"
+	if err.Error() != want {
+		t.Errorf("got %q", err)
+	}
+	if out := Output(err); len(out) != 9 || out[8] != "}" {
+		t.Errorf("output %q", out)
+	}
+	if Output(errors.New("plain")) != nil {
+		t.Error("a plain error has no output")
+	}
+}

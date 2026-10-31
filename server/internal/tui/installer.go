@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"golang.org/x/term"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -572,6 +573,23 @@ func (m *installerModel) viewInstall() string {
 	case maitrev1.Provisioning_PHASE_FAILED:
 		st.WriteString(chartRed.Render("Install failed") + "\n\n")
 		st.WriteString(p.GetMessage() + "\n\n")
+		// The failing command's last lines, as many as the screen has room
+		// for under the banner and the panel's own lines (decision 265).
+		if out := p.GetOutput(); len(out) > 0 {
+			room := m.height - lipgloss.Height(top) - 12
+			if room > 12 {
+				room = 12
+			}
+			if room > 0 {
+				if len(out) > room {
+					out = out[len(out)-room:]
+				}
+				for _, l := range out {
+					st.WriteString(dim.Render(ansi.Truncate(l, max(10, m.width-6), "…")) + "\n")
+				}
+				st.WriteString("\n")
+			}
+		}
 		st.WriteString(dim.Render("Fix the problem in Maître Desktop and try again. Press 3 for the log."))
 	default:
 		if s.Code == "" {
