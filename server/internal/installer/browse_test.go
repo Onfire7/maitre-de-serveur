@@ -230,6 +230,16 @@ func TestRestartRefusedWhileInstalling(t *testing.T) {
 	if _, err := in.Restart(ctx, &maitrev1.RestartRequest{}); err == nil || !strings.Contains(err.Error(), "installing") {
 		t.Errorf("during install: %v", err)
 	}
+	// Forced, it stops the install first (decision 273).
+	installCtx, cancel := context.WithCancel(context.Background())
+	in.cancelInstall = cancel
+	if _, err := in.Restart(ctx, &maitrev1.RestartRequest{Force: true}); err != nil {
+		t.Fatalf("forced: %v", err)
+	}
+	if installCtx.Err() == nil {
+		t.Error("the install was not stopped")
+	}
+	<-rebooted
 	in.mu.Lock()
 	in.prov = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_FAILED}
 	in.mu.Unlock()

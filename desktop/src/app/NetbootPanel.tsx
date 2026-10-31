@@ -56,15 +56,20 @@ const IDLE_CHOICES: [number, string][] = [
 ];
 const gb = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6).toFixed(0)} MB`);
 
-/** Asks the Installer at addr to restart the machine (decision 270). */
-export async function restartInstaller(addr: string, label: string) {
+/** Asks the Installer at addr to restart the machine (decision 270). While
+ * an install runs the Installer refuses, and the toast offers to restart
+ * anyway, which stops the install first (decision 273). */
+export async function restartInstaller(addr: string, label: string, force = false) {
   try {
     const p = await api.peekInstaller(addr);
-    await createClient(InstallerService, transportFor({ addr, fingerprint: p.fingerprint })).restart({});
+    await createClient(InstallerService, transportFor({ addr, fingerprint: p.fingerprint })).restart({ force });
     toast.success(`${label} is restarting`);
   } catch (e) {
     const ce = ConnectError.from(e);
-    toast.error(ce.code === Code.Unimplemented ? `${label} runs an Installer too old to restart from here: press r on its screen.` : `${label}: ${ce.rawMessage}`);
+    if (ce.code === Code.Unimplemented) toast.error(`${label} runs an Installer too old to restart from here: press r on its screen.`);
+    else if (ce.code === Code.FailedPrecondition && /installing/.test(ce.rawMessage) && !force)
+      toast.warning(`${label} is installing. Restarting now stops the install and leaves the disk half written.`, { action: { label: "Restart anyway", onClick: () => restartInstaller(addr, label, true) }, duration: 15000 });
+    else toast.error(`${label}: ${ce.rawMessage}`);
   }
 }
 

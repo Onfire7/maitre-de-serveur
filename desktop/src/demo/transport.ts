@@ -489,10 +489,12 @@ const handlers: Record<string, Handler> = {
     if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
     return { lines: ['time=2026-10-31T19:26:12Z level=INFO msg="maitre installer" installer_id=' + ins.id, "time=2026-10-31T19:26:12Z level=INFO msg=listening addr=0.0.0.0:7443", ...ins.log.map((l) => `time=2026-10-31T19:27:00Z level=INFO msg="bootc" out="${l}"`)] };
   },
-  "InstallerService/Restart": (f, _n, _i, addr) => {
+  "InstallerService/Restart": (f, _n, i, addr) => {
     const ins = f.installer;
     if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
-    if (ins.provisioning) throw fail(Code.FailedPrecondition, "installing; the machine restarts by itself when done");
+    if (ins.provisioning && !i.force) throw fail(Code.FailedPrecondition, "installing; the machine restarts by itself when done");
+    ins.provisioning = false;
+    ins.progress = 0;
     ins.log = [];
     return {};
   },

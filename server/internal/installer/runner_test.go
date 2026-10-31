@@ -113,3 +113,15 @@ func TestReleaseDisk(t *testing.T) {
 		t.Errorf("ran:\n%s\nwant:\n%s", got, strings.Join(want, "\n"))
 	}
 }
+
+func TestParseRxBytes(t *testing.T) {
+	dev := `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo: 5830085706  315764    0    0    0     0          0         0 5830085706  315764    0    0    0     0       0          0
+enp3s0: 2369056660 2807176    0 1089    0     0          0     66114 13923130782 1321041    0    0    0     0       0          0
+ wlan0:       1000       7    0    0    0     0          0         0        500       3    0    0    0     0       0          0
+`
+	if got := parseRxBytes(dev); got != 2369056660+1000 {
+		t.Errorf("rx %d", got)
+	}
+}

@@ -176,7 +176,11 @@ message ProvisionRequest {
 
 message ProvisionResponse {}
 
-message RestartRequest {}
+message RestartRequest {
+  // Restart even while an install runs (decision 273): the install is
+  // stopped first. Without it, a running install refuses the restart.
+  bool force = 1;
+}
 
 message RestartResponse {}
 

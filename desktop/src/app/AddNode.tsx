@@ -21,6 +21,8 @@ import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nextLetter, randomNodeName } from "@/names";
 import { fingerprintOfPem, putSigned, signedForProvision, signedRecord } from "@/fleet/sign";
 import { DiskBrowser, holds } from "./DiskBrowser";
+import { restartInstaller } from "./NetbootPanel";
+import { HoldButton } from "@/components/hold-button";
 
 /** The Device-signed kinds a new Node of an existing Fleet starts with, copied from a Node of it. */
 const PROVISION_KINDS = new Set(["trusted_device", "node", "fleet", "space", "update_policy", "tailscale", "public_settings", "grant"]);
@@ -365,6 +367,12 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
           <p className="text-sm">{prov?.message || "starting"}</p>
           <p className="text-xs text-muted-foreground">Do not power the machine off. It restarts on its own when done, and then shows up as a Node. Meanwhile the rest of the Fleet is yours to explore.</p>
           {(error || pollError) && <p className="text-sm text-destructive">{error || pollError}</p>}
+          <div className="flex items-center gap-3">
+            <HoldButton size="sm" variant="outline" onConfirm={() => restartInstaller(addr, found.machine || "The machine", true)}>
+              Hold to restart the machine
+            </HoldButton>
+            <span className="text-xs text-muted-foreground">If it looks stuck. The install stops and the disk is left half written; set it up again after.</span>
+          </div>
         </section>
       )}
     </div>

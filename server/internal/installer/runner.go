@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -224,22 +225,134 @@ func (r *BootcRunner) installDirect(ctx context.Context, plan Plan, progress Pro
 	if err != nil {
 		return err
 	}
-	install := &progressWriter{onLine: func(l string) {
-		if l = strings.TrimSpace(l); l != "" {
-			progress(maitrev1.Provisioning_PHASE_INSTALLING, 30, l)
-		}
-	}}
 	src := plan.Source
 	if src == "" {
 		src = "docker://" + plan.ImageRef
+	}
+	// bootc says nothing while it fetches the image, which is most of the
+	// wait, and its percent stood at 30 the whole time (decision 273). The
+	// bytes this machine receives meanwhile, against the image's size, give
+	// an honest figure; and a fetch that receives nothing for StallAfter is
+	// stopped rather than left looking hung.
+	var total int64
+	if strings.HasPrefix(src, "docker://") {
+		total = imageSize(ctx, strings.TrimPrefix(src, "docker://"))
+	}
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	var mu sync.Mutex
+	last := "starting"
+	pct := uint32(5)
+	report := func() { progress(maitrev1.Provisioning_PHASE_INSTALLING, pct, last) }
+	install := &progressWriter{onLine: func(l string) {
+		if l = strings.TrimSpace(l); l != "" {
+			mu.Lock()
+			last = l
+			report()
+			mu.Unlock()
+		}
+	}}
+	if total > 0 || r.Exec == nil {
+		go r.watchReceived(ctx, total, cancel, func(received int64, stalled time.Duration) {
+			mu.Lock()
+			defer mu.Unlock()
+			if total > 0 {
+				if f := float64(received) / float64(total); f < 1 {
+					pct = 5 + uint32(f*80)
+				} else {
+					pct = 85
+				}
+				last = fmt.Sprintf("%s (%s of %s received)", strings.TrimSuffix(strings.SplitN(last, " (", 2)[0], ")"), humanBytes(received), humanBytes(total))
+			}
+			if stalled > 0 {
+				last = fmt.Sprintf("%s; nothing received for %s", last, stalled.Round(time.Minute))
+			}
+			report()
+		})
 	}
 	args := []string{"install", "to-disk", "--wipe", "--filesystem", "xfs", "--root-size", root,
 		"--source-imgref", src, "--target-imgref", plan.ImageRef, "--skip-fetch-check"}
 	args = append(args, consoleKargs()...)
 	if err := r.exec(ctx, install, "bootc", append(args, plan.TargetDisk)...); err != nil {
+		if cause := context.Cause(ctx); cause != nil && cause != context.Canceled {
+			return fmt.Errorf("bootc install: %w", cause)
+		}
 		return fmt.Errorf("bootc install: %w", err)
 	}
 	return nil
+}
+
+// StallAfter is how long an install may receive nothing from the network
+// before it is given up as stuck.
+var StallAfter = 10 * time.Minute
+
+// watchReceived reports once a second the bytes received on the network
+// since it started and, when nothing has arrived for two minutes, for how
+// long; after StallAfter of nothing it stops the install with a cause. It
+// returns when ctx ends.
+func (r *BootcRunner) watchReceived(ctx context.Context, total int64, stop context.CancelCauseFunc, report func(received int64, stalled time.Duration)) {
+	start, ok := rxBytes()
+	if !ok {
+		return
+	}
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	var received int64
+	moved := time.Now()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			now, ok := rxBytes()
+			if !ok {
+				return
+			}
+			if n := now - start; n > received {
+				received = n
+				moved = time.Now()
+			}
+			var stalled time.Duration
+			if q := time.Since(moved); q > 2*time.Minute {
+				stalled = q
+			}
+			if stalled > StallAfter {
+				stop(fmt.Errorf("stopped: nothing was received from the network for %s; check the Depot and the cable, then try again", StallAfter))
+				return
+			}
+			report(received, stalled)
+		}
+	}
+}
+
+// rxBytes is the bytes received on every network interface but loopback
+// since boot, from /proc/net/dev; false where there is no such file.
+func rxBytes() (int64, bool) {
+	b, err := os.ReadFile("/proc/net/dev")
+	if err != nil {
+		return 0, false
+	}
+	return parseRxBytes(string(b)), true
+}
+
+func parseRxBytes(dev string) int64 {
+	var sum int64
+	for _, line := range strings.Split(dev, "\n") {
+		name, rest, ok := strings.Cut(line, ":")
+		if !ok || strings.TrimSpace(name) == "lo" {
+			continue
+		}
+		f := strings.Fields(rest)
+		if len(f) == 0 {
+			continue
+		}
+		n, err := strconv.ParseInt(f[0], 10, 64)
+		if err != nil {
+			continue
+		}
+		sum += n
+	}
+	return sum
 }
 
 // releaseDisk lets go of whatever the live system holds on the target disk

@@ -985,7 +985,10 @@ func (*ProvisionResponse) Descriptor() ([]byte, []int) {
 }
 
 type RestartRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Restart even while an install runs (decision 273): the install is
+	// stopped first. Without it, a running install refuses the restart.
+	Force         bool `protobuf:"varint,1,opt,name=force,proto3" json:"force,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1018,6 +1021,13 @@ func (x *RestartRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RestartRequest.ProtoReflect.Descriptor instead.
 func (*RestartRequest) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RestartRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
 }
 
 type RestartResponse struct {
@@ -1232,8 +1242,9 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x0frestore_node_id\x18\a \x01(\tR\rrestoreNodeId\x12%\n" +
 	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\x12+\n" +
 	"\arecords\x18\b \x03(\v2\x11.maitre.v1.RecordR\arecords\"\x13\n" +
-	"\x11ProvisionResponse\"\x10\n" +
-	"\x0eRestartRequest\"\x11\n" +
+	"\x11ProvisionResponse\"&\n" +
+	"\x0eRestartRequest\x12\x14\n" +
+	"\x05force\x18\x01 \x01(\bR\x05force\"\x11\n" +
 	"\x0fRestartResponse\"&\n" +
 	"\x0eGetLogsRequest\x12\x14\n" +
 	"\x05lines\x18\x01 \x01(\x05R\x05lines\"'\n" +

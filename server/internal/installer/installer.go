@@ -61,6 +61,8 @@ type Installer struct {
 
 	// browseMu orders folder listings before the unmount an install does.
 	browseMu sync.RWMutex
+	// cancelInstall stops the install under way, for a forced Restart.
+	cancelInstall context.CancelFunc
 
 	mu       sync.Mutex
 	lastPeer string // fingerprint of the most recent caller, for the screen
@@ -227,17 +229,25 @@ func (in *Installer) ListFolder(ctx context.Context, req *maitrev1.ListFolderReq
 // Restart implements InstallerService (decision 270): reboots the machine,
 // unless an install is under way. Open to any device on the network, as
 // Provision is: a machine nothing is installed on yet loses nothing.
-func (in *Installer) Restart(ctx context.Context, _ *maitrev1.RestartRequest) (*maitrev1.RestartResponse, error) {
+func (in *Installer) Restart(ctx context.Context, req *maitrev1.RestartRequest) (*maitrev1.RestartResponse, error) {
 	if _, ok := peer.From(ctx); !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, "no client key")
 	}
-	if in.Installing() {
+	if in.Installing() && !req.GetForce() {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "installing; the machine restarts by itself when done")
 	}
 	if in.opts.Reboot == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "this Installer cannot restart itself")
 	}
-	slog.Info("restart asked for over the network")
+	slog.Info("restart asked for over the network", "force", req.GetForce())
+	// A running install is stopped first (decision 273): its commands are
+	// killed, so bootc is not writing the disk as the machine goes down.
+	in.mu.Lock()
+	cancel := in.cancelInstall
+	in.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	go func() {
 		// Let the answer reach the caller first.
 		time.Sleep(time.Second)
@@ -326,6 +336,9 @@ func (in *Installer) Installing() bool {
 func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
+	in.mu.Lock()
+	in.cancelInstall = cancel
+	in.mu.Unlock()
 	// Nothing looked at may stay mounted: bootc wipes the target disk.
 	in.browseMu.Lock()
 	if in.opts.Folders != nil {
@@ -358,6 +371,9 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 		RestoreNodeID: req.GetRestoreNodeId(),
 	}, progress)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("stopped: the machine was asked to restart")
+		}
 		fail(err)
 		return
 	}
