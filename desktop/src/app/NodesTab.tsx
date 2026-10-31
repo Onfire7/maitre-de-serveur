@@ -96,7 +96,7 @@ export function NodesTab({
         {more && (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-card p-4">
-              <NetbootPanel />
+              <NetbootPanel found={found} />
             </div>
             <div className="rounded-xl border bg-card p-4">
               <MediaPanel />

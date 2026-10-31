@@ -7,7 +7,12 @@ import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { bootFilesBehind, buildWords, depotBoot, depotImage, useDepots, type DepotBoot } from "@/fleet/depots";
+import { toast } from "sonner";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { InstallerService } from "@/gen/maitre/v1/installer_pb";
+import { transportFor } from "@/transport";
+import { api, type Found } from "@/state";
+import { bootFilesBehind, bootedMachines, buildWords, depotBoot, depotImage, useDepots, type DepotBoot } from "@/fleet/depots";
 
 interface FilesStatus {
   dir: string;
@@ -36,10 +41,11 @@ interface Status {
   image: string;
   idle_seconds: number;
   clients: string[];
+  machines?: { mac: string; ip: string }[];
   unsupported?: string[];
   last_error: string;
   adopted?: boolean;
-  events: { event: string; time: string; mac?: string; type?: string; firmware?: string; file?: string; reason?: string }[];
+  events: { event: string; time: string; mac?: string; type?: string; firmware?: string; file?: string; reason?: string; ip?: string }[];
 }
 
 const IDLE_CHOICES: [number, string][] = [
@@ -50,7 +56,19 @@ const IDLE_CHOICES: [number, string][] = [
 ];
 const gb = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6).toFixed(0)} MB`);
 
-export function NetbootPanel() {
+/** Asks the Installer at addr to restart the machine (decision 270). */
+async function restartInstaller(addr: string, label: string) {
+  try {
+    const p = await api.peekInstaller(addr);
+    await createClient(InstallerService, transportFor({ addr, fingerprint: p.fingerprint })).restart({});
+    toast.success(`${label} is restarting`);
+  } catch (e) {
+    const ce = ConnectError.from(e);
+    toast.error(ce.code === Code.Unimplemented ? `${label} runs an Installer too old to restart from here: press r on its screen.` : `${label}: ${ce.rawMessage}`);
+  }
+}
+
+export function NetbootPanel({ found = [] }: { found?: Found[] }) {
   const [files, setFiles] = useState<FilesStatus | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const depots = useDepots();
@@ -245,10 +263,34 @@ export function NetbootPanel() {
               </p>
             );
           })}
-          <p className="text-xs text-muted-foreground">{status.clients.length > 0 ? `Machines that booted from here: ${status.clients.join(", ")}` : status.unsupported?.length ? "No machine has booted from here yet." : "No machine has asked yet. Turn one on and choose network boot."}</p>
+          {status.clients.length === 0 && (status.machines ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">{status.unsupported?.length ? "No machine has booted from here yet." : "No machine has asked yet. Turn one on and choose network boot."}</p>
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              <p>Machines that booted from here:</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {bootedMachines(status.clients, status.machines, found).map((m) => {
+                  const label = m.installer?.machine || m.installer?.name || m.ip || m.mac;
+                  const addr = m.installer?.addresses[0] ?? (m.ip ? `${m.ip}:7443` : "");
+                  return (
+                    <li key={m.mac} className="flex flex-wrap items-center gap-x-2">
+                      <span className="font-mono">{m.mac}</span>
+                      {m.ip && <span>{m.ip}</span>}
+                      {m.installer && <span className="text-foreground">{label}{m.installer.version && ` (Installer ${m.installer.version})`}</span>}
+                      {addr && (
+                        <button type="button" className="text-primary hover:underline" onClick={() => restartInstaller(addr, label)}>
+                          Restart
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Activity</summary>
-            <pre className="mt-1 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">{status.events.map((e) => `${e.time.slice(11, 19)}  ${e.event}${e.mac ? ` ${e.mac} ${e.type ?? ""}${e.firmware ? ` ${e.firmware}` : ""}` : ""}${e.file ? ` ${e.file}` : ""}${e.reason ? ` (${e.reason})` : ""}`).join("\n")}</pre>
+            <pre className="mt-1 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">{status.events.map((e) => `${e.time.slice(11, 19)}  ${e.event}${e.mac ? ` ${e.mac} ${e.type ?? ""}${e.firmware ? ` ${e.firmware}` : ""}${e.ip ? ` ${e.ip}` : ""}` : ""}${e.file ? ` ${e.file}` : ""}${e.reason ? ` (${e.reason})` : ""}`).join("\n")}</pre>
           </details>
           <Button size="sm" variant="outline" onClick={() => invoke("netboot_stop").then(refresh)}>
             Turn off

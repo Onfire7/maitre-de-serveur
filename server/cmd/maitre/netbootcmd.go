@@ -84,18 +84,37 @@ func runNetboot(args []string) error {
 	if err := depot.WriteBootConfig(l, depot.BootParams{IP: ip, HTTPPort: port, Image: *image, Insecure: *insecure, Serial: *serial}); err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: depot.BootFileHandler(l), ReadHeaderTimeout: 10 * time.Second}
-	go func() { _ = srv.Serve(ln) }()
-
 	// Idle: any client interaction restarts the clock.
 	var mu sync.Mutex
 	last := time.Now()
-	nb := &depot.Netboot{Layout: l, IP: net.ParseIP(ip).To4(), Interface: ifname, Log: log, BindIP: true, OnEvent: func(kind string, f map[string]any) {
+	report := func(kind string, f map[string]any) {
 		mu.Lock()
 		last = time.Now()
 		mu.Unlock()
 		ev.emit(kind, f)
-	}}
+	}
+	// A machine fetching boot files shows its address, which with the
+	// neighbour table names the machine behind a MAC seen over DHCP, so the
+	// Console can reach its Installer (decision 270). Reported once per pair.
+	files := depot.BootFileHandler(l)
+	seen := map[string]string{}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+			if mac := depot.MACFor(host); mac != "" {
+				mu.Lock()
+				fresh := seen[host] != mac
+				seen[host] = mac
+				mu.Unlock()
+				if fresh {
+					report("machine", map[string]any{"mac": mac, "ip": host})
+				}
+			}
+		}
+		files.ServeHTTP(w, r)
+	}), ReadHeaderTimeout: 10 * time.Second}
+	go func() { _ = srv.Serve(ln) }()
+
+	nb := &depot.Netboot{Layout: l, IP: net.ParseIP(ip).To4(), Interface: ifname, Log: log, BindIP: true, OnEvent: report}
 	if err := nb.Start(ctx); err != nil {
 		ev.emit("error", map[string]any{"message": err.Error()})
 		return err

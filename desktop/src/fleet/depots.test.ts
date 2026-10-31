@@ -33,3 +33,16 @@ describe("buildWords (decision 267)", () => {
     expect(buildWords("", "not a date")).toBe("unknown version");
   });
 });
+
+describe("bootedMachines (decision 270)", () => {
+  it("matches a machine's address to the Installer found there", async () => {
+    const { bootedMachines } = await import("./depots");
+    const installer = { kind: "installer" as const, id: "abc", name: "", machine: "OptiPlex 7080", fleet_id: "", version: "9b57a3a", addresses: ["192.168.4.81:7443"], key_pem: "", recovery: false };
+    const rows = bootedMachines(["aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:02"], [{ mac: "aa:bb:cc:dd:ee:02", ip: "192.168.4.81" }, { mac: "aa:bb:cc:dd:ee:03", ip: "192.168.4.90" }], [installer]);
+    expect(rows.map((r) => [r.mac, r.ip, r.installer?.machine ?? null])).toEqual([
+      ["aa:bb:cc:dd:ee:01", "", null],
+      ["aa:bb:cc:dd:ee:02", "192.168.4.81", "OptiPlex 7080"],
+      ["aa:bb:cc:dd:ee:03", "192.168.4.90", null],
+    ]);
+  });
+});

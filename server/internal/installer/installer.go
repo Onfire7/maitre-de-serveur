@@ -221,6 +221,30 @@ func (in *Installer) ListFolder(ctx context.Context, req *maitrev1.ListFolderReq
 	return in.Folder(ctx, req.GetDevice(), req.GetPath())
 }
 
+// Restart implements InstallerService (decision 270): reboots the machine,
+// unless an install is under way. Open to any device on the network, as
+// Provision is: a machine nothing is installed on yet loses nothing.
+func (in *Installer) Restart(ctx context.Context, _ *maitrev1.RestartRequest) (*maitrev1.RestartResponse, error) {
+	if _, ok := peer.From(ctx); !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "no client key")
+	}
+	if in.Installing() {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "installing; the machine restarts by itself when done")
+	}
+	if in.opts.Reboot == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "this Installer cannot restart itself")
+	}
+	slog.Info("restart asked for over the network")
+	go func() {
+		// Let the answer reach the caller first.
+		time.Sleep(time.Second)
+		if err := in.opts.Reboot(); err != nil {
+			slog.Error("restart", "err", err)
+		}
+	}()
+	return &maitrev1.RestartResponse{}, nil
+}
+
 // Folder lists one folder of a partition, for ListFolder and the machine's
 // own screen.
 func (in *Installer) Folder(ctx context.Context, device, dir string) (*maitrev1.ListFolderResponse, error) {

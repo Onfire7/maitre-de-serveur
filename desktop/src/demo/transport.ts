@@ -484,6 +484,14 @@ const handlers: Record<string, Handler> = {
     return {};
   },
 
+  "InstallerService/Restart": (f, _n, _i, addr) => {
+    const ins = f.installer;
+    if (addr !== ins.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
+    if (ins.provisioning) throw fail(Code.FailedPrecondition, "installing; the machine restarts by itself when done");
+    ins.log = [];
+    return {};
+  },
+
   // RecoveryService
   "RecoveryService/Authorize": () => ({ nodeOnly: false }),
 };

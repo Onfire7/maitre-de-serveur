@@ -11,6 +11,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 )
 
 const lsblkSample = `{"blockdevices":[
@@ -213,5 +214,34 @@ func TestBackupScanWaitsOutTheInstall(t *testing.T) {
 	in.mu.Unlock()
 	if b := in.backups(ctx); len(b) != 1 || scans != 1 {
 		t.Errorf("scanned during the install: %v %d", b, scans)
+	}
+}
+
+// Restart from the network reboots a waiting machine, never one installing
+// (decision 270).
+func TestRestartRefusedWhileInstalling(t *testing.T) {
+	id, _ := identity.Generate()
+	rebooted := make(chan struct{}, 1)
+	in := New(id, Options{Runner: &FakeRunner{Dir: t.TempDir()}, Disks: FakeDisks, Reboot: func() error { rebooted <- struct{}{}; return nil }})
+	ctx := peer.WithInfo(context.Background(), peer.Info{Fingerprint: "dev"})
+	in.mu.Lock()
+	in.prov = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_INSTALLING}
+	in.mu.Unlock()
+	if _, err := in.Restart(ctx, &maitrev1.RestartRequest{}); err == nil || !strings.Contains(err.Error(), "installing") {
+		t.Errorf("during install: %v", err)
+	}
+	in.mu.Lock()
+	in.prov = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_FAILED}
+	in.mu.Unlock()
+	if _, err := in.Restart(ctx, &maitrev1.RestartRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-rebooted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no reboot")
+	}
+	if _, err := in.Restart(context.Background(), &maitrev1.RestartRequest{}); err == nil {
+		t.Error("no client key accepted")
 	}
 }

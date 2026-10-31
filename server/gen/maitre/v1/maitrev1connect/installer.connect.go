@@ -32,6 +32,8 @@ const (
 	// InstallerServiceListFolderProcedure is the procedure name of the InstallerService's ListFolder
 	// RPC.
 	InstallerServiceListFolderProcedure = "/maitre.v1.InstallerService/ListFolder"
+	// InstallerServiceRestartProcedure is the procedure name of the InstallerService's Restart RPC.
+	InstallerServiceRestartProcedure = "/maitre.v1.InstallerService/Restart"
 )
 
 var (
@@ -56,6 +58,13 @@ var (
 			Procedure:  InstallerServiceListFolderProcedure,
 		}
 	})
+	installerServiceRestartSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_installer_proto.Services().ByName("InstallerService").Methods().ByName("Restart"),
+			Procedure:  InstallerServiceRestartProcedure,
+		}
+	})
 )
 
 // InstallerServiceClient is a client for the maitre.v1.InstallerService service.
@@ -71,6 +80,10 @@ type InstallerServiceClient interface {
 	// Names, sizes and dates only; no file is read. Installers before this
 	// answer Unimplemented.
 	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
+	// Restarts the machine (decision 270): from the Netboot panel, after a
+	// failed install or to boot new boot files. Refused while installing.
+	// Installers before it answer Unimplemented.
+	Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error)
 }
 
 // NewInstallerServiceClient constructs a client for the maitre.v1.InstallerService service.
@@ -92,6 +105,10 @@ type InstallerServiceHandler interface {
 	// Names, sizes and dates only; no file is read. Installers before this
 	// answer Unimplemented.
 	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
+	// Restarts the machine (decision 270): from the Netboot panel, after a
+	// failed install or to boot new boot files. Refused while installing.
+	// Installers before it answer Unimplemented.
+	Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error)
 }
 
 // RegisterInstallerServiceHandler registers svc as the maitre.v1.InstallerService implementation on
@@ -102,6 +119,7 @@ func RegisterInstallerServiceHandler(server *connect.Server, svc InstallerServic
 		connect.Method{Spec: installerServiceGetInstallerStatusSpec(), Handler: adapter.getInstallerStatus},
 		connect.Method{Spec: installerServiceProvisionSpec(), Handler: adapter.provision},
 		connect.Method{Spec: installerServiceListFolderSpec(), Handler: adapter.listFolder},
+		connect.Method{Spec: installerServiceRestartSpec(), Handler: adapter.restart},
 	)
 }
 
@@ -118,6 +136,10 @@ func (UnimplementedInstallerServiceHandler) Provision(context.Context, *v1.Provi
 
 func (UnimplementedInstallerServiceHandler) ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.ListFolder is not implemented")
+}
+
+func (UnimplementedInstallerServiceHandler) Restart(context.Context, *v1.RestartRequest) (*v1.RestartResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.Restart is not implemented")
 }
 
 type installerServiceClient struct {
@@ -143,6 +165,14 @@ func (c *installerServiceClient) Provision(ctx context.Context, req *v1.Provisio
 func (c *installerServiceClient) ListFolder(ctx context.Context, req *v1.ListFolderRequest) (*v1.ListFolderResponse, error) {
 	var res v1.ListFolderResponse
 	if err := c.client.CallUnary(ctx, installerServiceListFolderSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *installerServiceClient) Restart(ctx context.Context, req *v1.RestartRequest) (*v1.RestartResponse, error) {
+	var res v1.RestartResponse
+	if err := c.client.CallUnary(ctx, installerServiceRestartSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -180,6 +210,18 @@ func (h installerServiceHandler) listFolder(ctx context.Context, _ connect.Spec,
 		return err
 	}
 	res, err := h.svc.ListFolder(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h installerServiceHandler) restart(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RestartRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Restart(ctx, &req)
 	if err != nil {
 		return err
 	}

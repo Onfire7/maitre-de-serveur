@@ -92,3 +92,27 @@ export function bootFilesBehind(local: Record<string, string> | undefined, depot
     .filter(([n, sha]) => depot[n] && depot[n] !== sha)
     .map(([n]) => n);
 }
+
+/** A machine that booted from this computer (decision 270): its MAC, the
+ * address it fetched boot files from when known, and the Installer found
+ * answering there, if any. */
+export interface BootedMachine {
+  mac: string;
+  ip: string;
+  installer: Found | null;
+}
+
+/**
+ * The machines the Netboot helper saw, oldest first, each matched to a
+ * discovered Installer by address. MACs seen over DHCP only (older helpers,
+ * or a machine that never fetched a file) come without an address.
+ */
+export function bootedMachines(clients: string[], machines: { mac: string; ip: string }[] | undefined, found: Found[]): BootedMachine[] {
+  const byMac = new Map((machines ?? []).map((m) => [m.mac, m.ip]));
+  const host = (a: string) => (a.startsWith("[") ? a.slice(1, a.indexOf("]")) : a.split(":")[0]);
+  return [...new Set([...clients, ...byMac.keys()])].map((mac) => {
+    const ip = byMac.get(mac) ?? "";
+    const installer = ip ? (found.find((f) => f.kind === "installer" && f.addresses.some((a) => host(a) === ip)) ?? null) : null;
+    return { mac, ip, installer };
+  });
+}

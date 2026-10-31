@@ -984,6 +984,78 @@ func (*ProvisionResponse) Descriptor() ([]byte, []int) {
 	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{11}
 }
 
+type RestartRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartRequest) Reset() {
+	*x = RestartRequest{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartRequest) ProtoMessage() {}
+
+func (x *RestartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartRequest.ProtoReflect.Descriptor instead.
+func (*RestartRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{12}
+}
+
+type RestartResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartResponse) Reset() {
+	*x = RestartResponse{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartResponse) ProtoMessage() {}
+
+func (x *RestartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartResponse.ProtoReflect.Descriptor instead.
+func (*RestartResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{13}
+}
+
 var File_maitre_v1_installer_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_installer_proto_rawDesc = "" +
@@ -1071,12 +1143,15 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x0frestore_node_id\x18\a \x01(\tR\rrestoreNodeId\x12%\n" +
 	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\x12+\n" +
 	"\arecords\x18\b \x03(\v2\x11.maitre.v1.RecordR\arecords\"\x13\n" +
-	"\x11ProvisionResponse2\x8e\x02\n" +
+	"\x11ProvisionResponse\"\x10\n" +
+	"\x0eRestartRequest\"\x11\n" +
+	"\x0fRestartResponse2\xd2\x02\n" +
 	"\x10InstallerService\x12c\n" +
 	"\x12GetInstallerStatus\x12$.maitre.v1.GetInstallerStatusRequest\x1a%.maitre.v1.GetInstallerStatusResponse\"\x00\x12H\n" +
 	"\tProvision\x12\x1b.maitre.v1.ProvisionRequest\x1a\x1c.maitre.v1.ProvisionResponse\"\x00\x12K\n" +
 	"\n" +
-	"ListFolder\x12\x1c.maitre.v1.ListFolderRequest\x1a\x1d.maitre.v1.ListFolderResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"ListFolder\x12\x1c.maitre.v1.ListFolderRequest\x1a\x1d.maitre.v1.ListFolderResponse\"\x00\x12B\n" +
+	"\aRestart\x12\x19.maitre.v1.RestartRequest\x1a\x1a.maitre.v1.RestartResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_installer_proto_rawDescOnce sync.Once
@@ -1091,7 +1166,7 @@ func file_maitre_v1_installer_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_installer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_maitre_v1_installer_proto_goTypes = []any{
 	(Provisioning_Phase)(0),            // 0: maitre.v1.Provisioning.Phase
 	(*GetInstallerStatusRequest)(nil),  // 1: maitre.v1.GetInstallerStatusRequest
@@ -1106,10 +1181,12 @@ var file_maitre_v1_installer_proto_goTypes = []any{
 	(*Provisioning)(nil),               // 10: maitre.v1.Provisioning
 	(*ProvisionRequest)(nil),           // 11: maitre.v1.ProvisionRequest
 	(*ProvisionResponse)(nil),          // 12: maitre.v1.ProvisionResponse
-	(*Fleet)(nil),                      // 13: maitre.v1.Fleet
-	(*TrustedDevice)(nil),              // 14: maitre.v1.TrustedDevice
-	(*Node)(nil),                       // 15: maitre.v1.Node
-	(*Record)(nil),                     // 16: maitre.v1.Record
+	(*RestartRequest)(nil),             // 13: maitre.v1.RestartRequest
+	(*RestartResponse)(nil),            // 14: maitre.v1.RestartResponse
+	(*Fleet)(nil),                      // 15: maitre.v1.Fleet
+	(*TrustedDevice)(nil),              // 16: maitre.v1.TrustedDevice
+	(*Node)(nil),                       // 17: maitre.v1.Node
+	(*Record)(nil),                     // 18: maitre.v1.Record
 }
 var file_maitre_v1_installer_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetInstallerStatusResponse.status:type_name -> maitre.v1.InstallerStatus
@@ -1119,18 +1196,20 @@ var file_maitre_v1_installer_proto_depIdxs = []int32{
 	6,  // 4: maitre.v1.Disk.partitions:type_name -> maitre.v1.Partition
 	9,  // 5: maitre.v1.ListFolderResponse.entries:type_name -> maitre.v1.FolderEntry
 	0,  // 6: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
-	13, // 7: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
-	14, // 8: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
-	15, // 9: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
-	16, // 10: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
+	15, // 7: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
+	16, // 8: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
+	17, // 9: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
+	18, // 10: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
 	1,  // 11: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
 	11, // 12: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
 	7,  // 13: maitre.v1.InstallerService.ListFolder:input_type -> maitre.v1.ListFolderRequest
-	2,  // 14: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
-	12, // 15: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
-	8,  // 16: maitre.v1.InstallerService.ListFolder:output_type -> maitre.v1.ListFolderResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
+	13, // 14: maitre.v1.InstallerService.Restart:input_type -> maitre.v1.RestartRequest
+	2,  // 15: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
+	12, // 16: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
+	8,  // 17: maitre.v1.InstallerService.ListFolder:output_type -> maitre.v1.ListFolderResponse
+	14, // 18: maitre.v1.InstallerService.Restart:output_type -> maitre.v1.RestartResponse
+	15, // [15:19] is the sub-list for method output_type
+	11, // [11:15] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -1148,7 +1227,7 @@ func file_maitre_v1_installer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_installer_proto_rawDesc), len(file_maitre_v1_installer_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

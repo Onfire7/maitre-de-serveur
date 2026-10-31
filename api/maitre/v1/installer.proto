@@ -23,6 +23,10 @@ service InstallerService {
   // Names, sizes and dates only; no file is read. Installers before this
   // answer Unimplemented.
   rpc ListFolder(ListFolderRequest) returns (ListFolderResponse) {}
+  // Restarts the machine (decision 270): from the Netboot panel, after a
+  // failed install or to boot new boot files. Refused while installing.
+  // Installers before it answer Unimplemented.
+  rpc Restart(RestartRequest) returns (RestartResponse) {}
 }
 
 message GetInstallerStatusRequest {}
@@ -168,3 +172,7 @@ message ProvisionRequest {
 }
 
 message ProvisionResponse {}
+
+message RestartRequest {}
+
+message RestartResponse {}

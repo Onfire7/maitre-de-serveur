@@ -80,6 +80,12 @@ pub struct DepotBoot {
     pub built: String,
 }
 
+#[derive(Serialize, Clone, Default, PartialEq)]
+pub struct Machine {
+    pub mac: String,
+    pub ip: String,
+}
+
 #[derive(Serialize, Clone)]
 pub struct Progress {
     pub file: String,
@@ -97,6 +103,9 @@ pub struct Status {
     pub image: String,
     pub idle_seconds: u64,
     pub clients: Vec<String>,
+    /// Machines that fetched boot files, with the address they did it from
+    /// (decision 270), so the Console can reach the Installer on each.
+    pub machines: Vec<Machine>,
     /// Machines that asked but these boot files cannot start (decision 223),
     /// as "mac firmware" ("bios", or "" for another architecture).
     pub unsupported: Vec<String>,
@@ -454,6 +463,17 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
                                 let mac = v.get("mac").and_then(|x| x.as_str()).unwrap_or("").to_string();
                                 if !mac.is_empty() && !st.clients.contains(&mac) {
                                     st.clients.push(mac);
+                                }
+                            }
+                            "machine" => {
+                                let mac = v.get("mac").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                                let ip = v.get("ip").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                                if !mac.is_empty() && !ip.is_empty() {
+                                    st.machines.retain(|m| m.mac != mac);
+                                    st.machines.push(Machine { mac: mac.clone(), ip });
+                                    if !st.clients.contains(&mac) {
+                                        st.clients.push(mac);
+                                    }
                                 }
                             }
                             "unsupported" => {
