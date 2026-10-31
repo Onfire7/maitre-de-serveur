@@ -63,6 +63,7 @@ func TestPairProvisionAndSeed(t *testing.T) {
 		ImageRef: "example/maitre:test",
 		Runner:   &installer.FakeRunner{Dir: cfgDir},
 		Disks:    installer.FakeDisks,
+		Folders:  installer.FakeFolders{},
 		Reboot:   func() error { close(rebooted); return nil },
 	})
 	srv := startInstaller(t, in, instID)
@@ -75,8 +76,12 @@ func TestPairProvisionAndSeed(t *testing.T) {
 	if want := pairing.Code(instID.PublicKey(), device.PublicKey()); st.GetStatus().GetPairingCode() != want {
 		t.Fatalf("pairing code %q, want %q", st.GetStatus().GetPairingCode(), want)
 	}
-	if st.GetStatus().GetInstallerId() != instID.Fingerprint() || len(st.GetStatus().GetDisks()) != 2 {
+	if st.GetStatus().GetInstallerId() != instID.Fingerprint() || len(st.GetStatus().GetDisks()) != 3 {
 		t.Fatalf("unexpected status %v", st.GetStatus())
+	}
+	// Decision 262: a disk can be looked inside before it is chosen.
+	if r, err := c.ListFolder(ctx, &maitrev1.ListFolderRequest{Device: "/dev/fake-ssd3", Path: "Users/sam"}); err != nil || len(r.GetEntries()) != 4 || !r.GetEntries()[0].GetDir() {
+		t.Fatalf("ListFolder: %v %v", r, err)
 	}
 	if !contains(in.Screen(), st.GetStatus().GetPairingCode()) {
 		t.Fatalf("screen does not show the code:\n%s", in.Screen())

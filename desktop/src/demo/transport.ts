@@ -432,10 +432,7 @@ const handlers: Record<string, Handler> = {
         version: "0.9.3",
         addresses: [ins.addr],
         pairingCode: ins.pairingCode,
-        disks: [
-          { path: "/dev/nvme0n1", model: "WD Blue SN580 1TB", sizeBytes: 1000n * 1000n ** 3n, removable: false, isInstallerMedia: false },
-          { path: "/dev/sda", model: "SanDisk Ultra USB", sizeBytes: 32n * 1000n ** 3n, removable: true, isInstallerMedia: true },
-        ],
+        disks: DEMO_DISKS,
         provisioning: installerProvisioning(f),
         machineName: ins.machine,
         image: "ghcr.io/onfire7/maitre-server:stable",
@@ -443,6 +440,19 @@ const handlers: Record<string, Handler> = {
         insecureRegistry: "",
         backups: [],
       },
+    };
+  },
+  "InstallerService/ListFolder": (f, _n, i, addr) => {
+    if (addr !== f.installer.addr) throw fail(Code.Unavailable, `demo: nothing answers at ${addr}`);
+    const part = DEMO_DISKS.flatMap((d) => d.partitions).find((p) => p.device === i.device);
+    if (!part?.browsable) throw fail(Code.FailedPrecondition, `${i.device as string} holds no filesystem this Installer can open`);
+    const path = ((i.path as string) ?? "").split("/").filter(Boolean).join("/");
+    const names = DEMO_FOLDERS[`${part.device}:${path}`] ?? [];
+    const when = BigInt(Date.parse("2025-08-14T18:20:00Z"));
+    return {
+      entries: names.map((n) => (n.endsWith("/") ? { name: n.slice(0, -1), dir: true, modifiedUnixMs: when } : { name: n.slice(0, n.lastIndexOf(" ")), sizeBytes: BigInt(n.slice(n.lastIndexOf(" ") + 1)), modifiedUnixMs: when })),
+      totalBytes: part.sizeBytes,
+      usedBytes: part.sizeBytes / 3n,
     };
   },
   "InstallerService/Provision": (f, _n, _i, addr) => {
@@ -456,6 +466,38 @@ const handlers: Record<string, Handler> = {
 
   // RecoveryService
   "RecoveryService/Authorize": () => ({ nodeOnly: false }),
+};
+
+// The demo machine's disks (decision 262): an SSD that held Windows, a
+// media disk and the installer stick.
+const GB = 1000n ** 3n;
+const DEMO_DISKS = [
+  {
+    path: "/dev/nvme0n1",
+    model: "WD Blue SN580 1TB",
+    sizeBytes: 1000n * GB,
+    removable: false,
+    isInstallerMedia: false,
+    partitions: [
+      { device: "/dev/nvme0n1p1", sizeBytes: 100n * 1000n ** 2n, fstype: "vfat", label: "EFI system partition", browsable: true },
+      { device: "/dev/nvme0n1p2", sizeBytes: 16n * 1000n ** 2n, fstype: "", label: "Microsoft reserved partition", browsable: false },
+      { device: "/dev/nvme0n1p3", sizeBytes: 999n * GB, fstype: "ntfs", label: "Windows", browsable: true },
+    ],
+  },
+  { path: "/dev/sdb", model: "Seagate IronWolf 4TB", sizeBytes: 4000n * GB, removable: false, isInstallerMedia: false, partitions: [{ device: "/dev/sdb1", sizeBytes: 4000n * GB, fstype: "ext4", label: "Media", browsable: true }] },
+  { path: "/dev/sda", model: "SanDisk Ultra USB", sizeBytes: 32n * GB, removable: true, isInstallerMedia: true, partitions: [{ device: "/dev/sda1", sizeBytes: 2n * GB, fstype: "vfat", label: "MAITRELIVE", browsable: false }] },
+];
+
+/** Folders by "<device>:<path>"; "name/" is a folder, "name <bytes>" a file. */
+const DEMO_FOLDERS: Record<string, string[]> = {
+  "/dev/nvme0n1p1:": ["EFI/"],
+  "/dev/nvme0n1p1:EFI": ["Boot/", "Microsoft/"],
+  "/dev/nvme0n1p3:": ["Program Files/", "Users/", "Windows/", "hiberfil.sys 6871947673", "pagefile.sys 8589934592"],
+  "/dev/nvme0n1p3:Users": ["Public/", "sam/"],
+  "/dev/nvme0n1p3:Users/sam": ["Desktop/", "Documents/", "Pictures/", "NTUSER.DAT 3407872"],
+  "/dev/nvme0n1p3:Users/sam/Pictures": ["Holiday 2025/", "IMG_0412.jpg 4194304", "IMG_0413.jpg 3984588"],
+  "/dev/sdb1:": ["Films/", "Music/", "Photos/", "lost+found/", "backup-2024.tar 21474836480"],
+  "/dev/sdb1:Films": ["Arrival (2016).mkv 8053063680", "Paddington 2 (2017).mkv 6442450944"],
 };
 
 function installerProvisioning(f: DemoFleet) {

@@ -76,7 +76,7 @@ func (x Provisioning_Phase) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provisioning_Phase.Descriptor instead.
 func (Provisioning_Phase) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5, 0}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{9, 0}
 }
 
 type GetInstallerStatusRequest struct {
@@ -396,8 +396,12 @@ type Disk struct {
 	Removable bool   `protobuf:"varint,4,opt,name=removable,proto3" json:"removable,omitempty"`
 	// True for the disk the Installer itself booted from.
 	IsInstallerMedia bool `protobuf:"varint,5,opt,name=is_installer_media,json=isInstallerMedia,proto3" json:"is_installer_media,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// What is on it now (decision 262): its partitions, and filesystems inside
+	// them (LVM volumes, a filesystem on the whole disk). Empty for a blank
+	// disk, and from Installers before this.
+	Partitions    []*Partition `protobuf:"bytes,6,rep,name=partitions,proto3" json:"partitions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Disk) Reset() {
@@ -465,6 +469,298 @@ func (x *Disk) GetIsInstallerMedia() bool {
 	return false
 }
 
+func (x *Disk) GetPartitions() []*Partition {
+	if x != nil {
+		return x.Partitions
+	}
+	return nil
+}
+
+// Partition is a partition or other block device on a disk, as lsblk sees it.
+type Partition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Device path, e.g. /dev/sdb1; ListFolder takes it.
+	Device    string `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	SizeBytes uint64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// Filesystem type as blkid names it (ext4, ntfs, vfat, crypto_LUKS,
+	// LVM2_member, swap, ...); empty when none is recognised.
+	Fstype string `protobuf:"bytes,3,opt,name=fstype,proto3" json:"fstype,omitempty"`
+	// Filesystem label, else the GPT partition name.
+	Label string `protobuf:"bytes,4,opt,name=label,proto3" json:"label,omitempty"`
+	// True when ListFolder can mount it to look inside.
+	Browsable     bool `protobuf:"varint,5,opt,name=browsable,proto3" json:"browsable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Partition) Reset() {
+	*x = Partition{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Partition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Partition) ProtoMessage() {}
+
+func (x *Partition) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Partition.ProtoReflect.Descriptor instead.
+func (*Partition) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Partition) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *Partition) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *Partition) GetFstype() string {
+	if x != nil {
+		return x.Fstype
+	}
+	return ""
+}
+
+func (x *Partition) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *Partition) GetBrowsable() bool {
+	if x != nil {
+		return x.Browsable
+	}
+	return false
+}
+
+type ListFolderRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Partition.device of a disk that is not the installer media.
+	Device string `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	// Folder within the partition, "/"-separated; empty or "/" is its top.
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFolderRequest) Reset() {
+	*x = ListFolderRequest{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFolderRequest) ProtoMessage() {}
+
+func (x *ListFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFolderRequest.ProtoReflect.Descriptor instead.
+func (*ListFolderRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListFolderRequest) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *ListFolderRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type ListFolderResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Folders first, then files, each by name.
+	Entries []*FolderEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	// Entries left out past the first 1000.
+	More uint32 `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
+	// The filesystem's size and use.
+	UsedBytes     uint64 `protobuf:"varint,3,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	TotalBytes    uint64 `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFolderResponse) Reset() {
+	*x = ListFolderResponse{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFolderResponse) ProtoMessage() {}
+
+func (x *ListFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFolderResponse.ProtoReflect.Descriptor instead.
+func (*ListFolderResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListFolderResponse) GetEntries() []*FolderEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *ListFolderResponse) GetMore() uint32 {
+	if x != nil {
+		return x.More
+	}
+	return 0
+}
+
+func (x *ListFolderResponse) GetUsedBytes() uint64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+func (x *ListFolderResponse) GetTotalBytes() uint64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
+type FolderEntry struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Dir   bool                   `protobuf:"varint,2,opt,name=dir,proto3" json:"dir,omitempty"`
+	// Bytes, for files.
+	SizeBytes      uint64 `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ModifiedUnixMs int64  `protobuf:"varint,4,opt,name=modified_unix_ms,json=modifiedUnixMs,proto3" json:"modified_unix_ms,omitempty"`
+	// A symbolic link; not followed.
+	Link          bool `protobuf:"varint,5,opt,name=link,proto3" json:"link,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FolderEntry) Reset() {
+	*x = FolderEntry{}
+	mi := &file_maitre_v1_installer_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FolderEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FolderEntry) ProtoMessage() {}
+
+func (x *FolderEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_installer_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FolderEntry.ProtoReflect.Descriptor instead.
+func (*FolderEntry) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *FolderEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FolderEntry) GetDir() bool {
+	if x != nil {
+		return x.Dir
+	}
+	return false
+}
+
+func (x *FolderEntry) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *FolderEntry) GetModifiedUnixMs() int64 {
+	if x != nil {
+		return x.ModifiedUnixMs
+	}
+	return 0
+}
+
+func (x *FolderEntry) GetLink() bool {
+	if x != nil {
+		return x.Link
+	}
+	return false
+}
+
 // Provisioning is the state of an in-flight or finished install.
 type Provisioning struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
@@ -478,7 +774,7 @@ type Provisioning struct {
 
 func (x *Provisioning) Reset() {
 	*x = Provisioning{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	mi := &file_maitre_v1_installer_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -490,7 +786,7 @@ func (x *Provisioning) String() string {
 func (*Provisioning) ProtoMessage() {}
 
 func (x *Provisioning) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[5]
+	mi := &file_maitre_v1_installer_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -503,7 +799,7 @@ func (x *Provisioning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provisioning.ProtoReflect.Descriptor instead.
 func (*Provisioning) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Provisioning) GetPhase() Provisioning_Phase {
@@ -557,7 +853,7 @@ type ProvisionRequest struct {
 
 func (x *ProvisionRequest) Reset() {
 	*x = ProvisionRequest{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	mi := &file_maitre_v1_installer_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +865,7 @@ func (x *ProvisionRequest) String() string {
 func (*ProvisionRequest) ProtoMessage() {}
 
 func (x *ProvisionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[6]
+	mi := &file_maitre_v1_installer_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +878,7 @@ func (x *ProvisionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionRequest.ProtoReflect.Descriptor instead.
 func (*ProvisionRequest) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ProvisionRequest) GetFleet() *Fleet {
@@ -649,7 +945,7 @@ type ProvisionResponse struct {
 
 func (x *ProvisionResponse) Reset() {
 	*x = ProvisionResponse{}
-	mi := &file_maitre_v1_installer_proto_msgTypes[7]
+	mi := &file_maitre_v1_installer_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +957,7 @@ func (x *ProvisionResponse) String() string {
 func (*ProvisionResponse) ProtoMessage() {}
 
 func (x *ProvisionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_installer_proto_msgTypes[7]
+	mi := &file_maitre_v1_installer_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +970,7 @@ func (x *ProvisionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionResponse.ProtoReflect.Descriptor instead.
 func (*ProvisionResponse) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_installer_proto_rawDescGZIP(), []int{11}
 }
 
 var File_maitre_v1_installer_proto protoreflect.FileDescriptor
@@ -706,14 +1002,41 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"fleet_name\x18\x04 \x01(\tR\tfleetName\x12\"\n" +
 	"\rsaved_unix_ms\x18\x05 \x01(\x03R\vsavedUnixMs\x12\x16\n" +
 	"\x06device\x18\x06 \x01(\tR\x06device\x12\x12\n" +
-	"\x04disk\x18\a \x01(\tR\x04disk\"\x9b\x01\n" +
+	"\x04disk\x18\a \x01(\tR\x04disk\"\xd1\x01\n" +
 	"\x04Disk\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12\x1c\n" +
 	"\tremovable\x18\x04 \x01(\bR\tremovable\x12,\n" +
-	"\x12is_installer_media\x18\x05 \x01(\bR\x10isInstallerMedia\"\xfc\x01\n" +
+	"\x12is_installer_media\x18\x05 \x01(\bR\x10isInstallerMedia\x124\n" +
+	"\n" +
+	"partitions\x18\x06 \x03(\v2\x14.maitre.v1.PartitionR\n" +
+	"partitions\"\x8e\x01\n" +
+	"\tPartition\x12\x16\n" +
+	"\x06device\x18\x01 \x01(\tR\x06device\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x02 \x01(\x04R\tsizeBytes\x12\x16\n" +
+	"\x06fstype\x18\x03 \x01(\tR\x06fstype\x12\x14\n" +
+	"\x05label\x18\x04 \x01(\tR\x05label\x12\x1c\n" +
+	"\tbrowsable\x18\x05 \x01(\bR\tbrowsable\"?\n" +
+	"\x11ListFolderRequest\x12\x16\n" +
+	"\x06device\x18\x01 \x01(\tR\x06device\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x9a\x01\n" +
+	"\x12ListFolderResponse\x120\n" +
+	"\aentries\x18\x01 \x03(\v2\x16.maitre.v1.FolderEntryR\aentries\x12\x12\n" +
+	"\x04more\x18\x02 \x01(\rR\x04more\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\x03 \x01(\x04R\tusedBytes\x12\x1f\n" +
+	"\vtotal_bytes\x18\x04 \x01(\x04R\n" +
+	"totalBytes\"\x90\x01\n" +
+	"\vFolderEntry\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03dir\x18\x02 \x01(\bR\x03dir\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12(\n" +
+	"\x10modified_unix_ms\x18\x04 \x01(\x03R\x0emodifiedUnixMs\x12\x12\n" +
+	"\x04link\x18\x05 \x01(\bR\x04link\"\xfc\x01\n" +
 	"\fProvisioning\x123\n" +
 	"\x05phase\x18\x01 \x01(\x0e2\x1d.maitre.v1.Provisioning.PhaseR\x05phase\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
@@ -736,10 +1059,12 @@ const file_maitre_v1_installer_proto_rawDesc = "" +
 	"\x0frestore_node_id\x18\a \x01(\tR\rrestoreNodeId\x12%\n" +
 	"\x0edata_partition\x18\x05 \x01(\bR\rdataPartition\x12+\n" +
 	"\arecords\x18\b \x03(\v2\x11.maitre.v1.RecordR\arecords\"\x13\n" +
-	"\x11ProvisionResponse2\xc1\x01\n" +
+	"\x11ProvisionResponse2\x8e\x02\n" +
 	"\x10InstallerService\x12c\n" +
 	"\x12GetInstallerStatus\x12$.maitre.v1.GetInstallerStatusRequest\x1a%.maitre.v1.GetInstallerStatusResponse\"\x00\x12H\n" +
-	"\tProvision\x12\x1b.maitre.v1.ProvisionRequest\x1a\x1c.maitre.v1.ProvisionResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\tProvision\x12\x1b.maitre.v1.ProvisionRequest\x1a\x1c.maitre.v1.ProvisionResponse\"\x00\x12K\n" +
+	"\n" +
+	"ListFolder\x12\x1c.maitre.v1.ListFolderRequest\x1a\x1d.maitre.v1.ListFolderResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_installer_proto_rawDescOnce sync.Once
@@ -754,7 +1079,7 @@ func file_maitre_v1_installer_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_installer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_maitre_v1_installer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_maitre_v1_installer_proto_goTypes = []any{
 	(Provisioning_Phase)(0),            // 0: maitre.v1.Provisioning.Phase
 	(*GetInstallerStatusRequest)(nil),  // 1: maitre.v1.GetInstallerStatusRequest
@@ -762,33 +1087,41 @@ var file_maitre_v1_installer_proto_goTypes = []any{
 	(*InstallerStatus)(nil),            // 3: maitre.v1.InstallerStatus
 	(*Backup)(nil),                     // 4: maitre.v1.Backup
 	(*Disk)(nil),                       // 5: maitre.v1.Disk
-	(*Provisioning)(nil),               // 6: maitre.v1.Provisioning
-	(*ProvisionRequest)(nil),           // 7: maitre.v1.ProvisionRequest
-	(*ProvisionResponse)(nil),          // 8: maitre.v1.ProvisionResponse
-	(*Fleet)(nil),                      // 9: maitre.v1.Fleet
-	(*TrustedDevice)(nil),              // 10: maitre.v1.TrustedDevice
-	(*Node)(nil),                       // 11: maitre.v1.Node
-	(*Record)(nil),                     // 12: maitre.v1.Record
+	(*Partition)(nil),                  // 6: maitre.v1.Partition
+	(*ListFolderRequest)(nil),          // 7: maitre.v1.ListFolderRequest
+	(*ListFolderResponse)(nil),         // 8: maitre.v1.ListFolderResponse
+	(*FolderEntry)(nil),                // 9: maitre.v1.FolderEntry
+	(*Provisioning)(nil),               // 10: maitre.v1.Provisioning
+	(*ProvisionRequest)(nil),           // 11: maitre.v1.ProvisionRequest
+	(*ProvisionResponse)(nil),          // 12: maitre.v1.ProvisionResponse
+	(*Fleet)(nil),                      // 13: maitre.v1.Fleet
+	(*TrustedDevice)(nil),              // 14: maitre.v1.TrustedDevice
+	(*Node)(nil),                       // 15: maitre.v1.Node
+	(*Record)(nil),                     // 16: maitre.v1.Record
 }
 var file_maitre_v1_installer_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetInstallerStatusResponse.status:type_name -> maitre.v1.InstallerStatus
 	5,  // 1: maitre.v1.InstallerStatus.disks:type_name -> maitre.v1.Disk
-	6,  // 2: maitre.v1.InstallerStatus.provisioning:type_name -> maitre.v1.Provisioning
+	10, // 2: maitre.v1.InstallerStatus.provisioning:type_name -> maitre.v1.Provisioning
 	4,  // 3: maitre.v1.InstallerStatus.backups:type_name -> maitre.v1.Backup
-	0,  // 4: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
-	9,  // 5: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
-	10, // 6: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
-	11, // 7: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
-	12, // 8: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
-	1,  // 9: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
-	7,  // 10: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
-	2,  // 11: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
-	8,  // 12: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	6,  // 4: maitre.v1.Disk.partitions:type_name -> maitre.v1.Partition
+	9,  // 5: maitre.v1.ListFolderResponse.entries:type_name -> maitre.v1.FolderEntry
+	0,  // 6: maitre.v1.Provisioning.phase:type_name -> maitre.v1.Provisioning.Phase
+	13, // 7: maitre.v1.ProvisionRequest.fleet:type_name -> maitre.v1.Fleet
+	14, // 8: maitre.v1.ProvisionRequest.trusted_devices:type_name -> maitre.v1.TrustedDevice
+	15, // 9: maitre.v1.ProvisionRequest.nodes:type_name -> maitre.v1.Node
+	16, // 10: maitre.v1.ProvisionRequest.records:type_name -> maitre.v1.Record
+	1,  // 11: maitre.v1.InstallerService.GetInstallerStatus:input_type -> maitre.v1.GetInstallerStatusRequest
+	11, // 12: maitre.v1.InstallerService.Provision:input_type -> maitre.v1.ProvisionRequest
+	7,  // 13: maitre.v1.InstallerService.ListFolder:input_type -> maitre.v1.ListFolderRequest
+	2,  // 14: maitre.v1.InstallerService.GetInstallerStatus:output_type -> maitre.v1.GetInstallerStatusResponse
+	12, // 15: maitre.v1.InstallerService.Provision:output_type -> maitre.v1.ProvisionResponse
+	8,  // 16: maitre.v1.InstallerService.ListFolder:output_type -> maitre.v1.ListFolderResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_installer_proto_init() }
@@ -803,7 +1136,7 @@ func file_maitre_v1_installer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_installer_proto_rawDesc), len(file_maitre_v1_installer_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

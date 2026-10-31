@@ -29,6 +29,9 @@ const (
 	InstallerServiceGetInstallerStatusProcedure = "/maitre.v1.InstallerService/GetInstallerStatus"
 	// InstallerServiceProvisionProcedure is the procedure name of the InstallerService's Provision RPC.
 	InstallerServiceProvisionProcedure = "/maitre.v1.InstallerService/Provision"
+	// InstallerServiceListFolderProcedure is the procedure name of the InstallerService's ListFolder
+	// RPC.
+	InstallerServiceListFolderProcedure = "/maitre.v1.InstallerService/ListFolder"
 )
 
 var (
@@ -46,6 +49,13 @@ var (
 			Procedure:  InstallerServiceProvisionProcedure,
 		}
 	})
+	installerServiceListFolderSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_installer_proto.Services().ByName("InstallerService").Methods().ByName("ListFolder"),
+			Procedure:  InstallerServiceListFolderProcedure,
+		}
+	})
 )
 
 // InstallerServiceClient is a client for the maitre.v1.InstallerService service.
@@ -56,6 +66,11 @@ type InstallerServiceClient interface {
 	// Provision installs Maître Server to a disk and makes this machine a Node.
 	// Returns at once; progress is read with GetInstallerStatus.
 	Provision(context.Context, *v1.ProvisionRequest) (*v1.ProvisionResponse, error)
+	// ListFolder lists one folder on a partition of a disk, read-only, so the
+	// person setting up can tell disks apart by what they hold (decision 262).
+	// Names, sizes and dates only; no file is read. Installers before this
+	// answer Unimplemented.
+	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
 }
 
 // NewInstallerServiceClient constructs a client for the maitre.v1.InstallerService service.
@@ -72,6 +87,11 @@ type InstallerServiceHandler interface {
 	// Provision installs Maître Server to a disk and makes this machine a Node.
 	// Returns at once; progress is read with GetInstallerStatus.
 	Provision(context.Context, *v1.ProvisionRequest) (*v1.ProvisionResponse, error)
+	// ListFolder lists one folder on a partition of a disk, read-only, so the
+	// person setting up can tell disks apart by what they hold (decision 262).
+	// Names, sizes and dates only; no file is read. Installers before this
+	// answer Unimplemented.
+	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
 }
 
 // RegisterInstallerServiceHandler registers svc as the maitre.v1.InstallerService implementation on
@@ -81,6 +101,7 @@ func RegisterInstallerServiceHandler(server *connect.Server, svc InstallerServic
 	server.Register(
 		connect.Method{Spec: installerServiceGetInstallerStatusSpec(), Handler: adapter.getInstallerStatus},
 		connect.Method{Spec: installerServiceProvisionSpec(), Handler: adapter.provision},
+		connect.Method{Spec: installerServiceListFolderSpec(), Handler: adapter.listFolder},
 	)
 }
 
@@ -93,6 +114,10 @@ func (UnimplementedInstallerServiceHandler) GetInstallerStatus(context.Context, 
 
 func (UnimplementedInstallerServiceHandler) Provision(context.Context, *v1.ProvisionRequest) (*v1.ProvisionResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.Provision is not implemented")
+}
+
+func (UnimplementedInstallerServiceHandler) ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.InstallerService.ListFolder is not implemented")
 }
 
 type installerServiceClient struct {
@@ -110,6 +135,14 @@ func (c *installerServiceClient) GetInstallerStatus(ctx context.Context, req *v1
 func (c *installerServiceClient) Provision(ctx context.Context, req *v1.ProvisionRequest) (*v1.ProvisionResponse, error) {
 	var res v1.ProvisionResponse
 	if err := c.client.CallUnary(ctx, installerServiceProvisionSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *installerServiceClient) ListFolder(ctx context.Context, req *v1.ListFolderRequest) (*v1.ListFolderResponse, error) {
+	var res v1.ListFolderResponse
+	if err := c.client.CallUnary(ctx, installerServiceListFolderSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -135,6 +168,18 @@ func (h installerServiceHandler) provision(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.Provision(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h installerServiceHandler) listFolder(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListFolderRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListFolder(ctx, &req)
 	if err != nil {
 		return err
 	}

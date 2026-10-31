@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"flag"
@@ -42,6 +43,7 @@ func runProvision(args []string) error {
 	wait := fs.Bool("wait", true, "poll until the install finishes")
 	savePub := fs.String("save-node-pub", "", "write the new Node's public key PEM here (it keeps the Installer's key)")
 	joinFrom := fs.String("join-from", "", "address of a Node of an existing Fleet to join instead of creating one (its Fleet, devices and Nodes are copied; this device must be trusted there)")
+	waitUp := fs.Duration("wait-up", 0, "keep trying to reach the Installer this long before giving up (it may still be booting)")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "with --join-from: directory of *.pub files for Nodes to trust")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -58,7 +60,16 @@ func runProvision(args []string) error {
 
 	// First contact learns the Installer's key; the pairing code is what
 	// confirms it (Q66). Everything after pins that key.
-	instKey, err := mtls.PeekServerPublicKey(ctx, *addr)
+	peek := func() (ed25519.PublicKey, error) {
+		pctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		return mtls.PeekServerPublicKey(pctx, *addr)
+	}
+	instKey, err := peek()
+	for until := time.Now().Add(*waitUp); err != nil && time.Now().Before(until); {
+		time.Sleep(2 * time.Second)
+		instKey, err = peek()
+	}
 	if err != nil {
 		return fmt.Errorf("reach installer: %w", err)
 	}

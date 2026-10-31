@@ -56,6 +56,8 @@ type lsblkDev struct {
 	Name        string     `json:"name"`
 	Path        string     `json:"path"`
 	FSType      *string    `json:"fstype"`
+	Label       *string    `json:"label"`
+	PartLabel   *string    `json:"partlabel"`
 	Model       *string    `json:"model"`
 	Size        uint64     `json:"size"`
 	RM          bool       `json:"rm"`
@@ -70,10 +72,14 @@ type lsblkDev struct {
 // is flagged as installer media. Virtual devices (zram, loop, ram) are
 // skipped.
 func Disks(ctx context.Context) ([]*maitrev1.Disk, error) {
-	out, err := exec.CommandContext(ctx, "lsblk", "-J", "-b", "-o", "NAME,PATH,MODEL,SIZE,RM,TYPE,TRAN,MOUNTPOINTS,FSTYPE").Output()
+	out, err := exec.CommandContext(ctx, "lsblk", "-J", "-b", "-o", "NAME,PATH,MODEL,SIZE,RM,TYPE,TRAN,MOUNTPOINTS,FSTYPE,LABEL,PARTLABEL").Output()
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
 	}
+	return parseDisks(out)
+}
+
+func parseDisks(out []byte) ([]*maitrev1.Disk, error) {
 	var parsed lsblkOut
 	if err := json.Unmarshal(out, &parsed); err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
@@ -89,6 +95,7 @@ func Disks(ctx context.Context) ([]*maitrev1.Disk, error) {
 			Removable:        d.RM,
 			IsInstallerMedia: holdsSystem(d),
 		}
+		disk.Partitions = partitions(d, disk.IsInstallerMedia)
 		if d.Model != nil {
 			disk.Model = strings.TrimSpace(*d.Model)
 		}

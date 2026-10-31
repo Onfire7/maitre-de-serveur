@@ -4,7 +4,7 @@ Documentation=https://github.com/Onfire7/maitre-de-serveur
 After=network-online.target avahi-daemon.service
 Wants=network-online.target avahi-daemon.service
 ConditionKernelCommandLine=maitre.installer
-# The status screen owns tty1; no login prompt there.
+# The screen owns tty1; no login prompt there.
 Conflicts=getty@tty1.service
 
 [Service]
@@ -15,11 +15,17 @@ Type=simple
 ExecStart=/usr/bin/maitre installer
 Restart=on-failure
 RestartSec=5
+# The screen (decision 261), as the agent's: tty1 with its keyboard, and
+# logs to the journal only (its Log page shows them), since the console
+# would scribble over the screen.
+StandardInput=tty
 StandardOutput=tty
-StandardError=journal+console
+StandardError=journal
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=TERM=linux
 
 [Install]
 WantedBy=multi-user.target

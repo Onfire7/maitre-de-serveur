@@ -1,10 +1,10 @@
 // Set up a machine booted from the Installer (decisions 133, 147): check the
 // pairing code, name the Node and pick its disk, then watch the install.
 // Reports progress up so the sidebar can show the new Node as Provisioning.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { Dices, Check, X, HardDrive, Usb } from "lucide-react";
+import { Dices, Check, X, HardDrive, Usb, FolderSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nextLetter, randomNodeName } from "@/names";
 import { fingerprintOfPem, putSigned, signedRecord } from "@/fleet/sign";
+import { DiskBrowser, holds } from "./DiskBrowser";
 
 /** The Device-signed kinds a new Node of an existing Fleet starts with, copied from a Node of it. */
 const PROVISION_KINDS = new Set(["trusted_device", "node", "fleet", "space", "update_policy", "tailscale", "public_settings", "grant"]);
@@ -62,6 +63,9 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
   const [started, setStarted] = useState(false);
   const [restore, setRestore] = useState("");
   const [error, setError] = useState("");
+  // The disk being looked inside (decision 262).
+  const [looking, setLooking] = useState("");
+  const installer = useMemo(() => (fp ? createClient(InstallerService, transportFor({ addr, fingerprint: fp })) : null), [addr, fp]);
 
   // Step 1: learn the Installer's key and compute the code we expect.
   useEffect(() => {
@@ -277,17 +281,31 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
             {disks.length === 0 && <p className="text-sm text-muted-foreground">No other disks found on this machine.</p>}
             <RadioGroup value={disk} onValueChange={(v) => (setDisk(v), setDataPart(!disks.find((d) => d.path === v)?.removable))} className="gap-1.5">
               {disks.map((d) => (
-                <label key={d.path} className={cn("flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm", disk === d.path && "border-primary")}>
-                  <RadioGroupItem value={d.path} />
-                  {d.removable ? <Usb className="size-4 text-muted-foreground" /> : <HardDrive className="size-4 text-muted-foreground" />}
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{d.model || d.path}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {formatBytes(d.sizeBytes)} · {d.path}
-                      {d.removable && " · USB, removable"}
+                <div key={d.path} className={cn("rounded-lg border", disk === d.path && "border-primary")}>
+                  <label className="flex cursor-pointer items-center gap-3 p-3 text-sm">
+                    <RadioGroupItem value={d.path} />
+                    {d.removable ? <Usb className="size-4 text-muted-foreground" /> : <HardDrive className="size-4 text-muted-foreground" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{d.model || d.path}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {formatBytes(d.sizeBytes)} · {d.path}
+                        {d.removable && " · USB, removable"}
+                      </span>
+                      {/* Installers before decision 262 list no partitions. */}
+                      {d.partitions.length > 0 && <span className="block text-xs text-muted-foreground">Holds: {holds(d)}</span>}
                     </span>
-                  </span>
-                </label>
+                    {d.partitions.some((p) => p.browsable) && installer && (
+                      <Button type="button" variant="ghost" size="sm" onClick={(e) => (e.preventDefault(), setLooking(looking === d.path ? "" : d.path))}>
+                        <FolderSearch /> {looking === d.path ? "Close" : "Look inside"}
+                      </Button>
+                    )}
+                  </label>
+                  {looking === d.path && installer && (
+                    <div className="px-3 pb-3">
+                      <DiskBrowser client={installer} disk={d} />
+                    </div>
+                  )}
+                </div>
               ))}
             </RadioGroup>
           </div>

@@ -1181,6 +1181,7 @@ func runInstaller(args []string) error {
 		return err
 	}
 	opts := installer.Options{Version: version, ImageRef: *image, InsecureRegistry: *insecure}
+	sourceNote := "downloading from " + *image
 	if *fake == "" {
 		// Decision 76: media may carry the image; then bootc installs from it
 		// directly, as the netboot path already does.
@@ -1191,7 +1192,7 @@ func runInstaller(args []string) error {
 		if local != nil {
 			src, why := installer.ChooseSource(context.Background(), *image, local)
 			log.Info("install source", "source", src, "why", why)
-			opts.Source = src
+			opts.Source, sourceNote = src, why
 			*direct = true
 		}
 	}
@@ -1202,6 +1203,7 @@ func runInstaller(args []string) error {
 	if *fake != "" {
 		opts.Runner = &installer.FakeRunner{Dir: *fake, Delay: 2 * time.Second}
 		opts.Disks = installer.FakeDisks
+		opts.Folders = installer.FakeFolders{}
 	}
 	if !*noReboot {
 		opts.Reboot = func() error { return exec.Command("systemctl", "reboot").Run() }
@@ -1229,7 +1231,14 @@ func runInstaller(args []string) error {
 			defer ad.Close()
 		}
 	}
-	if !*noScreen {
+	if !*noScreen && term.IsTerminal(int(os.Stdin.Fd())) {
+		// Decision 261: the Node's look, with the disks to look inside.
+		go func() {
+			if err := tui.RunInstaller(ctx, &installerSource{in: in, id: id, sourceNote: sourceNote}); err != nil {
+				log.Warn("screen stopped", "err", err)
+			}
+		}()
+	} else if !*noScreen {
 		go func() {
 			t := time.NewTicker(time.Second)
 			defer t.Stop()

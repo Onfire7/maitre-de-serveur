@@ -11,9 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect/v2"
+
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/ascii"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 )
@@ -131,17 +135,83 @@ func plainStatusPage(ctx context.Context, src tui.Source) {
 
 // runTUI is `maitre tui --demo`: the Node's screen with made-up data, to
 // work on it from a workstation terminal.
+// installerSource feeds the Installer's screen (decision 261).
+type installerSource struct {
+	in         *installer.Installer
+	id         *identity.Identity
+	sourceNote string
+}
+
+func (s *installerSource) Status() tui.InstallerStatus {
+	code, prov := s.in.Shown()
+	return tui.InstallerStatus{Version: version, Machine: installer.MachineName(), Identity: s.id.Fingerprint(), Addresses: installer.Addresses(), Image: s.in.Options().ImageRef, Source: s.sourceNote, Code: code, Provisioning: prov}
+}
+func (s *installerSource) Disks(ctx context.Context) ([]*maitrev1.Disk, error) {
+	return s.in.Options().Disks(ctx)
+}
+func (s *installerSource) Folder(ctx context.Context, device, dir string) (*maitrev1.ListFolderResponse, error) {
+	r, err := s.in.Folder(ctx, device, dir)
+	if ce := new(connect.Error); errors.As(err, &ce) {
+		return nil, errors.New(ce.Message())
+	}
+	return r, err
+}
+func (s *installerSource) Logs(ctx context.Context, n int) ([]string, error) {
+	return tui.JournalLogs(ctx, "maitre-installer.service", n)
+}
+func (s *installerSource) Reboot() error { return exec.Command("systemctl", "reboot").Run() }
+
 func runTUI(args []string) error {
 	fs := flag.NewFlagSet("tui", flag.ContinueOnError)
 	demo := fs.Bool("demo", false, "show the screen with sample data")
+	demoInstaller := fs.String("demo-installer", "", "show the Installer's screen with sample disks: waiting, pairing, installing or failed")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *demoInstaller != "" {
+		return tui.RunInstaller(context.Background(), demoInstallerSource(*demoInstaller))
+	}
 	if !*demo {
-		return errors.New("usage: maitre tui --demo (the real screen runs inside `maitre agent`)")
+		return errors.New("usage: maitre tui --demo | --demo-installer <state> (the real screens run inside `maitre agent` and `maitre installer`)")
 	}
 	return tui.Run(context.Background(), demoSource{started: time.Now().Add(-37 * time.Minute)})
 }
+
+// demoInstallerSource shows the fake disks and folders in one state.
+type demoInstallerSource string
+
+func (d demoInstallerSource) Status() tui.InstallerStatus {
+	st := tui.InstallerStatus{Version: version, Machine: "OptiPlex 7080", Identity: "7d92aeee61d9abbdd989ed787ee03d8e", Addresses: []string{"192.168.4.81"}, Image: "ghcr.io/onfire7/maitre-server:stable", Source: "this media already holds the current image; no download", Provisioning: &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_IDLE}}
+	switch d {
+	case "pairing":
+		st.Code = "482913"
+	case "installing":
+		st.Code = "482913"
+		st.Provisioning = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_INSTALLING, Percent: 42, Message: "writing the image to /dev/nvme0n1"}
+	case "failed":
+		st.Code = "482913"
+		st.Provisioning = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_FAILED, Message: "bootc install: no room for the config partition after the 32 GB root"}
+	}
+	return st
+}
+func (demoInstallerSource) Disks(ctx context.Context) ([]*maitrev1.Disk, error) {
+	return installer.FakeDisks(ctx)
+}
+func (demoInstallerSource) Folder(ctx context.Context, device, dir string) (*maitrev1.ListFolderResponse, error) {
+	disks, _ := installer.FakeDisks(ctx)
+	for _, dk := range disks {
+		for _, p := range dk.GetPartitions() {
+			if p.GetDevice() == device {
+				return installer.FakeFolders{}.List(ctx, p, dir)
+			}
+		}
+	}
+	return nil, fmt.Errorf("no partition %s", device)
+}
+func (demoInstallerSource) Logs(context.Context, int) ([]string, error) {
+	return []string{"2026-10-31T10:02:11+00:00 maitre[812]: level=INFO msg=\"maitre installer\" image=ghcr.io/onfire7/maitre-server:stable", "2026-10-31T10:02:11+00:00 maitre[812]: level=INFO msg=listening addr=0.0.0.0:7443"}, nil
+}
+func (demoInstallerSource) Reboot() error { return tui.ErrQuit }
 
 type demoSource struct{ started time.Time }
 

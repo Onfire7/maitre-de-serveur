@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/installer.proto.
  */
 export const file_maitre_v1_installer: GenFile = /*@__PURE__*/
-  fileDesc("ChltYWl0cmUvdjEvaW5zdGFsbGVyLnByb3RvEgltYWl0cmUudjEiGwoZR2V0SW5zdGFsbGVyU3RhdHVzUmVxdWVzdCJIChpHZXRJbnN0YWxsZXJTdGF0dXNSZXNwb25zZRIqCgZzdGF0dXMYASABKAsyGi5tYWl0cmUudjEuSW5zdGFsbGVyU3RhdHVzIqQCCg9JbnN0YWxsZXJTdGF0dXMSFAoMaW5zdGFsbGVyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhQKDHBhaXJpbmdfY29kZRgEIAEoCRIeCgVkaXNrcxgFIAMoCzIPLm1haXRyZS52MS5EaXNrEi0KDHByb3Zpc2lvbmluZxgGIAEoCzIXLm1haXRyZS52MS5Qcm92aXNpb25pbmcSFAoMbWFjaGluZV9uYW1lGAcgASgJEg0KBWltYWdlGAggASgJEg4KBnNvdXJjZRgJIAEoCRIZChFpbnNlY3VyZV9yZWdpc3RyeRgKIAEoCRIiCgdiYWNrdXBzGAsgAygLMhEubWFpdHJlLnYxLkJhY2t1cCKHAQoGQmFja3VwEg8KB25vZGVfaWQYASABKAkSEQoJbm9kZV9uYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEhIKCmZsZWV0X25hbWUYBCABKAkSFQoNc2F2ZWRfdW5peF9tcxgFIAEoAxIOCgZkZXZpY2UYBiABKAkSDAoEZGlzaxgHIAEoCSJmCgREaXNrEgwKBHBhdGgYASABKAkSDQoFbW9kZWwYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIRCglyZW1vdmFibGUYBCABKAgSGgoSaXNfaW5zdGFsbGVyX21lZGlhGAUgASgIIuMBCgxQcm92aXNpb25pbmcSLAoFcGhhc2UYASABKA4yHS5tYWl0cmUudjEuUHJvdmlzaW9uaW5nLlBoYXNlEg8KB21lc3NhZ2UYAiABKAkSDwoHcGVyY2VudBgDIAEoDSKCAQoFUGhhc2USFQoRUEhBU0VfVU5TUEVDSUZJRUQQABIOCgpQSEFTRV9JRExFEAESFAoQUEhBU0VfSU5TVEFMTElORxACEhUKEVBIQVNFX0NPTkZJR1VSSU5HEAMSEwoPUEhBU0VfUkVCT09USU5HEAQSEAoMUEhBU0VfRkFJTEVEEAUigwIKEFByb3Zpc2lvblJlcXVlc3QSHwoFZmxlZXQYASABKAsyEC5tYWl0cmUudjEuRmxlZXQSEQoJbm9kZV9uYW1lGAIgASgJEhMKC3RhcmdldF9kaXNrGAMgASgJEjEKD3RydXN0ZWRfZGV2aWNlcxgEIAMoCzIYLm1haXRyZS52MS5UcnVzdGVkRGV2aWNlEh4KBW5vZGVzGAYgAygLMg8ubWFpdHJlLnYxLk5vZGUSFwoPcmVzdG9yZV9ub2RlX2lkGAcgASgJEhYKDmRhdGFfcGFydGl0aW9uGAUgASgIEiIKB3JlY29yZHMYCCADKAsyES5tYWl0cmUudjEuUmVjb3JkIhMKEVByb3Zpc2lvblJlc3BvbnNlMsEBChBJbnN0YWxsZXJTZXJ2aWNlEmMKEkdldEluc3RhbGxlclN0YXR1cxIkLm1haXRyZS52MS5HZXRJbnN0YWxsZXJTdGF0dXNSZXF1ZXN0GiUubWFpdHJlLnYxLkdldEluc3RhbGxlclN0YXR1c1Jlc3BvbnNlIgASSAoJUHJvdmlzaW9uEhsubWFpdHJlLnYxLlByb3Zpc2lvblJlcXVlc3QaHC5tYWl0cmUudjEuUHJvdmlzaW9uUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw", [file_maitre_v1_fleet]);
+  fileDesc("ChltYWl0cmUvdjEvaW5zdGFsbGVyLnByb3RvEgltYWl0cmUudjEiGwoZR2V0SW5zdGFsbGVyU3RhdHVzUmVxdWVzdCJIChpHZXRJbnN0YWxsZXJTdGF0dXNSZXNwb25zZRIqCgZzdGF0dXMYASABKAsyGi5tYWl0cmUudjEuSW5zdGFsbGVyU3RhdHVzIqQCCg9JbnN0YWxsZXJTdGF0dXMSFAoMaW5zdGFsbGVyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEQoJYWRkcmVzc2VzGAMgAygJEhQKDHBhaXJpbmdfY29kZRgEIAEoCRIeCgVkaXNrcxgFIAMoCzIPLm1haXRyZS52MS5EaXNrEi0KDHByb3Zpc2lvbmluZxgGIAEoCzIXLm1haXRyZS52MS5Qcm92aXNpb25pbmcSFAoMbWFjaGluZV9uYW1lGAcgASgJEg0KBWltYWdlGAggASgJEg4KBnNvdXJjZRgJIAEoCRIZChFpbnNlY3VyZV9yZWdpc3RyeRgKIAEoCRIiCgdiYWNrdXBzGAsgAygLMhEubWFpdHJlLnYxLkJhY2t1cCKHAQoGQmFja3VwEg8KB25vZGVfaWQYASABKAkSEQoJbm9kZV9uYW1lGAIgASgJEhAKCGZsZWV0X2lkGAMgASgJEhIKCmZsZWV0X25hbWUYBCABKAkSFQoNc2F2ZWRfdW5peF9tcxgFIAEoAxIOCgZkZXZpY2UYBiABKAkSDAoEZGlzaxgHIAEoCSKQAQoERGlzaxIMCgRwYXRoGAEgASgJEg0KBW1vZGVsGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAQSEQoJcmVtb3ZhYmxlGAQgASgIEhoKEmlzX2luc3RhbGxlcl9tZWRpYRgFIAEoCBIoCgpwYXJ0aXRpb25zGAYgAygLMhQubWFpdHJlLnYxLlBhcnRpdGlvbiJhCglQYXJ0aXRpb24SDgoGZGV2aWNlGAEgASgJEhIKCnNpemVfYnl0ZXMYAiABKAQSDgoGZnN0eXBlGAMgASgJEg0KBWxhYmVsGAQgASgJEhEKCWJyb3dzYWJsZRgFIAEoCCIxChFMaXN0Rm9sZGVyUmVxdWVzdBIOCgZkZXZpY2UYASABKAkSDAoEcGF0aBgCIAEoCSJ0ChJMaXN0Rm9sZGVyUmVzcG9uc2USJwoHZW50cmllcxgBIAMoCzIWLm1haXRyZS52MS5Gb2xkZXJFbnRyeRIMCgRtb3JlGAIgASgNEhIKCnVzZWRfYnl0ZXMYAyABKAQSEwoLdG90YWxfYnl0ZXMYBCABKAQiZAoLRm9sZGVyRW50cnkSDAoEbmFtZRgBIAEoCRILCgNkaXIYAiABKAgSEgoKc2l6ZV9ieXRlcxgDIAEoBBIYChBtb2RpZmllZF91bml4X21zGAQgASgDEgwKBGxpbmsYBSABKAgi4wEKDFByb3Zpc2lvbmluZxIsCgVwaGFzZRgBIAEoDjIdLm1haXRyZS52MS5Qcm92aXNpb25pbmcuUGhhc2USDwoHbWVzc2FnZRgCIAEoCRIPCgdwZXJjZW50GAMgASgNIoIBCgVQaGFzZRIVChFQSEFTRV9VTlNQRUNJRklFRBAAEg4KClBIQVNFX0lETEUQARIUChBQSEFTRV9JTlNUQUxMSU5HEAISFQoRUEhBU0VfQ09ORklHVVJJTkcQAxITCg9QSEFTRV9SRUJPT1RJTkcQBBIQCgxQSEFTRV9GQUlMRUQQBSKDAgoQUHJvdmlzaW9uUmVxdWVzdBIfCgVmbGVldBgBIAEoCzIQLm1haXRyZS52MS5GbGVldBIRCglub2RlX25hbWUYAiABKAkSEwoLdGFyZ2V0X2Rpc2sYAyABKAkSMQoPdHJ1c3RlZF9kZXZpY2VzGAQgAygLMhgubWFpdHJlLnYxLlRydXN0ZWREZXZpY2USHgoFbm9kZXMYBiADKAsyDy5tYWl0cmUudjEuTm9kZRIXCg9yZXN0b3JlX25vZGVfaWQYByABKAkSFgoOZGF0YV9wYXJ0aXRpb24YBSABKAgSIgoHcmVjb3JkcxgIIAMoCzIRLm1haXRyZS52MS5SZWNvcmQiEwoRUHJvdmlzaW9uUmVzcG9uc2UyjgIKEEluc3RhbGxlclNlcnZpY2USYwoSR2V0SW5zdGFsbGVyU3RhdHVzEiQubWFpdHJlLnYxLkdldEluc3RhbGxlclN0YXR1c1JlcXVlc3QaJS5tYWl0cmUudjEuR2V0SW5zdGFsbGVyU3RhdHVzUmVzcG9uc2UiABJICglQcm92aXNpb24SGy5tYWl0cmUudjEuUHJvdmlzaW9uUmVxdWVzdBocLm1haXRyZS52MS5Qcm92aXNpb25SZXNwb25zZSIAEksKCkxpc3RGb2xkZXISHC5tYWl0cmUudjEuTGlzdEZvbGRlclJlcXVlc3QaHS5tYWl0cmUudjEuTGlzdEZvbGRlclJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM", [file_maitre_v1_fleet]);
 
 /**
  * @generated from message maitre.v1.GetInstallerStatusRequest
@@ -211,6 +211,15 @@ export type Disk = Message<"maitre.v1.Disk"> & {
    * @generated from field: bool is_installer_media = 5;
    */
   isInstallerMedia: boolean;
+
+  /**
+   * What is on it now (decision 262): its partitions, and filesystems inside
+   * them (LVM volumes, a filesystem on the whole disk). Empty for a blank
+   * disk, and from Installers before this.
+   *
+   * @generated from field: repeated maitre.v1.Partition partitions = 6;
+   */
+  partitions: Partition[];
 };
 
 /**
@@ -219,6 +228,159 @@ export type Disk = Message<"maitre.v1.Disk"> & {
  */
 export const DiskSchema: GenMessage<Disk> = /*@__PURE__*/
   messageDesc(file_maitre_v1_installer, 4);
+
+/**
+ * Partition is a partition or other block device on a disk, as lsblk sees it.
+ *
+ * @generated from message maitre.v1.Partition
+ */
+export type Partition = Message<"maitre.v1.Partition"> & {
+  /**
+   * Device path, e.g. /dev/sdb1; ListFolder takes it.
+   *
+   * @generated from field: string device = 1;
+   */
+  device: string;
+
+  /**
+   * @generated from field: uint64 size_bytes = 2;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * Filesystem type as blkid names it (ext4, ntfs, vfat, crypto_LUKS,
+   * LVM2_member, swap, ...); empty when none is recognised.
+   *
+   * @generated from field: string fstype = 3;
+   */
+  fstype: string;
+
+  /**
+   * Filesystem label, else the GPT partition name.
+   *
+   * @generated from field: string label = 4;
+   */
+  label: string;
+
+  /**
+   * True when ListFolder can mount it to look inside.
+   *
+   * @generated from field: bool browsable = 5;
+   */
+  browsable: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.Partition.
+ * Use `create(PartitionSchema)` to create a new message.
+ */
+export const PartitionSchema: GenMessage<Partition> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_installer, 5);
+
+/**
+ * @generated from message maitre.v1.ListFolderRequest
+ */
+export type ListFolderRequest = Message<"maitre.v1.ListFolderRequest"> & {
+  /**
+   * Partition.device of a disk that is not the installer media.
+   *
+   * @generated from field: string device = 1;
+   */
+  device: string;
+
+  /**
+   * Folder within the partition, "/"-separated; empty or "/" is its top.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message maitre.v1.ListFolderRequest.
+ * Use `create(ListFolderRequestSchema)` to create a new message.
+ */
+export const ListFolderRequestSchema: GenMessage<ListFolderRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_installer, 6);
+
+/**
+ * @generated from message maitre.v1.ListFolderResponse
+ */
+export type ListFolderResponse = Message<"maitre.v1.ListFolderResponse"> & {
+  /**
+   * Folders first, then files, each by name.
+   *
+   * @generated from field: repeated maitre.v1.FolderEntry entries = 1;
+   */
+  entries: FolderEntry[];
+
+  /**
+   * Entries left out past the first 1000.
+   *
+   * @generated from field: uint32 more = 2;
+   */
+  more: number;
+
+  /**
+   * The filesystem's size and use.
+   *
+   * @generated from field: uint64 used_bytes = 3;
+   */
+  usedBytes: bigint;
+
+  /**
+   * @generated from field: uint64 total_bytes = 4;
+   */
+  totalBytes: bigint;
+};
+
+/**
+ * Describes the message maitre.v1.ListFolderResponse.
+ * Use `create(ListFolderResponseSchema)` to create a new message.
+ */
+export const ListFolderResponseSchema: GenMessage<ListFolderResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_installer, 7);
+
+/**
+ * @generated from message maitre.v1.FolderEntry
+ */
+export type FolderEntry = Message<"maitre.v1.FolderEntry"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: bool dir = 2;
+   */
+  dir: boolean;
+
+  /**
+   * Bytes, for files.
+   *
+   * @generated from field: uint64 size_bytes = 3;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * @generated from field: int64 modified_unix_ms = 4;
+   */
+  modifiedUnixMs: bigint;
+
+  /**
+   * A symbolic link; not followed.
+   *
+   * @generated from field: bool link = 5;
+   */
+  link: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.FolderEntry.
+ * Use `create(FolderEntrySchema)` to create a new message.
+ */
+export const FolderEntrySchema: GenMessage<FolderEntry> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_installer, 8);
 
 /**
  * Provisioning is the state of an in-flight or finished install.
@@ -249,7 +411,7 @@ export type Provisioning = Message<"maitre.v1.Provisioning"> & {
  * Use `create(ProvisioningSchema)` to create a new message.
  */
 export const ProvisioningSchema: GenMessage<Provisioning> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 5);
+  messageDesc(file_maitre_v1_installer, 9);
 
 /**
  * @generated from enum maitre.v1.Provisioning.Phase
@@ -290,7 +452,7 @@ export enum Provisioning_Phase {
  * Describes the enum maitre.v1.Provisioning.Phase.
  */
 export const Provisioning_PhaseSchema: GenEnum<Provisioning_Phase> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_installer, 5, 0);
+  enumDesc(file_maitre_v1_installer, 9, 0);
 
 /**
  * @generated from message maitre.v1.ProvisionRequest
@@ -362,7 +524,7 @@ export type ProvisionRequest = Message<"maitre.v1.ProvisionRequest"> & {
  * Use `create(ProvisionRequestSchema)` to create a new message.
  */
 export const ProvisionRequestSchema: GenMessage<ProvisionRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 6);
+  messageDesc(file_maitre_v1_installer, 10);
 
 /**
  * @generated from message maitre.v1.ProvisionResponse
@@ -375,7 +537,7 @@ export type ProvisionResponse = Message<"maitre.v1.ProvisionResponse"> & {
  * Use `create(ProvisionResponseSchema)` to create a new message.
  */
 export const ProvisionResponseSchema: GenMessage<ProvisionResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_installer, 7);
+  messageDesc(file_maitre_v1_installer, 11);
 
 /**
  * InstallerService is served by `maitre installer` on installer media.
@@ -408,6 +570,19 @@ export const InstallerService: GenService<{
     methodKind: "unary";
     input: typeof ProvisionRequestSchema;
     output: typeof ProvisionResponseSchema;
+  },
+  /**
+   * ListFolder lists one folder on a partition of a disk, read-only, so the
+   * person setting up can tell disks apart by what they hold (decision 262).
+   * Names, sizes and dates only; no file is read. Installers before this
+   * answer Unimplemented.
+   *
+   * @generated from rpc maitre.v1.InstallerService.ListFolder
+   */
+  listFolder: {
+    methodKind: "unary";
+    input: typeof ListFolderRequestSchema;
+    output: typeof ListFolderResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_installer, 0);

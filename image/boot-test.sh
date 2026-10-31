@@ -81,24 +81,15 @@ qemu-system-x86_64 \
   >"$OUT/serial.log" 2>&1 &
 QEMU=$!
 
-wait_for() { # pattern, seconds
-  for _ in $(seq "$2"); do
-    grep -qE "$1" "$OUT/serial.log" && return 0
-    kill -0 "$QEMU" 2>/dev/null || { echo "boot-test: qemu exited"; tail -80 "$OUT/serial.log"; return 1; }
-    sleep 1
-  done
-  echo "boot-test: timed out waiting for /$1/"; tail -120 "$OUT/serial.log"; return 1
-}
-
-wait_for 'maitre installer' 300
-echo "installer is up; provisioning from the host"
+# The Installer owns tty1 and logs only to the journal (decision 261), so
+# provision waits for it to answer instead.
+echo "waiting for the installer; provisioning from the host"
 DEV="$OUT/device"
-"$MAITRE" provision --identity "$DEV" --addr "127.0.0.1:${FWD_PORT}" --fleet "CI Fleet" --name ci-node \
+"$MAITRE" provision --identity "$DEV" --addr "127.0.0.1:${FWD_PORT}" --wait-up 5m --fleet "CI Fleet" --name ci-node \
   --disk /dev/vda --data --yes --save-node-pub "$OUT/node.pub" | tee "$OUT/provision.log"
 
 # 4. The machine reboots into the installed Node.
 echo "waiting for the installed node"
-# The installer's own 'listening' line is already in the log; look for the agent's banner.
 # The agent owns tty1 and logs only to the journal; wait for it over RPC.
 for _ in $(seq 1 $(( TIMEOUT / 5 ))); do
   "$MAITRE" info --identity "$OUT/device" --trust "$OUT/device/trusted" --addr 127.0.0.1:17443 >/dev/null 2>&1 && break

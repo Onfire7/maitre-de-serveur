@@ -18,6 +18,11 @@ service InstallerService {
   // Provision installs Maître Server to a disk and makes this machine a Node.
   // Returns at once; progress is read with GetInstallerStatus.
   rpc Provision(ProvisionRequest) returns (ProvisionResponse) {}
+  // ListFolder lists one folder on a partition of a disk, read-only, so the
+  // person setting up can tell disks apart by what they hold (decision 262).
+  // Names, sizes and dates only; no file is read. Installers before this
+  // answer Unimplemented.
+  rpc ListFolder(ListFolderRequest) returns (ListFolderResponse) {}
 }
 
 message GetInstallerStatusRequest {}
@@ -70,6 +75,51 @@ message Disk {
   bool removable = 4;
   // True for the disk the Installer itself booted from.
   bool is_installer_media = 5;
+  // What is on it now (decision 262): its partitions, and filesystems inside
+  // them (LVM volumes, a filesystem on the whole disk). Empty for a blank
+  // disk, and from Installers before this.
+  repeated Partition partitions = 6;
+}
+
+// Partition is a partition or other block device on a disk, as lsblk sees it.
+message Partition {
+  // Device path, e.g. /dev/sdb1; ListFolder takes it.
+  string device = 1;
+  uint64 size_bytes = 2;
+  // Filesystem type as blkid names it (ext4, ntfs, vfat, crypto_LUKS,
+  // LVM2_member, swap, ...); empty when none is recognised.
+  string fstype = 3;
+  // Filesystem label, else the GPT partition name.
+  string label = 4;
+  // True when ListFolder can mount it to look inside.
+  bool browsable = 5;
+}
+
+message ListFolderRequest {
+  // Partition.device of a disk that is not the installer media.
+  string device = 1;
+  // Folder within the partition, "/"-separated; empty or "/" is its top.
+  string path = 2;
+}
+
+message ListFolderResponse {
+  // Folders first, then files, each by name.
+  repeated FolderEntry entries = 1;
+  // Entries left out past the first 1000.
+  uint32 more = 2;
+  // The filesystem's size and use.
+  uint64 used_bytes = 3;
+  uint64 total_bytes = 4;
+}
+
+message FolderEntry {
+  string name = 1;
+  bool dir = 2;
+  // Bytes, for files.
+  uint64 size_bytes = 3;
+  int64 modified_unix_ms = 4;
+  // A symbolic link; not followed.
+  bool link = 5;
 }
 
 // Provisioning is the state of an in-flight or finished install.

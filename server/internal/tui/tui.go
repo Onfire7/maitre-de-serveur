@@ -67,13 +67,23 @@ var ErrQuit = errors.New("tui: quit")
 
 // Run drives the screen on stdin/stdout until ctx ends.
 func Run(ctx context.Context, src Source) error {
+	m := newModel(src)
+	mode := setupConsole()
+	m.braille = mode != consoleBlocks
+	return run(ctx, m)
+}
+
+// setupConsole quiets the kernel and prepares tty1's font and colours.
+func setupConsole() consoleMode {
 	quietConsole()
 	mode := consoleSetup(os.Stdout)
 	if mode == consoleBraille {
 		useConsolePalette()
 	}
-	m := newModel(src)
-	m.braille = mode != consoleBlocks
+	return mode
+}
+
+func run(ctx context.Context, m tea.Model) error {
 	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
 	_, err := p.Run()
 	if err != nil && ctx.Err() != nil {
@@ -370,20 +380,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // setLogs loads the current lines into the viewport, highlighting warnings,
 // and keeps following the end unless the user scrolled up.
-func (m *model) setLogs() {
+func (m *model) setLogs() { setLog(&m.vp, m.logs, m.follow) }
+
+func setLog(vp *viewport.Model, logs []string, follow bool) {
 	var b strings.Builder
-	for i, l := range m.logs {
+	for i, l := range logs {
 		if strings.Contains(l, "level=ERROR") || strings.Contains(l, "level=WARN") {
 			l = warn.Render(l)
 		}
 		b.WriteString(l)
-		if i < len(m.logs)-1 {
+		if i < len(logs)-1 {
 			b.WriteString("\n")
 		}
 	}
-	m.vp.SetContent(b.String())
-	if m.follow {
-		m.vp.GotoBottom()
+	vp.SetContent(b.String())
+	if follow {
+		vp.GotoBottom()
 	}
 }
 
@@ -499,18 +511,6 @@ func (m *model) View() string {
 	case pageLogs:
 		body = m.viewLogs()
 	}
-	// Bottom line of every page: tabs on the left, the page's keys centred
-	// (or pushed right when the centre would overlap the tabs).
-	names := []string{"1 Status", "2 Containers", "3 Logs"}
-	var tabs []string
-	for i, n := range names {
-		if page(i) == m.page {
-			tabs = append(tabs, tabOn.Render(n))
-		} else {
-			tabs = append(tabs, tabOff.Render(n))
-		}
-	}
-	left := strings.Join(tabs, "")
 	var hint string
 	switch {
 	case m.confirm:
@@ -525,17 +525,34 @@ func (m *model) View() string {
 	if m.message != "" && !m.confirm {
 		hint += "   " + warn.Render(m.message)
 	}
-	width := max(m.width, lipgloss.Width(left)+lipgloss.Width(hint)+2)
-	lw, hw := lipgloss.Width(left), lipgloss.Width(hint)
-	var bar string
-	if start := (width - hw) / 2; start >= lw+2 {
-		bar = left + strings.Repeat(" ", start-lw) + hint
-	} else {
-		bar = left + strings.Repeat(" ", max(2, width-lw-hw)) + hint
+	return screen(body, bottomBar(m.width, []string{"1 Status", "2 Containers", "3 Logs"}, int(m.page), hint), m.height)
+}
+
+// bottomBar is the last line of every page: tabs on the left, the page's
+// keys centred (or pushed right when the centre would overlap the tabs).
+func bottomBar(width int, names []string, current int, hint string) string {
+	var tabs []string
+	for i, n := range names {
+		if i == current {
+			tabs = append(tabs, tabOn.Render(n))
+		} else {
+			tabs = append(tabs, tabOff.Render(n))
+		}
 	}
+	left := strings.Join(tabs, "")
+	width = max(width, lipgloss.Width(left)+lipgloss.Width(hint)+2)
+	lw, hw := lipgloss.Width(left), lipgloss.Width(hint)
+	if start := (width - hw) / 2; start >= lw+2 {
+		return left + strings.Repeat(" ", start-lw) + hint
+	}
+	return left + strings.Repeat(" ", max(2, width-lw-hw)) + hint
+}
+
+// screen puts the bar on the bottom line under the page's body.
+func screen(body, bar string, height int) string {
 	body = strings.TrimRight(body, "\n")
 	lines := strings.Count(body, "\n") + 1
-	gap := max(1, m.height-lines-1)
+	gap := max(1, height-lines-1)
 	return body + strings.Repeat("\n", gap) + bar
 }
 
@@ -737,20 +754,23 @@ func (m *model) viewLogs() string {
 	if len(m.units) > 1 {
 		unit += dim.Render(fmt.Sprintf("  %d/%d", m.unit%len(m.units)+1, len(m.units)))
 	}
-	title := pagerTitle.Render(unit)
-	rule := strings.Repeat("─", max(0, m.vp.Width-lipgloss.Width(title)))
-	header := lipgloss.JoinHorizontal(lipgloss.Center, title, rule)
-	if m.lErr != nil {
-		return header + "\n\n" + warn.Render(m.lErr.Error()) + "\n"
+	return pager(unit, m.vp, m.follow, m.lErr)
+}
+
+// pager draws a log in the viewport between a title box and a position box.
+func pager(title string, vp viewport.Model, follow bool, err error) string {
+	t := pagerTitle.Render(title)
+	header := lipgloss.JoinHorizontal(lipgloss.Center, t, strings.Repeat("─", max(0, vp.Width-lipgloss.Width(t))))
+	if err != nil {
+		return header + "\n\n" + warn.Render(err.Error()) + "\n"
 	}
-	pct := fmt.Sprintf("%3.0f%%", m.vp.ScrollPercent()*100)
-	if m.follow {
+	pct := fmt.Sprintf("%3.0f%%", vp.ScrollPercent()*100)
+	if follow {
 		pct = "follow"
 	}
 	info := pagerInfo.Render(pct)
-	rule = strings.Repeat("─", max(0, m.vp.Width-lipgloss.Width(info)))
-	footer := lipgloss.JoinHorizontal(lipgloss.Center, rule, info)
-	return header + "\n" + m.vp.View() + "\n" + footer + "\n"
+	footer := lipgloss.JoinHorizontal(lipgloss.Center, strings.Repeat("─", max(0, vp.Width-lipgloss.Width(info))), info)
+	return header + "\n" + vp.View() + "\n" + footer + "\n"
 }
 
 func gauge(pct float64) string {

@@ -41,6 +41,9 @@ type Options struct {
 	// Backups finds Node backups on attached Drives; defaults to scanning
 	// every partition of every non-installer disk. Nil in the fake runner.
 	Backups func(ctx context.Context) []*maitrev1.Backup
+	// Folders looks inside partitions for ListFolder (decision 262);
+	// defaults to mounting them read-only with the real Disks.
+	Folders FolderLister
 }
 
 // Installer is the InstallerService handler plus the screen state.
@@ -51,6 +54,9 @@ type Installer struct {
 	backupScanned time.Time
 	id            *identity.Identity
 	opts          Options
+
+	// browseMu orders folder listings before the unmount an install does.
+	browseMu sync.RWMutex
 
 	mu       sync.Mutex
 	lastPeer string // fingerprint of the most recent caller, for the screen
@@ -70,6 +76,9 @@ func New(id *identity.Identity, opts Options) *Installer {
 		opts.Disks = Disks
 		if opts.Backups == nil {
 			opts.Backups = ScanBackups
+		}
+		if opts.Folders == nil {
+			opts.Folders = NewBrowser()
 		}
 	}
 	return &Installer{
@@ -203,9 +212,79 @@ func (in *Installer) Provision(ctx context.Context, req *maitrev1.ProvisionReque
 	return &maitrev1.ProvisionResponse{}, nil
 }
 
+// ListFolder implements InstallerService (decision 262).
+func (in *Installer) ListFolder(ctx context.Context, req *maitrev1.ListFolderRequest) (*maitrev1.ListFolderResponse, error) {
+	if _, ok := peer.From(ctx); !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "no client key")
+	}
+	return in.Folder(ctx, req.GetDevice(), req.GetPath())
+}
+
+// Folder lists one folder of a partition, for ListFolder and the machine's
+// own screen.
+func (in *Installer) Folder(ctx context.Context, device, dir string) (*maitrev1.ListFolderResponse, error) {
+	if in.opts.Folders == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this Installer cannot look inside disks")
+	}
+	// Held while listing, so run's unmount waits for a listing under way
+	// and every later one sees the install.
+	in.browseMu.RLock()
+	defer in.browseMu.RUnlock()
+	if in.Installing() {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "installing; disks cannot be opened now")
+	}
+	p, err := in.Partition(ctx, device)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := in.opts.Folders.List(ctx, p, dir)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	}
+	return resp, nil
+}
+
+// Partition finds device among the partitions of the disks that are not
+// the installer media; nothing else may be opened.
+func (in *Installer) Partition(ctx context.Context, device string) (*maitrev1.Partition, error) {
+	disks, err := in.opts.Disks(ctx)
+	if err != nil {
+		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+	}
+	for _, d := range disks {
+		for _, p := range d.GetPartitions() {
+			if p.GetDevice() != device {
+				continue
+			}
+			if d.GetIsInstallerMedia() {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, "that is the installer media")
+			}
+			return p, nil
+		}
+	}
+	return nil, connect.Errorf(connect.CodeInvalidArgument, "no partition %q on this machine's disks", device)
+}
+
+// Installing reports an install under way, when disks are not to be opened.
+func (in *Installer) Installing() bool {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	switch in.prov.GetPhase() {
+	case maitrev1.Provisioning_PHASE_INSTALLING, maitrev1.Provisioning_PHASE_CONFIGURING, maitrev1.Provisioning_PHASE_REBOOTING:
+		return true
+	}
+	return false
+}
+
 func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
+	// Nothing looked at may stay mounted: bootc wipes the target disk.
+	if in.opts.Folders != nil {
+		in.browseMu.Lock()
+		in.opts.Folders.Close()
+		in.browseMu.Unlock()
+	}
 	progress := func(phase maitrev1.Provisioning_Phase, pct uint32, msg string) {
 		in.mu.Lock()
 		in.prov = &maitrev1.Provisioning{Phase: phase, Percent: pct, Message: msg}
@@ -238,8 +317,20 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 	}
 }
 
-// Screen returns the text shown on the machine's console (design question 2:
-// plain text, read once).
+// Shown is what the screen shows of the pairing: the code for the device
+// that asked last, and the install's progress.
+func (in *Installer) Shown() (code string, prov *maitrev1.Provisioning) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	return in.code, cloneProv(in.prov)
+}
+
+// Options returns what the Installer was built with.
+func (in *Installer) Options() Options { return in.opts }
+
+// Screen returns the text shown on the machine's console when it has no
+// keyboard to drive the full screen (design question 2: plain text, read
+// once).
 func (in *Installer) Screen() string {
 	in.mu.Lock()
 	defer in.mu.Unlock()
