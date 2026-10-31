@@ -12,11 +12,11 @@ export interface Depot {
 }
 
 /** What a Depot offers to install: its newest image, and where its boot files are. */
-export function depotImage(d: Depot): { ref: string; version: string; boot: string; insecure: string } | null {
+export function depotImage(d: Depot): { ref: string; version: string; created: string; boot: string; insecure: string } | null {
   const all = Object.entries(d.images).flatMap(([name, tags]) => tags.map((t) => ({ ...t, name })));
   if (all.length === 0) return null;
   const newest = all.reduce((a, b) => ((b.created ?? "") > (a.created ?? "") ? b : a));
-  return { ref: `${d.registry}/${newest.name}:${newest.tag}`, version: newest.version ?? "", boot: `http://${d.registry}/boot/`, insecure: d.registry };
+  return { ref: `${d.registry}/${newest.name}:${newest.tag}`, version: newest.version ?? "", created: newest.created ?? "", boot: `http://${d.registry}/boot/`, insecure: d.registry };
 }
 
 async function scanDepots(): Promise<Depot[]> {
@@ -51,17 +51,34 @@ export function useDepots(): Depot[] {
   return depots;
 }
 
+/** A Depot's boot files now: digests by name (decision 263), and the version
+ * and build time of the Installer they boot (267; "" from older Depots). */
+export interface DepotBoot {
+  digests: Record<string, string>;
+  version: string;
+  built: string;
+}
+
 /**
- * The boot files a Depot serves now, by name, from its netboot.json. Read
- * by the Rust side: the webview cannot, as a Depot from before decision 263
- * sends no CORS header for /boot/.
+ * The boot files a Depot serves now, from its netboot.json. Read by the
+ * Rust side: the webview cannot, as a Depot from before decision 263 sends
+ * no CORS header for /boot/.
  */
-export async function depotBootDigests(base: string): Promise<Record<string, string> | null> {
+export async function depotBoot(base: string): Promise<DepotBoot | null> {
   try {
-    return await invoke<Record<string, string>>("netboot_depot_digests", { base });
+    return await invoke<DepotBoot>("netboot_depot_boot", { base });
   } catch {
     return null;
   }
+}
+
+/** A build's version and time in words: "778bc2d, built 31 Oct 14:26"; with
+ * no version, just "built 31 Oct 14:26"; with neither, "unknown version". */
+export function buildWords(version: string, at: string, verb = "built"): string {
+  const d = new Date(at);
+  const when = at && !Number.isNaN(d.getTime()) ? `${verb} ${d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "";
+  if (!version) return when || "unknown version";
+  return when ? `${version}, ${when}` : version;
 }
 
 /**

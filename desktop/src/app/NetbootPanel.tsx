@@ -7,7 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { bootFilesBehind, depotBootDigests, depotImage, useDepots } from "@/fleet/depots";
+import { bootFilesBehind, buildWords, depotBoot, depotImage, useDepots, type DepotBoot } from "@/fleet/depots";
 
 interface FilesStatus {
   dir: string;
@@ -17,6 +17,9 @@ interface FilesStatus {
   total_bytes: number;
   missing: string[];
   digests?: Record<string, string>;
+  version?: string;
+  built?: string;
+  downloaded?: string;
   bios?: boolean;
 }
 interface Progress {
@@ -86,11 +89,11 @@ export function NetbootPanel() {
   const insecure = viaDepot ? depot!.registry : "";
   // Decision 263: a Depot rebuilds its boot files with every image; files
   // kept here from before would boot the older Installer unnoticed.
-  const [depotDigests, setDepotDigests] = useState<Record<string, string> | null>(null);
+  const [depotFiles, setDepotFiles] = useState<DepotBoot | null>(null);
   useEffect(() => {
-    if (!viaDepot || !source.base) return setDepotDigests(null);
+    if (!viaDepot || !source.base) return setDepotFiles(null);
     let stop = false;
-    const check = () => depotBootDigests(source.base).then((d) => !stop && setDepotDigests(d));
+    const check = () => depotBoot(source.base).then((d) => !stop && setDepotFiles(d));
     check();
     const t = setInterval(check, 10_000);
     return () => {
@@ -98,7 +101,7 @@ export function NetbootPanel() {
       clearInterval(t);
     };
   }, [viaDepot, source.base]);
-  const behind = viaDepot ? bootFilesBehind(files?.digests, depotDigests) : [];
+  const behind = viaDepot ? bootFilesBehind(files?.digests, depotFiles?.digests ?? null) : [];
   async function download() {
     setDownloading(true);
     setError("");
@@ -162,7 +165,7 @@ export function NetbootPanel() {
       {files?.ready && behind.length > 0 && (
         <div className="space-y-2 rounded-lg border border-status-attention/60 bg-status-attention/10 p-3 text-xs">
           <p>
-            The Depot has rebuilt its boot files since they were downloaded here ({behind.join(", ")}). {running ? "Machines booting now get the older Installer: turn network boot off, update, and turn it on again." : "A machine booted from the files on this computer would get the older Installer."}
+            The Depot has rebuilt its boot files since they were downloaded here ({behind.join(", ")}){depotFiles?.version && `: it now has ${buildWords(depotFiles.version, depotFiles.built)}`}. {running ? "Machines booting now get the older Installer: turn network boot off, update, and turn it on again." : "A machine booted from the files on this computer would get the older Installer."}
           </p>
           {progress && !progress.finished && (
             <div>
@@ -181,10 +184,17 @@ export function NetbootPanel() {
       )}
       {files?.ready && !running && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Boot files from {source.label}. The machine will install <code>{image || "(no image known)"}</code>
-            {depotVersion && ` (version ${depotVersion})`}.
-          </p>
+          <div className="space-y-0.5 text-xs text-muted-foreground">
+            <p>Boot files from {source.label}.</p>
+            <p>
+              Installer (boot files): {files?.version || files?.built ? buildWords(files.version ?? "", files.built ?? "") : "built before versions were recorded"}
+              {files?.downloaded && `; ${buildWords("", files.downloaded, "downloaded here")}`}.
+            </p>
+            <p>
+              Installs: <code>{image || "(no image known)"}</code>
+              {(depotVersion || offered?.created) && ` (${buildWords(depotVersion, offered?.created ?? "")})`}.
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span>Turn off after</span>
             <Select value={String(idle)} onValueChange={(v) => setIdle(Number(v))}>

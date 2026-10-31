@@ -57,9 +57,15 @@ const (
 type Manifest struct {
 	// Image the files were built from, as the Installer should pull it
 	// (empty for a local build; the Depot's registry supplies it then).
-	Image  string                  `json:"image"`
-	Kernel string                  `json:"kernel,omitempty"`
-	Files  map[string]ManifestFile `json:"files"`
+	Image  string `json:"image"`
+	Kernel string `json:"kernel,omitempty"`
+	// Version of the image the files were built from (its
+	// org.opencontainers.image.version label) and when they were built,
+	// RFC 3339, so the Netboot panel can say which Installer they boot
+	// (decision 267). Bundles before it carry neither.
+	Version string                  `json:"version,omitempty"`
+	Built   string                  `json:"built,omitempty"`
+	Files   map[string]ManifestFile `json:"files"`
 	// Optional lists OptionalBootFiles present in the bundle. A separate
 	// field, because Desktops before decision 223 refuse a bundle whose
 	// files they do not know.
@@ -79,8 +85,8 @@ var BootFiles = []string{BootLoader, BootGrub, BootMok, BootKernel, BootInitrd, 
 var OptionalBootFiles = []string{BootBIOS}
 
 // WriteManifest hashes the boot files in l.Boot() and writes BootManifest.
-func WriteManifest(l Layout, image string) error {
-	m := Manifest{Image: image, Files: map[string]ManifestFile{}}
+func WriteManifest(l Layout, image, version string) error {
+	m := Manifest{Image: image, Version: version, Built: time.Now().UTC().Format(time.RFC3339), Files: map[string]ManifestFile{}}
 	for _, name := range BootFiles {
 		mf, err := hashFile(filepath.Join(l.Boot(), name))
 		if err != nil {
@@ -174,7 +180,16 @@ ls -la /out
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build netboot files from %s: %w", image, err)
 	}
-	return WriteManifest(l, imageRef)
+	return WriteManifest(l, imageRef, imageVersion(ctx, image))
+}
+
+// imageVersion is a local image's version label, "" when podman cannot say.
+func imageVersion(ctx context.Context, image string) string {
+	out, err := exec.CommandContext(ctx, "podman", "image", "inspect", "--format", `{{index .Labels "org.opencontainers.image.version"}}`, image).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // BootFileHandler serves exactly the netboot files (and the manifest) from

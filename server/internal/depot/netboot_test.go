@@ -84,7 +84,7 @@ func TestManifestListsBIOSAsOptional(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := WriteManifest(l, "x/y:z"); err != nil {
+	if err := WriteManifest(l, "x/y:z", "abc1234"); err != nil {
 		t.Fatal(err)
 	}
 	m, err := ReadManifest(l)
@@ -94,10 +94,13 @@ func TestManifestListsBIOSAsOptional(t *testing.T) {
 	if len(m.Files) != len(BootFiles) || m.Optional != nil {
 		t.Fatalf("without iPXE: files %v, optional %v", m.Files, m.Optional)
 	}
+	if m.Version != "abc1234" || m.Built == "" {
+		t.Errorf("version %q built %q", m.Version, m.Built)
+	}
 	if err := os.WriteFile(filepath.Join(l.Boot(), BootBIOS), []byte("ipxe"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteManifest(l, "x/y:z"); err != nil {
+	if err := WriteManifest(l, "x/y:z", ""); err != nil {
 		t.Fatal(err)
 	}
 	m, _ = ReadManifest(l)

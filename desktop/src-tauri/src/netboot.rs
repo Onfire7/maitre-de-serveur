@@ -34,6 +34,12 @@ pub struct Manifest {
     pub image: String,
     #[serde(default)]
     pub kernel: String,
+    /// Version of the image the files were built from, and when (RFC 3339);
+    /// bundles before decision 267 carry neither.
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub built: String,
     pub files: BTreeMap<String, ManifestFile>,
     #[serde(default)]
     pub optional: BTreeMap<String, ManifestFile>,
@@ -59,6 +65,19 @@ pub struct FilesStatus {
     /// sha256 of each boot file as its manifest lists it, so the Console
     /// can tell when a Depot has rebuilt them (decision 263).
     pub digests: BTreeMap<String, String>,
+    /// Which Installer the files boot and when it was built, from the
+    /// manifest, and when the files were downloaded here (decision 267).
+    pub version: String,
+    pub built: String,
+    pub downloaded: String,
+}
+
+/// What a Depot's boot files are now (decision 263, 267).
+#[derive(Serialize, Clone)]
+pub struct DepotBoot {
+    pub digests: BTreeMap<String, String>,
+    pub version: String,
+    pub built: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -147,12 +166,15 @@ impl Netboot {
     pub fn files_status(data_dir: &Path) -> FilesStatus {
         let dir = Self::boot_dir(data_dir);
         let manifest: Option<Manifest> = fs::read(dir.join(MANIFEST)).ok().and_then(|b| serde_json::from_slice(&b).ok());
-        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![], bios: false, digests: BTreeMap::new() };
+        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![], bios: false, digests: BTreeMap::new(), version: String::new(), built: String::new(), downloaded: String::new() };
         let Some(m) = manifest else {
             return st;
         };
         st.image = m.image.clone();
         st.digests = digests_of(&m);
+        st.version = m.version.clone();
+        st.built = m.built.clone();
+        st.downloaded = fs::metadata(dir.join(MANIFEST)).and_then(|md| md.modified()).ok().map(rfc3339).unwrap_or_default();
         for (name, f) in &m.files {
             if !BOOT_FILES.contains(&name.as_str()) {
                 continue;
@@ -168,14 +190,14 @@ impl Netboot {
         st
     }
 
-    /// The digests of the boot files a Depot serves now, by name, from its
-    /// manifest (decision 263). Fetched here, not by the webview: a Depot
-    /// from before this sends no CORS header for /boot/.
-    pub async fn depot_digests(base: String) -> Result<BTreeMap<String, String>, String> {
+    /// The boot files a Depot serves now, from its netboot.json: digests by
+    /// name (decision 263), and the version and build time of the Installer
+    /// they boot (decision 267).
+    pub async fn depot_boot(base: String) -> Result<DepotBoot, String> {
         let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build().map_err(|e| e.to_string())?;
         let raw = client.get(format!("{base}{MANIFEST}")).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
         let manifest: Manifest = serde_json::from_slice(&raw).map_err(|e| format!("netboot.json: {e}"))?;
-        Ok(digests_of(&manifest))
+        Ok(DepotBoot { digests: digests_of(&manifest), version: manifest.version, built: manifest.built })
     }
 
     /// Download the bundle from `base` (ending in `/`) into the data dir,
@@ -472,6 +494,23 @@ fn tail_events(app: AppHandle, path: PathBuf, status: Arc<Mutex<Status>>) {
 }
 
 /// Each required boot file's digest, as the manifest lists it.
+/// A file time as RFC 3339 in UTC, whole seconds.
+fn rfc3339(t: std::time::SystemTime) -> String {
+    let secs = t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    // Civil date from days since the epoch (Howard Hinnant's algorithm).
+    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
 fn digests_of(m: &Manifest) -> BTreeMap<String, String> {
     m.files.iter().filter(|(n, _)| BOOT_FILES.contains(&n.as_str())).map(|(n, f)| (n.clone(), f.sha256.clone())).collect()
 }
@@ -518,6 +557,10 @@ mod tests {
         assert!(st.ready && !st.bios);
         assert_eq!(st.digests.len(), BOOT_FILES.len());
         assert_eq!(st.digests["vmlinuz"], "0".repeat(64));
+        assert!(st.version.is_empty() && st.built.is_empty() && !st.downloaded.is_empty(), "an older bundle: {} {} {}", st.version, st.built, st.downloaded);
+        fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"version\":\"abc1234\",\"built\":\"2026-10-31T19:26:12Z\",\"files\":{{{}}}}}", files.join(","))).unwrap();
+        let st = Netboot::files_status(&data);
+        assert_eq!((st.version.as_str(), st.built.as_str()), ("abc1234", "2026-10-31T19:26:12Z"));
         fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"files\":{{{}}},\"optional\":{{\"undionly.kpxe\":{},\"future.bin\":{}}}}}", files.join(","), entry(4), entry(1))).unwrap();
         assert!(!Netboot::files_status(&data).bios, "listed but not downloaded");
         fs::write(dir.join(BIOS_FILE), "ipxe").unwrap();
@@ -525,6 +568,14 @@ mod tests {
         assert!(st.ready && st.bios);
         assert_eq!(st.total_bytes, BOOT_FILES.iter().map(|f| f.len() as u64).sum::<u64>(), "optional files are not counted as required");
         let _ = fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn file_times_are_rfc3339() {
+        let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_793_474_772);
+        assert_eq!(rfc3339(t), "2026-10-31T19:26:12Z");
+        assert_eq!(rfc3339(std::time::UNIX_EPOCH), "1970-01-01T00:00:00Z");
+        assert_eq!(rfc3339(std::time::UNIX_EPOCH + std::time::Duration::from_secs(951_782_400)), "2000-02-29T00:00:00Z");
     }
 
     #[test]
