@@ -19,7 +19,7 @@ import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nextLetter, randomNodeName } from "@/names";
-import { fingerprintOfPem, putSigned, signedRecord } from "@/fleet/sign";
+import { fingerprintOfPem, putSigned, signedForProvision, signedRecord } from "@/fleet/sign";
 import { DiskBrowser, holds } from "./DiskBrowser";
 
 /** The Device-signed kinds a new Node of an existing Fleet starts with, copied from a Node of it. */
@@ -63,6 +63,9 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
   const [started, setStarted] = useState(false);
   const [restore, setRestore] = useState("");
   const [error, setError] = useState("");
+  // The status poll's own trouble, apart from an Install that was refused,
+  // which the next good poll must not wipe.
+  const [pollError, setPollError] = useState("");
   // The disk being looked inside (decision 262).
   const [looking, setLooking] = useState("");
   const installer = useMemo(() => (fp ? createClient(InstallerService, transportFor({ addr, fingerprint: fp })) : null), [addr, fp]);
@@ -107,7 +110,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
         if (stop || !r.status) return;
         if (r.status.pairingCode !== code) throw new Error("pairing code mismatch between this device and the installer");
         setStatus(r.status);
-        setError("");
+        setPollError("");
         if (started && r.status.provisioning) onProgress({ name, percent: r.status.provisioning.percent, message: r.status.provisioning.message });
         if (started && r.status.provisioning?.phase === Provisioning_Phase.REBOOTING) {
           stop = true;
@@ -121,7 +124,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
           onProgress(null);
         }
       } catch (e) {
-        if (!stop) setError(String((e as Error).message ?? e));
+        if (!stop) setPollError(String((e as Error).message ?? e));
       }
     };
     tick();
@@ -159,7 +162,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
             const nc = createClient(NodeService, transportFor({ addr: a, fingerprint: n.node_id }));
             const all = (await nc.listRecords({})).records;
             const recs = all.filter((r) => !r.deleted);
-            records = all.filter((r) => PROVISION_KINDS.has(r.kind));
+            records = await signedForProvision(all.filter((r) => PROVISION_KINDS.has(r.kind)));
             trustedDevices = recs.filter((r) => r.kind === "trusted_device").map((r) => fromBinary(TrustedDeviceSchema, r.body));
             nodes = recs.filter((r) => r.kind === "node").map((r) => fromBinary(NodeSchema, r.body));
             sponsor = { addr: a, fingerprint: n.node_id };
@@ -320,7 +323,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
               <Switch checked={dataPart} onCheckedChange={setDataPart} />
             </label>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {(error || pollError) && <p className="text-sm text-destructive">{error || pollError}</p>}
           {prov?.phase === Provisioning_Phase.FAILED && <p className="text-sm text-destructive">Install failed: {prov.message}</p>}
           <div className="flex gap-2">
             <Button disabled={!chosen || (!restore && !name.trim()) || usbNeedsData} onClick={provision}>
@@ -340,7 +343,7 @@ export function AddNode({ found, device, state, snap, onCancel, onProvisioned, o
           </div>
           <p className="text-sm">{prov?.message || "starting"}</p>
           <p className="text-xs text-muted-foreground">Do not power the machine off. It restarts on its own when done, and then shows up as a Node. Meanwhile the rest of the Fleet is yours to explore.</p>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {(error || pollError) && <p className="text-sm text-destructive">{error || pollError}</p>}
         </section>
       )}
     </div>

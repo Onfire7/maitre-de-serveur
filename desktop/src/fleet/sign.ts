@@ -69,3 +69,14 @@ export async function fingerprintOfPem(pem: string): Promise<string> {
   const sum = new Uint8Array(await crypto.subtle.digest("SHA-256", der.slice(12)));
   return Array.from(sum, (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/**
+ * Records to copy to a new Node, each one signed (decision 189). A Fleet
+ * set up before signing has records with no signature (its Tailscale
+ * settings, say); the Installer refuses those, so this device signs them
+ * now, as the Trusted Device vouching for the copy. Signed records pass
+ * through as they are, so their original signer stays on them.
+ */
+export async function signedForProvision(records: Rec[]): Promise<Rec[]> {
+  return Promise.all(records.map((r) => (r.signature.length > 0 ? Promise.resolve(r) : signedRecord({ kind: r.kind, id: r.id, body: r.body, deleted: r.deleted }, { prev: r }))));
+}
