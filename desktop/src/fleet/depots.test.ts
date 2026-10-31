@@ -12,3 +12,14 @@ describe("depotImage", () => {
     expect(depotImage(depot({}))).toBeNull();
   });
 });
+
+describe("bootFilesBehind (decision 263)", () => {
+  it("names the files the Depot rebuilt and ignores the rest", async () => {
+    const { bootFilesBehind } = await import("./depots");
+    const local = { vmlinuz: "a", "rootfs.squashfs": "b", "shimx64.efi": "c" };
+    expect(bootFilesBehind(local, { vmlinuz: "a", "rootfs.squashfs": "B", "shimx64.efi": "c", "new.bin": "z" })).toEqual(["rootfs.squashfs"]);
+    expect(bootFilesBehind(local, { vmlinuz: "a" })).toEqual([]);
+    expect(bootFilesBehind(local, null)).toEqual([]);
+    expect(bootFilesBehind(undefined, { vmlinuz: "x" })).toEqual([]);
+  });
+});

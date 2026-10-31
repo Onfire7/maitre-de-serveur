@@ -50,3 +50,25 @@ export function useDepots(): Depot[] {
   }, []);
   return depots;
 }
+
+/** The boot files a Depot serves, by name, from its netboot.json. */
+export async function depotBootDigests(base: string): Promise<Record<string, string> | null> {
+  try {
+    const m = (await (await fetch(`${base}netboot.json`, { signal: AbortSignal.timeout(3000) })).json()) as { files?: Record<string, { sha256?: string }> };
+    return Object.fromEntries(Object.entries(m.files ?? {}).map(([n, f]) => [n, f.sha256 ?? ""]));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The boot files on this computer that the Depot has since rebuilt
+ * (decision 263): names whose digest differs. Files the Depot no longer
+ * lists are not counted, and nothing is when either side is unknown.
+ */
+export function bootFilesBehind(local: Record<string, string> | undefined, depot: Record<string, string> | null): string[] {
+  if (!local || !depot) return [];
+  return Object.entries(local)
+    .filter(([n, sha]) => depot[n] && depot[n] !== sha)
+    .map(([n]) => n);
+}

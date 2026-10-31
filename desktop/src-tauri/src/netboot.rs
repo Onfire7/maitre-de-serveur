@@ -56,6 +56,9 @@ pub struct FilesStatus {
     pub missing: Vec<String>,
     /// The bundle also boots legacy BIOS machines.
     pub bios: bool,
+    /// sha256 of each boot file as its manifest lists it, so the Console
+    /// can tell when a Depot has rebuilt them (decision 263).
+    pub digests: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -144,7 +147,7 @@ impl Netboot {
     pub fn files_status(data_dir: &Path) -> FilesStatus {
         let dir = Self::boot_dir(data_dir);
         let manifest: Option<Manifest> = fs::read(dir.join(MANIFEST)).ok().and_then(|b| serde_json::from_slice(&b).ok());
-        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![], bios: false };
+        let mut st = FilesStatus { dir: dir.to_string_lossy().into_owned(), image: String::new(), ready: false, have_bytes: 0, total_bytes: 0, missing: vec![], bios: false, digests: BTreeMap::new() };
         let Some(m) = manifest else {
             return st;
         };
@@ -154,6 +157,7 @@ impl Netboot {
                 continue;
             }
             st.total_bytes += f.size;
+            st.digests.insert(name.clone(), f.sha256.clone());
             match fs::metadata(dir.join(name)) {
                 Ok(md) if md.len() == f.size => st.have_bytes += f.size,
                 _ => st.missing.push(name.clone()),
@@ -497,6 +501,8 @@ mod tests {
         fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"files\":{{{}}}}}", files.join(","))).unwrap();
         let st = Netboot::files_status(&data);
         assert!(st.ready && !st.bios);
+        assert_eq!(st.digests.len(), BOOT_FILES.len());
+        assert_eq!(st.digests["vmlinuz"], "0".repeat(64));
         fs::write(dir.join(MANIFEST), format!("{{\"image\":\"x/y:z\",\"files\":{{{}}},\"optional\":{{\"undionly.kpxe\":{},\"future.bin\":{}}}}}", files.join(","), entry(4), entry(1))).unwrap();
         assert!(!Netboot::files_status(&data).bios, "listed but not downloaded");
         fs::write(dir.join(BIOS_FILE), "ipxe").unwrap();
