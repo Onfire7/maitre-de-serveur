@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/backup"
 )
 
 // Decision 262: the person setting up a machine can look inside its disks
@@ -32,20 +34,15 @@ type FolderLister interface {
 // maxEntries is how many entries one folder listing carries.
 const maxEntries = 1000
 
-// mountOptions are read-only options that also keep the filesystem from
-// replaying its journal, which plain ro does on ext4, XFS and btrfs.
-var mountOptions = map[string]string{
-	"ext2": "noload", "ext3": "noload", "ext4": "noload",
-	"xfs":   "norecovery",
-	"btrfs": "rescue=nologreplay",
-	"ntfs":  "", "exfat": "", "vfat": "", "f2fs": "", "iso9660": "", "hfsplus": "", "udf": "",
+// browsableTypes are the filesystems ListFolder can look inside, mounted
+// with backup.ReadOnlyMountOptions (journal replay off).
+var browsableTypes = map[string]bool{
+	"ext2": true, "ext3": true, "ext4": true, "xfs": true, "btrfs": true,
+	"ntfs": true, "exfat": true, "vfat": true, "f2fs": true, "iso9660": true, "hfsplus": true, "udf": true,
 }
 
 // browsable reports whether ListFolder can look inside a filesystem type.
-func browsable(fstype string) bool {
-	_, ok := mountOptions[fstype]
-	return ok
-}
+func browsable(fstype string) bool { return browsableTypes[fstype] }
 
 // Browser mounts partitions under Root as they are asked for and unmounts
 // each once it has not been looked at for Idle.
@@ -71,10 +68,7 @@ func NewBrowser() *Browser {
 }
 
 func mountReadOnly(ctx context.Context, device, fstype, dir string) error {
-	opts := "ro,nosuid,nodev,noexec,noatime"
-	if extra := mountOptions[fstype]; extra != "" {
-		opts += "," + extra
-	}
+	opts := backup.ReadOnlyMountOptions(fstype)
 	if fstype == "ntfs" {
 		fstype = "ntfs3"
 	}
@@ -149,7 +143,9 @@ func (b *Browser) Close() {
 	defer b.mu.Unlock()
 	for dev, m := range b.mounts {
 		m.timer.Stop()
-		_ = b.Unmount(m.dir)
+		if err := b.Unmount(m.dir); err != nil {
+			slog.Warn("browse: partition stays mounted", "device", dev, "err", err)
+		}
 		delete(b.mounts, dev)
 	}
 }

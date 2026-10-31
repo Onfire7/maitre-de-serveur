@@ -281,11 +281,11 @@ func (in *Installer) run(req *maitrev1.ProvisionRequest) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 	// Nothing looked at may stay mounted: bootc wipes the target disk.
+	in.browseMu.Lock()
 	if in.opts.Folders != nil {
-		in.browseMu.Lock()
 		in.opts.Folders.Close()
-		in.browseMu.Unlock()
 	}
+	in.browseMu.Unlock()
 	progress := func(phase maitrev1.Provisioning_Phase, pct uint32, msg string) {
 		in.mu.Lock()
 		in.prov = &maitrev1.Provisioning{Phase: phase, Percent: pct, Message: msg}
@@ -401,6 +401,15 @@ func (in *Installer) backups(ctx context.Context) []*maitrev1.Backup {
 		return b
 	}
 	in.mu.Unlock()
+	// Like a listing: a scan under way finishes, and unmounts, before the
+	// install starts, and none mounts anything while it runs (decision 268).
+	in.browseMu.RLock()
+	defer in.browseMu.RUnlock()
+	if in.Installing() {
+		in.mu.Lock()
+		defer in.mu.Unlock()
+		return in.backupCache
+	}
 	var found []*maitrev1.Backup
 	if in.opts.Backups != nil {
 		found = in.opts.Backups(ctx)

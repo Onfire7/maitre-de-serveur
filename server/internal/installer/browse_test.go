@@ -193,3 +193,25 @@ func TestFolderRefusals(t *testing.T) {
 		t.Errorf("during install: %v", err)
 	}
 }
+
+// The backup scan mounts partitions; none may be mounted while bootc wipes
+// the disk (decision 268).
+func TestBackupScanWaitsOutTheInstall(t *testing.T) {
+	id, _ := identity.Generate()
+	scans := 0
+	in := New(id, Options{Runner: &FakeRunner{Dir: t.TempDir()}, Disks: FakeDisks, Backups: func(context.Context) []*maitrev1.Backup {
+		scans++
+		return []*maitrev1.Backup{{NodeId: "n1"}}
+	}})
+	ctx := context.Background()
+	if b := in.backups(ctx); len(b) != 1 || scans != 1 {
+		t.Fatalf("first scan: %v %d", b, scans)
+	}
+	in.mu.Lock()
+	in.backupScanned = time.Time{}
+	in.prov = &maitrev1.Provisioning{Phase: maitrev1.Provisioning_PHASE_INSTALLING}
+	in.mu.Unlock()
+	if b := in.backups(ctx); len(b) != 1 || scans != 1 {
+		t.Errorf("scanned during the install: %v %d", b, scans)
+	}
+}

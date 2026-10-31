@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -121,6 +122,24 @@ type Partition struct {
 	FSType string
 }
 
+// journalOff keeps a filesystem from replaying its journal, which plain ro
+// still does on ext4, XFS and btrfs: a read-only look must write nothing.
+var journalOff = map[string]string{
+	"ext2": "noload", "ext3": "noload", "ext4": "noload",
+	"xfs":   "norecovery",
+	"btrfs": "rescue=nologreplay",
+}
+
+// ReadOnlyMountOptions are the mount options for looking at a filesystem
+// without changing it or trusting what it holds.
+func ReadOnlyMountOptions(fstype string) string {
+	opts := "ro,nosuid,nodev,noexec,noatime"
+	if extra := journalOff[fstype]; extra != "" {
+		opts += "," + extra
+	}
+	return opts
+}
+
 // Scan mounts each partition read-only in turn and lists the backups it
 // holds. Partitions that will not mount are skipped.
 func Scan(ctx context.Context, parts []Partition) []*maitrev1.Backup {
@@ -135,14 +154,20 @@ func Scan(ctx context.Context, parts []Partition) []*maitrev1.Backup {
 		if err != nil {
 			continue
 		}
-		if err := exec.CommandContext(ctx, "mount", "-o", "ro,noatime", p.Device, mnt).Run(); err != nil {
+		if err := exec.CommandContext(ctx, "mount", "-o", ReadOnlyMountOptions(p.FSType), p.Device, mnt).Run(); err != nil {
 			os.Remove(mnt)
 			continue
 		}
 		for _, f := range ScanDir(mnt, p.Device, p.Disk) {
 			out = append(out, &maitrev1.Backup{NodeId: f.Meta.NodeID, NodeName: f.Meta.NodeName, FleetId: f.Meta.FleetID, FleetName: f.Meta.FleetName, SavedUnixMs: f.Meta.SavedUnixMs, Device: p.Device, Disk: p.Disk})
 		}
-		_ = exec.CommandContext(ctx, "umount", mnt).Run()
+		// Never with the caller's context: a status call that gave up
+		// mid-scan once left a partition mounted, and the install's wipefs
+		// then found the disk busy (decision 268).
+		if err := exec.Command("umount", mnt).Run(); err != nil {
+			slog.Warn("backup scan: partition stays mounted", "device", p.Device, "err", err)
+			continue
+		}
 		os.Remove(mnt)
 	}
 	return out
