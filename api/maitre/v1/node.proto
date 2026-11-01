@@ -207,6 +207,10 @@ message FleetNodeStatus {
   // (254) on this Node.
   repeated CopiesStatus copies = 21;
   repeated MirrorStatus mirrors = 22;
+  // The time zone the Node's clock is set to (decision 282), so the
+  // Console can tell which Nodes have taken the Fleet's. Empty from a Node
+  // older than the field.
+  string time_zone = 23;
 }
 
 // EntryHold is one entry role a Node holds and how its forwarding stands.

@@ -694,8 +694,12 @@ type FleetNodeStatus struct {
 	Drains []*DrainJob `protobuf:"bytes,20,rep,name=drains,proto3" json:"drains,omitempty"`
 	// Copies per Space (decisions 249-253) and Mirrored Drives' health
 	// (254) on this Node.
-	Copies        []*CopiesStatus `protobuf:"bytes,21,rep,name=copies,proto3" json:"copies,omitempty"`
-	Mirrors       []*MirrorStatus `protobuf:"bytes,22,rep,name=mirrors,proto3" json:"mirrors,omitempty"`
+	Copies  []*CopiesStatus `protobuf:"bytes,21,rep,name=copies,proto3" json:"copies,omitempty"`
+	Mirrors []*MirrorStatus `protobuf:"bytes,22,rep,name=mirrors,proto3" json:"mirrors,omitempty"`
+	// The time zone the Node's clock is set to (decision 282), so the
+	// Console can tell which Nodes have taken the Fleet's. Empty from a Node
+	// older than the field.
+	TimeZone      string `protobuf:"bytes,23,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -882,6 +886,13 @@ func (x *FleetNodeStatus) GetMirrors() []*MirrorStatus {
 		return x.Mirrors
 	}
 	return nil
+}
+
+func (x *FleetNodeStatus) GetTimeZone() string {
+	if x != nil {
+		return x.TimeZone
+	}
+	return ""
 }
 
 // EntryHold is one entry role a Node holds and how its forwarding stands.
@@ -2730,7 +2741,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x15GetFleetStatusRequest\"c\n" +
 	"\x16GetFleetStatusResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xca\a\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x1a.maitre.v1.FleetNodeStatusR\x05nodes\"\xe7\a\n" +
 	"\x0fFleetNodeStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
 	"\treachable\x18\x02 \x01(\bR\treachable\x12)\n" +
@@ -2754,7 +2765,8 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x06parity\x18\x13 \x01(\v2\x17.maitre.v1.ParityStatusR\x06parity\x12+\n" +
 	"\x06drains\x18\x14 \x03(\v2\x13.maitre.v1.DrainJobR\x06drains\x12/\n" +
 	"\x06copies\x18\x15 \x03(\v2\x17.maitre.v1.CopiesStatusR\x06copies\x121\n" +
-	"\amirrors\x18\x16 \x03(\v2\x17.maitre.v1.MirrorStatusR\amirrors\"5\n" +
+	"\amirrors\x18\x16 \x03(\v2\x17.maitre.v1.MirrorStatusR\amirrors\x12\x1b\n" +
+	"\ttime_zone\x18\x17 \x01(\tR\btimeZone\"5\n" +
 	"\tEntryHold\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\"v\n" +

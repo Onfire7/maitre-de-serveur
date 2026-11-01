@@ -226,7 +226,7 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
                   {type === "bool" ? (
                     <Switch checked={draft[k] === "true"} onCheckedChange={(v) => setDraft({ ...draft, [k]: v ? "true" : "false" })} aria-label={settingLabel(k) ?? k} />
                   ) : (
-                    <Input className="h-8 w-64" type={SECRET.test(k) ? "password" : "text"} value={draft[k]} placeholder={type === "timezone" ? "auto: the Node's time zone" : undefined} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} aria-label={settingLabel(k) ?? k} />
+                    <Input className="h-8 w-64" type={SECRET.test(k) ? "password" : "text"} value={draft[k]} placeholder={type === "timezone" ? "auto: the Fleet's time zone" : undefined} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} aria-label={settingLabel(k) ?? k} />
                   )}
                 </label>
               );

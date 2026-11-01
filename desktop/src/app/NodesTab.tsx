@@ -23,6 +23,7 @@ import { NetbootPanel, restartInstaller } from "./NetbootPanel";
 import { InstallerLogs } from "./InstallerLogs";
 import { MediaPanel } from "./MediaPanel";
 import { Leftovers } from "./Leftovers";
+import { FleetTimeZone } from "./FleetTimeZone";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
@@ -61,6 +62,8 @@ export function NodesTab({
           <NodeCard key={n.nodeId} node={n} snap={snap!} state={state} now={now} open={selected ? selected === n.nodeId : n.letter === fixtureLetter} onOpen={(o) => go({ name: "fleet", tab: "nodes", nodeId: o ? n.nodeId : undefined })} onState={onState} />
         ))}
       </section>
+
+      <FleetTimeZone snap={snap} />
 
       <Leftovers snap={snap} state={state} onDone={onRefresh} />
 

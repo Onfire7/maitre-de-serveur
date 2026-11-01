@@ -226,3 +226,13 @@ message GrantsNeeded {
   repeated string components = 6;
   repeated string image_repositories = 7;
 }
+
+// FleetSettings is the Fleet-wide kind "fleet_settings" Record, id
+// "fleet" (decision 282), signed by a Trusted Device.
+message FleetSettings {
+  // The Fleet's time zone, an IANA name such as Europe/Paris. Every Node
+  // sets its clock to it, and a Service whose TZ setting is "auto" runs in
+  // it. Empty: each Node keeps the zone it has (UTC as installed), and
+  // "auto" is that Node's zone.
+  string time_zone = 1;
+}

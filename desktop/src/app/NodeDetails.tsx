@@ -59,6 +59,12 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           <dd>{i ? formatUptime(Number(i.uptimeSeconds)) : "…"}</dd>
           <dt className="text-muted-foreground">Addresses</dt>
           <dd className="font-mono text-xs">{node.addresses.join(", ")}</dd>
+          {snap.status.get(node.nodeId)?.timeZone && (
+            <>
+              <dt className="text-muted-foreground">Time zone</dt>
+              <dd>{snap.status.get(node.nodeId)!.timeZone}</dd>
+            </>
+          )}
           {i?.publicIp && (
             <>
               <dt className="flex items-center gap-1 text-muted-foreground">

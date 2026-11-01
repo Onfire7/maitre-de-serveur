@@ -417,7 +417,7 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: Cat
                       ) : (
                         <>
                           <Label htmlFor={`set-${s.key}`}>{s.label}</Label>
-                          <Input id={`set-${s.key}`} type={s.type === "password" ? "password" : s.type === "number" ? "number" : "text"} value={settingValue(s.key, s.default ?? "")} onChange={(e) => setSettings({ ...settings, [s.key]: e.target.value })} placeholder={s.type === "timezone" ? "auto = the Node's time zone" : ""} />
+                          <Input id={`set-${s.key}`} type={s.type === "password" ? "password" : s.type === "number" ? "number" : "text"} value={settingValue(s.key, s.default ?? "")} onChange={(e) => setSettings({ ...settings, [s.key]: e.target.value })} placeholder={s.type === "timezone" ? "auto = the Fleet's time zone" : ""} />
                           {s.default === GENERATE && settings[s.key] === undefined && (
                             <p className="flex items-center gap-1 text-xs text-muted-foreground">
                               Made up for {entry.name}; it stays in the Service's settings.

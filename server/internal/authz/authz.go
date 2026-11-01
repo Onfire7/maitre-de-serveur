@@ -9,7 +9,7 @@
 //     device; or a Node, for a device scoped to that Node, or promoted to
 //     the whole Fleet with a second Node's voucher (decision 120).
 //   - space, update_policy, tailscale, public_settings, fleet_domain,
-//     grant, catalogs: a Trusted Device.
+//     fleet_settings, grant, catalogs: a Trusted Device.
 //   - node: a Trusted Device, or the Node itself once it has been
 //     introduced and while it has not been removed.
 //   - service: the Node that runs it, which may not take over another
@@ -51,6 +51,7 @@ const (
 	kindTailscale      = "tailscale"
 	kindPublicSettings = "public_settings"
 	kindFleetDomain    = "fleet_domain"
+	kindFleetSettings  = "fleet_settings"
 	kindCatalogs       = "catalogs"
 	kindService        = "service"
 	kindDrive          = "drive"
@@ -63,7 +64,7 @@ const PromoteWithin = 24 * time.Hour
 // DeviceOnly reports whether only a Trusted Device may sign kind.
 func DeviceOnly(kind string) bool {
 	switch kind {
-	case store.KindTrustedDevice, kindSpace, kindPolicy, kindTailscale, kindPublicSettings, kindFleetDomain, KindGrant, kindCatalogs:
+	case store.KindTrustedDevice, kindSpace, kindPolicy, kindTailscale, kindPublicSettings, kindFleetDomain, kindFleetSettings, KindGrant, kindCatalogs:
 		return true
 	}
 	return false

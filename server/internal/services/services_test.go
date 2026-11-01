@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/timezone"
 )
 
 // fakeRunner records commands and answers systemctl show with a scripted state.
@@ -186,5 +188,74 @@ func TestCatalogEntriesPassQuadlet(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Decision 282: a TZ setting of "auto" stays "auto" in the record and the
+// unit takes the Fleet's time zone, this Node's when none is set; when the
+// Fleet's zone changes, FollowTimezone renders the unit again and restarts
+// the Service.
+func TestAutoTimezoneFollowsTheFleet(t *testing.T) {
+	ctx := context.Background()
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	run := &fakeRunner{state: "active"}
+	pools := filepath.Join(dir, "pools")
+	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	unit := func() string {
+		b, err := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	s, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", map[string]string{"TZ": "auto"}, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.GetSpec().GetSettings()["TZ"] != "auto" {
+		t.Fatalf("the record should keep auto, got %q", s.GetSpec().GetSettings()["TZ"])
+	}
+	if !strings.Contains(unit(), "Environment=TZ="+timezone.Local()+"\n") {
+		t.Fatalf("without a Fleet zone the unit should have the Node's:\n%s", unit())
+	}
+
+	zone := "Pacific/Auckland"
+	if timezone.Local() == zone {
+		zone = "America/Sao_Paulo"
+	}
+	if _, err := st.Put(ctx, timezone.Kind, timezone.ID, &maitrev1.FleetSettings{TimeZone: zone}, true); err != nil {
+		t.Fatal(err)
+	}
+	run.cmds = nil
+	m.FollowTimezone(ctx)
+	if !strings.Contains(unit(), "Environment=TZ="+zone+"\n") {
+		t.Fatalf("after the Fleet's zone changed the unit should have it:\n%s", unit())
+	}
+	if !slices.Contains(run.cmds, "systemctl try-restart --no-block jellyfin.service") {
+		t.Fatalf("the Service should be restarted, commands %q", run.cmds)
+	}
+	var spec maitrev1.ServiceSpec
+	if _, err := st.Get(ctx, services.KindService, "jellyfin", &spec); err != nil || spec.GetSettings()["TZ"] != "auto" {
+		t.Fatalf("the record should still say auto: %q %v", spec.GetSettings()["TZ"], err)
+	}
+
+	// A Service with its own zone is left alone.
+	if _, err := m.SetSettings(ctx, &maitrev1.SetSettingsRequest{Name: "jellyfin", Settings: map[string]string{"TZ": "Europe/Paris"}}); err != nil {
+		t.Fatal(err)
+	}
+	run.cmds = nil
+	m.FollowTimezone(ctx)
+	if !strings.Contains(unit(), "Environment=TZ=Europe/Paris\n") || slices.Contains(run.cmds, "systemctl try-restart --no-block jellyfin.service") {
+		t.Fatalf("an explicit zone should stay and not restart:\n%s\n%q", unit(), run.cmds)
 	}
 }

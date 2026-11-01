@@ -25,7 +25,7 @@ import { restartInstaller } from "./NetbootPanel";
 import { HoldButton } from "@/components/hold-button";
 
 /** The Device-signed kinds a new Node of an existing Fleet starts with, copied from a Node of it. */
-const PROVISION_KINDS = new Set(["trusted_device", "node", "fleet", "space", "update_policy", "tailscale", "public_settings", "grant"]);
+const PROVISION_KINDS = new Set(["trusted_device", "node", "fleet", "space", "update_policy", "tailscale", "public_settings", "fleet_settings", "grant"]);
 
 /** A new Fleet's Trusted Devices: this device and the Recovery Phrase, both signed by this device. */
 export async function firstDevices(device: DeviceInfo, recoveryPem: string): Promise<Rec[]> {

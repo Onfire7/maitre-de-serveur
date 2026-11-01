@@ -22,6 +22,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/timezone"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
@@ -159,7 +160,7 @@ func (s *Service) ListRecords(ctx context.Context, req *maitrev1.ListRecordsRequ
 // FleetWide reports whether a kind is owned by whichever Node last wrote it.
 func FleetWide(kind string) bool {
 	switch kind {
-	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", "fleet_domain", authz.KindGrant, "catalogs":
+	case store.KindFleet, store.KindTrustedDevice, "space", "tailscale", "update_policy", "public_settings", "fleet_domain", timezone.Kind, authz.KindGrant, "catalogs":
 		return true
 	}
 	return false
@@ -370,7 +371,7 @@ func (s *Service) GetNodeMetrics(context.Context, *maitrev1.GetNodeMetricsReques
 // OwnStatus is what this Node gossips (ADR 0006): its metrics and Services now.
 func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	now := time.Now().UnixMilli()
-	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now, Version: s.info.Version}
+	self := &maitrev1.FleetNodeStatus{NodeId: s.id.Fingerprint(), Reachable: true, LastSeenUnixMs: now, MetricsUnixMs: now, ServicesUnixMs: now, Version: s.info.Version, TimeZone: timezone.Local()}
 	if s.Metrics != nil {
 		self.Metrics = s.Metrics()
 	} else {
@@ -455,6 +456,7 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.Entries = last.GetEntries()
 				st.Parity, st.Drains = last.GetParity(), last.GetDrains()
 				st.Copies, st.Mirrors = last.GetCopies(), last.GetMirrors()
+				st.TimeZone = last.GetTimeZone()
 			}
 			st.Provisioning = s.Peers.Installing(p.GetNodeId())
 			out.Nodes = append(out.Nodes, st)

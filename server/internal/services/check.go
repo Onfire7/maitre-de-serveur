@@ -67,7 +67,7 @@ func Check(ctx context.Context, in *maitrev1.ServiceSpec) (*CheckResult, error) 
 	if res.Protected, err = protectedOptions(spec, vols, managedDirs(vols, extra)); err != nil {
 		return nil, err
 	}
-	if res.Units, err = m.renderUnits(spec, vols, extra); err != nil {
+	if res.Units, err = m.renderUnits(ctx, spec, vols, extra); err != nil {
 		return nil, err
 	}
 	if err := validateUnits(ctx, spec.GetName(), res.Units); err != nil {

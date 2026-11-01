@@ -63,6 +63,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tailnet"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/timezone"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
@@ -966,17 +967,38 @@ func runAgent(args []string) error {
 	// Decision 189: a Service with protected options runs only while each
 	// has a grant; a revoked grant stops it.
 	mgr.EnforceGrants(ctx)
+	// Decision 282: the Node's clock follows the Fleet's time zone, and so
+	// do the Services whose TZ setting is "auto"; checked at start, after a
+	// write to this Node, and after records arrived from a peer.
+	var tzMu sync.Mutex
+	followTimezone := func() {
+		tzMu.Lock()
+		defer tzMu.Unlock()
+		changed, err := timezone.Apply(ctx, st, services.ExecRunner{}, log)
+		if err != nil {
+			log.Warn("fleet time zone", "err", err)
+		}
+		if changed {
+			mgr.FollowTimezone(ctx)
+			publish()
+		}
+	}
+	followTimezone()
 	withGrants := svc.OnChange
 	svc.OnChange = func(r *maitrev1.Record) {
 		withGrants(r)
 		if r.GetKind() == services.KindGrant {
 			mgr.EnforceGrants(ctx)
 		}
+		if r.GetKind() == timezone.Kind {
+			go followTimezone()
+		}
 	}
 	withGrantsApplied := pm.OnApplied
 	pm.OnApplied = func() {
 		withGrantsApplied()
 		mgr.EnforceGrants(ctx)
+		go followTimezone()
 	}
 	// Milestone 6: Services that opted in check for a newer image daily,
 	// an hour after boot and every 24 hours after that.

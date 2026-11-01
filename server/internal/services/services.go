@@ -30,6 +30,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet/parser"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/timezone"
 )
 
 // KindService is the Record kind for ServiceSpec bodies.
@@ -175,8 +176,10 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if spec.Settings == nil {
 		spec.Settings = map[string]string{}
 	}
-	if tz, ok := spec.Settings["TZ"]; ok && (tz == "auto" || tz == "") {
-		spec.Settings["TZ"] = localTimezone()
+	// Decision 282: "auto" is kept as written and resolved when the unit
+	// is rendered, so the Service follows the Fleet's time zone.
+	if tz, ok := spec.Settings["TZ"]; ok && tz == "" {
+		spec.Settings["TZ"] = timezone.Auto
 	}
 	if spec.GetExposure() == "" {
 		spec.Exposure = "private"
@@ -337,7 +340,7 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 			return err
 		}
 	}
-	set, err := m.renderUnits(spec, vols, extra)
+	set, err := m.renderUnits(ctx, spec, vols, extra)
 	if err != nil {
 		return err
 	}
@@ -364,7 +367,8 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 // single-container Service is one <name>.container as before; a
 // multi-container one is a unit per component plus its network and grouping
 // target (plan C1).
-func (m *Manager) renderUnits(spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra) (map[string]string, error) {
+func (m *Manager) renderUnits(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra) (map[string]string, error) {
+	spec = m.withTimezone(ctx, spec)
 	if isMulti(spec) {
 		return m.renderMulti(spec, vols, extra)
 	}
@@ -1080,8 +1084,8 @@ func (m *Manager) SetSettings(ctx context.Context, req *maitrev1.SetSettingsRequ
 		}
 		settings[k] = v
 	}
-	if tz, ok := settings["TZ"]; ok && tz == "auto" {
-		settings["TZ"] = localTimezone()
+	if tz, ok := settings["TZ"]; ok && tz == "" {
+		settings["TZ"] = timezone.Auto
 	}
 	spec.Settings = settings
 	if req.AutoUpdate != nil {
@@ -1468,11 +1472,44 @@ func parseProps(out string) map[string]string {
 	return props
 }
 
-func localTimezone() string {
-	if link, err := os.Readlink("/etc/localtime"); err == nil {
-		if i := strings.Index(link, "zoneinfo/"); i >= 0 {
-			return link[i+len("zoneinfo/"):]
+// withTimezone is spec with a TZ setting of "auto" (or none) resolved to
+// the Fleet's time zone, else this Node's (decision 282). The stored spec
+// keeps "auto", so a later change of the Fleet's zone reaches the unit at
+// the next render; see FollowTimezone.
+func (m *Manager) withTimezone(ctx context.Context, spec *maitrev1.ServiceSpec) *maitrev1.ServiceSpec {
+	if !followsTimezone(spec) {
+		return spec
+	}
+	out := proto.Clone(spec).(*maitrev1.ServiceSpec)
+	out.Settings["TZ"] = timezone.Resolve(ctx, m.store)
+	return out
+}
+
+// followsTimezone reports whether a Service's TZ setting follows the Fleet's.
+func followsTimezone(spec *maitrev1.ServiceSpec) bool {
+	tz, ok := spec.GetSettings()["TZ"]
+	return ok && (tz == timezone.Auto || tz == "")
+}
+
+// FollowTimezone renders again, and restarts if running, every Service on
+// this Node whose TZ setting is "auto", after the Fleet's time zone
+// changed (decision 282). A Service that fails to render is logged and
+// left as it is.
+func (m *Manager) FollowTimezone(ctx context.Context) {
+	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	if err != nil {
+		return
+	}
+	for _, spec := range specs {
+		if spec.GetNodeId() != m.store.NodeID() || !followsTimezone(spec) {
+			continue
+		}
+		if err := m.apply(ctx, spec); err != nil {
+			m.logf("%s: time zone: %v", spec.GetName(), err)
+			continue
+		}
+		if _, err := m.run.Run(ctx, "systemctl", "try-restart", "--no-block", lifecycleUnit(spec)); err != nil {
+			m.logf("%s: restart for the time zone: %v", spec.GetName(), err)
 		}
 	}
-	return "UTC"
 }

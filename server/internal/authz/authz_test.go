@@ -112,6 +112,8 @@ func TestKinds(t *testing.T) {
 		{"policy by a Node", signed(t, f.b, &maitrev1.Record{Kind: "update_policy", Id: "fleet", OwnerNodeId: b, Version: 1}, 10), false},
 		{"catalogs by a device", signed(t, f.dev, &maitrev1.Record{Kind: "catalogs", Id: "fleet", OwnerNodeId: b, Version: 1}, 10), true},
 		{"catalogs by a Node", signed(t, f.b, &maitrev1.Record{Kind: "catalogs", Id: "fleet", OwnerNodeId: b, Version: 1}, 10), false},
+		{"fleet settings by a device", signed(t, f.dev, &maitrev1.Record{Kind: "fleet_settings", Id: "fleet", OwnerNodeId: b, Version: 1}, 10), true},
+		{"fleet settings by a Node", signed(t, f.b, &maitrev1.Record{Kind: "fleet_settings", Id: "fleet", OwnerNodeId: b, Version: 1}, 10), false},
 		{"service by its Node", signed(t, f.b, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: b, Version: 1, Body: svc}, 10), true},
 		{"service for another Node", signed(t, f.c, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: f.c.Fingerprint(), Version: 1, Body: svc}, 10), false},
 		{"service owned by someone else", signed(t, f.b, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: f.c.Fingerprint(), Version: 1, Body: svc}, 10), false},

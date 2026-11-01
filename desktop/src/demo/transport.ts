@@ -7,7 +7,7 @@ import { volumeDir } from "@/files/layout";
 import { create, fromBinary, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
 import { ControlServiceRequest_Action, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
-import { FleetDomainSchema, GrantsNeededSchema, type EntryNode } from "@/gen/maitre/v1/fleet_pb";
+import { FleetDomainSchema, FleetSettingsSchema, GrantsNeededSchema, type EntryNode } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
 import bundledCatalog from "@/catalog/index.json";
@@ -120,6 +120,10 @@ const handlers: Record<string, Handler> = {
     return {};
   },
   "NodeService/GetFleetStatus": (f, n, _i, addr) => {
+    const fleetZone = (f: DemoFleet) => {
+      const r = f.records.find((x) => x.kind === "fleet_settings" && !x.deleted);
+      return (r && fromBinary(FleetSettingsSchema, r.body).timeZone) || "UTC";
+    };
     const me = needNode(n, addr);
     const entry = (p: DemoNode) => ({
       nodeId: p.nodeId,
@@ -143,6 +147,8 @@ const handlers: Record<string, Handler> = {
       drains: drainsOf(f, p.nodeId).filter((j) => j.state === "queued" || j.state === "running"),
       copies: copiesStatuses(f, p),
       mirrors: mirrorStatuses(f, p),
+      // Decision 282: every demo Node has taken the Fleet's zone; UTC when none is set.
+      timeZone: fleetZone(f),
     });
     // The Installer's Node once its record is in: still being installed,
     // reported from the Installer as a real Node does.

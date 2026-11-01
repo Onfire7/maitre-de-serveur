@@ -6,6 +6,7 @@
 import { create, toBinary, fromBinary, type MessageInitShape } from "@bufbuild/protobuf";
 import {
   FleetSchema,
+  FleetSettingsSchema,
   GrantSchema,
   GrantsNeededSchema,
   type GrantsNeeded,
@@ -456,8 +457,10 @@ export class DemoFleet {
     out.push(this.rec("update_policy", "fleet", NODE_A, toBinary(UpdatePolicySchema, create(UpdatePolicySchema, { automatic: true, windowStartHour: 3, windowEndHour: 5, stageHours: 24, paused: false }))));
     out.push(this.rec("tailscale", "fleet", NODE_A, toBinary(TailscaleConfigSchema, create(TailscaleConfigSchema, { oauthClientId: "k7Hs2demoClientId", oauthClientSecret: "tskey-client-demo", tag: "tag:maitre", addedUnixMs: BigInt(this.now - 12 * 86400_000) }))));
     if (!this.records.some((r) => r.kind === "public_settings")) out.push(this.rec("public_settings", "fleet", NODE_A, toBinary(PublicSettingsSchema, create(PublicSettingsSchema, { acmeEmail: "" }))));
+    // Decision 282: the Fleet's time zone, set once; a cleared one stays cleared.
+    if (!this.records.some((r) => r.kind === "fleet_settings")) out.push(this.rec("fleet_settings", "fleet", NODE_A, toBinary(FleetSettingsSchema, create(FleetSettingsSchema, { timeZone: "America/New_York" }))));
     // Keep tombstones, and the kinds the model does not hold (grants, Catalogs, the domain, the certificate email).
-    for (const r of this.records) if ((r.deleted || ["grant", "catalogs", "fleet_domain", "public_settings"].includes(r.kind)) && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
+    for (const r of this.records) if ((r.deleted || ["grant", "catalogs", "fleet_domain", "public_settings", "fleet_settings"].includes(r.kind)) && !out.some((o) => o.kind === r.kind && o.id === r.id)) out.push(r);
     this.records = out;
     this.changed();
   }

@@ -1192,6 +1192,56 @@ func (x *GrantsNeeded) GetImageRepositories() []string {
 	return nil
 }
 
+// FleetSettings is the Fleet-wide kind "fleet_settings" Record, id
+// "fleet" (decision 282), signed by a Trusted Device.
+type FleetSettings struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Fleet's time zone, an IANA name such as Europe/Paris. Every Node
+	// sets its clock to it, and a Service whose TZ setting is "auto" runs in
+	// it. Empty: each Node keeps the zone it has (UTC as installed), and
+	// "auto" is that Node's zone.
+	TimeZone      string `protobuf:"bytes,1,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FleetSettings) Reset() {
+	*x = FleetSettings{}
+	mi := &file_maitre_v1_fleet_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FleetSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FleetSettings) ProtoMessage() {}
+
+func (x *FleetSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_fleet_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FleetSettings.ProtoReflect.Descriptor instead.
+func (*FleetSettings) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_fleet_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *FleetSettings) GetTimeZone() string {
+	if x != nil {
+		return x.TimeZone
+	}
+	return ""
+}
+
 var File_maitre_v1_fleet_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_fleet_proto_rawDesc = "" +
@@ -1298,7 +1348,9 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\n" +
 	"components\x18\x06 \x03(\tR\n" +
 	"components\x12-\n" +
-	"\x12image_repositories\x18\a \x03(\tR\x11imageRepositoriesBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\x12image_repositories\x18\a \x03(\tR\x11imageRepositories\",\n" +
+	"\rFleetSettings\x12\x1b\n" +
+	"\ttime_zone\x18\x01 \x01(\tR\btimeZoneBDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_fleet_proto_rawDescOnce sync.Once
@@ -1313,7 +1365,7 @@ func file_maitre_v1_fleet_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_fleet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_maitre_v1_fleet_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_maitre_v1_fleet_proto_goTypes = []any{
 	(UpdateRun_Outcome)(0),  // 0: maitre.v1.UpdateRun.Outcome
 	(*Record)(nil),          // 1: maitre.v1.Record
@@ -1328,6 +1380,7 @@ var file_maitre_v1_fleet_proto_goTypes = []any{
 	(*RecoveryVoucher)(nil), // 10: maitre.v1.RecoveryVoucher
 	(*Grant)(nil),           // 11: maitre.v1.Grant
 	(*GrantsNeeded)(nil),    // 12: maitre.v1.GrantsNeeded
+	(*FleetSettings)(nil),   // 13: maitre.v1.FleetSettings
 }
 var file_maitre_v1_fleet_proto_depIdxs = []int32{
 	4,  // 0: maitre.v1.Node.updating:type_name -> maitre.v1.NodeUpdate
@@ -1354,7 +1407,7 @@ func file_maitre_v1_fleet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_fleet_proto_rawDesc), len(file_maitre_v1_fleet_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
