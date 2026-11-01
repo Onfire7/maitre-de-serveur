@@ -11,6 +11,7 @@ import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import { onSamples, samples } from "@/fleet/history";
 import { hasReadings, NO_HISTORY, pointsOf, useMetricsHistory, useRange, type Point } from "@/fleet/metrics";
+import { roleOf } from "@/protection";
 import { HistoryChart } from "./HistoryChart";
 
 const known = (f: (v: number) => string) => (v: number) => (Number.isFinite(v) ? f(v) : "—");
@@ -49,9 +50,15 @@ export function NodeUsage({ node, target, snap }: { node: Node; target: Target |
   const s = q.data.series;
   const one = (name: string) => pointsOf(s.get(name));
   const temp = one("node/temperature");
+  // The Node samples only its current Drives, so a series no Drive record
+  // answers to is one that was formatted anew or removed (decision 281):
+  // it stays in the history until its readings age out.
   const drives = [...s.keys()]
     .filter((k) => k.startsWith("drive/"))
-    .map((k) => ({ key: k, name: snap.drives.find((d) => d.nodeId === node.nodeId && d.driveId === k.slice(6))?.name || k.slice(6) }))
+    .map((k) => {
+      const rec = snap.drives.find((d) => d.nodeId === node.nodeId && d.driveId === k.slice(6));
+      return { key: k, name: rec ? (roleOf(rec) === "parity" ? `${rec.name}, Parity Drive` : rec.name) : `Former Drive ${k.slice(6, 14)}` };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
   const { from, to } = q.data;
   const common = { from, to, range: q.data.range, dim };
