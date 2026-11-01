@@ -9,9 +9,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -203,8 +205,10 @@ func (m *Manager) LocalBranches(ctx context.Context) (branches map[string][]stri
 	}
 	out := map[string][]string{}
 	noCreate = map[string]bool{}
+	owners := map[string]uint32{}
 	for _, b := range spaces {
 		out[b.GetSpaceId()] = nil
+		owners[b.GetSpaceId()] = OwnerOf(b)
 	}
 	for _, r := range records {
 		if r.GetNodeId() != m.st.NodeID() {
@@ -221,6 +225,7 @@ func (m *Manager) LocalBranches(ctx context.Context) (branches map[string][]stri
 			if err := os.MkdirAll(branch, 0o755); err != nil {
 				continue
 			}
+			ownBranch(branch, owners[id])
 			if r.GetDraining() {
 				noCreate[branch] = true
 			}
@@ -242,6 +247,23 @@ func (m *Manager) LocalBranches(ctx context.Context) (branches map[string][]stri
 		}
 	}
 	return out, noCreate, nil
+}
+
+// ownBranch gives a Space's folder on a Drive the Space's owner (decision
+// 277). The file manager makes folders as that owner (decision 189), and a
+// branch root made by root, as these were, refused it the top level of the
+// Space: "mkdir …/media/Libraries: permission denied". Checked on every
+// assembly so Drives from before get it too; 0 (no owner) is left alone.
+func ownBranch(branch string, id uint32) {
+	if id == 0 {
+		return
+	}
+	if info, err := os.Lstat(branch); err == nil {
+		if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Uid == id && info.Mode().Perm()&0o070 == 0o070 {
+			return
+		}
+	}
+	_ = owner.Apply(branch, id)
 }
 
 // HasFiles reports whether a Space folder holds anything besides the Space

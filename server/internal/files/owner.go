@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
@@ -62,6 +63,22 @@ func (m *Manager) isSpace(ctx context.Context, id string) bool {
 	spaces, _ := storage.Spaces(ctx, m.st)
 	for _, s := range spaces {
 		if s.GetSpaceId() == id {
+			return true
+		}
+	}
+	return false
+}
+
+// driveHolds reports whether a Drive of this Node is a branch of the Space
+// that takes new files: in the Space and not draining (decision 247).
+func (m *Manager) driveHolds(ctx context.Context, driveID, space string) bool {
+	var rec maitrev1.DriveRecord
+	if _, err := m.st.Get(ctx, storage.KindDrive, driveID, &rec); err != nil || rec.GetNodeId() != m.self || rec.GetDraining() {
+		return false
+	}
+	spaces, _ := storage.Spaces(ctx, m.st)
+	for _, id := range storage.SpacesOf(&rec, spaces) {
+		if id == space {
 			return true
 		}
 	}

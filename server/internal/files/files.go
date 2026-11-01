@@ -591,8 +591,16 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		// squashed (the move failed) and the container would not see it.
 		if own := filepath.Join(pool.SharedDir, req.GetToSpace()); strings.HasPrefix(req.GetToPath(), layout.ServicesDir+"/") && isMounted(own) {
 			dstBase = own
+		} else if d := req.GetFrom().GetDriveId(); d != "" && req.GetFromNodeId() == "" && m.driveHolds(ctx, d, req.GetToSpace()) {
+			// Decision 277: files already on a Drive of the Space go into
+			// its folder on that Drive, which is where the Pool shows them
+			// either way, so the move below is a rename.
+			dstBase = filepath.Join(m.Mounts, d, req.GetToSpace())
 		}
 	}
+	// Decision 277: from a Drive's own files into a Space on the same Drive
+	// (named, or the Space's folder there chosen above) is one filesystem.
+	sameDrive := req.GetFromNodeId() == "" && req.GetFrom().GetDriveId() != "" && strings.HasPrefix(dstBase, filepath.Join(m.Mounts, req.GetFrom().GetDriveId())+"/")
 	dst := filepath.Join(dstBase, req.GetToPath())
 	if same, _ := samePath(src, dst); same {
 		return errors.New("source and destination are the same place")
@@ -617,13 +625,18 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	j.mu.Lock()
 	j.pb.BytesTotal = bytes
 	j.mu.Unlock()
-	// Between folders of one Space on this Node, to a name not taken: a
-	// rename through the Pool, instant when mergerfs keeps it on one Drive.
-	// EXDEV (the Pool would have to cross Drives) falls back to the copy.
-	if req.GetFromNodeId() == "" && req.GetToDriveId() == "" && req.GetFrom().GetSpaceId() != "" && req.GetFrom().GetSpaceId() == req.GetToSpace() {
+	// Between folders of one Space on this Node, or from a Drive's own
+	// files into the Space's folder on that Drive, to a name not taken: a
+	// rename, instant when mergerfs keeps it on one Drive. EXDEV (the Pool
+	// would have to cross Drives) falls back to the copy.
+	sameSpace := req.GetFromNodeId() == "" && req.GetToDriveId() == "" && req.GetFrom().GetSpaceId() != "" && req.GetFrom().GetSpaceId() == req.GetToSpace()
+	if sameSpace || sameDrive {
 		if _, err := os.Lstat(dst); errors.Is(err, fs.ErrNotExist) {
 			err := owner.As(srcOwner, func() error { return os.Rename(src, dst) })
 			if err == nil {
+				if sameDrive && !j.keepOwner {
+					m.ownTree(dst) // the Space's owner takes them (decision 173)
+				}
 				j.mu.Lock()
 				j.pb.BytesDone = bytes
 				j.mu.Unlock()
@@ -634,8 +647,7 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 			}
 		}
 	}
-	// Same filesystem and not across the Pool: a rename is instant. Only
-	// for Drive-to-Drive within one Drive; everything else copies.
+	// Everything else copies: across Drives, Spaces or Nodes.
 	if err := m.rsync(ctx, j, src, dst, info.IsDir(), dstOwner); err != nil {
 		return err
 	}

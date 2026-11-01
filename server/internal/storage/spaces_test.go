@@ -2,12 +2,14 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/owner"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
@@ -211,5 +213,42 @@ func TestUnprotectedNoCreate(t *testing.T) {
 	got = UnprotectedNoCreate(nil, local, remote, "a", 2, map[string]int{"a": 1, "b": 2})
 	if !got["/mnt/d1/media"] || got["/var/mnt/remote/b/media"] {
 		t.Fatalf("got %v", got)
+	}
+}
+
+// A Space's folder on each Drive belongs to the Space's owner (decision
+// 277), so the file manager, acting as that owner, can make folders at the
+// Space's top; without an owner it is left as root made it.
+func TestBranchesGetTheSpaceOwner(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	m := New(st, &fakeRunner{})
+	m.Mounts = t.TempDir()
+	st.Put(ctx, KindSpace, "media", &maitrev1.Space{SpaceId: "media", Name: "Media", Placement: PlacementLocalFirst, OwnerId: 61002}, true)
+	st.Put(ctx, KindSpace, "scratch", &maitrev1.Space{SpaceId: "scratch", Name: "Scratch", Placement: PlacementLocalFirst}, true)
+	st.Put(ctx, KindDrive, "d1", &maitrev1.DriveRecord{DriveId: "d1", NodeId: "node-a", Name: "Apollo", Origin: "adopted"}, false)
+	mountedDirs = map[string]bool{filepath.Join(m.Mounts, "d1"): true}
+	defer func() { mountedDirs = nil }()
+	var chowned []string
+	oc, oa := owner.Chown, owner.ACL
+	owner.Chown = func(p string, uid, gid int) error {
+		chowned = append(chowned, fmt.Sprintf("%s %d:%d", p, uid, gid))
+		return nil
+	}
+	owner.ACL = func(...string) error { return nil }
+	defer func() { owner.Chown, owner.ACL = oc, oa }()
+	if _, _, err := m.LocalBranches(ctx); err != nil {
+		t.Fatal(err)
+	}
+	media := filepath.Join(m.Mounts, "d1", "media")
+	if len(chowned) != 1 || chowned[0] != media+" 61002:61002" {
+		t.Fatalf("chowned %v", chowned)
+	}
+	if info, _ := os.Stat(media); info.Mode().Perm() != 0o775 || info.Mode()&os.ModeSetgid == 0 {
+		t.Fatalf("mode %v", info.Mode())
+	}
+	if info, _ := os.Stat(filepath.Join(m.Mounts, "d1", "scratch")); info.Mode().Perm() != 0o755 {
+		t.Fatalf("ownerless Space folder changed: %v", info.Mode())
 	}
 }

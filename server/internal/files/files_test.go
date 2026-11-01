@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,37 +71,52 @@ func TestListAndUsage(t *testing.T) {
 	}
 }
 
+// Files on a Drive move into a Space on that same Drive by rename (decision
+// 277), whether the Drive is named or the Space decides: no copy, so no
+// rsync is needed and a 2 TB folder takes a second.
 func TestMoveIntoSpace(t *testing.T) {
-	if _, err := exec.LookPath("rsync"); err != nil {
-		t.Skip("no rsync")
-	}
 	m, ctx, dir := setup(t)
+	m.Rsync = filepath.Join(dir, "no-rsync-here")
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go m.Run(runCtx)
+	wait := func(id string) *maitrev1.Job {
+		var j *maitrev1.Job
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			for _, j = range m.Jobs() {
+				if j.GetJobId() == id && (j.GetState() == "done" || j.GetState() == "failed") {
+					return j
+				}
+			}
+		}
+		return j
+	}
 	// Unsorted Movies on the Drive go into the Media Space, on that Drive.
-	j, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "Movies", ToSpace: "media", ToDriveId: "d1"})
+	j, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "Movies", ToSpace: "media", ToDriveId: "d1", ToPath: "Libraries/Movies"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		jobs := m.Jobs()
-		if jobs[0].GetState() == "done" || jobs[0].GetState() == "failed" {
-			j = jobs[0]
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	if j.GetState() != "done" {
+	if j = wait(j.GetJobId()); j.GetState() != "done" || j.GetBytesDone() != 5000 {
 		t.Fatalf("job %v", j)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "drives/d1/media/Movies/Alien/alien.mkv")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "drives/d1/media/Libraries/Movies/Alien/alien.mkv")); err != nil {
 		t.Fatal("file not at destination")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "drives/d1/Movies")); !os.IsNotExist(err) {
 		t.Fatal("source still there")
 	}
+	// With the Space deciding, the files stay on the Drive they are on.
+	j, err = m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToSpace: "media"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j = wait(j.GetJobId()); j.GetState() != "done" {
+		t.Fatalf("job %v", j)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "drives/d1/media/notes.txt")); err != nil {
+		t.Fatal("file not on its own Drive's folder for the Space")
+	}
+	os.WriteFile(filepath.Join(dir, "drives/d1/notes.txt"), []byte("hi"), 0o644)
 	// Refusals.
 	if _, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "/", ToSpace: "media"}); err == nil {
 		t.Fatal("moved the top")
