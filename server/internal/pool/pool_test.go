@@ -2,6 +2,7 @@ package pool
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +49,21 @@ func TestBranches(t *testing.T) {
 	got := Branches([]string{"/a/x", "/b/x", "/c/x"}, map[string]bool{"/b/x": true})
 	if got != "/a/x:/b/x=NC:/c/x" {
 		t.Fatalf("Branches = %q", got)
+	}
+}
+
+// Decision 283: the Pool peers mount over NFS keeps the nodes NFS holds
+// handles to, numbers inodes by path and reports a folder's times from the
+// branch changed last; the Node's own full Pool does not need any of it.
+func TestOptionsForExportedPool(t *testing.T) {
+	own := Options("maitre-data", "ff", false)
+	if strings.Contains(own, "never-forget-nodes") || strings.Contains(own, "func.getattr") || !strings.Contains(own, "category.create=ff,") {
+		t.Fatalf("own Pool options %q", own)
+	}
+	shared := Options("maitre-shared-data", "ff", true)
+	for _, want := range []string{"never-forget-nodes=true", "inodecalc=path-hash", "func.getattr=newest", "fsname=maitre-shared-data"} {
+		if !strings.Contains(shared, want) {
+			t.Fatalf("shared Pool options %q lack %s", shared, want)
+		}
 	}
 }

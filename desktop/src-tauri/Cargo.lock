@@ -2164,10 +2164,12 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures-util",
+ "glib",
  "hex",
  "http-body-util",
  "hyper",
  "hyper-util",
+ "libc",
  "mdns-sd",
  "rand 0.9.5",
  "rcgen",
@@ -2184,6 +2186,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tokio",
  "tokio-rustls",
+ "webkit2gtk",
  "x509-parser",
 ]
 

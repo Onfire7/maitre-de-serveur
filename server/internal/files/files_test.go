@@ -334,3 +334,44 @@ func TestJobsOnOtherDrivesRunAlongside(t *testing.T) {
 		until(id, "done")
 	}
 }
+
+// Decision 283: a Space folder the parent listed but no branch can open was
+// "readdirent: no such file or directory"; the Node now tries each branch
+// and names the Node and Drive that hold the folder and what they said.
+func TestListDirExplainsBranches(t *testing.T) {
+	m, ctx, dir := setup(t)
+	st := m.st
+	st.Put(ctx, store.KindNode, "node-a", &maitrev1.Node{NodeId: "node-a", Name: "Boulder"}, false)
+	st.Put(ctx, store.KindNode, "node-b", &maitrev1.Node{NodeId: "node-b", Name: "Avalon"}, false)
+	// The Pool's "photos" cannot be read here (no permission stands in for
+	// mergerfs finding it on no branch); the peer's branch answers with an
+	// error, the local Drive has no photos.
+	photos := filepath.Join(dir, "pools/media/photos")
+	os.Mkdir(photos, 0o000)
+	t.Cleanup(func() { os.Chmod(photos, 0o755) })
+	if os.Getuid() == 0 {
+		t.Skip("root reads anything")
+	}
+	remote := filepath.Join(dir, "remote/node-b/media")
+	os.MkdirAll(filepath.Dir(remote), 0o755)
+	os.WriteFile(remote, nil, 0o644) // a file, so the branch's photos is "not a directory"
+	branchesForTest = func(string) []string { return []string{filepath.Join(dir, "drives/d1/media"), remote} }
+	t.Cleanup(func() { branchesForTest = nil })
+	_, err := m.ListDir(ctx, &maitrev1.Scope{SpaceId: "media"}, "/photos")
+	if !errors.Is(err, ErrUnavailable) || err.Error() != "photos could not be read: Avalon did not answer (not a directory): unavailable" {
+		t.Fatalf("got %v", err)
+	}
+	// Held by a local Drive that answers: the cause itself, with the Drive named.
+	os.MkdirAll(filepath.Join(dir, "drives/d1/media/photos"), 0o755)
+	_, err = m.ListDir(ctx, &maitrev1.Scope{SpaceId: "media"}, "/photos")
+	if !errors.Is(err, ErrUnavailable) || !strings.Contains(err.Error(), "the rest is on Boulder's Drive Apollo") {
+		t.Fatalf("got %v", err)
+	}
+	// On no branch at all: gone, and the listing was stale.
+	os.Remove(remote)
+	os.RemoveAll(filepath.Join(dir, "drives/d1/media/photos"))
+	_, err = m.ListDir(ctx, &maitrev1.Scope{SpaceId: "media"}, "/photos")
+	if !errors.Is(err, ErrGone) || !strings.HasPrefix(err.Error(), "photos is on no Drive of Media any more") {
+		t.Fatalf("got %v", err)
+	}
+}

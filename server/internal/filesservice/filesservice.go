@@ -20,6 +20,19 @@ type Service struct {
 	IsNode func(fingerprint string) bool
 }
 
+// codeFor is the RPC code of a listing error: a folder a peer did not
+// answer for is unavailable, one no Drive holds is not found, and the rest
+// (a bad path, a scope this Node has no Pool for) are the request's fault.
+func codeFor(err error) connect.Code {
+	switch {
+	case errors.Is(err, files.ErrUnavailable):
+		return connect.CodeUnavailable
+	case errors.Is(err, files.ErrGone):
+		return connect.CodeNotFound
+	}
+	return connect.CodeInvalidArgument
+}
+
 // New wraps a Manager.
 func New(m *files.Manager) *Service { return &Service{m: m} }
 
@@ -34,7 +47,7 @@ func (s *Service) node(ctx context.Context) string {
 func (s *Service) ListDir(ctx context.Context, req *maitrev1.ListDirRequest) (*maitrev1.ListDirResponse, error) {
 	entries, err := s.m.ListDir(ctx, req.GetScope(), req.GetPath())
 	if err != nil {
-		return nil, connect.Errorf(connect.CodeInvalidArgument, "%v", err)
+		return nil, connect.Errorf(codeFor(err), "%v", err)
 	}
 	return &maitrev1.ListDirResponse{Entries: entries}, nil
 }

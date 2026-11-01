@@ -330,6 +330,9 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 	dir := filepath.Join(base, r)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		if sc.GetSpaceId() != "" {
+			return nil, m.explain(ctx, sc.GetSpaceId(), base, r, err)
+		}
 		return nil, err
 	}
 	var out []*maitrev1.Entry
@@ -362,6 +365,100 @@ func (m *Manager) ListDir(ctx context.Context, sc *maitrev1.Scope, path string) 
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	return out, nil
+}
+
+// ErrUnavailable marks a folder a Drive or a peer holds but did not answer
+// for; ErrGone one that no Drive of the Space holds any more.
+var (
+	ErrUnavailable = errors.New("unavailable")
+	ErrGone        = errors.New("gone")
+)
+
+// branchesForTest, when set, stands in for a Pool's branch list.
+var branchesForTest func(pool string) []string
+
+// explain says why a Space's folder could not be read, Drive by Drive
+// (decision 283): a folder the parent listed but no branch can open is
+// mergerfs's "no such file or directory", which said nothing about the
+// peer that holds it. Each branch is tried and logged; the error names the
+// Node and Drive the folder is on and what they answered.
+func (m *Manager) explain(ctx context.Context, space, base, r string, cause error) error {
+	branches := branchList(base)
+	if branchesForTest != nil {
+		branches = branchesForTest(base)
+	}
+	if len(branches) == 0 {
+		return cause
+	}
+	what := filepath.Base(r)
+	if r == "" {
+		what = "the top folder"
+	}
+	var held, failed []string
+	for _, b := range branches {
+		where := m.describe(ctx, b)
+		_, err := os.Stat(filepath.Join(b, r))
+		m.log.Warn("list folder", "space", space, "path", r, "branch", b, "err", err)
+		switch {
+		case err == nil:
+			held = append(held, where)
+		case errors.Is(err, fs.ErrNotExist):
+		default:
+			failed = append(failed, fmt.Sprintf("%s did not answer (%s)", where, sysErr(err)))
+		}
+	}
+	switch {
+	case len(failed) > 0:
+		msg := fmt.Sprintf("%s could not be read: %s", what, strings.Join(failed, "; "))
+		if len(held) > 0 {
+			msg += "; the rest is on " + strings.Join(held, ", ")
+		}
+		return fmt.Errorf("%s: %w", msg, ErrUnavailable)
+	case len(held) == 0:
+		return fmt.Errorf("%s is on no Drive of %s any more; the listing that showed it is out of date: %w", what, m.spaceName(space), ErrGone)
+	}
+	return fmt.Errorf("%s on %s: %w", what, strings.Join(held, ", "), cause)
+}
+
+// describe names a branch's Node and Drive for a person.
+func (m *Manager) describe(ctx context.Context, branch string) string {
+	l := m.locate(branch)
+	if l == nil {
+		return branch
+	}
+	node := l.GetNodeId()
+	var n maitrev1.Node
+	if _, err := m.st.Get(ctx, store.KindNode, l.GetNodeId(), &n); err == nil && n.GetName() != "" {
+		node = n.GetName()
+	}
+	if l.GetDriveId() == "" {
+		return node
+	}
+	drive := l.GetDriveId()
+	var d maitrev1.DriveRecord
+	if _, err := m.st.Get(ctx, storage.KindDrive, l.GetDriveId(), &d); err == nil && d.GetName() != "" {
+		drive = d.GetName()
+	}
+	return fmt.Sprintf("%s's Drive %s", node, drive)
+}
+
+func (m *Manager) spaceName(space string) string {
+	spaces, _ := storage.Spaces(context.Background(), m.st)
+	for _, s := range spaces {
+		if s.GetSpaceId() == space && s.GetName() != "" {
+			return s.GetName()
+		}
+	}
+	return space
+}
+
+// sysErr is the system's word for an error, without Go's path prefix.
+func sysErr(err error) string {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno.Error()
+	}
+	return err.Error()
 }
 
 // ErrExists is returned by MakeDir when the name is taken.

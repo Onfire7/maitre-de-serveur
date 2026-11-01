@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
@@ -44,5 +45,28 @@ func TestWriteExportsStartsTheServerWhenUnchanged(t *testing.T) {
 	}
 	if len(run.cmds) != 0 {
 		t.Fatalf("nothing exported: %q", run.cmds)
+	}
+}
+
+// Decision 283: a peer's Pool mounted before lookupcache=positive is mounted
+// again, lazily, so the client stops remembering names as absent; one
+// mounted with it is left alone.
+func TestMountRemotePoolRemountsWithoutLookupCache(t *testing.T) {
+	RemoteDir = t.TempDir()
+	dir := filepath.Join(RemoteDir, "node-b", "data")
+	mountedDirs = map[string]bool{dir: true}
+	mountedOpts = map[string]string{dir: "rw,soft,timeo=30,retrans=2,noatime"}
+	t.Cleanup(func() { mountedDirs, mountedOpts = nil, nil })
+	run := &fakeRunner{}
+	if got, err := MountRemotePool(context.Background(), run, "node-b", "data"); err != nil || got != dir {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if len(run.cmds) != 2 || run.cmds[0] != "umount -l "+dir || !strings.Contains(run.cmds[1], "lookupcache=positive") || !strings.Contains(run.cmds[1], "mount -t nfs4") {
+		t.Fatalf("commands %q", run.cmds)
+	}
+	mountedOpts[dir] = "rw,soft,timeo=30,retrans=2,lookupcache=positive,noatime"
+	run.cmds = nil
+	if _, err := MountRemotePool(context.Background(), run, "node-b", "data"); err != nil || len(run.cmds) != 0 {
+		t.Fatalf("remounted a good mount: %q, %v", run.cmds, err)
 	}
 }

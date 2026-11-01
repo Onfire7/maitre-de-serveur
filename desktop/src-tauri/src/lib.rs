@@ -6,6 +6,8 @@ mod netboot;
 mod pairing;
 pub mod proxy;
 pub mod transfer;
+#[cfg(target_os = "linux")]
+mod webkit;
 mod recovery;
 mod rpc;
 pub mod sign;
@@ -420,6 +422,16 @@ pub fn run() {
                 .ok()
                 .and_then(|b| serde_json::from_slice(&b).ok())
                 .unwrap_or_default();
+            // WebKitGTK 2.52 crashes on a page's first View Transition when
+            // the DMA-BUF renderer is off (see webkit.rs): turn the feature off.
+            #[cfg(target_os = "linux")]
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.with_webview(|w| {
+                    if !webkit::disable_view_transitions(&w.inner()) {
+                        eprintln!("webkit: ViewTransitions could not be turned off on this WebKitGTK");
+                    }
+                });
+            }
             app.manage(AppState {
                 data_dir,
                 identity: Arc::new(identity),

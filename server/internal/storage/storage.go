@@ -671,19 +671,29 @@ func orNone(s string) string {
 // mountedDirs, when set (tests), stands in for /proc/self/mounts.
 var mountedDirs map[string]bool
 
+// mountedOpts, with mountedDirs, is a test's mount options by directory.
+var mountedOpts map[string]string
+
 func mounted(dir string) bool {
+	_, ok := mountOptions(dir)
+	return ok
+}
+
+// mountOptions returns a mount point's options from the mount table, and
+// whether anything is mounted there.
+func mountOptions(dir string) (string, bool) {
 	if mountedDirs != nil {
-		return mountedDirs[dir]
+		return mountedOpts[dir], mountedDirs[dir]
 	}
 	b, err := os.ReadFile("/proc/self/mounts")
 	if err != nil {
-		return false
+		return "", false
 	}
 	for _, line := range strings.Split(string(b), "\n") {
 		f := strings.Fields(line)
-		if len(f) >= 2 && f[1] == dir {
-			return true
+		if len(f) >= 4 && f[1] == dir {
+			return f[3], true
 		}
 	}
-	return false
+	return "", false
 }

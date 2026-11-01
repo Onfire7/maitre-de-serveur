@@ -8,4 +8,6 @@ import "syscall"
 // cross-compiling.
 func allPaths(string) []string { return nil }
 
+func branchList(string) []string { return nil }
+
 func sysProcAttr(uint32) *syscall.SysProcAttr { return &syscall.SysProcAttr{} }

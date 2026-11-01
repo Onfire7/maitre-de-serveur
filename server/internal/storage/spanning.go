@@ -190,20 +190,48 @@ func (m *Manager) RemoteBranches(ctx context.Context, run Runner, peerAddr map[s
 // at RemoteDir/<node>/<space>, over mutual TLS, soft with short timeouts,
 // and returns the directory; already mounted is fine. The peer is reached by
 // its NFS name, which WriteNFSPeers maps to its address.
+//
+// Decision 283: lookupcache=positive, so the client never remembers that a
+// name was absent. It revalidates its cache against the parent folder's
+// times, which the peer's mergerfs reports from one branch, so a folder
+// that appeared on another of the peer's Drives stayed "no such folder" to
+// this Node even as the peer listed it. A Pool mounted before that option
+// is mounted again.
 func MountRemotePool(ctx context.Context, run Runner, nodeID, space string) (string, error) {
 	dir := filepath.Join(RemoteDir, nodeID, space)
-	if mounted(dir) {
-		return dir, nil
+	if opts, ok := mountOptions(dir); ok {
+		if hasOption(opts, "lookupcache=positive") {
+			return dir, nil
+		}
+		// Lazily: what is open on the old mount stays usable, and the
+		// Pool's branch path is the same directory.
+		if _, err := run.Run(ctx, "umount", "-l", dir); err != nil {
+			return "", err
+		}
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	// Relative to the peer's NFSv4 root, its SharedDir (WriteExports).
 	src := fmt.Sprintf("%s:/%s", identity.NFSName(nodeID), space)
-	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", "soft,timeo=30,retrans=2,noatime,_netdev,nosuid,nodev,noexec,xprtsec=mtls", src, dir); err != nil {
+	if _, err := run.Run(ctx, "timeout", "20", "mount", "-t", "nfs4", "-o", RemoteMountOptions, src, dir); err != nil {
 		return "", err
 	}
 	return dir, nil
+}
+
+// RemoteMountOptions mounts a peer's Pool: soft with short timeouts (decision
+// 105), no negative name cache (283).
+const RemoteMountOptions = "soft,timeo=30,retrans=2,lookupcache=positive,noatime,_netdev,nosuid,nodev,noexec,xprtsec=mtls"
+
+// hasOption reports whether a comma-separated option list holds opt.
+func hasOption(opts, opt string) bool {
+	for _, o := range strings.Split(opts, ",") {
+		if o == opt {
+			return true
+		}
+	}
+	return false
 }
 
 // UnmountStale lazily unmounts remote Pools of peers no longer in the Fleet.
