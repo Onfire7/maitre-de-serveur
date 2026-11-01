@@ -270,3 +270,67 @@ func TestCancelWhileCounting(t *testing.T) {
 		t.Fatal("source touched")
 	}
 }
+
+// Jobs naming their Drives run alongside each other when they share none
+// (decision 279); a job sharing a Drive with a running one, or one that may
+// touch any Drive (through a Pool), waits.
+func TestJobsOnOtherDrivesRunAlongside(t *testing.T) {
+	m, ctx, dir := setup(t)
+	for _, d := range []string{"d2", "d3"} {
+		m.st.Put(ctx, storage.KindDrive, d, &maitrev1.DriveRecord{DriveId: d, NodeId: "node-a", Name: d, Origin: "adopted"}, false)
+		os.MkdirAll(filepath.Join(dir, "drives", d, "general"), 0o755)
+		mountedForTest[filepath.Join(dir, "drives", d)] = true
+	}
+	os.WriteFile(filepath.Join(dir, "drives/d3/x.txt"), []byte("x"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Inbox"), 0o755)
+	os.WriteFile(filepath.Join(dir, "pools/media/Inbox/y.txt"), []byte("y"), 0o644)
+	// An rsync that waits until told to go.
+	gate := filepath.Join(dir, "go")
+	m.Rsync = filepath.Join(dir, "rsync")
+	os.WriteFile(m.Rsync, []byte("#!/bin/sh\nwhile [ ! -e "+gate+" ]; do sleep 0.02; done\n"), 0o755)
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go m.Run(runCtx)
+	mv := func(req *maitrev1.MoveRequest) string {
+		t.Helper()
+		j, err := m.Move(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return j.GetJobId()
+	}
+	stateOf := func(id string) string {
+		for _, j := range m.Jobs() {
+			if j.GetJobId() == id {
+				return j.GetState()
+			}
+		}
+		return ""
+	}
+	until := func(id, state string) {
+		t.Helper()
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			if stateOf(id) == state {
+				return
+			}
+		}
+		t.Fatalf("%s is %s, not %s", id, stateOf(id), state)
+	}
+	a := mv(&maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "Movies", ToSpace: "general", ToPath: "Movies", ToDriveId: "d2"}) // d1→d2, a copy that waits in rsync
+	until(a, "running")
+	b := mv(&maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d3"}, Path: "x.txt", ToSpace: "general", ToPath: "x.txt", ToDriveId: "d3"})         // d3 alone: a rename
+	c := mv(&maitrev1.MoveRequest{From: &maitrev1.Scope{DriveId: "d1"}, Path: "notes.txt", ToSpace: "general", ToPath: "notes.txt", ToDriveId: "d3"}) // shares d1 with a
+	d := mv(&maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: "media"}, Path: "Inbox/y.txt", ToSpace: "general", ToPath: "y.txt"})                 // through a Pool: any Drive
+	until(b, "done")
+	time.Sleep(100 * time.Millisecond)
+	if stateOf(a) != "running" || stateOf(c) != "queued" || stateOf(d) != "queued" {
+		t.Fatalf("a %s c %s d %s", stateOf(a), stateOf(c), stateOf(d))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "drives/d3/general/x.txt")); err != nil {
+		t.Fatal("b did not move its file")
+	}
+	os.WriteFile(gate, nil, 0o644)
+	for _, id := range []string{a, c, d} {
+		until(id, "done")
+	}
+}

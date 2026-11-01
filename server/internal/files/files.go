@@ -67,9 +67,13 @@ type Manager struct {
 	usage  map[string]*usageEntry
 	jobs   map[string]*job
 	order  []string
-	queue  chan *job
 	seq    int
 	cancel map[string]context.CancelFunc
+	// pending are the queued jobs in order; active the running ones; wake
+	// tells Run to look at pending again (decision 279).
+	pending []*job
+	active  map[string]*job
+	wake    chan struct{}
 }
 
 type usageEntry struct {
@@ -95,6 +99,38 @@ type job struct {
 	owner uint32
 	// noted is when the message last told of a long walk's progress.
 	noted time.Time
+	// drives are the Drives of this Node the job touches, when its request
+	// names them all; nil when it may touch any (through a Pool, the Space
+	// deciding, or another Node), which runs alone (decision 279).
+	drives []string
+}
+
+func (j *job) state() string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.pb.State
+}
+
+// moveDrives names the Drives a move touches when both ends are Drives of
+// this Node; nil otherwise.
+func moveDrives(req *maitrev1.MoveRequest, self string) []string {
+	from, to := req.GetFrom().GetDriveId(), req.GetToDriveId()
+	if from == "" || to == "" || req.GetFromNodeId() != "" || (req.GetToNodeId() != "" && req.GetToNodeId() != self) {
+		return nil
+	}
+	if from == to {
+		return []string{from}
+	}
+	return []string{from, to}
+}
+
+// scopeDrives names the Drive a zip, unzip or delete works on, when its
+// scope is a Drive's own files; nil for a Space.
+func scopeDrives(sc *maitrev1.Scope) []string {
+	if d := sc.GetDriveId(); d != "" {
+		return []string{d}
+	}
+	return nil
 }
 
 // note puts a long walk's progress in the job's message, at most a few
@@ -144,20 +180,82 @@ func New(st *store.Store, log *slog.Logger, self string) *Manager {
 	m := &Manager{
 		st: st, log: log, run: storage.ExecRunner{}, self: self,
 		Mounts: pool.DrivesDir, Pools: pool.PoolsDir, Remote: storage.RemoteDir, Rsync: "rsync",
-		usage: map[string]*usageEntry{}, jobs: map[string]*job{}, queue: make(chan *job, 64), cancel: map[string]context.CancelFunc{},
+		usage: map[string]*usageEntry{}, jobs: map[string]*job{}, cancel: map[string]context.CancelFunc{},
+		active: map[string]*job{}, wake: make(chan struct{}, 1),
 	}
 	return m
 }
 
-// Run executes queued moves one at a time until ctx ends.
+// Run executes queued jobs until ctx ends. Jobs naming their Drives (both
+// ends on this Node's Drives) run alongside each other when they share no
+// Drive (decision 279): a rename on one Drive need not wait for a copy of
+// hours between two others. Jobs sharing a Drive run in the order queued.
+// A job that may touch any Drive (through a Pool, the Space deciding, or
+// another Node) waits for every running job and runs alone; jobs naming
+// other Drives may start ahead of it while it waits.
 func (m *Manager) Run(ctx context.Context) {
 	for {
+		m.start(ctx)
 		select {
 		case <-ctx.Done():
 			return
-		case j := <-m.queue:
-			m.execute(ctx, j)
+		case <-m.wake:
 		}
+	}
+}
+
+// start runs every pending job that fits beside the active ones.
+func (m *Manager) start(ctx context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	kept := m.pending[:0]
+	for _, j := range m.pending {
+		if j.state() != "queued" {
+			continue // cancelled while queued
+		}
+		if !m.fits(j.drives) {
+			kept = append(kept, j)
+			continue
+		}
+		m.active[j.pb.JobId] = j
+		go func(j *job) {
+			m.execute(ctx, j)
+			m.mu.Lock()
+			delete(m.active, j.pb.JobId)
+			m.mu.Unlock()
+			m.signal()
+		}(j)
+	}
+	for i := len(kept); i < len(m.pending); i++ {
+		m.pending[i] = nil
+	}
+	m.pending = kept
+}
+
+// fits says whether a job touching drives (nil: any) may run now. m.mu held.
+func (m *Manager) fits(drives []string) bool {
+	if drives == nil {
+		return len(m.active) == 0
+	}
+	for _, a := range m.active {
+		if a.drives == nil {
+			return false
+		}
+		for _, x := range a.drives {
+			for _, y := range drives {
+				if x == y {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func (m *Manager) signal() {
+	select {
+	case m.wake <- struct{}{}:
+	default:
 	}
 }
 
@@ -473,7 +571,7 @@ func (m *Manager) MoveThen(ctx context.Context, req *maitrev1.MoveRequest, done 
 	if req.GetToNodeId() != "" && req.GetToNodeId() != m.self && req.GetFrom().GetDriveId() != "" {
 		return nil, errors.New("files on a Drive move to a Space on this Node first; then anywhere")
 	}
-	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done, keepOwner: done != nil}), nil
+	return m.enqueue(&job{pb: &maitrev1.Job{State: "queued", Request: req}, done: done, keepOwner: done != nil, drives: moveDrives(req, m.self)}), nil
 }
 
 // CheckPeerMove limits a move another Node hands us (decision 189): it
@@ -509,11 +607,15 @@ func (m *Manager) enqueue(j *job) *maitrev1.Job {
 	j.pb.JobId = fmt.Sprintf("job-%d-%d", time.Now().Unix(), m.seq)
 	m.jobs[j.pb.JobId] = j
 	m.order = append(m.order, j.pb.JobId)
+	full := len(m.pending) >= 64
+	if !full {
+		m.pending = append(m.pending, j)
+	}
 	m.mu.Unlock()
-	select {
-	case m.queue <- j:
-	default:
+	if full {
 		m.setState(j, "failed", "too many queued jobs")
+	} else {
+		m.signal()
 	}
 	return m.snapshot(j)
 }
