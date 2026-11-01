@@ -53,8 +53,20 @@ func (m *Manager) own(path string) {
 }
 
 func (m *Manager) ownTree(path string) {
-	if err := owner.Tree(path, m.ownerOf(m.spaceOf(path))); err != nil {
+	m.ownTreeProgress(path, nil)
+}
+
+// ownTreeProgress is ownTree reporting to a job as it goes (decision 278).
+func (m *Manager) ownTreeProgress(path string, j *job) {
+	var done func(int)
+	if j != nil {
+		done = func(n int) { j.note("Giving the Space's owner", 0, uint64(n), false) }
+	}
+	if err := owner.TreeProgress(path, m.ownerOf(m.spaceOf(path)), done); err != nil {
 		m.log.Warn("owner", "path", path, "err", err)
+	}
+	if j != nil {
+		j.note("", 0, 0, true)
 	}
 }
 

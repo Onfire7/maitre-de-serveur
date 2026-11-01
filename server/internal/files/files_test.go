@@ -3,6 +3,7 @@ package files
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -198,5 +199,74 @@ func TestMoveWithinSpace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "pools/media/Inbox/Dune")); !os.IsNotExist(err) {
 		t.Fatal("source still there")
+	}
+}
+
+// A cancel while the source is still being counted ends the job at once
+// (decision 278): the count of a Docker folder's million files took
+// minutes, during which cancel did nothing, and the message tells of the
+// count as it goes.
+func TestCancelWhileCounting(t *testing.T) {
+	m, ctx, dir := setup(t)
+	m.Rsync = filepath.Join(dir, "no-rsync-here")
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go m.Run(runCtx)
+	os.MkdirAll(filepath.Join(dir, "pools/media/Inbox/Dune"), 0o755)
+	for i := 0; i < 3; i++ {
+		os.WriteFile(filepath.Join(dir, "pools/media/Inbox/Dune", fmt.Sprintf("part%d.mkv", i)), make([]byte, 1000), 0o644)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	calls := 0
+	walkEach = func() {
+		calls++
+		if calls == 3 { // the folder and one file counted, the next blocks
+			close(entered)
+			<-release
+		}
+	}
+	t.Cleanup(func() { walkEach = nil })
+	// Across Spaces: a copy, so the count comes first.
+	j, err := m.Move(ctx, &maitrev1.MoveRequest{From: &maitrev1.Scope{SpaceId: "media"}, Path: "Inbox/Dune", ToSpace: "general", ToPath: "Dune"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("count never started")
+	}
+	var running *maitrev1.Job
+	for _, x := range m.Jobs() {
+		if x.GetJobId() == j.GetJobId() {
+			running = x
+		}
+	}
+	if running.GetState() != "running" || !strings.HasPrefix(running.GetMessage(), "Counting: 1 files, 1000 B so far") {
+		t.Fatalf("while counting: %v", running)
+	}
+	if err := m.Cancel(j.GetJobId()); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	var got *maitrev1.Job
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		for _, x := range m.Jobs() {
+			if x.GetJobId() == j.GetJobId() && x.GetState() != "running" {
+				got = x
+			}
+		}
+		if got != nil {
+			break
+		}
+	}
+	if got.GetState() != "cancelled" || !strings.Contains(got.GetMessage(), "the source is untouched") {
+		t.Fatalf("after cancel: %v", got)
+	}
+	if calls > 4 {
+		t.Fatalf("the count went on after the cancel: %d entries", calls)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pools/media/Inbox/Dune/part2.mkv")); err != nil {
+		t.Fatal("source touched")
 	}
 }

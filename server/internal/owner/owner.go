@@ -67,9 +67,18 @@ func Admit(dir string, id uint32) error {
 // Tree applies the owner to root and everything under it, skipping
 // Maître's own hidden files.
 func Tree(root string, id uint32) error {
+	return TreeProgress(root, id, nil)
+}
+
+// TreeProgress is Tree telling done how many entries it has given the owner
+// so far, so a long tree (a moved-in Docker folder of a million files) can
+// be reported on as it goes. It runs to the end whatever happens: a tree
+// half owned is worse than one owned late.
+func TreeProgress(root string, id uint32, done func(n int)) error {
 	if id == 0 {
 		return nil
 	}
+	n := 0
 	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // vanished or unreadable: carry on
@@ -79,6 +88,10 @@ func Tree(root string, id uint32) error {
 				return filepath.SkipDir
 			}
 			return nil
+		}
+		n++
+		if done != nil {
+			done(n)
 		}
 		return Apply(p, id)
 	})

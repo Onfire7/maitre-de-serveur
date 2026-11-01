@@ -87,3 +87,21 @@ func TestAdmit(t *testing.T) {
 		t.Fatalf("acl = %q", got)
 	}
 }
+
+// TreeProgress tells how many entries it has owned, so a job can report a
+// long tree as it goes (decision 278).
+func TestTreeProgress(t *testing.T) {
+	chowned, _ := fake(t)
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "a", ".maitre-tmp"), 0o755)
+	os.WriteFile(filepath.Join(root, "a", "f1"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(root, "a", "f2"), []byte("x"), 0o644)
+	var seen []int
+	if err := TreeProgress(root, 61003, func(n int) { seen = append(seen, n) }); err != nil {
+		t.Fatal(err)
+	}
+	// root, a, f1, f2: the .maitre folder is skipped and not counted.
+	if len(seen) != 4 || seen[3] != 4 || chowned[filepath.Join(root, "a", "f2")] != 61003 {
+		t.Fatalf("seen %v chowned %v", seen, chowned)
+	}
+}

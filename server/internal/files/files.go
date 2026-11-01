@@ -93,6 +93,50 @@ type job struct {
 	keepOwner bool
 	// owner is who run acts as (owner.As, decision 189): the Space's owner.
 	owner uint32
+	// noted is when the message last told of a long walk's progress.
+	noted time.Time
+}
+
+// note puts a long walk's progress in the job's message, at most a few
+// times a second: "Counting: 12,345 files, 3.2 GB so far" (decision 278).
+// final clears it.
+func (j *job) note(verb string, bytes, files uint64, final bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if final {
+		j.pb.Message, j.noted = "", time.Time{}
+		return
+	}
+	if time.Since(j.noted) < 250*time.Millisecond {
+		return
+	}
+	j.noted = time.Now()
+	msg := fmt.Sprintf("%s: %s files", verb, commas(files))
+	if bytes > 0 {
+		msg += ", " + humanBytes(bytes)
+	}
+	j.pb.Message = msg + " so far"
+}
+
+func commas(n uint64) string {
+	s := strconv.FormatUint(n, 10)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
+}
+
+func humanBytes(n uint64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // New builds a Manager. self is this Node's id.
@@ -319,17 +363,48 @@ func (m *Manager) Usage(ctx context.Context, sc *maitrev1.Scope, path string) (*
 }
 
 func walk(dir string) (bytes, files uint64) {
+	bytes, files, _ = walkCtx(context.Background(), dir, nil)
+	return bytes, files
+}
+
+// walkEach, when set by a test, runs at every entry of walkCtx.
+var walkEach func()
+
+// walkCtx counts a tree's files and bytes, telling progress as it goes and
+// stopping with ctx's error when ctx ends: a Docker folder of a million
+// small files takes minutes to count on a cold disk, and a cancel must not
+// wait for that (decision 278).
+func walkCtx(ctx context.Context, dir string, progress func(bytes, files uint64)) (bytes, files uint64, err error) {
 	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if walkEach != nil {
+			walkEach()
+		}
+		if ctx.Err() != nil {
+			return fs.SkipAll
+		}
 		if err != nil || d.IsDir() {
 			return nil
 		}
 		if info, err := d.Info(); err == nil {
 			bytes += uint64(info.Size())
 			files++
+			if progress != nil {
+				progress(bytes, files)
+			}
 		}
 		return nil
 	})
-	return bytes, files
+	return bytes, files, ctx.Err()
+}
+
+// count sets a job's total from its source, reporting as it goes.
+func (m *Manager) count(ctx context.Context, j *job, src string, info fs.FileInfo) (uint64, error) {
+	if !info.IsDir() {
+		return uint64(info.Size()), nil
+	}
+	bytes, _, err := walkCtx(ctx, src, func(b, f uint64) { j.note("Counting", b, f, false) })
+	j.note("", 0, 0, true)
+	return bytes, err
 }
 
 // Move queues a move and returns its job.
@@ -618,27 +693,25 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 	if err := owner.As(dstOwner, func() error { return m.mkdirs(dstBase, filepath.Dir(req.GetToPath())) }); err != nil {
 		return err
 	}
-	bytes, _ := walk(src)
-	if !info.IsDir() {
-		bytes = uint64(info.Size())
-	}
-	j.mu.Lock()
-	j.pb.BytesTotal = bytes
-	j.mu.Unlock()
 	// Between folders of one Space on this Node, or from a Drive's own
 	// files into the Space's folder on that Drive, to a name not taken: a
 	// rename, instant when mergerfs keeps it on one Drive. EXDEV (the Pool
-	// would have to cross Drives) falls back to the copy.
+	// would have to cross Drives) falls back to the copy. The rename comes
+	// before any count of the tree (decision 278): the count is only for
+	// the job's figures, and a rename needs none to be instant.
 	sameSpace := req.GetFromNodeId() == "" && req.GetToDriveId() == "" && req.GetFrom().GetSpaceId() != "" && req.GetFrom().GetSpaceId() == req.GetToSpace()
 	if sameSpace || sameDrive {
 		if _, err := os.Lstat(dst); errors.Is(err, fs.ErrNotExist) {
 			err := owner.As(srcOwner, func() error { return os.Rename(src, dst) })
 			if err == nil {
 				if sameDrive && !j.keepOwner {
-					m.ownTree(dst) // the Space's owner takes them (decision 173)
+					m.ownTreeProgress(dst, j) // the Space's owner takes them (decision 173)
 				}
+				// Moved; the count that follows is for the figures alone,
+				// so a cancel now ends it with the move still done.
+				bytes, _ := m.count(ctx, j, dst, info)
 				j.mu.Lock()
-				j.pb.BytesDone = bytes
+				j.pb.BytesTotal, j.pb.BytesDone = bytes, bytes
 				j.mu.Unlock()
 				return nil
 			}
@@ -648,11 +721,18 @@ func (m *Manager) move(ctx context.Context, j *job, req *maitrev1.MoveRequest) e
 		}
 	}
 	// Everything else copies: across Drives, Spaces or Nodes.
+	bytes, err := m.count(ctx, j, src, info)
+	if err != nil {
+		return err
+	}
+	j.mu.Lock()
+	j.pb.BytesTotal = bytes
+	j.mu.Unlock()
 	if err := m.rsync(ctx, j, src, dst, info.IsDir(), dstOwner); err != nil {
 		return err
 	}
 	if !j.keepOwner && req.GetFrom().GetSpaceId() != req.GetToSpace() {
-		m.ownTree(dst)
+		m.ownTreeProgress(dst, j)
 	}
 	// Copied and checked (rsync -c on the second pass); remove the source.
 	// Through a Pool, removal takes every branch's copy.

@@ -1233,7 +1233,7 @@ function Jobs({ snap, state, nodeName }: { snap: FleetSnapshot | undefined; stat
                     </span>
                   </div>
                 )}
-                {j.message && j.state !== "running" && <div className="text-muted-foreground">{j.message}</div>}
+                {j.message && <div className="text-muted-foreground">{j.message}</div>}
               </li>
             );
           })}

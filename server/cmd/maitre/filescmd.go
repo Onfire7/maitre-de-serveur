@@ -99,6 +99,9 @@ func runFiles(args []string) error {
 		}
 		for _, j := range res.GetJobs() {
 			fmt.Printf("%s %-9s %d/%d %s %s\n", j.GetJobId(), j.GetState(), j.GetBytesDone(), j.GetBytesTotal(), j.GetCurrent(), j.GetMessage())
+			if r := j.GetRequest(); r != nil {
+				fmt.Printf("  %s %s:%s %s -> %s:%s node=%s drive=%s\n", j.GetKind(), r.GetFrom().GetSpaceId(), r.GetFrom().GetDriveId(), r.GetPath(), r.GetToSpace(), r.GetToPath(), r.GetToNodeId(), r.GetToDriveId())
+			}
 		}
 	case "cancel":
 		if _, err := c.CancelJob(ctx, &maitrev1.CancelJobRequest{JobId: *path}); err != nil {
