@@ -358,7 +358,7 @@ func parseRxBytes(dev string) int64 {
 // releaseDisk lets go of whatever the live system holds on the target disk
 // so bootc's wipe finds it free (decision 271): mounts, swap, LVM volume
 // groups the kernel activated on finding their partitions, RAID arrays it
-// assembled, and opened encrypted volumes. Innermost first, so a volume on
+// assembled (running or inactive), and opened encrypted volumes. Innermost first, so a volume on
 // an array on a partition is released in order. Best effort: a hold that
 // stays makes bootc fail with the device's name, as before.
 func (r *BootcRunner) releaseDisk(ctx context.Context, disk string) {
@@ -389,8 +389,17 @@ func (r *BootcRunner) releaseDisk(ctx context.Context, disk string) {
 			_ = r.exec(ctx, io.Discard, "lvchange", "-an", d.Path)
 		case d.Type == "crypt":
 			_ = r.exec(ctx, io.Discard, "cryptsetup", "close", d.Path)
-		case strings.HasPrefix(d.Type, "raid"):
+		case d.Type == "md" || strings.HasPrefix(d.Type, "raid"):
+			// lsblk says raid1 (raid0, raid5...) for a running array and
+			// plain md for one the kernel started inactive, as it does when
+			// a member is missing: mdadm stops both.
 			_ = r.exec(ctx, io.Discard, "mdadm", "--stop", d.Path)
+		}
+		if fstype == "linux_raid_member" {
+			// The array is stopped; its superblock on this member would let
+			// udev assemble it again before bootc wipes it, so it goes now
+			// (the disk is about to be wiped anyway).
+			_ = r.exec(ctx, io.Discard, "mdadm", "--zero-superblock", d.Path)
 		}
 		if fstype == "LVM2_member" {
 			var vg strings.Builder

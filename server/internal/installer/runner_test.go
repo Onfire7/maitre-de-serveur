@@ -73,7 +73,9 @@ func TestRootSizeFor(t *testing.T) {
 }
 
 // Before bootc wipes a disk, what the live system holds on it is let go of,
-// innermost first (decision 271).
+// innermost first (decision 271); an array the kernel started inactive
+// (lsblk type md, not raid1) is stopped too, and each member's superblock
+// zeroed so udev cannot assemble it again.
 func TestReleaseDisk(t *testing.T) {
 	const tree = `{"blockdevices":[{"path":"/dev/sda","type":"disk","fstype":null,"mountpoints":[null],"children":[
 	 {"path":"/dev/sda1","type":"part","fstype":"vfat","mountpoints":["/run/maitre-browse/sda1"]},
@@ -83,7 +85,9 @@ func TestReleaseDisk(t *testing.T) {
 	  {"path":"/dev/mapper/fedora-home","type":"lvm","fstype":"crypto_LUKS","mountpoints":[null],"children":[
 	   {"path":"/dev/mapper/luks-home","type":"crypt","fstype":"ext4","mountpoints":["/mnt/home"]}]}]},
 	 {"path":"/dev/sda4","type":"part","fstype":"linux_raid_member","mountpoints":[null],"children":[
-	  {"path":"/dev/md127","type":"raid1","fstype":"ext4","mountpoints":[null]}]}]}]}`
+	  {"path":"/dev/md127","type":"raid1","fstype":"ext4","mountpoints":[null]}]},
+	 {"path":"/dev/sda5","type":"part","fstype":"linux_raid_member","mountpoints":[null],"children":[
+	  {"path":"/dev/md126","type":"md","fstype":null,"mountpoints":[null]}]}]}]}`
 	var ran []string
 	r := &BootcRunner{Exec: func(_ context.Context, stdout io.Writer, name string, args ...string) error {
 		ran = append(ran, name+" "+strings.Join(args, " "))
@@ -107,6 +111,9 @@ func TestReleaseDisk(t *testing.T) {
 		"pvs --noheadings -o vg_name /dev/sda3",
 		"vgchange -an fedora",
 		"mdadm --stop /dev/md127",
+		"mdadm --zero-superblock /dev/sda4",
+		"mdadm --stop /dev/md126",
+		"mdadm --zero-superblock /dev/sda5",
 		"udevadm settle",
 	}
 	if got := strings.Join(ran, "\n"); got != strings.Join(want, "\n") {
