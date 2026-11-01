@@ -531,7 +531,28 @@ func (r *BootcRunner) configure(ctx context.Context, plan Plan, progress Progres
 	if err := r.exec(ctx, io.Discard, "sync"); err != nil {
 		return err
 	}
+	r.markBootable(ctx, plan.TargetDisk)
 	return nil
+}
+
+// efiDir is where a UEFI-booted kernel exposes the firmware; absent, the
+// Installer booted from a legacy BIOS. Swapped in tests.
+var efiDir = "/sys/firmware/efi"
+
+// markBootable sets the bootable flag on the disk's protective MBR when
+// the Installer booted from a legacy BIOS (decision 274): the installed
+// machine has the same firmware, and many older BIOSes refuse to boot a GPT
+// disk whose protective MBR entry is not marked active ("Operating system
+// not found" after an install that went fine). bootc does not set it, and
+// sfdisk rewrites the protective MBR when it appends the config partition,
+// so this comes last. Best effort: the flag's absence is what we had.
+func (r *BootcRunner) markBootable(ctx context.Context, disk string) {
+	if _, err := os.Stat(efiDir); err == nil {
+		return
+	}
+	if err := r.exec(ctx, io.Discard, "parted", "-s", disk, "disk_set", "pmbr_boot", "on"); err != nil {
+		slog.Warn("could not mark the disk bootable for legacy BIOS", "disk", disk, "err", err)
+	}
 }
 
 func (r *BootcRunner) sfdiskAppend(ctx context.Context, disk, script string) error {

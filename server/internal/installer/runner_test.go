@@ -121,6 +121,28 @@ func TestReleaseDisk(t *testing.T) {
 	}
 }
 
+// A disk installed from a BIOS-booted Installer gets the protective MBR's
+// bootable flag, which older BIOSes need; a UEFI-booted one leaves it alone
+// (decision 274).
+func TestMarkBootableOnlyUnderBIOS(t *testing.T) {
+	var ran []string
+	r := &BootcRunner{Exec: func(_ context.Context, _ io.Writer, name string, args ...string) error {
+		ran = append(ran, name+" "+strings.Join(args, " "))
+		return nil
+	}}
+	defer func(d string) { efiDir = d }(efiDir)
+	efiDir = t.TempDir()
+	r.markBootable(context.Background(), "/dev/sda")
+	if len(ran) != 0 {
+		t.Errorf("under UEFI ran %v", ran)
+	}
+	efiDir = t.TempDir() + "/none"
+	r.markBootable(context.Background(), "/dev/sda")
+	if want := "parted -s /dev/sda disk_set pmbr_boot on"; len(ran) != 1 || ran[0] != want {
+		t.Errorf("under BIOS ran %v, want %q", ran, want)
+	}
+}
+
 func TestParseRxBytes(t *testing.T) {
 	dev := `Inter-|   Receive                                                |  Transmit
  face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
