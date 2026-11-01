@@ -239,3 +239,48 @@ func (f *mirrorRunner) Run(_ context.Context, name string, args ...string) (stri
 	}
 	return "", nil
 }
+
+// Decision 281: a whole-disk Drive of this Node hides the partitions the
+// kernel still lists from before it was formatted; a foreign disk does not.
+func TestStalePartitionUnderWholeDiskDrive(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	fixture := `{"blockdevices":[
+ {"name":"sdd","path":"/dev/sdd","model":"WD Red 8TB","serial":"WD-8","size":8000000000000,"rm":false,"rota":true,"type":"disk","tran":"sata","fstype":"btrfs","uuid":"PPPP","label":"maitre-parity-arbor","mountpoints":[],
+  "children":[{"name":"sdd1","path":"/dev/sdd1","model":null,"serial":null,"size":7999000000000,"rm":false,"rota":true,"type":"part","tran":null,"fstype":"btrfs","uuid":"OLD1","label":"maitre-arbor","mountpoints":[]}]}
+]}`
+	run := &fakeRunner{}
+	m := New(st, &fixedRunner{out: fixture, inner: run})
+	m.Mounts = t.TempDir()
+	drives, err := m.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drives) != 2 {
+		t.Fatalf("foreign disk: want the disk and its partition, got %d", len(drives))
+	}
+	if _, err := st.Put(ctx, KindDrive, "PPPP", &maitrev1.DriveRecord{DriveId: "PPPP", NodeId: "node-a", Name: "Arbor", Role: RoleParity}, false); err != nil {
+		t.Fatal(err)
+	}
+	drives, err = m.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drives) != 1 || drives[0].GetDevice() != "/dev/sdd" || !drives[0].GetAdopted() {
+		t.Fatalf("our Drive: want /dev/sdd alone, got %v", drives)
+	}
+}
+
+type fixedRunner struct {
+	out   string
+	inner *fakeRunner
+}
+
+func (f *fixedRunner) Run(ctx context.Context, name string, args ...string) (string, error) {
+	if name == "lsblk" {
+		f.inner.cmds = append(f.inner.cmds, name)
+		return f.out, nil
+	}
+	return f.inner.Run(ctx, name, args...)
+}

@@ -118,9 +118,16 @@ func (m *Manager) List(ctx context.Context) ([]*maitrev1.Drive, error) {
 		if str(d.FSType) != "" {
 			candidates = append(candidates, d)
 		}
-		for _, c := range d.Children {
-			if str(c.FSType) != "" {
-				candidates = append(candidates, c)
+		// Decision 281: a whole disk that is a Drive of this Node has no
+		// partitions of its own; any the kernel still lists are left over
+		// from before it was formatted (their table was wiped) and would
+		// show as a second, unadopted disk with Adopt beside the Drive.
+		_, ours := byID[str(d.UUID)]
+		if !(ours && str(d.UUID) != "") {
+			for _, c := range d.Children {
+				if str(c.FSType) != "" {
+					candidates = append(candidates, c)
+				}
 			}
 		}
 		if len(candidates) == 0 {
@@ -394,6 +401,11 @@ func (m *Manager) FormatAs(ctx context.Context, device, name string, tags []stri
 	}
 	if _, err := m.run.Run(ctx, "wipefs", "-a", device); err != nil {
 		return nil, err
+	}
+	if device == d.GetDisk() {
+		// Decision 281: the partition table is gone; have the kernel drop
+		// the partitions it still lists, so none lingers beside the Drive.
+		_, _ = m.run.Run(ctx, "blockdev", "--rereadpt", device)
 	}
 	if _, err := m.run.Run(ctx, "mkfs.btrfs", "-f", "-L", label, device); err != nil {
 		return nil, err
