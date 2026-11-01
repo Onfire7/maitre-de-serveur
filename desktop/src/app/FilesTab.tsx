@@ -994,6 +994,13 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, targets
     if (sp?.spanNodes) return "";
     return hs.some((n) => n.nodeId === scope.nodeId) ? scope.nodeId : (hs[0]?.nodeId ?? "");
   };
+  // Decision 280: files browsed on a Drive stay on it by default: that Drive
+  // is the destination when it holds the Space on the chosen Node and is
+  // not draining; else the Space decides.
+  const defaultDrive = (spaceId: string, nodeId: string) => {
+    const d = scope.driveId ? drives.find((x) => x.driveId === scope.driveId) : undefined;
+    return d && !d.draining && d.nodeId === (nodeId || scope.nodeId) && spacesOf(d, spaces).includes(spaceId) ? d.driveId : "";
+  };
   // Decision 216: a Service's folder as the destination, in one pick. Its
   // own folders are on its Node; a shared one in a spanning Space anywhere.
   const nodeFor = (t: ServiceTarget) => (t.folder.shared && spaces.find((s) => s.spaceId === t.folder.spaceId)?.spanNodes ? "" : t.nodeId);
@@ -1005,21 +1012,21 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, targets
     if (!t) return;
     setToSpace(t.folder.spaceId);
     setToNode(nodeFor(t));
-    setToDrive("");
+    setToDrive(defaultDrive(t.folder.spaceId, nodeFor(t)));
     setToPath(t.folder.path);
   }
   const seen = seenBy(targets, toSpace, toPath);
   function pickSpace(id: string) {
     setToSpace(id);
     setToNode(defaultNode(id));
-    setToDrive("");
+    setToDrive(defaultDrive(id, defaultNode(id)));
     setToPath(id === scope.spaceId ? path : "");
   }
   useEffect(() => {
     if (!open) return;
     setToSpace(firstSpace);
     setToNode(defaultNode(firstSpace));
-    setToDrive("");
+    setToDrive(defaultDrive(firstSpace, defaultNode(firstSpace)));
     setToPath(firstSpace === scope.spaceId ? path : "");
   }, [open]);
   // Browse on the chosen Node, else the one the files are on, else any holder.
@@ -1086,7 +1093,7 @@ function MoveDialog({ open, onClose, snap, scope, path, names, nodeName, targets
             </div>
             <div className="space-y-1.5">
               <Label>Node</Label>
-              <Select value={toNode || "any"} onValueChange={(v) => (setToNode(v === "any" ? "" : v), setToDrive(""))} disabled={ownNodeOnly || (!space?.spanNodes && spaceHolders.length < 2)}>
+              <Select value={toNode || "any"} onValueChange={(v) => (setToNode(v === "any" ? "" : v), setToDrive(defaultDrive(toSpace, v === "any" ? "" : v)))} disabled={ownNodeOnly || (!space?.spanNodes && spaceHolders.length < 2)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
