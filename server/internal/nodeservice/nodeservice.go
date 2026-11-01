@@ -262,6 +262,20 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		if err != nil {
 			return nil, connect.Errorf(connect.CodeInternal, "%v", err)
 		}
+		if in.GetDeleted() && owner != "" && owner != s.id.Fingerprint() && s.removedNode(ctx, owner) {
+			// What a removed Node left behind (decision 276): its owner
+			// will never take the write, so the tombstone is written here
+			// in the owner's name, as a Node's removal is.
+			rec, err := s.store.Tombstone(ctx, in.GetKind(), in.GetId(), in)
+			if err != nil {
+				return nil, connect.Errorf(connect.CodeInternal, "%v", err)
+			}
+			if s.OnChange != nil {
+				s.OnChange(rec)
+			}
+			s.Peers.Push(context.WithoutCancel(ctx), rec)
+			return &maitrev1.PutRecordResponse{Record: rec}, nil
+		}
 		if owner != "" && owner != s.id.Fingerprint() {
 			applied, queued, err := s.Peers.Forward(ctx, owner, in)
 			if err != nil {
@@ -303,6 +317,12 @@ func (s *Service) PutRecord(ctx context.Context, req *maitrev1.PutRecordRequest)
 		s.Peers.Push(context.WithoutCancel(ctx), rec)
 	}
 	return &maitrev1.PutRecordResponse{Record: rec}, nil
+}
+
+// removedNode reports whether id names a Node removed from the Fleet.
+func (s *Service) removedNode(ctx context.Context, id string) bool {
+	rec, err := s.store.Raw(ctx, store.KindNode, id)
+	return err == nil && rec.GetDeleted()
 }
 
 // PushRecords implements NodeService: a peer's records, applied newest-wins.

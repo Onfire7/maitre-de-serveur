@@ -182,9 +182,48 @@ func TestReplayAndRemoval(t *testing.T) {
 		{"someone else's record from before", signed(t, f.c, &maitrev1.Record{Kind: "drive", Id: "d8", OwnerNodeId: f.b.Fingerprint(), Version: 2}, 20), false},
 		{"a Node-scoped device from before", signed(t, f.c, &maitrev1.Record{Kind: "trusted_device", Id: f.xx.Fingerprint(), OwnerNodeId: c, Version: 1, Body: device(t, f.xx, false, c)}, 20), false},
 		{"a stranger's record", signed(t, f.xx, &maitrev1.Record{Kind: "drive", Id: "d7", OwnerNodeId: f.xx.Fingerprint(), Version: 2}, 20), false},
+		// Decision 276: a Trusted Device clears away what it left, and no more.
+		{"a device deleting its Service", signed(t, f.dev, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: c, Version: 15, Deleted: true}, 50), true},
+		{"a device deleting its Drive", signed(t, f.dev, &maitrev1.Record{Kind: "drive", Id: "d9", OwnerNodeId: c, Version: 3, Deleted: true}, 50), true},
+		{"a device changing its Service", signed(t, f.dev, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: c, Version: 15, Body: svc}, 50), false},
+		{"a device deleting a live Node's Service", signed(t, f.dev, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: f.b.Fingerprint(), Version: 15, Deleted: true}, 50), false},
+		{"a device deleting a live Node's Drive", signed(t, f.dev, &maitrev1.Record{Kind: "drive", Id: "d9", OwnerNodeId: f.b.Fingerprint(), Version: 3, Deleted: true}, 50), false},
+		{"another Node deleting its Service", signed(t, f.b, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: c, Version: 15, Deleted: true}, 50), false},
 	} {
 		if err := f.admit(t, tc.rec); (err == nil) != tc.ok {
 			t.Errorf("%s: admitted=%v (%v)", tc.name, err == nil, err)
+		}
+	}
+}
+
+// A Console's deletion of a removed Node's Service names no owner; the
+// policy reads it from the record held (decision 276).
+func TestDeviceClearsLeftoversFromDevice(t *testing.T) {
+	f := newFleet(t)
+	ctx := context.Background()
+	c := f.c.Fingerprint()
+	svc := body(t, &maitrev1.ServiceSpec{Name: "web", NodeId: c})
+	for _, r := range []*maitrev1.Record{
+		signed(t, f.c, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: c, Version: 14, UpdatedUnixMs: 20, Body: svc}, 20),
+		signed(t, f.c, &maitrev1.Record{Kind: "drive", Id: "d9", OwnerNodeId: c, Version: 2, UpdatedUnixMs: 20}, 20),
+	} {
+		if err := f.st.Seed(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	del := func(kind, id string) *maitrev1.Record {
+		return signed(t, f.dev, &maitrev1.Record{Kind: kind, Id: id, Deleted: true}, 50)
+	}
+	if _, err := f.p.AdmitFromDevice(ctx, del("service", "web")); err == nil {
+		t.Fatal("a live Node's Service was deleted by a device")
+	}
+	gone := signed(t, f.dev, &maitrev1.Record{Kind: "node", Id: c, OwnerNodeId: c, Version: 2, Deleted: true}, 30)
+	if err := f.st.Seed(ctx, gone); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []*maitrev1.Record{del("service", "web"), del("drive", "d9")} {
+		if _, err := f.p.AdmitFromDevice(ctx, r); err != nil {
+			t.Errorf("%s %s after removal: %v", r.GetKind(), r.GetId(), err)
 		}
 	}
 }

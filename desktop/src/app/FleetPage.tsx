@@ -39,6 +39,7 @@ export function FleetPage({
   services,
   onAct,
   now,
+  onRefresh,
 }: {
   tab: FleetTab;
   nodeId?: string;
@@ -55,6 +56,8 @@ export function FleetPage({
   services: FleetService[];
   onAct: (s: FleetService, item: FlyoutItem) => void;
   now: number;
+  /** Ask for the Fleet snapshot again, after a write. */
+  onRefresh?: () => void;
 }) {
   const { go } = useRoute();
   const anchorName = snap ? snap.nodes.find((n) => n.nodeId === snap.anchor.nodeId)?.name : undefined;
@@ -82,7 +85,7 @@ export function FleetPage({
       </header>
       <div className={cn("min-h-0 flex-1 overflow-y-auto p-6", tab !== "files" && tab !== "logs" && "[&_section]:mb-6")}>
         {tab === "overview" && <OverviewTab snap={snap} notices={notices} state={state} services={services} now={now} onPromote={onPromote} />}
-        {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} />}
+        {tab === "nodes" && <NodesTab snap={snap} state={state} found={found} selected={nodeId} onState={onState} onRefresh={onRefresh} />}
         {tab === "services" && <ServicesTab snap={snap} state={state} services={services} onAct={onAct} now={now} />}
         {tab === "storage" && <StorageTab snap={snap} state={state} />}
         {tab === "protection" && <ProtectionTab snap={snap} state={state} />}

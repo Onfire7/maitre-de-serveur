@@ -15,6 +15,8 @@
 //   - service: the Node that runs it, which may not take over another
 //     Node's live Service of the same name.
 //   - drive: the Node that owns it.
+//   - a Service or Drive of a Node removed from the Fleet: a Trusted Device
+//     may delete it, nobody may change it (decision 276).
 //   - anything else: a Trusted Device, or the owning Node.
 //
 // A Node removed from the Fleet stays the signer of what it owned and
@@ -174,6 +176,16 @@ func (p *Policy) check(ctx context.Context, rec, cur *maitrev1.Record, fromDevic
 			ownNode = true
 		}
 	}
+	// A Trusted Device clearing away what a removed Node left (276). From
+	// a Device the owner is not set yet: it is whoever holds the record.
+	owner := rec.GetOwnerNodeId()
+	if owner == "" && cur != nil {
+		owner = cur.GetOwnerNodeId()
+	}
+	leftover := false
+	if role == Device && rec.GetDeleted() && owner != "" && owner != fp {
+		_, leftover = p.formerNode(ctx, owner)
+	}
 	kind := rec.GetKind()
 	switch {
 	case kind == store.KindTrustedDevice:
@@ -239,6 +251,9 @@ func (p *Policy) check(ctx context.Context, rec, cur *maitrev1.Record, fromDevic
 		}
 		return role, nil
 	case kind == kindService:
+		if leftover {
+			return role, nil
+		}
 		if !ownNode {
 			return deny("a Service is signed by the Node that runs it")
 		}
@@ -256,7 +271,7 @@ func (p *Policy) check(ctx context.Context, rec, cur *maitrev1.Record, fromDevic
 		}
 		return role, nil
 	case kind == kindDrive:
-		if ownNode {
+		if ownNode || leftover {
 			return role, nil
 		}
 		return deny("a Drive is signed by the Node that has it")

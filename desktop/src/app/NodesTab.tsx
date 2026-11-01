@@ -13,6 +13,7 @@ import type { FleetSnapshot } from "@/fleet/useFleet";
 import { nodeDown, nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
 import { node as nodeClient, targetFor } from "@/fleet/actions";
 import { currentRecord, putSigned } from "@/fleet/sign";
+import { leftBy, removeLeftovers } from "@/fleet/leftovers";
 import type { NodeMetrics } from "@/gen/maitre/v1/node_pb";
 import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import type { ConsoleState, Found } from "@/state";
@@ -21,6 +22,7 @@ import { formatBytes, ago } from "@/lib/format";
 import { NetbootPanel, restartInstaller } from "./NetbootPanel";
 import { InstallerLogs } from "./InstallerLogs";
 import { MediaPanel } from "./MediaPanel";
+import { Leftovers } from "./Leftovers";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
@@ -31,12 +33,14 @@ export function NodesTab({
   found,
   selected,
   onState,
+  onRefresh,
 }: {
   snap: FleetSnapshot | undefined;
   state: ConsoleState;
   found: Found[];
   selected?: string;
   onState: (s: ConsoleState) => Promise<void>;
+  onRefresh?: () => void;
 }) {
   const { go } = useRoute();
   const nodes = snap?.nodes ?? [];
@@ -57,6 +61,8 @@ export function NodesTab({
           <NodeCard key={n.nodeId} node={n} snap={snap!} state={state} now={now} open={selected ? selected === n.nodeId : n.letter === fixtureLetter} onOpen={(o) => go({ name: "fleet", tab: "nodes", nodeId: o ? n.nodeId : undefined })} onState={onState} />
         ))}
       </section>
+
+      <Leftovers snap={snap} state={state} onDone={onRefresh} />
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Add a Node</h2>
@@ -157,17 +163,23 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
     }
   }
   async function remove() {
-    for (const n of state.nodes.filter((x) => x.node_id !== node.nodeId))
-      for (const a of n.addresses) {
-        try {
-          await putSigned({ addr: a, fingerprint: n.node_id }, { kind: "node", id: node.nodeId, deleted: true }, currentRecord(snap.records, "node", node.nodeId));
-          break;
-        } catch {
-          /* next */
-        }
+    const others = state.nodes.filter((x) => x.node_id !== node.nodeId).flatMap((n) => n.addresses.map((a) => ({ addr: a, fingerprint: n.node_id })));
+    let removed = others.length === 0;
+    for (const t of others) {
+      try {
+        await putSigned(t, { kind: "node", id: node.nodeId, deleted: true }, currentRecord(snap.records, "node", node.nodeId));
+        removed = true;
+        break;
+      } catch {
+        /* next */
       }
+    }
+    // Decision 276: its Services and Drives go with it, so the Fleet does
+    // not keep records naming a Node that is gone.
+    const left = removed && others.length > 0 ? await removeLeftovers(others, leftBy(snap.records, node.nodeId)) : undefined;
     await onState({ ...state, nodes: state.nodes.filter((n) => n.node_id !== node.nodeId) });
-    toast(`${node.name} was removed from the Fleet`);
+    if (left) toast.warning(`${node.name} was removed from the Fleet, but not everything it left: ${left.message}. The rest is listed under "Left behind by removed Nodes".`);
+    else toast(`${node.name} was removed from the Fleet`);
   }
 
   return (
@@ -263,7 +275,16 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
               {confirm === "reboot" ? (
                 <>Its Services ({services.length ? services.join(", ") : "none"}) stop for a minute or two while it comes back.</>
               ) : state.nodes.length > 1 ? (
-                <>The other Nodes stop trusting it and forget it. Reinstall it to bring it back. {services.length > 0 ? <>Services that become unavailable: <b>{services.join(", ")}</b>. Their data stays on that machine's Drives.</> : "No Services run on it."}</>
+                <>
+                  The other Nodes stop trusting it and forget it. Reinstall it to bring it back.{" "}
+                  {services.length > 0 ? (
+                    <>
+                      <b>{services.join(", ")}</b> {services.length > 1 ? "run" : "runs"} on it and {services.length > 1 ? "are" : "is"} removed with it; to keep {services.length > 1 ? "them" : "it"}, move {services.length > 1 ? "them" : "it"} to another Node first. The data stays on that machine's Drives.
+                    </>
+                  ) : (
+                    "No Services run on it. Its Drives leave the Fleet with it."
+                  )}
+                </>
               ) : (
                 <>It is the only Node, so this only forgets it on this computer.</>
               )}

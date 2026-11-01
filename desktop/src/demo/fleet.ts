@@ -489,6 +489,10 @@ export class DemoFleet {
     } else if (r.kind === "node" && r.deleted) {
       this.nodes = this.nodes.filter((n) => n.nodeId !== r.id);
       this.services = this.services.filter((s) => s.spec.nodeId !== r.id);
+    } else if (r.kind === "service" && r.deleted) {
+      this.services = this.services.filter((s) => s.spec.name !== r.id);
+    } else if (r.kind === "drive" && r.deleted) {
+      this.drives = this.drives.filter((d) => d.driveId + "@" + d.nodeId.slice(0, 4) !== r.id);
     }
     this.changed();
     return rec;
