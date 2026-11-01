@@ -17,6 +17,11 @@
 //   - drive: the Node that owns it.
 //   - anything else: a Trusted Device, or the owning Node.
 //
+// A Node removed from the Fleet stays the signer of what it owned and
+// signed before its removal: its Services, Drives and tombstones are
+// still the Fleet's history, and a Node set up later has to take them
+// from its peers (decision 275). It cannot sign anything after.
+//
 // A replacement must be signed later than what it replaces, so a signed
 // body cannot be replayed over a newer one. Records from before 189 carry
 // no signature: a Node keeps those it has but accepts no new ones.
@@ -107,6 +112,22 @@ func (p *Policy) RoleOf(ctx context.Context, fp string) Role {
 	return Stranger
 }
 
+// formerNode reports whether fp was a Node of the Fleet since removed, and
+// when. Only a Trusted Device or the Node itself can write a node record,
+// so a tombstone under fp proves fp held that place (decision 275).
+func (p *Policy) formerNode(ctx context.Context, fp string) (removedAt int64, ok bool) {
+	tomb, err := p.st.Raw(ctx, store.KindNode, fp)
+	if err != nil || !tomb.GetDeleted() {
+		return 0, false
+	}
+	// A tombstone from before decision 189 carries no signing time.
+	removedAt = tomb.GetSignedUnixMs()
+	if removedAt == 0 {
+		removedAt = tomb.GetUpdatedUnixMs()
+	}
+	return removedAt, true
+}
+
 // Admit is store.Admit: may rec, from a peer, replace cur (nil if none)?
 func (p *Policy) Admit(ctx context.Context, rec, cur *maitrev1.Record) error {
 	_, err := p.check(ctx, rec, cur, false)
@@ -145,6 +166,14 @@ func (p *Policy) check(ctx context.Context, rec, cur *maitrev1.Record, fromDevic
 		return deny("must be signed by a Trusted Device")
 	}
 	ownNode := role == Node && rec.GetOwnerNodeId() == fp
+	if role == Stranger && rec.GetOwnerNodeId() == fp {
+		if removedAt, ok := p.formerNode(ctx, fp); ok {
+			if rec.GetSignedUnixMs() > removedAt {
+				return deny("signed by a Node after its removal from the Fleet")
+			}
+			ownNode = true
+		}
+	}
 	kind := rec.GetKind()
 	switch {
 	case kind == store.KindTrustedDevice:

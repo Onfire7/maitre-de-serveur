@@ -165,6 +165,28 @@ func TestReplayAndRemoval(t *testing.T) {
 	if err := f.admit(t, back); err == nil {
 		t.Fatal("a removed Node signed itself back in")
 	}
+	// What it owned and signed while a Node is still the Fleet's (decision
+	// 275): a fresh Node must take a removed Node's Service and tombstones
+	// from its peers.
+	c := f.c.Fingerprint()
+	svc := body(t, &maitrev1.ServiceSpec{Name: "web", NodeId: c})
+	for _, tc := range []struct {
+		name string
+		rec  *maitrev1.Record
+		ok   bool
+	}{
+		{"its Service from before", signed(t, f.c, &maitrev1.Record{Kind: "service", Id: "web", OwnerNodeId: c, Version: 14, Body: svc}, 20), true},
+		{"its tombstone from before", signed(t, f.c, &maitrev1.Record{Kind: "bin", Id: "default", OwnerNodeId: c, Version: 3, Deleted: true}, 20), true},
+		{"its Drive from before", signed(t, f.c, &maitrev1.Record{Kind: "drive", Id: "d9", OwnerNodeId: c, Version: 2}, 29), true},
+		{"a Service signed after removal", signed(t, f.c, &maitrev1.Record{Kind: "service", Id: "web2", OwnerNodeId: c, Version: 1, Body: svc}, 31), false},
+		{"someone else's record from before", signed(t, f.c, &maitrev1.Record{Kind: "drive", Id: "d8", OwnerNodeId: f.b.Fingerprint(), Version: 2}, 20), false},
+		{"a Node-scoped device from before", signed(t, f.c, &maitrev1.Record{Kind: "trusted_device", Id: f.xx.Fingerprint(), OwnerNodeId: c, Version: 1, Body: device(t, f.xx, false, c)}, 20), false},
+		{"a stranger's record", signed(t, f.xx, &maitrev1.Record{Kind: "drive", Id: "d7", OwnerNodeId: f.xx.Fingerprint(), Version: 2}, 20), false},
+	} {
+		if err := f.admit(t, tc.rec); (err == nil) != tc.ok {
+			t.Errorf("%s: admitted=%v (%v)", tc.name, err == nil, err)
+		}
+	}
 }
 
 func TestPromotionNeedsSecondNode(t *testing.T) {

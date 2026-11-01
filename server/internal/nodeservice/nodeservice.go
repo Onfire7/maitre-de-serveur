@@ -312,11 +312,12 @@ func (s *Service) PushRecords(ctx context.Context, req *maitrev1.PushRecordsRequ
 	}
 	// One Record that cannot be applied must not cost the rest of the
 	// batch: apply everything else, then report the first failure.
-	var applied uint32
+	var applied, failed uint32
 	var firstErr error
 	for _, r := range req.GetRecords() {
 		ok, err := s.store.Apply(ctx, r)
 		if err != nil {
+			failed++
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s %s: %w", r.GetKind(), r.GetId(), err)
 			}
@@ -328,6 +329,9 @@ func (s *Service) PushRecords(ctx context.Context, req *maitrev1.PushRecordsRequ
 				s.OnChange(r)
 			}
 		}
+	}
+	if failed > 1 {
+		return nil, connect.Errorf(connect.CodeInternal, "%v (and %d more records)", firstErr, failed-1)
 	}
 	if firstErr != nil {
 		return nil, connect.Errorf(connect.CodeInternal, "%v", firstErr)
