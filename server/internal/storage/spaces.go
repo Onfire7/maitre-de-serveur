@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -258,10 +257,8 @@ func ownBranch(branch string, id uint32) {
 	if id == 0 {
 		return
 	}
-	if info, err := os.Lstat(branch); err == nil {
-		if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Uid == id && info.Mode().Perm()&0o070 == 0o070 {
-			return
-		}
+	if info, err := os.Lstat(branch); err == nil && ownedBy(info, id) && info.Mode().Perm()&0o070 == 0o070 {
+		return
 	}
 	_ = owner.Apply(branch, id)
 }

@@ -2,7 +2,10 @@
 
 package storage
 
-import "syscall"
+import (
+	"os"
+	"syscall"
+)
 
 // FreeBytes is the free space of the filesystem holding path, 0 when it
 // cannot be read.
@@ -25,4 +28,10 @@ func usedBytes(path string) uint64 {
 		return 0
 	}
 	return (fs.Blocks - fs.Bfree) * uint64(fs.Bsize)
+}
+
+// ownedBy reports whether info's file belongs to the user id.
+func ownedBy(info os.FileInfo, id uint32) bool {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	return ok && st.Uid == id
 }

@@ -27,6 +27,10 @@ jobs:
           go-version-file: server/go.mod
       - run: cd server && go vet ./... && go test ./...
       - run: test -z "$(cd server && gofmt -l .)"
+      # The Desktop's netboot helper is built for macOS and Windows (decision
+      # 92); a Linux-only call in shared code fails here in a minute rather
+      # than at the end of the desktop matrix.
+      - run: cd server && GOOS=windows go build ./... && GOOS=darwin go build ./...
 
   desktop:
     strategy:
