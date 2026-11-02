@@ -47,6 +47,10 @@ pub struct ConsoleState {
     pub fleet: Option<FleetState>,
     #[serde(default)]
     pub nodes: Vec<KnownNode>,
+    /// Each Service's loopback port (decision 288): kept so its page's
+    /// origin, and with it the cache and logins, is the same every launch.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub ports: HashMap<String, u16>,
 }
 
 #[derive(Serialize)]
@@ -184,7 +188,14 @@ async fn peek_installer(state: State<'_, AppState>, addr: String) -> Result<Peek
 /// the local URL the built-in browser should open (decision 71).
 #[tauri::command]
 async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
-    state.proxies.open(state.identity.clone(), addr, fingerprint, service).await
+    let remembered = state.state.lock().unwrap().ports.get(&service).copied();
+    let (url, port) = state.proxies.open(state.identity.clone(), addr, fingerprint, service.clone(), remembered).await?;
+    if remembered != Some(port) {
+        let mut st = state.state.lock().unwrap().clone();
+        st.ports.insert(service, port);
+        state.save(st)?;
+    }
+    Ok(url)
 }
 
 /// The local base URL for a Node's file contents (decision 183): the file

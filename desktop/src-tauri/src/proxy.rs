@@ -12,6 +12,14 @@
 //! address on each load and on pushState, replaceState and popstate, and
 //! takes the Console's go, reload and stop. A page whose Content-Security-
 //! Policy refuses the script works as before, without the controls.
+//!
+//! A Service's port is the same from one launch to the next and whichever
+//! way its Node is reached (decision 288): the webview's HTTP cache, cookies
+//! and local storage are per origin, and a port chosen afresh each launch
+//! left every image to be fetched again and every login to be done again.
+//! The port is picked from the Service's name the first time and kept in
+//! the Console's saved state; a running proxy follows a change of Node
+//! address rather than opening a new origin.
 
 use crate::identity::Identity;
 use crate::rpc::pinned_tls_config;
@@ -23,7 +31,7 @@ use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::TlsConnector;
 
@@ -39,23 +47,67 @@ struct Target {
     token: String,
 }
 
-/// One proxy per (node, service), and one file proxy per Node; ports are
-/// reused for the app's lifetime.
+/// Where a running proxy relays to; swapped when the Node is reached another way.
+type Upstream = Arc<RwLock<(Target, Arc<rustls::ClientConfig>)>>;
+
+struct Live {
+    port: u16,
+    upstream: Upstream,
+}
+
+/// One proxy per Service, on a port kept across launches, and one file
+/// proxy per Node.
 #[derive(Default)]
 pub struct Proxies {
-    ports: Mutex<HashMap<String, u16>>,
+    ports: Mutex<HashMap<String, Live>>,
     files: Mutex<HashMap<String, String>>,
 }
 
-impl Proxies {
-    /// Returns the local URL for a Service, starting a proxy if needed.
-    pub async fn open(&self, id: Arc<Identity>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
-        let key = format!("{fingerprint}@{addr}/{service}");
-        if let Some(p) = self.ports.lock().unwrap().get(&key) {
-            return Ok(format!("http://127.0.0.1:{p}/"));
+/// The lowest and the number of ports a Service's port is picked from.
+const PORT_BASE: u16 = 41000;
+const PORT_SPAN: u16 = 9000;
+
+/// The ports to try for a Service, in order: the one it had, then ones
+/// from its name (FNV-1a, so the same on every launch and machine), so a
+/// Service lands on the same port even before the Console remembers it.
+pub fn port_candidates(service: &str, remembered: Option<u16>) -> Vec<u16> {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in service.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    let first = PORT_BASE + (h % PORT_SPAN as u64) as u16;
+    let mut out: Vec<u16> = remembered.into_iter().collect();
+    for i in 0..16u16 {
+        let p = PORT_BASE + (first - PORT_BASE + i * 37) % PORT_SPAN;
+        if !out.contains(&p) {
+            out.push(p);
         }
-        let target = Target { addr, fingerprint, service, token: String::new() };
-        self.serve(id, key, target).await
+    }
+    out
+}
+
+impl Proxies {
+    /// Returns the local URL for a Service and the port it is on, starting a
+    /// proxy if needed: on `remembered` when it is free, else on a port from
+    /// the Service's name. A proxy already running for the Service is
+    /// pointed at `addr` if it was reaching the Node another way.
+    pub async fn open(&self, id: Arc<Identity>, addr: String, fingerprint: String, service: String, remembered: Option<u16>) -> Result<(String, u16), String> {
+        let target = Target { addr, fingerprint, service: service.clone(), token: String::new() };
+        let live = self.ports.lock().unwrap().get(&service).map(|l| (l.port, l.upstream.clone()));
+        if let Some((port, upstream)) = live {
+            let same = {
+                let cur = upstream.read().unwrap();
+                cur.0.addr == target.addr && cur.0.fingerprint == target.fingerprint
+            };
+            if !same {
+                let tls = Arc::new(pinned_tls_config(&id, &target.fingerprint, &[b"http/1.1".to_vec()])?);
+                *upstream.write().unwrap() = (target, tls);
+            }
+            return Ok((format!("http://127.0.0.1:{port}/"), port));
+        }
+        let candidates = port_candidates(&service, remembered);
+        self.serve(id, service, target, &candidates).await
     }
 
     /// Returns the local base URL (ending in the token, no slash) for a
@@ -67,23 +119,39 @@ impl Proxies {
         }
         let token = format!("{:032x}", rand::random::<u128>());
         let target = Target { addr, fingerprint, service: String::new(), token: token.clone() };
-        let root = self.serve(id, key.clone(), target).await?;
+        let (root, _) = self.serve(id, key.clone(), target, &[]).await?;
         let base = format!("{root}{token}");
         self.files.lock().unwrap().insert(key, base.clone());
         Ok(base)
     }
 
-    async fn serve(&self, id: Arc<Identity>, key: String, target: Target) -> Result<String, String> {
-        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.map_err(|e| e.to_string())?;
+    /// Listens on the first free port of `prefer`, or on any free port when
+    /// none of them is (another program has them), and relays to `target`.
+    async fn serve(&self, id: Arc<Identity>, key: String, target: Target, prefer: &[u16]) -> Result<(String, u16), String> {
+        let mut listener = None;
+        for &p in prefer {
+            if let Ok(l) = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], p))).await {
+                listener = Some(l);
+                break;
+            }
+        }
+        let listener = match listener {
+            Some(l) => l,
+            None => TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.map_err(|e| e.to_string())?,
+        };
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
         let tls = Arc::new(pinned_tls_config(&id, &target.fingerprint, &[b"http/1.1".to_vec()])?);
+        let upstream: Upstream = Arc::new(RwLock::new((target, tls)));
+        let up = upstream.clone();
         tokio::spawn(async move {
             loop {
                 let Ok((stream, _)) = listener.accept().await else { break };
-                let target = target.clone();
-                let tls = tls.clone();
+                let up = up.clone();
                 tokio::spawn(async move {
-                    let svc = hyper::service::service_fn(move |req| relay(req, target.clone(), tls.clone()));
+                    let svc = hyper::service::service_fn(move |req| {
+                        let (target, tls) = up.read().unwrap().clone();
+                        relay(req, target, tls)
+                    });
                     let _ = hyper::server::conn::http1::Builder::new()
                         .preserve_header_case(true)
                         .serve_connection(TokioIo::new(stream), svc)
@@ -92,8 +160,8 @@ impl Proxies {
                 });
             }
         });
-        self.ports.lock().unwrap().insert(key, port);
-        Ok(format!("http://127.0.0.1:{port}/"))
+        self.ports.lock().unwrap().insert(key, Live { port, upstream });
+        Ok((format!("http://127.0.0.1:{port}/"), port))
     }
 }
 
@@ -278,6 +346,38 @@ mod tests {
     fn script_leads_a_document_without_head() {
         let out = inject_frame_script(b"<p>hi</p>");
         assert_eq!(&out[..], &b"<script src=\"/__maitre/frame.js\"></script><p>hi</p>"[..]);
+    }
+
+    #[test]
+    fn a_service_port_comes_from_its_name_and_the_remembered_one_leads() {
+        let a = port_candidates("jellyfin", None);
+        assert_eq!(a, port_candidates("jellyfin", None));
+        assert!(a.iter().all(|&p| (PORT_BASE..PORT_BASE + PORT_SPAN).contains(&p)));
+        assert_ne!(a[0], port_candidates("memos", None)[0]);
+        let b = port_candidates("jellyfin", Some(43210));
+        assert_eq!(b[0], 43210);
+        assert_eq!(&b[1..], &a[..]);
+    }
+
+    #[tokio::test]
+    async fn a_service_keeps_its_port_and_origin_when_its_node_is_reached_another_way() {
+        let dir = std::env::temp_dir().join(format!("maitre-proxy-test-{:x}", rand::random::<u64>()));
+        let id = Arc::new(Identity::load_or_generate(&dir.join("device")).unwrap());
+        let fp = "ab".repeat(32);
+        let proxies = Proxies::default();
+        let (url, port) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "jellyfin".into(), None).await.unwrap();
+        assert_eq!(url, format!("http://127.0.0.1:{port}/"));
+        let (again, p2) = proxies.open(id.clone(), "100.64.0.9:7443".into(), fp.clone(), "jellyfin".into(), None).await.unwrap();
+        assert_eq!((again, p2), (url, port));
+        let up = proxies.ports.lock().unwrap().get("jellyfin").unwrap().upstream.clone();
+        assert_eq!(up.read().unwrap().0.addr, "100.64.0.9:7443");
+        // A remembered port that is free is taken; one that is busy is not.
+        let busy = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.unwrap();
+        let taken = busy.local_addr().unwrap().port();
+        let (_, p3) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "memos".into(), Some(taken)).await.unwrap();
+        assert_ne!(p3, taken);
+        assert_eq!(p3, port_candidates("memos", None)[0]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
