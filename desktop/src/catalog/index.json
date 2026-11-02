@@ -542,7 +542,7 @@
       "health": {
         "http": "/"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nHealthInterval=1m30s\nHealthTimeout=10s\nHealthRetries=3\nHealthStartPeriod=40s\nEnvironment=NODE_ENV=production\nVolume={{ .Volumes.user_data }}:/app/user-data:Z\nHealthCmd=[\"node\",\"/app/services/healthcheck.js\"]\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nHealthInterval=1m30s\nHealthTimeout=10s\nHealthRetries=3\nHealthStartPeriod=40s\nEnvironment=NODE_ENV=production\nVolume={{ .Volumes.user_data }}:/app/user-data:Z,U\nHealthCmd=[\"node\",\"/app/services/healthcheck.js\"]\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/bigbeartechworld/big-bear-casaos/blob/05e3501e90017f2eb74d29f5d5bef13c3615a0af/Apps/dashy-v4/docker-compose.yml",
@@ -683,7 +683,7 @@
             "db",
             "redis"
           ],
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=\"APP_SECRET={{ .Settings.APP_SECRET }}\"\nEnvironment=\"APP_URL=http://{{ .Name }}.local\"\nEnvironment=\"DATABASE_URL=postgresql://docmost:{{ .Settings.DB_PASSWORD }}@db:5432/docmost?schema=public\"\nEnvironment=REDIS_URL=redis://redis:6379/0\nVolume={{ .Volumes.storage }}:/app/data/storage:Z\n"
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=\"APP_SECRET={{ .Settings.APP_SECRET }}\"\nEnvironment=\"APP_URL=http://{{ .Name }}.local\"\nEnvironment=\"DATABASE_URL=postgresql://docmost:{{ .Settings.DB_PASSWORD }}@db:5432/docmost?schema=public\"\nEnvironment=REDIS_URL=redis://redis:6379/0\nVolume={{ .Volumes.storage }}:/app/data/storage:Z,U\n"
         },
         {
           "name": "db",
@@ -1024,7 +1024,7 @@
       "health": {
         "http": "/health"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nHealthInterval=30s\nHealthTimeout=10s\nHealthRetries=3\nHealthStartPeriod=30s\nEnvironment=\"ADMIN_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nEnvironment=AUTHENTICATION_METHOD=apikey\nEnvironment=DB_FILENAME=/opt/etherpad-lite/var/dirty.db\nEnvironment=DB_TYPE=dirty\nEnvironment=\"DEFAULT_PAD_TEXT=Welcome to Etherpad!\\n\\nThis pad's text is synchronised as you type, so everyone viewing this page sees the same text. Share its link to write together.\\n\"\nEnvironment=REQUIRE_AUTHENTICATION=false\nEnvironment=REQUIRE_AUTHORIZATION=false\nEnvironment=SHOW_SETTINGS_IN_ADMIN_PAGE=true\nEnvironment=TITLE=Etherpad\nEnvironment=TRUST_PROXY=true\nVolume={{ .Volumes.var }}:/opt/etherpad-lite/var:Z\nHealthCmd=[\"wget\",\"-q\",\"-O-\",\"http://localhost:9001/health\"]\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nHealthInterval=30s\nHealthTimeout=10s\nHealthRetries=3\nHealthStartPeriod=30s\nEnvironment=\"ADMIN_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nEnvironment=AUTHENTICATION_METHOD=apikey\nEnvironment=DB_FILENAME=/opt/etherpad-lite/var/dirty.db\nEnvironment=DB_TYPE=dirty\nEnvironment=\"DEFAULT_PAD_TEXT=Welcome to Etherpad!\\n\\nThis pad's text is synchronised as you type, so everyone viewing this page sees the same text. Share its link to write together.\\n\"\nEnvironment=REQUIRE_AUTHENTICATION=false\nEnvironment=REQUIRE_AUTHORIZATION=false\nEnvironment=SHOW_SETTINGS_IN_ADMIN_PAGE=true\nEnvironment=TITLE=Etherpad\nEnvironment=TRUST_PROXY=true\nVolume={{ .Volumes.var }}:/opt/etherpad-lite/var:Z,U\nHealthCmd=[\"wget\",\"-q\",\"-O-\",\"http://localhost:9001/health\"]\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/b14a0586a972c24b70da43a776ce6cd78b593f59/Apps/Etherpad/docker-compose.yml",
@@ -1211,7 +1211,7 @@
       "health": {
         "http": "/hello"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/opt/focalboard/data:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/opt/focalboard/data:Z,U\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/bigbeartechworld/big-bear-casaos/blob/9196c7c34f9cb6ce801aa0fd8747c5356dd138fa/Apps/focalboard/docker-compose.yml",
@@ -1514,7 +1514,7 @@
       "health": {
         "http": "/api/health"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/var/lib/grafana:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/var/lib/grafana:Z,U\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Grafana/docker-compose.yml",
@@ -3158,7 +3158,7 @@
       "health": {
         "http": "/healthz"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=N8N_SECURE_COOKIE=false\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.n8n }}:/home/node/.n8n:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=N8N_SECURE_COOKIE=false\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.n8n }}:/home/node/.n8n:Z,U\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/N8n/docker-compose.yml",
@@ -3376,7 +3376,7 @@
       "health": {
         "http": "/"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/data:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/data:Z,U\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Node-RED/docker-compose.yml",
@@ -4046,7 +4046,7 @@
           "after": [
             "db"
           ],
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=\"BASE_URL=http://{{ .Name }}.local\"\nEnvironment=\"DATABASE_URL=postgresql://postgres:{{ .Settings.DB_PASSWORD }}@db/planka\"\nEnvironment=\"DEFAULT_ADMIN_EMAIL={{ .Settings.ADMIN_EMAIL }}\"\nEnvironment=\"DEFAULT_ADMIN_NAME={{ .Settings.ADMIN_NAME }}\"\nEnvironment=\"DEFAULT_ADMIN_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nEnvironment=\"DEFAULT_ADMIN_USERNAME={{ .Settings.ADMIN_USERNAME }}\"\nEnvironment=\"SECRET_KEY={{ .Settings.SECRET_KEY }}\"\nVolume={{ .Volumes.data }}:/app/data:Z\nVolume={{ .Volumes.background_images }}:/app/public/background-images:Z\nVolume={{ .Volumes.user_avatars }}:/app/public/user-avatars:Z\nVolume={{ .Volumes.project_background_images }}:/app/public/project-background-images:Z\nVolume={{ .Volumes.attachments }}:/app/private/attachments:Z\n"
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=\"BASE_URL=http://{{ .Name }}.local\"\nEnvironment=\"DATABASE_URL=postgresql://postgres:{{ .Settings.DB_PASSWORD }}@db/planka\"\nEnvironment=\"DEFAULT_ADMIN_EMAIL={{ .Settings.ADMIN_EMAIL }}\"\nEnvironment=\"DEFAULT_ADMIN_NAME={{ .Settings.ADMIN_NAME }}\"\nEnvironment=\"DEFAULT_ADMIN_PASSWORD={{ .Settings.ADMIN_PASSWORD }}\"\nEnvironment=\"DEFAULT_ADMIN_USERNAME={{ .Settings.ADMIN_USERNAME }}\"\nEnvironment=\"SECRET_KEY={{ .Settings.SECRET_KEY }}\"\nVolume={{ .Volumes.data }}:/app/data:Z,U\nVolume={{ .Volumes.background_images }}:/app/public/background-images:Z,U\nVolume={{ .Volumes.user_avatars }}:/app/public/user-avatars:Z,U\nVolume={{ .Volumes.project_background_images }}:/app/public/project-background-images:Z,U\nVolume={{ .Volumes.attachments }}:/app/private/attachments:Z,U\n"
         },
         {
           "name": "db",
@@ -4186,7 +4186,7 @@
       "health": {
         "http": "/"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/srv/data:Z\nVolume={{ .Volumes.config }}:/srv/cfg:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nVolume={{ .Volumes.data }}:/srv/data:Z,U\nVolume={{ .Volumes.config }}:/srv/cfg:Z,U\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/bigbeartechworld/big-bear-casaos/blob/9196c7c34f9cb6ce801aa0fd8747c5356dd138fa/Apps/privatebin/docker-compose.yml",
@@ -5169,7 +5169,7 @@
           "after": [
             "db"
           ],
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=VIKUNJA_DATABASE_DATABASE=vikunja\nEnvironment=VIKUNJA_DATABASE_HOST=db\nEnvironment=\"VIKUNJA_DATABASE_PASSWORD={{ .Settings.VIKUNJA_DATABASE_PASSWORD }}\"\nEnvironment=VIKUNJA_DATABASE_TYPE=mysql\nEnvironment=VIKUNJA_DATABASE_USER=vikunja\nEnvironment=\"VIKUNJA_SERVICE_PUBLICURL=http://{{ .Name }}.local/\"\nVolume={{ .Volumes.files }}:/app/vikunja/files:Z\n"
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=VIKUNJA_DATABASE_DATABASE=vikunja\nEnvironment=VIKUNJA_DATABASE_HOST=db\nEnvironment=\"VIKUNJA_DATABASE_PASSWORD={{ .Settings.VIKUNJA_DATABASE_PASSWORD }}\"\nEnvironment=VIKUNJA_DATABASE_TYPE=mysql\nEnvironment=VIKUNJA_DATABASE_USER=vikunja\nEnvironment=\"VIKUNJA_SERVICE_PUBLICURL=http://{{ .Name }}.local/\"\nVolume={{ .Volumes.files }}:/app/vikunja/files:Z,U\n"
         },
         {
           "name": "db",

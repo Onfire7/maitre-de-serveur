@@ -77,7 +77,7 @@ func runPoolUp(args []string) error {
 	return nil
 }
 
-// runService is `maitre service <catalog|install|list|logs|start|stop|restart|remove>`:
+// runService is `maitre service <catalog|install|list|logs|set-image|start|stop|restart|remove>`:
 // a CLI stand-in for the Console's Service screens, used by tests and CI.
 func runService(args []string) error {
 	fs := flag.NewFlagSet("service", flag.ExitOnError)
@@ -93,7 +93,7 @@ func runService(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|start|stop|restart|remove <name>>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
@@ -201,6 +201,17 @@ func runService(args []string) error {
 		for _, l := range res.GetLines() {
 			fmt.Println(l)
 		}
+	case "set-image":
+		// maitre service set-image <name> <image> [component]: the Service on
+		// another image, pulled and pinned by the Node (SetImage).
+		if fs.NArg() < 3 {
+			return fmt.Errorf("usage: maitre service set-image <name> <image> [component]")
+		}
+		res, err := c.SetImage(ctx, &maitrev1.SetImageRequest{Name: fs.Arg(1), Image: fs.Arg(2), Component: fs.Arg(3)})
+		if err != nil {
+			return err
+		}
+		printStatus(res.GetService())
 	case "start", "stop", "restart", "remove":
 		actions := map[string]maitrev1.ControlServiceRequest_Action{
 			"start": maitrev1.ControlServiceRequest_ACTION_START, "stop": maitrev1.ControlServiceRequest_ACTION_STOP,
