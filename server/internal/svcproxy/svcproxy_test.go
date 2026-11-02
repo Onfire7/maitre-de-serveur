@@ -19,7 +19,7 @@ import (
 func TestForwardsByHeader(t *testing.T) {
 	ctx := context.Background()
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "hello from "+r.URL.Path+" host="+r.Host+" hdr="+r.Header.Get(svcproxy.Header))
+		io.WriteString(w, "hello from "+r.URL.Path+" host="+r.Host+" hdr="+r.Header.Get(svcproxy.Header)+" xff="+r.Header.Get("X-Forwarded-For"))
 	}))
 	defer app.Close()
 	_, portStr, _ := net.SplitHostPort(app.Listener.Addr().String())
@@ -50,7 +50,8 @@ func TestForwardsByHeader(t *testing.T) {
 	if code, body := get("", "/maitre.v1.X/Y"); code != 200 || body != "rpc" {
 		t.Fatalf("passthrough: %d %q", code, body)
 	}
-	if code, body := get("kuma", "/dashboard/1"); code != 200 || body != "hello from /dashboard/1 host=kuma.local hdr=" {
+	// No X-Forwarded-For: Home Assistant refuses requests that carry one from an untrusted proxy.
+	if code, body := get("kuma", "/dashboard/1"); code != 200 || body != "hello from /dashboard/1 host=kuma.local hdr= xff=" {
 		t.Fatalf("proxied: %d %q", code, body)
 	}
 	if code, _ := get("headless", "/"); code != 404 {

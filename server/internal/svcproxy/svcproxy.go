@@ -42,6 +42,12 @@ func Handler(st *store.Store, next http.Handler) http.Handler {
 			req.Header.Del(Header)
 			// Apps see the name they are known by, not the loopback port.
 			req.Host = spec.GetName() + "." + services.DefaultSuffix
+			// ReverseProxy adds X-Forwarded-For unless told not to, and
+			// Home Assistant answers "400: Bad Request" to any request
+			// carrying it from a proxy it was not configured to trust.
+			// The Console is the client, not a proxy the app should know
+			// about, so it sees none.
+			req.Header["X-Forwarded-For"] = nil
 		}
 		rp.ServeHTTP(w, r)
 	})
