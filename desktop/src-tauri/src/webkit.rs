@@ -12,7 +12,10 @@
 //!
 //! The feature API arrived in WebKitGTK 2.42 and the Desktop runs on 2.40,
 //! so the symbols are looked up at run time and an older WebKit is left as
-//! it is.
+//! it is. A WebKit without the API, or with the API but no ViewTransitions
+//! feature (it came as a preview feature in 2.46), has no View Transitions
+//! to crash on; the note printed then names the version so a report from
+//! another machine can be read.
 use glib::translate::ToGlibPtr;
 use std::ffi::{c_char, c_void, CStr};
 use webkit2gtk::WebViewExt;
@@ -32,10 +35,20 @@ unsafe fn sym<T: Copy>(name: &CStr) -> Option<T> {
     }
 }
 
-/// Turns the ViewTransitions feature off for `view`'s settings; false when
-/// this WebKitGTK has no feature API or no such feature.
-pub fn disable_view_transitions(view: &webkit2gtk::WebView) -> bool {
-    let Some(settings) = view.settings() else { return false };
+/// The running WebKitGTK's version, as "2.52.6".
+pub fn version() -> String {
+    unsafe {
+        use webkit2gtk::ffi::{webkit_get_major_version, webkit_get_micro_version, webkit_get_minor_version};
+        format!("{}.{}.{}", webkit_get_major_version(), webkit_get_minor_version(), webkit_get_micro_version())
+    }
+}
+
+/// Turns the ViewTransitions feature off for `view`'s settings. Err says why
+/// it could not be: this WebKitGTK has no feature API (before 2.42) or no
+/// ViewTransitions feature (before 2.46); either way it has no View
+/// Transitions to turn off.
+pub fn disable_view_transitions(view: &webkit2gtk::WebView) -> Result<(), &'static str> {
+    let Some(settings) = view.settings() else { return Err("the view has no settings") };
     unsafe {
         let (Some(all), Some(len), Some(get), Some(ident), Some(set), Some(unref)) = (
             sym::<unsafe extern "C" fn() -> FeatureList>(c"webkit_settings_get_all_features"),
@@ -45,7 +58,7 @@ pub fn disable_view_transitions(view: &webkit2gtk::WebView) -> bool {
             sym::<unsafe extern "C" fn(*mut c_void, Feature, i32)>(c"webkit_settings_set_feature_enabled"),
             sym::<unsafe extern "C" fn(FeatureList)>(c"webkit_feature_list_unref"),
         ) else {
-            return false;
+            return Err("it has no feature API");
         };
         let list = all();
         let mut found = false;
@@ -58,6 +71,6 @@ pub fn disable_view_transitions(view: &webkit2gtk::WebView) -> bool {
             }
         }
         unref(list);
-        found
+        if found { Ok(()) } else { Err("it has no ViewTransitions feature") }
     }
 }

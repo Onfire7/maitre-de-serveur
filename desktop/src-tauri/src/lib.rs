@@ -450,8 +450,8 @@ pub fn run() {
             #[cfg(target_os = "linux")]
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.with_webview(|w| {
-                    if !webkit::disable_view_transitions(&w.inner()) {
-                        eprintln!("webkit: ViewTransitions could not be turned off on this WebKitGTK");
+                    if let Err(why) = webkit::disable_view_transitions(&w.inner()) {
+                        eprintln!("webkit: WebKitGTK {} left as it is: {why}", webkit::version());
                     }
                 });
             }
