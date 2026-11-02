@@ -163,6 +163,12 @@ func runAgent(args []string) error {
 			addrs = append(addrs, net.JoinHostPort(a, fmt.Sprint(listenPort(*listen))))
 		}
 	}
+	// Decision 284: the tailnet address the record had stays until tsnet
+	// reports one, so a Console away from home still has a way here while
+	// Tailscale comes back (or needs a login again).
+	if !*noTailscale {
+		addrs = tailnet.KeepTailnet(addrs, self.GetAddresses())
+	}
 	// Decision 188: the certificate peers trust for NFS over TLS, published
 	// in our Node record and written where tlshd reads it.
 	nfsCert, nfsSig, nfsKey, err := id.NFSCredentials()
@@ -1103,10 +1109,16 @@ func runAgent(args []string) error {
 			stt := ts.Status()
 			addr := net.JoinHostPort(stt.GetAddresses()[0], fmt.Sprint(listenPort(*listen)))
 			editSelf(func(n *maitrev1.Node) bool {
-				if slices.Contains(n.GetAddresses(), addr) {
+				// The tailnet address now in use replaces any older one
+				// the record kept (decision 284).
+				kept := slices.DeleteFunc(slices.Clone(n.GetAddresses()), func(a string) bool { return a != addr && tailnet.IsTailnetAddr(a) })
+				if slices.Contains(kept, addr) && len(kept) == len(n.GetAddresses()) {
 					return false
 				}
-				n.Addresses = append(n.Addresses, addr)
+				if !slices.Contains(kept, addr) {
+					kept = append(kept, addr)
+				}
+				n.Addresses = kept
 				return true
 			})
 			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)

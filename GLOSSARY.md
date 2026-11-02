@@ -153,6 +153,10 @@ _Avoid_: Settings, admin, config
 One of four words the Console uses for a Service: **Online** (running and healthy), **Starting** (starting, or being updated), **Stopped** (stopped by the user), **Attention** (failed, running but unhealthy, or restart-looping).
 _Avoid_: Up, down, healthy (for Services), crashed, degraded
 
+**Connection**:
+Which Node the Console reads the Fleet through (the anchor, decision 159) and by which way: at home (a LAN address), over Tailscale, at your domain, or by an address typed in. The Console tries every way to every Node in turn; the user can pin one from the Connection chooser (decision 284).
+_Avoid_: Endpoint, route, transport (for the user-facing choice)
+
 **Node status**:
 One of five words the Console uses for a Node: **Healthy** (reachable and reporting no problem), **Unreachable** (no address answers), **Provisioning** (being installed or restored), **Updating** (applying a Maître Server update), **Attention** (reachable but reporting a problem, such as a rollback or a Pool missing a Drive).
 _Avoid_: Online/offline (for Nodes), up, down, degraded

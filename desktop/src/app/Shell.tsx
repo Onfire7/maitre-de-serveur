@@ -42,6 +42,7 @@ import { pump } from "@/fleet/updateQueue";
 import { PreferencesDialog } from "./Preferences";
 import { notices as computeNotices } from "./notices";
 import { useRoute } from "./routes";
+import { ConnectionDialog, connectionLine } from "./ConnectionDialog";
 
 const COLLAPSE_KEY = "maitre.sidebar";
 const AUTO_COLLAPSE_PX = 900;
@@ -90,6 +91,16 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       return { nodeName: snap!.nodes.find((n) => n.nodeId === me.nodeScope)?.name ?? "one Node", until: Number(me.addedUnixMs) + 24 * 3600_000 };
     },
   });
+  // Decision 284: the connection chooser, from the header and from the bar
+  // shown while no Node answers.
+  // `?connection` opens it on load (screenshot fixture).
+  const [connecting, setConnecting] = useState(() => new URLSearchParams(window.location.search).has("connection"));
+  const addAddress = async (nodeId: string, addr: string) => {
+    const nodes = state.nodes.some((n) => n.node_id === nodeId)
+      ? state.nodes.map((n) => (n.node_id === nodeId && !n.addresses.includes(addr) ? { ...n, addresses: [...n.addresses, addr] } : n))
+      : [...state.nodes, { node_id: nodeId, name: snap?.nodes.find((n) => n.nodeId === nodeId)?.name ?? nodeId.slice(0, 8), addresses: [addr] }];
+    if (nodes !== state.nodes) await save({ ...state, nodes });
+  };
   const noticeList = useMemo(() => computeNotices(snap, found, scope.data ?? null, now), [snap, found, scope.data, now]);
 
   // Sidebar: collapsed by hand (persisted) or by a narrow window (not persisted).
@@ -217,7 +228,14 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           )}
         </AnimatePresence>
         <main className="flex min-w-0 flex-1 flex-col">
-          {fleet.error && state.nodes.length > 0 && <div className="shrink-0 bg-status-attention/90 px-4 py-1 text-center text-xs text-black">No Node answers. {String((fleet.error as Error).message ?? fleet.error)}</div>}
+          {fleet.error && state.nodes.length > 0 && (
+            <div className="flex shrink-0 items-center justify-center gap-3 bg-status-attention/90 px-4 py-1 text-xs text-black">
+              <span>No Node answers. {String((fleet.error as Error).message ?? fleet.error)}</span>
+              <button className="rounded border border-black/40 px-2 py-0.5 font-medium hover:bg-black/10" onClick={() => setConnecting(true)}>
+                Choose a connection…
+              </button>
+            </div>
+          )}
           {behind && (
             <div className="flex shrink-0 items-center justify-center gap-3 bg-status-attention/90 px-4 py-1 text-xs text-black">
               <span>
@@ -238,7 +256,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
               {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} />}
-              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} onRefresh={() => fleet.refresh()} />}
+              {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} onRefresh={() => fleet.refresh()} connection={connectionLine(snap, state.nodes)} onConnection={() => setConnecting(true)} />}
               {route.name === "add-node" && addFound && (
                 <div className="h-full overflow-y-auto">
                   <AddNode
@@ -277,6 +295,19 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       {sheetService && <PortForwardSheet service={sheetService} target={target(sheetService)} open={sheet?.kind === "ports"} onClose={() => setSheet(null)} />}
       {sheetService && <GrantsSheet service={sheetService} target={target(sheetService)} snap={snap} open={sheet?.kind === "grants"} onClose={() => setSheet(null)} />}
       <GrantDialogHost snap={snap} />
+      <ConnectionDialog
+        open={connecting}
+        onOpenChange={setConnecting}
+        snap={snap}
+        error={fleet.error ? String((fleet.error as Error).message ?? fleet.error) : undefined}
+        known={state.nodes}
+        candidates={fleet.candidates()}
+        attempts={fleet.attempts}
+        pin={fleet.pin}
+        onChoose={(nodeId, addr) => fleet.readThrough(nodeId, addr)}
+        onUnpin={fleet.unpin}
+        onAddAddress={addAddress}
+      />
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>

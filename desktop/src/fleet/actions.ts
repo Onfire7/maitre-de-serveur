@@ -10,11 +10,21 @@ import { withGrants } from "./grants";
 import { COMPONENTS_FEATURE, isMulti } from "./components";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import type { CatalogEntry } from "@/services";
+import { domainAddr } from "./domain";
+import { chooseAddress, routeKind } from "./route";
 
-/** Where to reach a Node: the synced record's first address, else the Console's own list. */
+/**
+ * Where to reach a Node: the synced record's addresses, else the Console's
+ * own list; among them the way that answered last from this device, else
+ * one of the same kind as the way to the anchor (decision 284), else the
+ * first. The anchor itself is reached where it answered.
+ */
 export function targetFor(snap: FleetSnapshot | undefined, known: KnownNode[], nodeId: string): Target | undefined {
+  if (snap?.anchor.nodeId === nodeId) return { addr: snap.anchor.addr, fingerprint: nodeId };
   const rec = snap?.nodes.find((n) => n.nodeId === nodeId);
-  const addr = rec?.addresses[0] ?? known.find((n) => n.node_id === nodeId)?.addresses[0];
+  const addresses = rec?.addresses ?? known.find((n) => n.node_id === nodeId)?.addresses ?? [];
+  const dom = domainAddr();
+  const addr = chooseAddress(nodeId, addresses, snap ? routeKind(snap.anchor.addr, dom) : undefined, dom);
   return addr ? { addr, fingerprint: nodeId } : undefined;
 }
 
