@@ -1176,10 +1176,12 @@ func title(id string) string {
 // the value at whitespace and reads systemd quoting. One holding a setting
 // is always quoted, since what the user types may have spaces.
 func quoteValue(v string) string {
-	if !strings.ContainsAny(v, " \t\"'\\") && !tokenRe.MatchString(v) {
+	if !strings.ContainsAny(v, " \t\n\r\"'\\") && !tokenRe.MatchString(v) {
 		return v
 	}
-	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
+	// A line break inside the quotes is the C escape systemd reads back;
+	// left as is, it ends the Environment= line and the rest is not a unit.
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\r", `\r`).Replace(v) + `"`
 }
 
 func sortedKeys[V any](m map[string]V) []string {
