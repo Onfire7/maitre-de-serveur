@@ -1542,7 +1542,7 @@
       "own_login": true,
       "infrastructure": false,
       "web": {
-        "port": 9283,
+        "port": 80,
         "path": "/"
       },
       "volumes": [
