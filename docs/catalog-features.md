@@ -41,6 +41,7 @@ No entry has a required grant yet.
 | Heimdall | Port 443 of the Node | Dropped; the Node's web server holds it |
 | Open WebUI | The NVIDIA runtime (CasaOS's file, `GlobalArgs=--runtime nvidia`) | Converted from Big Bear's file instead, which has none |
 | Homepage | The Docker socket | Dropped; its container discovery and Docker widgets do not work |
+| Deluge | The whole of CasaOS's `/DATA` | The shared downloads volume instead |
 
 ## Waiting on support
 
@@ -61,5 +62,7 @@ Each of these fails `catalog-check` with what Maître needs: SELinux work to be 
 |---|---|
 | Kiwix | Exits with no `.zim` file, so it would fail its health check until someone adds content; needs a way to start with a library to download |
 | Kopia (Big Bear's) | Its image serves HTTPS on its own port, which Maître's proxy cannot reach; it also asks for SYS_ADMIN, the Docker socket and Docker's volumes |
-| SABnzbd | Refuses requests by hostnames not in its whitelist, which is how Maître's proxy reaches it, until its settings are changed |
 | Firefly (CasaOS) | Not Firefly III: a VPN app needing `/dev/net/tun` |
+| Readarr | Archived upstream in June 2025, its LinuxServer image deprecated |
+
+SABnzbd stood here for its host-name check; it is in since batch 7: SABnzbd allows a Host ending in `.local` as an mDNS name, and the Node's proxy always presents `<name>.local`.

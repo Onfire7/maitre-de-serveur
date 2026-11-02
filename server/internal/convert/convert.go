@@ -1113,15 +1113,21 @@ func Write(catalogDir string, res *Result, replace bool) (string, error) {
 
 // --- small helpers ---------------------------------------------------------
 
-// imageTag is an image's tag, without a leading v: 17.0.1 of
-// codeberg.org/forgejo/forgejo:17.0.1@sha256:...
+// imageTag is an image's tag, without a leading v before a digit: 17.0.1
+// of codeberg.org/forgejo/forgejo:17.0.1@sha256:..., 3.4.6 of
+// flaresolverr:v3.4.6, but version-2026-07-14c of
+// linuxserver/dokuwiki:version-2026-07-14c as it is.
 func imageTag(image string) string {
 	ref, _, _ := strings.Cut(image, "@")
 	i := strings.LastIndex(ref, ":")
 	if i < strings.LastIndex(ref, "/") || i < 0 {
 		return ""
 	}
-	return strings.TrimPrefix(ref[i+1:], "v")
+	tag := ref[i+1:]
+	if len(tag) > 1 && tag[0] == 'v' && tag[1] >= '0' && tag[1] <= '9' {
+		return tag[1:]
+	}
+	return tag
 }
 
 var compRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)

@@ -13,6 +13,8 @@ var sources = map[string]struct{ name, url, licence string }{
 	"selfh.st/icons":  {"selfh.st/icons by selfh.st", "https://github.com/selfhst/icons", "Creative Commons Attribution 4.0 International (CC BY 4.0)"},
 	"casaos":          {"CasaOS AppStore by IceWhale Technology", "https://github.com/IceWhaleTech/CasaOS-AppStore", "Apache License 2.0"},
 	"bigbear":         {"Big Bear CasaOS, Copyright (c) 2023 Big Bear Enterprises, LLC", "https://github.com/bigbeartechworld/big-bear-casaos", "MIT License"},
+	// An app's own logo, when no pack has one small enough.
+	"lychee": {"Lychee by LycheeOrg", "https://github.com/LycheeOrg/Lychee", "MIT License"},
 }
 
 // store is the app store an entry was converted from, by its source URL;
