@@ -35,6 +35,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/copies"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/depots"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/drain"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/entry"
@@ -396,6 +397,18 @@ func runAgent(args []string) error {
 	svc.Rollout = func() string { return ro.Last.Reason }
 	svc.Available = ro.Available
 	go ro.Run(ctx)
+	// The Depots this Node reaches, for a Console that cannot reach them.
+	dw := depots.New(func(context.Context) string { ref, _ := current(); return ref })
+	svc.Offers = dw.Images
+	svc.PokeDepots = dw.Poke
+	go dw.Run(ctx)
+	if !*noMDNS {
+		if err := mdns.Browse(ctx, mdns.TypeDepot, func(depotID, _, addr string, port uint16) {
+			dw.Discovered(depotID, net.JoinHostPort(addr, fmt.Sprint(port)))
+		}); err != nil {
+			log.Warn("Depot discovery unavailable", "err", err)
+		}
+	}
 	// Services: Catalog from the image, Quadlet units, Caddy routes, mDNS names.
 	cat := serviceservice.NewCatalog(nil, "")
 	if raw, err := os.ReadFile(*catalogPath); err == nil {

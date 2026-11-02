@@ -338,6 +338,14 @@ function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; 
       return out;
     },
   });
+  // What the Node itself reaches (newest first) comes first: a Console away
+  // from home sees no Depot of its own, and the Node's list is the one its
+  // pull will use. The Console's own scan fills in for an older Node.
+  const offered = useMemo(() => {
+    const out: DepotImage[] = (status.depotImages ?? []).map((d) => ({ ref: d.ref, host: d.depot, tag: d.tag, version: d.version, created: d.created }));
+    for (const d of depot.data ?? []) if (!out.some((o) => o.ref === d.ref)) out.push(d);
+    return out;
+  }, [status.depotImages, depot.data]);
   const host = image.split("/")[0] ?? "";
   const insecure = /\.local(:\d+)?$/.test(host) || /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host) || /^localhost(:\d+)?$/.test(host);
   useEffect(() => {
@@ -357,11 +365,11 @@ function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; 
             {status.available && image === status.booted?.image && <p className="text-xs text-muted-foreground">The registry has a newer build of this image.</p>}
             {insecure && <p className="text-xs text-muted-foreground">A registry on the LAN: the Node will allow plain HTTP for it.</p>}
           </div>
-          {(depot.data?.length ?? 0) > 0 && (
+          {offered.length > 0 && (
             <div className="space-y-1.5">
               <Label>From your Depot</Label>
               <div className="flex flex-wrap gap-1.5">
-                {depot.data!.map((d) => (
+                {offered.map((d) => (
                   <button key={d.ref} type="button" onClick={() => setImage(d.ref)} className={cn("rounded-full border px-2.5 py-1 text-xs", image === d.ref ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent")} title={`${d.ref} on ${d.host}`}>
                     {d.tag}
                     {d.version && ` · ${d.version}`}

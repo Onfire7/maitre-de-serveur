@@ -15,6 +15,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/depots"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/parity"
@@ -87,6 +88,12 @@ type Service struct {
 	// Available is the newer image digest the registry last offered; nil
 	// if none (UpdateStatus.available).
 	Available func() string
+	// Offers is what the Depots this Node reaches list, newest first
+	// (UpdateStatus.depot_images); nil when the Node asks none.
+	Offers func() []*maitrev1.DepotImage
+	// PokeDepots asks for a fresh Depot listing soon, without waiting; a
+	// Console with the update dialog open polls GetUpdateStatus.
+	PokeDepots func()
 	// PublicIP reports the address the internet sees this Node from
 	// (decision 112); nil or "" when unknown.
 	PublicIP func() string
@@ -422,12 +429,7 @@ func (s *Service) cachedUpdate(ctx context.Context) *maitrev1.UpdateStatus {
 	}
 	if s.updLast == nil || time.Since(s.updAt) >= every {
 		if st, err := s.Updates.Status(ctx); err == nil {
-			if s.Rollout != nil {
-				st.Rollout = s.Rollout()
-			}
-			if s.Available != nil {
-				st.Available = rollout.Newer(st, s.Available())
-			}
+			s.decorate(st)
 			s.updLast = st
 		}
 		s.updAt = time.Now()
@@ -482,13 +484,31 @@ func (s *Service) GetUpdateStatus(ctx context.Context, _ *maitrev1.GetUpdateStat
 	if err != nil {
 		return nil, connect.Errorf(connect.CodeInternal, "%v", err)
 	}
+	s.decorate(st)
+	if s.PokeDepots != nil {
+		s.PokeDepots()
+	}
+	return &maitrev1.GetUpdateStatusResponse{Status: st}, nil
+}
+
+// decorate adds to bootc's status what the Node knows around it: the
+// rollout's last word, the Depots' listings, and a newer digest for the
+// booted image, from the registry check or, sooner, from a Depot's listing.
+func (s *Service) decorate(st *maitrev1.UpdateStatus) {
 	if s.Rollout != nil {
 		st.Rollout = s.Rollout()
 	}
-	if s.Available != nil {
-		st.Available = rollout.Newer(st, s.Available())
+	if s.Offers != nil {
+		st.DepotImages = s.Offers()
 	}
-	return &maitrev1.GetUpdateStatusResponse{Status: st}, nil
+	newest := ""
+	if s.Available != nil {
+		newest = s.Available()
+	}
+	if newest == "" {
+		newest = depots.Offered(st.GetBooted().GetImage(), st.GetDepotImages())
+	}
+	st.Available = rollout.Newer(st, newest)
 }
 
 // UpdateImage implements NodeService.

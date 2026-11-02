@@ -317,6 +317,25 @@ message UpdateStatus {
   // checked every 15 minutes; empty when the Node runs or has staged the
   // newest, or the registry was never reached. The Console's Update button.
   string available = 12;
+  // What the Depots this Node can reach offer: the Node asks the registry
+  // it boots from and every Depot announcing itself on its network, so a
+  // Console away from home still sees them and can pick one. Newest first;
+  // empty from a Node that reaches no Depot, or one from before this field.
+  repeated DepotImage depot_images = 13;
+}
+
+// DepotImage is one image a Depot offers, as the Node saw it.
+message DepotImage {
+  // Full reference to pull, e.g. 192.168.4.54:8080/maitre-server:dev.
+  string ref = 1;
+  // The Depot's registry, host:port, as it asks to be pulled from.
+  string depot = 2;
+  string tag = 3;
+  // Version label from the image, if any.
+  string version = 4;
+  // When the image was built (RFC 3339), if the image says.
+  string created = 5;
+  string digest = 6;
 }
 
 message UpdateImageRequest {

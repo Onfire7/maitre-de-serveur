@@ -110,5 +110,11 @@ func runUpdate(args []string) error {
 		fmt.Print("  (rollback boots next)")
 	}
 	fmt.Println()
+	if st.GetAvailable() != "" {
+		fmt.Printf("available %s\n", st.GetAvailable())
+	}
+	for _, d := range st.GetDepotImages() {
+		fmt.Printf("depot     %s  %s  %s  %s\n", d.GetRef(), d.GetDigest(), d.GetVersion(), d.GetCreated())
+	}
 	return nil
 }
