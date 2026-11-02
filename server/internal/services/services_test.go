@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -257,5 +258,47 @@ func TestAutoTimezoneFollowsTheFleet(t *testing.T) {
 	m.FollowTimezone(ctx)
 	if !strings.Contains(unit(), "Environment=TZ=Europe/Paris\n") || slices.Contains(run.cmds, "systemctl try-restart --no-block jellyfin.service") {
 		t.Fatalf("an explicit zone should stay and not restart:\n%s\n%q", unit(), run.cmds)
+	}
+}
+
+// A Service name whose record is a tombstone owned by another Node (the
+// Node that ran it was replaced) is free: Install takes the name over.
+func TestInstallClaimsTombstoneOfAnotherNode(t *testing.T) {
+	ctx := context.Background()
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-b")
+	defer st.Close()
+	// What the old Node left behind: jellyfin, removed, in its name.
+	if err := st.Seed(ctx, &maitrev1.Record{Kind: services.KindService, Id: "jellyfin", OwnerNodeId: "node-a", Version: 3, UpdatedUnixMs: 1, Deleted: true}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
+		st, &fakeRunner{state: "active"})
+	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
+		t.Fatalf("install over another Node's tombstone: %v", err)
+	}
+	rec, err := st.Get(ctx, services.KindService, "jellyfin", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.GetOwnerNodeId() != "node-b" || rec.GetVersion() != 4 {
+		t.Fatalf("owner %s version %d", rec.GetOwnerNodeId(), rec.GetVersion())
+	}
+	// A live Service of another Node still blocks the name.
+	if err := st.Seed(ctx, &maitrev1.Record{Kind: services.KindService, Id: "taken", OwnerNodeId: "node-a", Version: 1, UpdatedUnixMs: 1, Body: []byte{}}); err != nil {
+		t.Fatal(err)
+	}
+	spec := catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")
+	spec.Name = "taken"
+	if _, err := m.Install(ctx, spec); !errors.Is(err, services.ErrExists) {
+		t.Fatalf("live record of another Node: %v", err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/devices"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
 // Catalog holds the current index and where it came from.
@@ -232,6 +233,8 @@ func mapErr(err error) error {
 		return connect.Errorf(connect.CodeAlreadyExists, "%v", err)
 	case errors.Is(err, services.ErrNotFound):
 		return connect.Errorf(connect.CodeNotFound, "%v", err)
+	case errors.Is(err, store.ErrNotOwner):
+		return connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
 	}
 	return connect.Errorf(connect.CodeInternal, "%v", err)
 }

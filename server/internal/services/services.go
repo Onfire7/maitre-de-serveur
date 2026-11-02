@@ -170,8 +170,19 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if err := validateContainers(spec); err != nil {
 		return nil, err
 	}
-	if _, err := m.store.Get(ctx, KindService, name, nil); err == nil {
+	// A name a removed Service left behind (its tombstone, perhaps owned
+	// by a Node since gone from the Fleet) is free to claim: the write
+	// takes ownership, which peers admit (authz: only a live Service of
+	// another Node blocks the name).
+	claim := false
+	switch cur, err := m.store.Raw(ctx, KindService, name); {
+	case errors.Is(err, store.ErrNotFound):
+	case err != nil:
+		return nil, err
+	case !cur.GetDeleted():
 		return nil, ErrExists
+	default:
+		claim = true
 	}
 	if spec.Settings == nil {
 		spec.Settings = map[string]string{}
@@ -234,7 +245,7 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 			m.cfg.Log.Info("address pinned for infrastructure service", "service", name, "address", addr)
 		}
 	}
-	if _, err := m.store.Put(ctx, KindService, name, spec, false); err != nil {
+	if _, err := m.store.Put(ctx, KindService, name, spec, claim); err != nil {
 		return nil, err
 	}
 	if _, err := m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(spec)); err != nil {
