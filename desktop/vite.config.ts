@@ -10,6 +10,11 @@ export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 
+  // The Console tests render the whole app against the demo Fleet and walk
+  // its tabs; on a shared CI runner with every test file's worker starting at
+  // once, one takes over vitest's default 5 s.
+  test: { testTimeout: 30_000 },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
