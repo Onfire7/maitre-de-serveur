@@ -33,8 +33,25 @@ fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
+/// Runs the helper and waits for it. A helper just written (the tests write
+/// theirs; a fresh build is copied into place) can be "Text file busy" for an
+/// instant while another thread's child still holds it open between fork and
+/// exec, so that error is retried a few times.
+fn output(helper: &Path, args: &[&str]) -> Result<std::process::Output, String> {
+    let mut tries = 0;
+    loop {
+        match Command::new(helper).args(args).output() {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && tries < 20 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            r => return r.map_err(|e| e.to_string()),
+        }
+    }
+}
+
 fn run(helper: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(helper).args(args).output().map_err(|e| e.to_string())?;
+    let out = output(helper, args)?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).trim().trim_start_matches("maitre: ").to_string();
         return Err(if err.is_empty() { format!("maitre {} failed", args[0]) } else { err });
@@ -84,7 +101,7 @@ pub fn add(helper: &Path, folder: &str, compose: &str) -> Result<serde_json::Val
     if !Path::new(folder).is_dir() {
         return Err(format!("{folder} is not a folder on this computer"));
     }
-    let out = Command::new(helper).args(["catalog", "add", "--json", "--", folder, compose]).output().map_err(|e| e.to_string())?;
+    let out = output(helper, &["catalog", "add", "--json", "--", folder, compose])?;
     // A conversion with things to fix exits non-zero but still prints its report.
     let stdout = String::from_utf8_lossy(&out.stdout);
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&stdout) {
