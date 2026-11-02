@@ -4750,7 +4750,7 @@
       "own_login": true,
       "infrastructure": false,
       "web": {
-        "port": 8080,
+        "port": 80,
         "path": "/",
         "component": "app"
       },
