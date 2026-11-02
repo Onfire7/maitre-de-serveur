@@ -1,6 +1,8 @@
 // The layer that holds every live Service frame (decision 286). The one
 // whose Service is the page shown is visible; the others are kept, hidden,
-// where they were, like a browser's other tabs.
+// where they were, like a browser's other tabs. A hidden frame is
+// display: none, so it is neither laid out nor painted (decision 289); at
+// most MAX_LIVE frames are alive at once.
 //
 // The layer sits at z-0: above the route's page, which it follows in the
 // tree, and below the sidebar's flyouts (z-10), which reach over the page.
@@ -22,7 +24,7 @@ export function ServiceFrames() {
           src={f.src}
           data-service-frame={f.service}
           onLoad={() => frameLoaded(f.service)}
-          className={f.service === shown ? "pointer-events-auto absolute inset-0 h-full w-full border-0 bg-white" : "invisible absolute inset-0 h-full w-full border-0"}
+          className={f.service === shown ? "pointer-events-auto absolute inset-0 h-full w-full border-0 bg-white" : "hidden absolute inset-0 h-full w-full border-0"}
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
         />
       ))}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IDLE_MS, canGo, dropFrame, frameCommand, getFrame, handleFrameMessage, hideFrame, idleRemaining, registerFrameElement, resetFrames, showFrame, tick } from "./frames";
+import { IDLE_MS, MAX_LIVE, __subscribeForTest, canGo, dropFrame, frameCommand, getFrame, handleFrameMessage, hideFrame, idleRemaining, registerFrameElement, resetFrames, showFrame, tick } from "./frames";
 
 const HOME = "http://127.0.0.1:4100/";
 
@@ -122,5 +122,36 @@ describe("frames (286)", () => {
     // A message from a window that is not a live frame is ignored.
     handleFrameMessage({}, { maitre: "frame", event: "push", url: `${HOME}x` });
     expect(getFrame("adguard")?.path).toBe("/dns");
+  });
+
+  it("at most MAX_LIVE frames stay alive; the one unseen longest goes first, keeping its path (289)", () => {
+    const names = ["a", "b", "c", "d"];
+    for (const n of names) {
+      showFrame(n, HOME);
+      mountFrame(n).say("load", `/${n}/page`);
+      hideFrame(n);
+      now += 60_000;
+    }
+    // Showing d (the fourth) dropped a, the one left longest ago.
+    expect(names.map((n) => getFrame(n)?.live)).toEqual([false, true, true, true]);
+    expect(getFrame("a")?.path).toBe("/a/page");
+    expect(MAX_LIVE).toBe(3);
+    // Coming back to a drops b, not the frame just shown.
+    showFrame("a", HOME);
+    expect(names.map((n) => getFrame(n)?.live)).toEqual([true, false, true, true]);
+  });
+
+  it("a page saying the same address again costs nothing (289)", () => {
+    showFrame("memos", HOME);
+    const f = mountFrame("memos");
+    f.say("load", "/");
+    let renders = 0;
+    const unsub = __subscribeForTest(() => renders++);
+    for (let i = 0; i < 50; i++) f.say("replace", "/");
+    for (let i = 0; i < 50; i++) f.say("load", "/");
+    expect(renders).toBe(0);
+    f.say("replace", "/other");
+    expect(renders).toBe(1);
+    unsub();
   });
 });

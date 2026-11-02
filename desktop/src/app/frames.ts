@@ -12,6 +12,11 @@ import { useSyncExternalStore } from "react";
 
 export const IDLE_MS = 3600_000;
 const TICK_MS = 15_000;
+/** Frames kept alive at once, the shown one included (decision 289): every
+ * page shares the Console's web process and main thread, so a page that
+ * hangs or works hard stalls the Console too; the longest-unseen idle
+ * frame is dropped first, its path remembered as after the hour. */
+export const MAX_LIVE = 3;
 
 export interface Frame {
   service: string;
@@ -82,6 +87,13 @@ export function showFrame(service: string, home: string) {
     idleSince: null,
   });
   shown = service;
+  // Over the cap: the idle frame unseen longest goes.
+  for (;;) {
+    const idle = [...frames.values()].filter((f) => f.live && f.service !== service);
+    if (idle.length < MAX_LIVE) break;
+    const oldest = idle.reduce((a, b) => ((a.idleSince ?? 0) <= (b.idleSince ?? 0) ? a : b));
+    dropFrame(oldest.service);
+  }
   emit();
 }
 
@@ -222,6 +234,7 @@ export function handleFrameMessage(source: unknown, data: unknown) {
       update(f.service, (x) => ({ ...x, loading: true }));
       return;
     case "replace":
+      if (f.reported && f.path === path && f.entries[f.index] === path) return;
       update(f.service, (x) => ({ ...x, reported: true, path, entries: x.entries.length ? x.entries.map((e, i) => (i === x.index ? path : e)) : [path] }));
       return;
     case "load":
@@ -248,7 +261,9 @@ export function handleFrameMessage(source: unknown, data: unknown) {
         index = entries.length - 1;
       }
       pending.delete(f.service);
-      update(f.service, (x) => ({ ...x, reported: true, path, entries, index, loading: m.event === "load" ? x.loading : false }));
+      const loading = m.event === "load" ? f.loading : false;
+      if (f.reported && f.path === path && f.index === index && f.entries === entries && f.loading === loading) return;
+      update(f.service, (x) => ({ ...x, reported: true, path, entries, index, loading }));
     }
   }
 }
@@ -296,4 +311,9 @@ export function resetFrames(now?: () => number) {
   ticker = undefined;
   clock = now ?? (() => Date.now());
   emit();
+}
+
+/** Tests: hear every change. */
+export function __subscribeForTest(l: Listener): () => void {
+  return subscribe(l);
 }
