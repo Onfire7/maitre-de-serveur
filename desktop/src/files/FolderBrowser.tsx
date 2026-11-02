@@ -2,10 +2,17 @@
 // Move and by every place a Service folder is picked.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ConnectError } from "@connectrpc/connect";
 import { ChevronRight, CornerLeftUp, Folder, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+/** The Node's words for why the top of a Space cannot be read, without the Connect code. */
+function errorText(e: unknown): string {
+  const msg = e instanceof ConnectError ? e.rawMessage : String((e as Error)?.message ?? e);
+  return msg || "it did not answer";
+}
 
 export interface FolderSource {
   /** Folder names in `path` of the Space, on the Node browsed. */
@@ -86,7 +93,7 @@ export function FolderBrowser({ source, top, path, onPath, disabled }: { source:
           </li>
         )}
         {folders.error ? (
-          <li className="px-3 py-1 text-xs text-muted-foreground">{crumbs.length ? "This folder does not exist yet; it is made when used." : "Cannot read this Space here."}</li>
+          <li className="px-3 py-1 text-xs text-muted-foreground">{crumbs.length ? "This folder does not exist yet; it is made when used." : `Cannot read this Space here: ${errorText(folders.error)}`}</li>
         ) : !folders.data ? (
           <li className="px-3 py-1 text-xs text-muted-foreground">Reading…</li>
         ) : (

@@ -10,6 +10,7 @@ export type RouteKind = "home" | "tailscale" | "domain" | "other";
 const PIN_KEY = "maitre.fleet.pin";
 const LAST_KEY = "maitre.fleet.lastAnchor";
 const ROUTES_KEY = "maitre.fleet.routes";
+const DEMOTED_KEY = "maitre.fleet.demoted";
 
 /** The host part of host:port, [v6]:port or a bare host. */
 export function hostOf(addr: string): string {
@@ -109,38 +110,78 @@ export function routeFor(nodeId: string): string | undefined {
 
 /** Note that `addr` answered for this Node. */
 export function rememberRoute(nodeId: string, addr: string) {
+  const d = loadDemoted();
+  if (d.get(nodeId)?.includes(addr)) {
+    d.set(nodeId, d.get(nodeId)!.filter((a) => a !== addr));
+    saveDemoted();
+  }
   const r = loadRoutes();
   if (r.get(nodeId) === addr) return;
   r.set(nodeId, addr);
   write(ROUTES_KEY, Object.fromEntries(r));
 }
 
-/** Forget a way that stopped answering, so the next pick starts over. */
-export function forgetRoute(nodeId: string, addr: string) {
+let demoted: Map<string, string[]> | undefined;
+function loadDemoted(): Map<string, string[]> {
+  if (!demoted) demoted = new Map(Object.entries(read<Record<string, string[]>>(DEMOTED_KEY) ?? {}));
+  return demoted;
+}
+function saveDemoted() {
+  write(DEMOTED_KEY, Object.fromEntries(loadDemoted()));
+}
+
+/** The ways to this Node that did not answer, oldest failure first. */
+export function demotedRoutes(nodeId: string): string[] {
+  return loadDemoted().get(nodeId) ?? [];
+}
+
+/**
+ * Put a way that did not answer last in line for this Node. It is not
+ * forgotten: a way is rarely wrong, only out of reach from where the
+ * device is now, so it is tried again after the others.
+ */
+export function demoteRoute(nodeId: string, addr: string) {
   const r = loadRoutes();
-  if (r.get(nodeId) !== addr) return;
-  r.delete(nodeId);
-  write(ROUTES_KEY, Object.fromEntries(r));
+  if (r.get(nodeId) === addr) {
+    r.delete(nodeId);
+    write(ROUTES_KEY, Object.fromEntries(r));
+  }
+  const d = loadDemoted();
+  d.set(nodeId, [...(d.get(nodeId) ?? []).filter((a) => a !== addr), addr]);
+  saveDemoted();
 }
 
 /** For tests. */
 export function resetRoutes() {
   routes = undefined;
+  demoted = undefined;
 }
 
 /**
- * The address to use for a Node: the one that answered last; else one of
- * the same kind as the way the anchor was reached, since a device away
- * from home that reached one Node over Tailscale reaches the others the
- * same way; else the first.
+ * Every way to a Node in the order to try them: the one that answered
+ * last; then the ones of the same kind as the way the anchor was reached,
+ * since a device away from home that reached one Node over Tailscale
+ * reaches the others the same way (an anchor reached at the domain or by
+ * a public address says the device is away, so Tailscale comes first:
+ * the domain reaches only the Node holding the app's forward); then the
+ * rest in the record's order; and the ways that did not answer last.
  */
+export function routeOrder(nodeId: string, addresses: string[], anchorKind: RouteKind | undefined, domainAddr = ""): string[] {
+  const out: string[] = [];
+  const add = (a: string | undefined) => {
+    if (a && addresses.includes(a) && !out.includes(a)) out.push(a);
+  };
+  const down = new Set(demotedRoutes(nodeId));
+  const rest = addresses.filter((a) => !down.has(a));
+  add(routeFor(nodeId));
+  const kinds: RouteKind[] = anchorKind === "home" || anchorKind === "tailscale" ? [anchorKind] : anchorKind ? ["tailscale"] : [];
+  for (const k of kinds) rest.filter((a) => routeKind(a, domainAddr) === k).forEach(add);
+  rest.forEach(add);
+  demotedRoutes(nodeId).forEach(add);
+  return out;
+}
+
+/** The address to use for a Node: the first of routeOrder. */
 export function chooseAddress(nodeId: string, addresses: string[], anchorKind: RouteKind | undefined, domainAddr = ""): string | undefined {
-  if (addresses.length === 0) return undefined;
-  const last = routeFor(nodeId);
-  if (last && addresses.includes(last)) return last;
-  if (anchorKind) {
-    const same = addresses.find((a) => routeKind(a, domainAddr) === anchorKind);
-    if (same) return same;
-  }
-  return addresses[0];
+  return routeOrder(nodeId, addresses, anchorKind, domainAddr)[0];
 }

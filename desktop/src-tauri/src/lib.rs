@@ -211,6 +211,29 @@ async fn files_upload(app: tauri::AppHandle, state: State<'_, AppState>, addr: S
 }
 
 /// Send one Connect-protocol unary request to `addr`, trusting only `fingerprint`.
+/// Why a request to `addr` could not be sent, with its cause: reqwest's
+/// own words are "error sending request for url" whatever happened, and
+/// the timeout or refused connection underneath is what the user needs.
+fn send_error(addr: &str, e: &reqwest::Error) -> String {
+    let mut causes = Vec::new();
+    let mut cur: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
+    while let Some(c) = cur {
+        let s = c.to_string();
+        if !s.is_empty() && !causes.contains(&s) {
+            causes.push(s);
+        }
+        cur = std::error::Error::source(c);
+    }
+    let why = if e.is_timeout() {
+        "did not answer in 15 s".to_string()
+    } else if causes.is_empty() {
+        e.to_string()
+    } else {
+        causes.join(": ")
+    };
+    format!("{addr} could not be reached: {why}")
+}
+
 /// `procedure` is like "/maitre.v1.NodeService/GetNodeInfo".
 #[tauri::command]
 async fn rpc(
@@ -232,7 +255,7 @@ async fn rpc(
         .body(body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| send_error(&addr, &e))?;
     let status = res.status().as_u16();
     let content_type = res
         .headers()

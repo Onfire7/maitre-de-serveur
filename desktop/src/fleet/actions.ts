@@ -3,7 +3,7 @@ import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { clone } from "@bufbuild/protobuf";
 import { ServiceService, ServiceSpecSchema, ControlServiceRequest_Action } from "@/gen/maitre/v1/service_pb";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
-import { transportFor, type Target } from "@/transport";
+import { noteAddresses, transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "./useFleet";
 import type { KnownNode } from "@/state";
 import { withGrants } from "./grants";
@@ -23,6 +23,7 @@ export function targetFor(snap: FleetSnapshot | undefined, known: KnownNode[], n
   if (snap?.anchor.nodeId === nodeId) return { addr: snap.anchor.addr, fingerprint: nodeId };
   const rec = snap?.nodes.find((n) => n.nodeId === nodeId);
   const addresses = rec?.addresses ?? known.find((n) => n.node_id === nodeId)?.addresses ?? [];
+  noteAddresses(nodeId, addresses);
   const dom = domainAddr();
   const addr = chooseAddress(nodeId, addresses, snap ? routeKind(snap.anchor.addr, dom) : undefined, dom);
   return addr ? { addr, fingerprint: nodeId } : undefined;

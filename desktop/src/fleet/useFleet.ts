@@ -13,7 +13,7 @@ import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/
 import { transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
 import { allPicks, attemptKey, pickAnchor, type AnchorPick } from "./anchor";
-import { chooseAddress, forgetRoute, lastAnchor, pinned, rememberRoute, routeKind, setLastAnchor, setPinned } from "./route";
+import { chooseAddress, demoteRoute, lastAnchor, pinned, rememberRoute, routeKind, routeOrder, setLastAnchor, setPinned } from "./route";
 import { domainAddr, rememberDomain } from "./domain";
 
 export const FLEET_POLL_MS = 3000;
@@ -167,9 +167,10 @@ export function useFleet(known: KnownNode[]) {
     // reaches whichever Node holds the app's forward, so a read through it
     // keeps going there while it answers.
     const dom = domainAddr();
-    const withDomain = (a: string[]) => (dom && !a.includes(dom) ? [...a, dom] : a);
-    const fromRecords = snap?.nodes.map((n) => ({ nodeId: n.nodeId, letter: n.letter, addresses: withDomain(n.addresses) })) ?? [];
-    const fromKnown = known.map((n) => ({ nodeId: n.node_id, letter: "", addresses: withDomain(n.addresses) }));
+    // The ways that did not answer from this device go last (routeOrder).
+    const withDomain = (id: string, a: string[]) => routeOrder(id, dom && !a.includes(dom) ? [...a, dom] : a, undefined, dom);
+    const fromRecords = snap?.nodes.map((n) => ({ nodeId: n.nodeId, letter: n.letter, addresses: withDomain(n.nodeId, n.addresses) })) ?? [];
+    const fromKnown = known.map((n) => ({ nodeId: n.node_id, letter: "", addresses: withDomain(n.node_id, n.addresses) }));
     const seen = new Set(fromRecords.map((n) => n.nodeId));
     const out = [...fromRecords, ...fromKnown.filter((n) => !seen.has(n.nodeId))];
     // A pinned or remembered way the records do not list (typed by the
@@ -209,7 +210,7 @@ export function useFleet(known: KnownNode[]) {
         if (!pick || tried.has(attemptKey(pick))) break;
         tried.add(attemptKey(pick));
         try {
-          const data = await readFleet(pick, known);
+          const data = await readFleet(pick, known, (t) => transportFor(t, { fallback: false }));
           round.push({ nodeId: pick.nodeId, addr: pick.addr, error: "", at: Date.now() });
           setAttempts(round);
           last.current = pick;
@@ -223,7 +224,7 @@ export function useFleet(known: KnownNode[]) {
           lastErr = e;
           round.push({ nodeId: pick.nodeId, addr: pick.addr, error: errorText(e), at: Date.now() });
           failed.current.add(attemptKey(pick));
-          forgetRoute(pick.nodeId, pick.addr);
+          demoteRoute(pick.nodeId, pick.addr);
           if (pin && pick.nodeId === pin.fingerprint && pick.addr === pin.addr) {
             setPinned(undefined);
             setPinState(undefined);
