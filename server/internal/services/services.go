@@ -195,6 +195,13 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if spec.GetExposure() == "" {
 		spec.Exposure = "private"
 	}
+	// Decision 287: a Service can be installed with any of the four kinds
+	// of access, checked as SetExposure checks a change.
+	host, err := m.checkExposure(ctx, spec.GetName(), spec, spec.GetExposure(), spec.GetPublicHost())
+	if err != nil {
+		return nil, err
+	}
+	spec.PublicHost = host
 	spec.NodeId = m.store.NodeID()
 	spec.CreatedUnixMs = time.Now().UnixMilli()
 	// Volume Spaces come from the Console (decision 107); missing ones take
@@ -250,6 +257,12 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	if _, err := m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(spec)); err != nil {
 		return nil, fmt.Errorf("start: %w", err)
+	}
+	// Reached from outside the home from the start: the Tailscale serve or
+	// Funnel, or the public host's route, is set up now, not at the next
+	// Access change.
+	if spec.GetExposure() != "private" && m.OnExposure != nil {
+		m.OnExposure()
 	}
 	return m.Status(ctx, spec)
 }
@@ -1208,37 +1221,16 @@ var settingKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 // SetExposure changes where a Service is reachable. Infrastructure
 // Services never go public (the plan's rule: they bind the Node itself).
 func (m *Manager) SetExposure(ctx context.Context, name, exposure, publicHost string) (*maitrev1.ServiceStatus, error) {
-	switch exposure {
-	case "private", "remote", "public":
-		publicHost = ""
-	case "direct":
-		publicHost = strings.ToLower(strings.TrimSpace(publicHost))
-		if !direct.ValidHost(publicHost) {
-			return nil, fmt.Errorf("a public address needs a full host name such as photos.example.com")
-		}
-	default:
-		return nil, fmt.Errorf("exposure must be private, remote, public or direct")
-	}
 	var spec maitrev1.ServiceSpec
 	if _, err := m.store.Get(ctx, KindService, name, &spec); err != nil {
 		return nil, ErrNotFound
 	}
-	if (exposure == "public" || exposure == "direct") && spec.GetInfrastructure() {
-		return nil, fmt.Errorf("%s is network infrastructure and cannot be public", name)
-	}
-	if exposure != "private" && spec.GetWebPort() == 0 {
-		return nil, fmt.Errorf("%s has no web page to expose", name)
-	}
-	if publicHost != "" {
-		others, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
-		for _, o := range others {
-			if o.GetName() != name && o.GetPublicHost() == publicHost {
-				return nil, fmt.Errorf("%s already answers at %s", o.GetName(), publicHost)
-			}
-		}
+	host, err := m.checkExposure(ctx, name, &spec, exposure, publicHost)
+	if err != nil {
+		return nil, err
 	}
 	spec.Exposure = exposure
-	spec.PublicHost = publicHost
+	spec.PublicHost = host
 	if _, err := m.store.Put(ctx, KindService, name, &spec, false); err != nil {
 		return nil, err
 	}
@@ -1246,6 +1238,38 @@ func (m *Manager) SetExposure(ctx context.Context, name, exposure, publicHost st
 		m.OnExposure()
 	}
 	return m.Status(ctx, &spec)
+}
+
+// checkExposure says whether spec may have this exposure, at install or on
+// a change, and gives the public host as it is kept: lower-case, and empty
+// unless the exposure is "direct".
+func (m *Manager) checkExposure(ctx context.Context, name string, spec *maitrev1.ServiceSpec, exposure, publicHost string) (string, error) {
+	switch exposure {
+	case "private", "remote", "public":
+		publicHost = ""
+	case "direct":
+		publicHost = strings.ToLower(strings.TrimSpace(publicHost))
+		if !direct.ValidHost(publicHost) {
+			return "", fmt.Errorf("a public address needs a full host name such as photos.example.com")
+		}
+	default:
+		return "", fmt.Errorf("exposure must be private, remote, public or direct")
+	}
+	if (exposure == "public" || exposure == "direct") && spec.GetInfrastructure() {
+		return "", fmt.Errorf("%s is network infrastructure and cannot be public", name)
+	}
+	if exposure != "private" && spec.GetWebPort() == 0 {
+		return "", fmt.Errorf("%s has no web page to expose", name)
+	}
+	if publicHost != "" {
+		others, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+		for _, o := range others {
+			if o.GetName() != name && o.GetPublicHost() == publicHost {
+				return "", fmt.Errorf("%s already answers at %s", o.GetName(), publicHost)
+			}
+		}
+	}
+	return publicHost, nil
 }
 
 // List returns every Service on this Node with status.

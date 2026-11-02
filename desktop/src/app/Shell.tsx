@@ -257,7 +257,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
-              {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} />}
+              {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} target={(nodeId) => targetFor(snap, state.nodes, nodeId)} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} onRefresh={() => fleet.refresh()} connection={connectionLine(snap, state.nodes)} onConnection={() => setConnecting(true)} />}
               {route.name === "add-node" && addFound && (
                 <div className="h-full overflow-y-auto">

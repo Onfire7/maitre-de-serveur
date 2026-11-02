@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { NodeService } from "@/gen/maitre/v1/node_pb";
+import { NodeService, type NodeInfo } from "@/gen/maitre/v1/node_pb";
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
@@ -46,16 +46,171 @@ function Head({ service, title, description }: { service: FleetService; title: s
   );
 }
 
-function useNodeInfo(target: Target | undefined, enabled: boolean) {
+/** The Node's own report: Tailscale state, public address, port mapping. Shared with the install sheet (287). */
+export function useNodeInfo(target: Target | undefined, enabled: boolean) {
   return useQuery({ queryKey: ["node-info", target?.fingerprint, target?.addr], enabled: !!target && enabled, refetchInterval: 5000, retry: false, queryFn: async () => (await createClient(NodeService, transportFor(target!)).getNodeInfo({})).node });
+}
+
+const PUBLIC_HOST = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+/** A usable public host name: lower-case labels with a dot, not a home suffix. */
+export function publicHostOk(h: string): boolean {
+  return PUBLIC_HOST.test(h) && !/\.(local|localhost|lan|internal|home\.arpa)$/.test(h);
+}
+
+export const ACCESS_TITLES: Record<string, string> = {
+  private: "At home only",
+  remote: "From anywhere, for you",
+  public: "Public, at a Tailscale address",
+  direct: "Public, at your own address",
+};
+
+/**
+ * The four ways a Service can be reached, with what "direct" needs and the
+ * public warning (decisions 110-114, 194). Shared by the Access editor on
+ * the Services tab and the install sheet (287), so a Service can be made
+ * public from the start.
+ */
+export function AccessChoice({
+  name,
+  choice,
+  host,
+  ack,
+  onChoice,
+  onHost,
+  onAck,
+  info,
+  nodeAddr,
+  snap,
+  infrastructure,
+  forwardState,
+  compact,
+}: {
+  name: string;
+  choice: string;
+  host: string;
+  ack: boolean;
+  onChoice: (c: string) => void;
+  onHost: (h: string) => void;
+  onAck: (a: boolean) => void;
+  /** The Node's report, when it has answered. */
+  info: NodeInfo | undefined;
+  nodeAddr: string | undefined;
+  snap: FleetSnapshot | undefined;
+  infrastructure: boolean;
+  forwardState?: string;
+  /** One column, for a sheet. */
+  compact?: boolean;
+}) {
+  const { go } = useRoute();
+  // Decision 220: under the Fleet's domain by default, so there is nothing to type.
+  const domain = fleetDomain(snap?.records)?.domain || fleetDomainName();
+  const defaultHost = domain ? `${name}.${domain}` : "";
+  const email = acmeEmail(snap?.records);
+  const remoteReady = info?.tailscale?.state === "Running";
+  const canPublic = !infrastructure;
+  const isPublic = choice === "public" || choice === "direct";
+  const h = host.trim().toLowerCase();
+  const hostOk = publicHostOk(h);
+  const portMapping = info?.portMapping ?? "";
+  const options: { id: string; title: string; detail: string; disabled?: boolean; why?: string }[] = [
+    { id: "private", title: ACCESS_TITLES.private, detail: "Devices on your network, and this app." },
+    { id: "remote", title: ACCESS_TITLES.remote, detail: "Your devices on Tailscale, wherever they are. Nobody else.", disabled: !remoteReady, why: "connect the Fleet to Tailscale first" },
+    { id: "public", title: ACCESS_TITLES.public, detail: "Anyone on the internet with the link; nothing to set up.", disabled: !remoteReady || !canPublic, why: !canPublic ? "network infrastructure stays at home" : "connect the Fleet to Tailscale first" },
+    { id: "direct", title: ACCESS_TITLES.direct, detail: "A name you own, such as photos.example.com, with a certificate the Node gets by itself. No Tailscale needed.", disabled: !canPublic, why: "network infrastructure stays at home" },
+  ];
+  return (
+    <>
+      <RadioGroup value={choice} onValueChange={onChoice} className={cn("grid gap-2", !compact && "sm:grid-cols-2")} aria-label={`Who can reach ${name}`}>
+        {options.map((o) => (
+          <label key={o.id} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3", choice === o.id && "border-primary", o.disabled && "cursor-not-allowed opacity-60")}>
+            <RadioGroupItem value={o.id} disabled={o.disabled} className="mt-0.5" />
+            <span className="text-sm">
+              <span className="font-medium">{o.title}</span>
+              <span className="block text-xs text-muted-foreground">
+                {o.detail}
+                {o.disabled && o.why && <> ({o.why})</>}
+              </span>
+            </span>
+          </label>
+        ))}
+      </RadioGroup>
+      {!remoteReady && (
+        <p className="text-xs text-muted-foreground">
+          Tailscale is set up on the{" "}
+          <button type="button" className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
+            Remote
+          </button>{" "}
+          tab.
+        </p>
+      )}
+      {choice === "direct" && (
+        <div className="space-y-3 rounded-lg border p-3 text-sm">
+          <div className="space-y-1.5">
+            <Label htmlFor="exp-host">Host name</Label>
+            <Input id="exp-host" value={host} onChange={(e) => onHost(e.target.value.toLowerCase())} placeholder={defaultHost || "photos.example.com"} />
+            {h && !hostOk && <p className="text-xs text-destructive">That is not a public host name.</p>}
+            {domain && h !== defaultHost && hostOk && (
+              <button type="button" className="text-xs text-muted-foreground underline" onClick={() => onHost(defaultHost)}>
+                Use {defaultHost}
+              </button>
+            )}
+          </div>
+          <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">
+            {domain && h.endsWith(`.${domain}`) ? (
+              <li>
+                The <code>*.{domain}</code> record you made for your domain already points <code>{h}</code> home.
+              </li>
+            ) : (
+              <li>
+                At your domain's DNS, make an <b className="text-foreground">A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{info?.publicIp || "this Node's public address (still being looked up)"}</code>.
+              </li>
+            )}
+            <li>
+              The Node asks your router to send ports <b className="text-foreground">80</b> and <b className="text-foreground">443</b> to it{portMapping.startsWith("router:") ? <>, found <b className="text-foreground">{portMapping.slice(8)}</b></> : portMapping ? <>: {portMapping}</> : ""}. If the router will not, forward those two ports to this Node{nodeAddr && <> at <code>{nodeAddr}</code></>} yourself.
+              {forwardState && <span className="block">Now: {forwardState}</span>}
+            </li>
+            <li>The Node then gets a certificate from Let's Encrypt on its own and keeps it renewed.</li>
+          </ol>
+          <p className="text-xs text-muted-foreground">If your home address changes, the record has to follow it; the Node says when the two no longer match.</p>
+          <p className="text-xs text-muted-foreground">
+            {email ? (
+              <>
+                Let's Encrypt writes to <b className="text-foreground">{email}</b> about certificates.
+              </>
+            ) : (
+              "No email is set for certificate notices."
+            )}{" "}
+            <button type="button" className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
+              {email ? "Change it" : "Set one"}
+            </button>{" "}
+            with your domain on the Remote tab.
+          </p>
+        </div>
+      )}
+      {isPublic && (
+        <div className="space-y-2 rounded-lg border border-destructive/60 bg-destructive/5 p-3 text-sm">
+          <p>
+            <b>Public means public.</b> Anyone who finds the address can open {name}'s page. If it has no login of its own, or a weak one, strangers can use it, read what is in it, or change it. Bugs in {name} become reachable by everyone, not only by you.
+          </p>
+          <label className="flex items-center gap-2">
+            <Checkbox checked={ack} onCheckedChange={(v) => onAck(v === true)} /> I understand; {name} has a login I trust.
+          </label>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Whether a choice can be applied: a public one acknowledged, a direct one with a usable host. */
+export function accessReady(choice: string, host: string, ack: boolean): boolean {
+  if ((choice === "public" || choice === "direct") && !ack) return false;
+  return choice !== "direct" || publicHostOk(host.trim().toLowerCase());
 }
 
 /** Who can reach a Service: the choice as it is, changed in place (194, 195). */
 export function AccessEditor({ service, target, snap }: { service: FleetService; target: Target | undefined; snap: FleetSnapshot | undefined }) {
   const qc = useQueryClient();
-  const { go } = useRoute();
   const info = useNodeInfo(target, true);
-  // Decision 220: under the Fleet's domain by default, so there is nothing to type.
   const domain = fleetDomain(snap?.records)?.domain || fleetDomainName();
   const defaultHost = domain ? `${service.spec.name}.${domain}` : "";
   const [choice, setChoice] = useState(service.spec.exposure || "private");
@@ -69,110 +224,22 @@ export function AccessEditor({ service, target, snap }: { service: FleetService;
   };
   // Changed elsewhere (or applied here): show what it is now.
   useEffect(reset, [service.spec.name, service.spec.exposure, service.spec.publicHost, defaultHost]);
-  const email = acmeEmail(snap?.records);
   const name = service.spec.name;
-  const remoteReady = info.data?.tailscale?.state === "Running";
-  const canPublic = !service.spec.infrastructure;
-  const isPublic = choice === "public" || choice === "direct";
   const h = host.trim().toLowerCase();
-  const hostOk = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(h) && !/\.(local|localhost|lan|internal|home\.arpa)$/.test(h);
   const changed = choice !== (service.spec.exposure || "private") || (choice === "direct" && h !== service.spec.publicHost);
-  const portMapping = info.data?.portMapping ?? "";
-  const options: { id: string; title: string; detail: string; disabled?: boolean; why?: string }[] = [
-    { id: "private", title: "At home only", detail: "Devices on your network, and this app." },
-    { id: "remote", title: "From anywhere, for you", detail: "Your devices on Tailscale, wherever they are. Nobody else.", disabled: !remoteReady, why: "connect the Fleet to Tailscale first" },
-    { id: "public", title: "Public, at a Tailscale address", detail: "Anyone on the internet with the link; nothing to set up.", disabled: !remoteReady || !canPublic, why: !canPublic ? "network infrastructure stays at home" : "connect the Fleet to Tailscale first" },
-    { id: "direct", title: "Public, at your own address", detail: "A name you own, such as photos.example.com, with a certificate the Node gets by itself. No Tailscale needed.", disabled: !canPublic, why: "network infrastructure stays at home" },
-  ];
   return (
         <div className="max-w-2xl space-y-4">
-          <RadioGroup value={choice} onValueChange={setChoice} className="grid gap-2 sm:grid-cols-2" aria-label={`Who can reach ${name}`}>
-            {options.map((o) => (
-              <label key={o.id} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3", choice === o.id && "border-primary", o.disabled && "cursor-not-allowed opacity-60")}>
-                <RadioGroupItem value={o.id} disabled={o.disabled} className="mt-0.5" />
-                <span className="text-sm">
-                  <span className="font-medium">{o.title}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {o.detail}
-                    {o.disabled && o.why && <> ({o.why})</>}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </RadioGroup>
-          {!remoteReady && (
-            <p className="text-xs text-muted-foreground">
-              Tailscale is set up on the{" "}
-              <button className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
-                Remote
-              </button>{" "}
-              tab.
-            </p>
-          )}
-          {choice === "direct" && (
-            <div className="space-y-3 rounded-lg border p-3 text-sm">
-              <div className="space-y-1.5">
-                <Label htmlFor="exp-host">Host name</Label>
-                <Input id="exp-host" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder={defaultHost || "photos.example.com"} />
-                {h && !hostOk && <p className="text-xs text-destructive">That is not a public host name.</p>}
-                {domain && h !== defaultHost && hostOk && (
-                  <button className="text-xs text-muted-foreground underline" onClick={() => setHost(defaultHost)}>
-                    Use {defaultHost}
-                  </button>
-                )}
-              </div>
-              <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">
-                {domain && h.endsWith(`.${domain}`) ? (
-                  <li>
-                    The <code>*.{domain}</code> record you made for your domain already points <code>{h}</code> home.
-                  </li>
-                ) : (
-                  <li>
-                    At your domain's DNS, make an <b className="text-foreground">A record</b> for <code>{hostOk ? h : "the host name"}</code> pointing at <code>{info.data?.publicIp || "this Node's public address (still being looked up)"}</code>.
-                  </li>
-                )}
-                <li>
-                  The Node asks your router to send ports <b className="text-foreground">80</b> and <b className="text-foreground">443</b> to it{portMapping.startsWith("router:") ? <>, found <b className="text-foreground">{portMapping.slice(8)}</b></> : portMapping ? <>: {portMapping}</> : ""}. If the router will not, forward those two ports to this Node at <code>{target?.addr}</code> yourself.
-                  {service.status?.forwardState && <span className="block">Now: {service.status.forwardState}</span>}
-                </li>
-                <li>The Node then gets a certificate from Let's Encrypt on its own and keeps it renewed.</li>
-              </ol>
-              <p className="text-xs text-muted-foreground">If your home address changes, the record has to follow it; the Node says when the two no longer match.</p>
-              <p className="text-xs text-muted-foreground">
-                {email ? (
-                  <>
-                    Let's Encrypt writes to <b className="text-foreground">{email}</b> about certificates.
-                  </>
-                ) : (
-                  "No email is set for certificate notices."
-                )}{" "}
-                <button className="underline" onClick={() => go({ name: "fleet", tab: "remote" })}>
-                  {email ? "Change it" : "Set one"}
-                </button>{" "}
-                with your domain on the Remote tab.
-              </p>
-            </div>
-          )}
-          {isPublic && (
-            <div className="space-y-2 rounded-lg border border-destructive/60 bg-destructive/5 p-3 text-sm">
-              <p>
-                <b>Public means public.</b> Anyone who finds the address can open {name}'s page. If it has no login of its own, or a weak one, strangers can use it, read what is in it, or change it. Bugs in {name} become reachable by everyone, not only by you.
-              </p>
-              <label className="flex items-center gap-2">
-                <Checkbox checked={ack} onCheckedChange={(v) => setAck(v === true)} /> I understand; {name} has a login I trust.
-              </label>
-            </div>
-          )}
+          <AccessChoice name={name} choice={choice} host={host} ack={ack} onChoice={setChoice} onHost={setHost} onAck={setAck} info={info.data} nodeAddr={target?.addr} snap={snap} infrastructure={!!service.spec.infrastructure} forwardState={service.status?.forwardState} />
           {changed && (
           <div className="flex items-center gap-2">
           <Button
             size="sm"
-            disabled={busy || !target || service.nodeUnreachable || !changed || (isPublic && !ack) || (choice === "direct" && !hostOk)}
+            disabled={busy || !target || service.nodeUnreachable || !changed || !accessReady(choice, host, ack)}
             onClick={async () => {
               setBusy(true);
               try {
                 await serviceClient(target!).setExposure({ name, exposure: choice, publicHost: choice === "direct" ? h : "" });
-                toast.success(`${name}: ${options.find((o) => o.id === choice)?.title.toLowerCase()}`);
+                toast.success(`${name}: ${ACCESS_TITLES[choice].toLowerCase()}`);
                 qc.invalidateQueries({ queryKey: ["fleet"] });
               } catch (e) {
                 if (!declined(e)) toast.error(String((e as Error).message ?? e));

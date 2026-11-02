@@ -22,6 +22,8 @@ import { GENERATE, catalogKey, formatStars, generatedSettings, sortEntries, spec
 import { changeCount, changesSince, lastSeen, markSeen, useCatalogs, type LoadedCatalog } from "@/fleet/catalogs";
 import { CatalogsSheet, ChangesDialog } from "./UserCatalogs";
 import type { FleetSnapshot } from "@/fleet/useFleet";
+import type { Target } from "@/transport";
+import { AccessChoice, accessReady, useNodeInfo } from "./ServiceSheets";
 import { declined } from "@/fleet/grants";
 import { registerEntries, ServiceIcon } from "./status";
 
@@ -33,7 +35,7 @@ type View = "grid" | "list";
 /** A Node's devices of a kind (G5); undefined when the Node cannot list them. */
 export type ListDevices = (nodeId: string, kind: string) => Promise<Device[] | undefined>;
 
-export function CatalogPage({ snap, deviceId, onInstall, devices }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
+export function CatalogPage({ snap, deviceId, onInstall, devices, target }: { snap: FleetSnapshot | undefined; deviceId: string; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices; target?: (nodeId: string) => Target | undefined }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   // Which Catalog to show: all, the project's ("maitre"), or a user's (plan C9).
@@ -169,7 +171,7 @@ export function CatalogPage({ snap, deviceId, onInstall, devices }: { snap: Flee
       ) : (
         <CatalogList entries={entries} installed={installed} onPick={setPicked} />
       )}
-      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} devices={devices} />
+      <InstallSheet entry={picked} snap={snap} onClose={() => setPicked(null)} onInstall={onInstall} devices={devices} target={target} />
       <CatalogsSheet open={manage} onClose={() => setManage(false)} snap={snap} deviceId={deviceId} loaded={user.data} />
       <ChangesDialog loaded={review} changes={review ? changesSince(review) : null} onClose={() => setReview(null)} />
     </div>
@@ -280,7 +282,7 @@ function CatalogList({ entries, installed, onPick }: { entries: CatalogEntry[]; 
   );
 }
 
-function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices }) {
+function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { entry: CatalogEntry | null; snap: FleetSnapshot | undefined; onClose: () => void; onInstall: (entry: CatalogEntry, spec: ServiceSpec, nodeId: string) => Promise<void>; devices?: ListDevices; target?: (nodeId: string) => Target | undefined }) {
   const nodes = snap?.nodes ?? [];
   const spaces = snap?.spaces ?? [];
   const defaultSpace = spaces.find((s) => s.defaultForNew);
@@ -288,6 +290,8 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: Cat
   const [nodeId, setNodeId] = useState("");
   const [folders, setFolders] = useState<Folders | null>(null);
   const [exposure, setExposure] = useState("private");
+  const [publicHost, setPublicHost] = useState("");
+  const [publicAck, setPublicAck] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [forward, setForward] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -296,11 +300,19 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: Cat
   const taken = new Set(snap?.specs.map((s) => s.name));
   const effName = (name || entry?.id || "").trim();
   const effNode = nodeId || nodes[0]?.nodeId || "";
+  // Decision 287: all four kinds of access at install, so the chosen
+  // Node's Tailscale state and public address are asked for.
+  const webEntry = !!entry?.web && !entry?.infrastructure;
+  const nodeTarget = target?.(effNode);
+  const info = useNodeInfo(nodeTarget, !!entry && webEntry);
+  const accessOk = !webEntry || accessReady(exposure, publicHost, publicAck);
   const reset = () => {
     setName("");
     setNodeId("");
     setFolders(null);
     setExposure("private");
+    setPublicHost("");
+    setPublicAck(false);
     setAutoUpdate(true);
     setForward(false);
     setSettings({});
@@ -374,19 +386,10 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: Cat
                   <ChevronRight className="size-4 transition-transform group-open:rotate-90" /> Options
                 </summary>
                 <div className="space-y-4 border-t px-3 py-3">
-                  {entry.web && !entry.infrastructure && (
-                    <div className="space-y-1.5">
-                      <Label>Reachable</Label>
-                      <Select value={exposure} onValueChange={setExposure}>
-                        <SelectTrigger size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="private">at home only</SelectItem>
-                          <SelectItem value="remote">from anywhere, for you (Tailscale)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {exposure === "remote" && <p className="text-xs text-muted-foreground">Needs the Fleet connected to Tailscale (Remote tab). Public access is set from the Service's Access after install.</p>}
+                  {webEntry && (
+                    <div className="space-y-2">
+                      <Label>Who can reach it</Label>
+                      <AccessChoice name={effName} choice={exposure} host={publicHost} ack={publicAck} onChoice={setExposure} onHost={setPublicHost} onAck={setPublicAck} info={info.data} nodeAddr={nodeTarget?.addr} snap={snap} infrastructure={false} compact />
                     </div>
                   )}
                   <label className="flex items-center justify-between gap-3 text-sm">
@@ -448,13 +451,14 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices }: { entry: Cat
             </div>
             <SheetFooter>
               <Button
-                disabled={busy || !!entry.unfinished?.length || !effName || taken.has(effName) || !effNode || !defaultSpace || badDevice}
+                disabled={busy || !!entry.unfinished?.length || !effName || taken.has(effName) || !effNode || !defaultSpace || badDevice || !accessOk}
                 onClick={async () => {
                   setBusy(true);
                   setError("");
                   try {
                     const spec = specFor(entry, effName, Object.fromEntries((entry.settings ?? []).map((s) => [s.key, settingValue(s.key, s.default ?? "")])));
-                    spec.exposure = entry.web && !entry.infrastructure ? exposure : "private";
+                    spec.exposure = webEntry ? exposure : "private";
+                    spec.publicHost = webEntry && exposure === "direct" ? publicHost.trim().toLowerCase() : "";
                     spec.autoUpdate = autoUpdate;
                     spec.forwardPorts = !!entry.port_forward && forward;
                     spec.volumeSpaces = Object.fromEntries(entry.volumes.map((v) => [v.name, eff.volumeSpaces[v.name] || fallback]));
