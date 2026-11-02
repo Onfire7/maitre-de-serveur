@@ -7,3 +7,6 @@ dist/
 /desktop/src-tauri/target/
 # local state
 .maitre/
+
+# Claude Code worktrees live under the checkout but are not part of it.
+.claude/worktrees/
