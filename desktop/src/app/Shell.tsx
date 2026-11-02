@@ -32,6 +32,8 @@ import { CodeScreen } from "./FirstRun";
 import { Sidebar, sidebarNodes } from "./Sidebar";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
+import { ServiceFrames } from "./ServiceFrames";
+import { forgetFrame } from "./frames";
 import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
 import { useCatalogs } from "@/fleet/catalogs";
@@ -288,6 +290,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               )}
             </motion.div>
           </AnimatePresence>
+          <ServiceFrames />
           </div>
         </main>
       </div>
@@ -342,6 +345,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 try {
                   await removeService(t, s.spec.name, deleteData);
                   toast(`${s.spec.name} was removed`);
+                  forgetFrame(s.spec.name);
                   if (route.name === "service" && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
                   fleet.refresh();
                 } catch (e) {

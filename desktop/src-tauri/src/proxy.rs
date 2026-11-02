@@ -3,6 +3,15 @@
 //! every request is relayed over mutual TLS to the Node's agent with the
 //! X-Maitre-Service header, which the agent routes to the Service. HTTP/1.1
 //! end to end so WebSocket upgrades (chat-style apps, dashboards) work.
+//!
+//! A Service's page is cross-origin to the Console, which can neither read
+//! where the page has gone nor move it back and forward (decision 286). So
+//! a page proxy serves a small script at /__maitre/frame.js and adds a tag
+//! for it to every HTML document it relays (asked for without compression,
+//! so the document can be edited). The script tells the Console the frame's
+//! address on each load and on pushState, replaceState and popstate, and
+//! takes the Console's go, reload and stop. A page whose Content-Security-
+//! Policy refuses the script works as before, without the controls.
 
 use crate::identity::Identity;
 use crate::rpc::pinned_tls_config;
@@ -103,11 +112,25 @@ async fn relay(
         let pq = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_default();
         *req.uri_mut() = pq[target.token.len() + 1..].parse().unwrap();
     }
+    let page = !target.service.is_empty();
+    if page && req.uri().path() == FRAME_SCRIPT_PATH {
+        return Ok(Response::builder()
+            .status(200)
+            .header("content-type", "application/javascript; charset=utf-8")
+            .header("cache-control", "no-store")
+            .body(http_body_util::Full::new(Bytes::from_static(FRAME_SCRIPT.as_bytes())).map_err(|never| match never {}).boxed())
+            .unwrap());
+    }
+    // A document is asked for uncompressed so the frame script can be added to it.
+    let document = page && wants_document(&req);
+    if document {
+        req.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
+    }
     match connect(&target, tls).await {
         Ok(mut sender) => {
             let client_upgrade = hyper::upgrade::on(&mut req);
             let wants_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
-            if !target.service.is_empty() {
+            if page {
                 req.headers_mut().insert(
                     HeaderName::from_static("x-maitre-service"),
                     HeaderValue::from_str(&target.service).unwrap(),
@@ -127,6 +150,19 @@ async fn relay(
                                 let _ = tokio::io::copy_bidirectional(&mut c, &mut s).await;
                             }
                         });
+                    }
+                    if document && is_plain_html(&res) {
+                        let (mut parts, body) = res.into_parts();
+                        return match body.collect().await {
+                            Ok(b) => {
+                                let html = inject_frame_script(&b.to_bytes());
+                                parts.headers.remove(hyper::header::CONTENT_LENGTH);
+                                parts.headers.remove(hyper::header::TRANSFER_ENCODING);
+                                parts.headers.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from(html.len()));
+                                Ok(Response::from_parts(parts, http_body_util::Full::new(html).map_err(|never| match never {}).boxed()))
+                            }
+                            Err(e) => Ok(text(502, format!("Maître Desktop could not read the Service's page: {e}"))),
+                        };
                     }
                     Ok(res.map(|b| b.boxed()))
                 }
@@ -157,4 +193,106 @@ fn text(status: u16, body: String) -> Response<BoxBody<Bytes, hyper::Error>> {
         .header("content-type", "text/plain; charset=utf-8")
         .body(http_body_util::Full::new(Bytes::from(body)).map_err(|never| match never {}).boxed())
         .unwrap()
+}
+
+const FRAME_SCRIPT_PATH: &str = "/__maitre/frame.js";
+const FRAME_SCRIPT_TAG: &[u8] = b"<script src=\"/__maitre/frame.js\"></script>";
+
+/// Runs inside a Service's page (decision 286). It reports the page's
+/// address to the Console on load and on every History change, and does
+/// what the Console asks: `go` (replace the address, so the window's own
+/// history is left alone), `reload`, `stop`.
+const FRAME_SCRIPT: &str = r#"(function () {
+  if (window.parent === window) return;
+  var send = function (event) {
+    try { window.parent.postMessage({ maitre: "frame", event: event, url: location.href }, "*"); } catch (e) {}
+  };
+  var wrap = function (name, event) {
+    var orig = history[name];
+    if (typeof orig !== "function") return;
+    history[name] = function () { var r = orig.apply(this, arguments); send(event); return r; };
+  };
+  wrap("pushState", "push");
+  wrap("replaceState", "replace");
+  window.addEventListener("popstate", function () { send("pop"); });
+  window.addEventListener("pagehide", function () { send("unload"); });
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.maitre !== "frame-cmd" || e.source !== window.parent) return;
+    if (d.cmd === "go" && typeof d.url === "string") location.replace(d.url);
+    else if (d.cmd === "reload") location.reload();
+    else if (d.cmd === "stop") window.stop();
+  });
+  send("load");
+})();
+"#;
+
+/// A request for a document, by its Accept header: a page, not a script,
+/// a style, an image or an API call.
+fn wants_document<B>(req: &Request<B>) -> bool {
+    req.method() == hyper::Method::GET
+        && req
+            .headers()
+            .get(hyper::header::ACCEPT)
+            .and_then(|v| v.to_str().ok())
+            .map(|a| a.trim_start().to_ascii_lowercase().starts_with("text/html"))
+            .unwrap_or(false)
+}
+
+/// An HTML document that came uncompressed, so it can be edited.
+fn is_plain_html<B>(res: &Response<B>) -> bool {
+    let header = |h: hyper::header::HeaderName| res.headers().get(h).and_then(|v| v.to_str().ok()).map(|s| s.to_ascii_lowercase());
+    let html = header(hyper::header::CONTENT_TYPE).map(|t| t.trim_start().starts_with("text/html")).unwrap_or(false);
+    let encoded = header(hyper::header::CONTENT_ENCODING).map(|e| !e.is_empty() && e != "identity").unwrap_or(false);
+    html && !encoded && res.status().is_success()
+}
+
+/// The script tag goes right after `<head>` when there is one (before the
+/// page's own scripts, so a History change made at start is reported), else
+/// at the front.
+fn inject_frame_script(html: &[u8]) -> Bytes {
+    let lower: Vec<u8> = html.iter().map(|b| b.to_ascii_lowercase()).collect();
+    let at = find(&lower, b"<head").and_then(|i| lower[i..].iter().position(|&b| b == b'>').map(|j| i + j + 1)).unwrap_or(0);
+    let mut out = Vec::with_capacity(html.len() + FRAME_SCRIPT_TAG.len());
+    out.extend_from_slice(&html[..at]);
+    out.extend_from_slice(FRAME_SCRIPT_TAG);
+    out.extend_from_slice(&html[at..]);
+    Bytes::from(out)
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn script_goes_after_head_whatever_its_case() {
+        let out = inject_frame_script(b"<!doctype html><HTML><Head lang=\"en\"><title>x</title></Head></HTML>");
+        assert_eq!(&out[..], &b"<!doctype html><HTML><Head lang=\"en\"><script src=\"/__maitre/frame.js\"></script><title>x</title></Head></HTML>"[..]);
+    }
+
+    #[test]
+    fn script_leads_a_document_without_head() {
+        let out = inject_frame_script(b"<p>hi</p>");
+        assert_eq!(&out[..], &b"<script src=\"/__maitre/frame.js\"></script><p>hi</p>"[..]);
+    }
+
+    #[test]
+    fn only_documents_asked_for_as_html_are_edited() {
+        let doc = Request::builder().header("accept", "text/html,application/xhtml+xml").body(()).unwrap();
+        assert!(wants_document(&doc));
+        let api = Request::builder().header("accept", "application/json").body(()).unwrap();
+        assert!(!wants_document(&api));
+        let post = Request::builder().method("POST").header("accept", "text/html").body(()).unwrap();
+        assert!(!wants_document(&post));
+        let plain = Response::builder().header("content-type", "text/html; charset=utf-8").body(()).unwrap();
+        assert!(is_plain_html(&plain));
+        let gz = Response::builder().header("content-type", "text/html").header("content-encoding", "gzip").body(()).unwrap();
+        assert!(!is_plain_html(&gz));
+        let json = Response::builder().header("content-type", "application/json").body(()).unwrap();
+        assert!(!is_plain_html(&json));
+    }
 }

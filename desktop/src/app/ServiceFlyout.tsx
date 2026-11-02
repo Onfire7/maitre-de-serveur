@@ -1,13 +1,17 @@
 // The flyout that slides out from behind the sidebar next to a Service row
-// (decisions 131, 142, 143). It follows the pointer from row to row.
+// (decisions 131, 142, 143). It follows the pointer from row to row. Its
+// top row holds the page's browser controls (decision 286): Back, Forward,
+// Stop or Refresh, Home, and Copy address.
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, ShieldAlert, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, ShieldAlert, Trash2, Truck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { canRollBack } from "@/fleet/components";
 import { catalogById, StatusWord } from "./status";
+import { canGo, frameCommand, idleRemaining, useFrame, type FrameCommand } from "./frames";
 
 export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "ports" | "storage" | "grants" | "move" | "remove";
 
@@ -42,6 +46,7 @@ export function ServiceFlyout({
       className="absolute left-full z-10 w-60 rounded-r-xl border border-l-0 bg-popover text-popover-foreground shadow-lg"
       style={{ top }}
     >
+      <FrameControls service={service} />
       <div className="border-b px-3 py-2">
         {collapsed && <div className="truncate text-sm font-medium">{service.spec.name}</div>}
         <div className="truncate text-xs text-muted-foreground">
@@ -73,20 +78,71 @@ export function ServiceFlyout({
               {it.icon}
               {it.label}
             </button>
-            {it.id === "open" && s?.url && (
-              <button
-                aria-label={`Copy ${s.url}`}
-                title={`Copy ${s.url}`}
-                onClick={() => navigator.clipboard?.writeText(s.url).then(() => toast(`Copied ${s.url}`), () => toast.error("Could not copy the address"))}
-                className="mr-1.5 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus:bg-accent focus:outline-none"
-              >
-                <Copy className="size-3.5" />
-              </button>
-            )}
           </li>
         ))}
       </ul>
     </motion.div>
+  );
+}
+
+/** The address of the page the frame is on, said in the Service's own address (not the proxy's). */
+export function pageAddress(service: FleetService, path: string | undefined): string | undefined {
+  const base = service.status?.url;
+  if (!base) return undefined;
+  try {
+    return new URL(path ?? "/", base).href;
+  } catch {
+    return base;
+  }
+}
+
+function minutesLeft(remaining: number): string {
+  const min = Math.ceil((remaining * 3600) / 60);
+  return min >= 60 ? "an hour" : `${min} min`;
+}
+
+function FrameControls({ service }: { service: FleetService }) {
+  const frame = useFrame(service.spec.name);
+  const web = !!service.status?.url && service.word === "Online";
+  const live = !!frame?.live;
+  const remaining = idleRemaining(frame);
+  const address = pageAddress(service, frame?.path);
+  const act = (cmd: FrameCommand) => frameCommand(service.spec.name, cmd);
+  const copy = () => {
+    if (!address) return;
+    navigator.clipboard?.writeText(address).then(
+      () => toast(`Copied ${address}`),
+      () => toast.error("Could not copy the address"),
+    );
+  };
+  const controls: { label: string; icon: React.ReactNode; disabled: boolean; onClick: () => void }[] = [
+    { label: "Back", icon: <ArrowLeft />, disabled: !canGo(frame, "back"), onClick: () => act("back") },
+    { label: "Forward", icon: <ArrowRight />, disabled: !canGo(frame, "forward"), onClick: () => act("forward") },
+    frame?.loading && live ? { label: "Stop", icon: <X />, disabled: !frame.reported, onClick: () => act("stop") } : { label: "Refresh", icon: <RotateCw />, disabled: !live, onClick: () => act("reload") },
+    { label: "Home", icon: <House />, disabled: !web, onClick: () => act("home") },
+    { label: "Copy address", icon: <Copy />, disabled: !address, onClick: copy },
+  ];
+  return (
+    <div className="border-b px-2 py-1.5">
+      <div role="toolbar" aria-label={`${service.spec.name} page`} className="flex items-center justify-between">
+        {controls.map((c) => (
+          <Tooltip key={c.label}>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={c.label}
+                disabled={c.disabled}
+                onClick={c.onClick}
+                className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus:bg-accent focus:outline-none disabled:opacity-40 disabled:hover:bg-transparent [&>svg]:size-4"
+              >
+                {c.icon}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{c.label === "Copy address" && address ? address : c.label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+      {remaining !== null && <div className="truncate px-1 pt-0.5 text-[11px] text-muted-foreground">Open in the background; closes in {minutesLeft(remaining)} unless you come back</div>}
+    </div>
   );
 }
 

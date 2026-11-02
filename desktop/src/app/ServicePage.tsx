@@ -1,6 +1,9 @@
 // A Service's page is its own web page, full-bleed, with no bar above it
 // (decision 138). When it is not Online, or has no web page, a status card
-// takes its place (decision 144).
+// takes its place (decision 144). The page itself is drawn by the frame
+// layer (ServiceFrames, decision 286), which keeps it when another page is
+// shown; this component only says which frame is the one shown.
+import { useEffect } from "react";
 import { ExternalLink, Play, ScrollText, RotateCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
@@ -11,6 +14,7 @@ import type { FleetService } from "@/fleet/useFleet";
 import { isDemo } from "@/demo/flag";
 import { ServiceIcon, StatusWord } from "./status";
 import { catalogById } from "./status";
+import { dropFrame, hideFrame, showFrame } from "./frames";
 
 export function ServicePage({ service, target, onAction }: { service: FleetService; target: Target | undefined; onAction: (a: "start" | "restart" | "logs" | "open") => void }) {
   const s = service.status;
@@ -26,12 +30,21 @@ export function ServicePage({ service, target, onAction }: { service: FleetServi
     retry: 1,
     queryFn: () => invoke<string>("service_url", { addr: target!.addr, fingerprint: target!.fingerprint, service: service.spec.name }),
   });
+  // Outside the app (no Tauri) the proxy is not there: use the address.
+  const src = online && !isDemo() ? (local.data ?? (local.error ? s!.url : undefined)) : undefined;
+  const name = service.spec.name;
+  useEffect(() => {
+    if (!src) return;
+    showFrame(name, src);
+    return () => hideFrame(name);
+  }, [name, src]);
+  // A page that is not Online is gone: its frame goes, the card takes its place.
+  useEffect(() => {
+    if (!online) dropFrame(name);
+  }, [name, online]);
   if (online) {
     if (isDemo()) return <DemoFrame service={service} />;
-    // Outside the app (no Tauri) the proxy is not there: use the address.
-    const src = local.data ?? (local.error ? s!.url : undefined);
-    if (!src) return null;
-    return <iframe key={src} title={service.spec.name} src={src} className="h-full w-full border-0 bg-white" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads" />;
+    return null;
   }
   const entry = catalogById.get(service.spec.catalogId);
   return (

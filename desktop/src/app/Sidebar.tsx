@@ -23,6 +23,7 @@ import { ServiceIcon, NodeMark, type NodeWord } from "./status";
 import { ServiceFlyout, type FlyoutItem } from "./ServiceFlyout";
 import { NodeFlyout } from "./NodeFlyout";
 import { useRoute } from "./routes";
+import { idleRemaining, useFrames } from "./frames";
 
 export const SIDEBAR_WIDTH = 240;
 export const SIDEBAR_COLLAPSED = 56;
@@ -61,6 +62,10 @@ export function Sidebar({
   provisioning?: { name: string; percent: number };
 }) {
   const { route, go } = useRoute();
+  // Service pages kept open in the background (decision 286): a row's
+  // background drains over the hour before its frame is dropped.
+  const frames = useFrames();
+  const idleOf = (name: string) => idleRemaining(frames.find((f) => f.service === name));
   // The install this Console started: its Node's row says Provisioning
   // even when the anchor is too old to report installs itself.
   const mine = provisioning ? nodes.find((n) => n.name === provisioning.name) : undefined;
@@ -243,6 +248,7 @@ export function Sidebar({
                   service={s}
                   collapsed={collapsed}
                   selected={selectedService === s.spec.name}
+                  idle={selectedService === s.spec.name ? null : idleOf(s.spec.name)}
                   onClick={() => go({ name: "service", service: s.spec.name })}
                   onEnter={(el) => rowEnter(s, el)}
                   onChevron={(el) => {
@@ -416,6 +422,7 @@ function ServiceRow({
   service,
   collapsed,
   selected,
+  idle,
   onClick,
   onEnter,
   onChevron,
@@ -425,6 +432,8 @@ function ServiceRow({
   service: FleetService;
   collapsed: boolean;
   selected: boolean;
+  /** How much of the idle hour its background page has left, 1 to 0; null when it has none. */
+  idle: number | null;
   onClick: () => void;
   onEnter: (el: HTMLElement) => void;
   onChevron: (el: HTMLElement) => void;
@@ -439,12 +448,20 @@ function ServiceRow({
       ref={ref}
       data-service={service.spec.name}
       className={cn(
-        "group relative flex items-center rounded-md hover:bg-sidebar-accent",
+        "group relative flex items-center overflow-hidden rounded-md hover:bg-sidebar-accent",
         selected && "bg-sidebar-accent",
         collapsed && "justify-center",
       )}
       onMouseEnter={() => ref.current && onEnter(ref.current)}
     >
+      {idle !== null && (
+        <span
+          aria-hidden
+          data-idle={Math.round(idle * 100)}
+          className="pointer-events-none absolute inset-y-0 left-0 bg-sidebar-accent/60 transition-[width] duration-1000 ease-linear"
+          style={{ width: `${Math.round(idle * 1000) / 10}%` }}
+        />
+      )}
       <button
         onClick={onClick}
         onKeyDown={(e) => {

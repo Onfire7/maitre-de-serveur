@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { FleetService } from "@/fleet/useFleet";
 import { RouteProvider } from "./routes";
 import { Sidebar, type SidebarNode } from "./Sidebar";
+import { IDLE_MS, hideFrame, resetFrames, showFrame } from "./frames";
 
 const svc = (name: string, word: FleetService["word"] = "Online"): FleetService => ({ spec: create(ServiceSpecSchema, { name, catalogId: "jellyfin", nodeId: "a" }), word, nodeUnreachable: false });
 const services = [svc("adguard"), svc("jellyfin"), svc("minecraft", "Attention")];
@@ -43,8 +44,32 @@ describe("Sidebar", () => {
   // Fake timers drive the hover and leave delays; Motion's frames run on the
   // same fake clock, and animations are skipped, so advancing time finishes
   // an exit.
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetFrames();
+  });
   afterEach(() => vi.useRealTimers());
+
+  it("a Service whose page is open in the background shows the hour it has left as a draining bar (286)", () => {
+    vi.setSystemTime(1_000_000);
+    showFrame("adguard", "http://127.0.0.1:4100/");
+    hideFrame("adguard");
+    renderSidebar();
+    const bar = () => row("adguard").querySelector<HTMLElement>("[data-idle]");
+    expect(bar()?.dataset.idle).toBe("100");
+    expect(row("jellyfin").querySelector("[data-idle]")).toBeNull();
+    act(() => {
+      vi.setSystemTime(1_000_000 + IDLE_MS * 0.75);
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(bar()?.dataset.idle).toBe("25");
+    expect(parseFloat(bar()!.style.width)).toBeCloseTo(24.6, 0);
+    act(() => {
+      vi.setSystemTime(1_000_000 + IDLE_MS);
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(bar()).toBeNull();
+  });
 
   it("lists every Service and the Fleet entry with its badge and Nodes", () => {
     renderSidebar();
