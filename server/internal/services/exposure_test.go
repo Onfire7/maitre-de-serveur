@@ -28,7 +28,7 @@ func TestInstallWithAccess(t *testing.T) {
 	dir := t.TempDir()
 	pools := filepath.Join(dir, "pools")
 	os.MkdirAll(filepath.Join(pools, "general"), 0o755)
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
 	reconciled := 0
 	m.OnExposure = func() { reconciled++ }
 

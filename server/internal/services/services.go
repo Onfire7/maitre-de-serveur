@@ -70,6 +70,10 @@ type Config struct {
 	Forward func(name string) string
 	// UnitsDir is where Quadlet looks for *.container (default /etc/containers/systemd).
 	UnitsDir string
+	// SystemdDir is where plain systemd units go (default /etc/systemd/system):
+	// a multi-container Service's grouping .target, which Quadlet does not
+	// read, so one written beside the .container files is never a unit.
+	SystemdDir string
 	// PoolsDir holds one Pool per Space: volumes live at PoolsDir/<space>/<service>/<volume>.
 	PoolsDir string
 	// DefaultSpace returns the id of the Space new volumes land in, or "" when
@@ -127,6 +131,9 @@ type Manager struct {
 func New(cfg Config, st *store.Store, run Runner) *Manager {
 	if cfg.UnitsDir == "" {
 		cfg.UnitsDir = "/etc/containers/systemd"
+	}
+	if cfg.SystemdDir == "" {
+		cfg.SystemdDir = "/etc/systemd/system"
 	}
 	if cfg.HostPortBase == 0 {
 		cfg.HostPortBase = 20000
@@ -373,18 +380,78 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 			return err
 		}
 	}
-	if err := os.MkdirAll(m.cfg.UnitsDir, 0o755); err != nil {
-		return err
+	for _, dir := range []string{m.cfg.UnitsDir, m.cfg.SystemdDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
 	}
 	for name, body := range set {
-		if err := os.WriteFile(filepath.Join(m.cfg.UnitsDir, name), []byte(body), 0o644); err != nil {
+		if err := os.WriteFile(m.unitPath(name), []byte(body), 0o644); err != nil {
 			return err
+		}
+		if isSystemdUnit(name) {
+			// Nodes before this fix wrote the target where Quadlet ignored it.
+			_ = os.Remove(filepath.Join(m.cfg.UnitsDir, name))
 		}
 	}
 	if _, err := m.run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload: %w", err)
 	}
+	// Quadlet's generator wants its units at boot by itself; a plain unit's
+	// [Install] counts only once enabled.
+	for name := range set {
+		if isSystemdUnit(name) {
+			if _, err := m.run.Run(ctx, "systemctl", "enable", name); err != nil {
+				return fmt.Errorf("enable %s: %w", name, err)
+			}
+		}
+	}
 	return nil
+}
+
+// RepairUnits writes the units of every Service of this Node whose
+// grouping target is missing from the systemd directory: Nodes before the
+// fix in isSystemdUnit wrote it among the Quadlet files, where no unit came
+// of it, and every one of their multi-container Services answered a start
+// with "Unit <name>.target not found". Runs at start; a repaired Service is
+// started again as its unit's [Install] would have at boot.
+func (m *Manager) RepairUnits(ctx context.Context) {
+	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	if err != nil {
+		return
+	}
+	for _, spec := range specs {
+		if spec.GetNodeId() != m.store.NodeID() || !isMulti(spec) {
+			continue
+		}
+		target := lifecycleUnit(spec)
+		if _, err := os.Stat(m.unitPath(target)); err == nil {
+			continue
+		}
+		if err := m.apply(ctx, spec); err != nil {
+			m.logf("repairing %s: %v", spec.GetName(), err)
+			continue
+		}
+		m.logf("repaired %s: its %s is now a unit", spec.GetName(), target)
+		_, _ = m.run.Run(ctx, "systemctl", "start", "--no-block", target)
+	}
+}
+
+// isSystemdUnit says whether a unit file is systemd's own kind, which goes
+// in SystemdDir, rather than a Quadlet file Podman's generator turns into
+// one. Quadlet reads only .container, .volume, .network, .pod, .kube,
+// .image and .build; a .target in its directory is silently ignored, and
+// "Unit <name>.target not found" was every multi-container Service's start.
+func isSystemdUnit(name string) bool {
+	return strings.HasSuffix(name, ".target")
+}
+
+// unitPath is where a Service's unit file lives on this Node.
+func (m *Manager) unitPath(name string) string {
+	if isSystemdUnit(name) {
+		return filepath.Join(m.cfg.SystemdDir, name)
+	}
+	return filepath.Join(m.cfg.UnitsDir, name)
 }
 
 // renderUnits is every unit file of a Service, by file name. A
@@ -499,7 +566,10 @@ func (m *Manager) uninstallUnit(ctx context.Context, spec *maitrev1.ServiceSpec)
 	_, _ = m.run.Run(ctx, "systemctl", "stop", lifecycleUnit(spec))
 	removed := false
 	for _, f := range unitFiles(spec) {
-		if err := os.Remove(filepath.Join(m.cfg.UnitsDir, f)); err == nil {
+		if isSystemdUnit(f) {
+			_, _ = m.run.Run(ctx, "systemctl", "disable", f)
+		}
+		if err := os.Remove(m.unitPath(f)); err == nil {
 			removed = true
 		}
 	}
@@ -923,7 +993,10 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 	case maitrev1.ControlServiceRequest_ACTION_REMOVE:
 		_, _ = m.run.Run(ctx, "systemctl", "stop", unit)
 		for _, f := range unitFiles(&spec) {
-			if err := os.Remove(filepath.Join(m.cfg.UnitsDir, f)); err != nil && !os.IsNotExist(err) {
+			if isSystemdUnit(f) {
+				_, _ = m.run.Run(ctx, "systemctl", "disable", f)
+			}
+			if err := os.Remove(m.unitPath(f)); err != nil && !os.IsNotExist(err) {
 				return nil, err
 			}
 		}

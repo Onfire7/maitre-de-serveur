@@ -42,7 +42,7 @@ func TestSetFolders(t *testing.T) {
 	}
 	os.MkdirAll(filepath.Join(pools, "media", "Shows"), 0o755)
 	owners := map[string]uint32{"media": 61001}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, SpaceOwner: func(_ context.Context, id string) uint32 { return owners[id] }}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, SpaceOwner: func(_ context.Context, id string) uint32 { return owners[id] }}, st, run)
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestOwnFoldersAdmitTheSpaceOwner(t *testing.T) {
 	dir := t.TempDir()
 	pools := filepath.Join(dir, "pools")
 	os.MkdirAll(filepath.Join(pools, "general"), 0o755)
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, SpaceOwner: func(context.Context, string) uint32 { return 61002 }}, st, &fakeRunner{state: "active"})
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, SpaceOwner: func(context.Context, string) uint32 { return 61002 }}, st, &fakeRunner{state: "active"})
 	if _, err := m.Install(context.Background(), catalog.SpecFor(idx.Find("uptime-kuma"), "", nil, "")); err != nil {
 		t.Fatal(err)
 	}

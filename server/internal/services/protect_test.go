@@ -79,7 +79,7 @@ func TestGrantsGateInstall(t *testing.T) {
 	pools := filepath.Join(dir, "pools")
 	_ = os.MkdirAll(filepath.Join(pools, "general"), 0o755)
 	trusted := true
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000,
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000,
 		DeviceSigned: func(context.Context, *maitrev1.Record) bool { return trusted }}, st, &fakeRunner{state: "active"})
 	spec := &maitrev1.ServiceSpec{Name: "dns", Image: "docker.io/x/dns:1", Quadlet: "[Container]\nImage={{ .Image }}\nAddCapability=NET_ADMIN\nNetwork=host\n"}
 	_, err := m.Install(ctx, proto.Clone(spec).(*maitrev1.ServiceSpec))
@@ -137,7 +137,7 @@ func TestHostNetwork(t *testing.T) {
 	dir := t.TempDir()
 	pools := filepath.Join(dir, "pools")
 	_ = os.MkdirAll(filepath.Join(pools, "general"), 0o755)
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
 	spec := func(name string, port uint32) *maitrev1.ServiceSpec {
 		return &maitrev1.ServiceSpec{Name: name, Image: "docker.io/x/ha:1", WebPort: port, OptionalGrants: map[string]bool{"discovery": true},
 			Quadlet: "[Container]\nImage={{ .Image }}\n{{ if .Grants.discovery }}Network=host\n{{ else }}Network={{ .Network }}\n{{ end }}"}
@@ -232,7 +232,7 @@ func TestRenderNamesTheHost(t *testing.T) {
 func TestInstallRefusesLineBreaks(t *testing.T) {
 	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
 	defer st.Close()
-	m := services.New(services.Config{UnitsDir: t.TempDir(), PoolsDir: t.TempDir()}, st, &fakeRunner{})
+	m := services.New(services.Config{UnitsDir: t.TempDir(), SystemdDir: t.TempDir(), PoolsDir: t.TempDir()}, st, &fakeRunner{})
 	_, err := m.Install(context.Background(), &maitrev1.ServiceSpec{Name: "xx", Image: "img", Quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=A={{ .Settings.A }}\n",
 		Settings: map[string]string{"A": "1\n[Service]\nExecStartPre=/bin/sh"}})
 	if err == nil || !strings.Contains(err.Error(), "line break") {

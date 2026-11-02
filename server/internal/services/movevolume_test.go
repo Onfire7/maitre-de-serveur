@@ -40,7 +40,7 @@ func TestMoveVolumeStopsMovesRewritesRestarts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
 	mover := &fakeMover{}
 	m.Mover = mover
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
@@ -100,7 +100,7 @@ func TestMoveVolumeFailureLeavesSpecAndRestarts(t *testing.T) {
 	for _, sp := range []string{"general", "media"} {
 		_ = os.MkdirAll(filepath.Join(pools, sp), 0o755)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
 	mover := &fakeMover{}
 	m.Mover = mover
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
@@ -137,7 +137,7 @@ func TestMoveVolumeFromTheOldPlace(t *testing.T) {
 	for _, sp := range []string{"general", "media"} {
 		_ = os.MkdirAll(filepath.Join(pools, sp), 0o755)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, &fakeRunner{state: "active"})
 	mover := &fakeMover{}
 	m.Mover = mover
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
@@ -181,7 +181,7 @@ func TestOwnFoldersInASpanningSpace(t *testing.T) {
 		return "", false
 	}
 	run := &fakeRunner{state: "active"}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LocalPool: local}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LocalPool: local}, st, run)
 	mover := &fakeMover{}
 	m.Mover = mover
 	spec := catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")

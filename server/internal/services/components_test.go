@@ -54,7 +54,7 @@ func newMultiManager(t *testing.T, run services.Runner) (*services.Manager, *sto
 		t.Fatal(err)
 	}
 	m := services.New(services.Config{
-		UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools,
+		UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools,
 		DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000,
 		ValidateUnits: quadlet.Generator() != "",
 	}, st, run)
@@ -112,9 +112,15 @@ func TestMultiContainerInstall(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(units, "maitre-notes.network")); err != nil {
 		t.Error("service network not written")
 	}
-	target, err := os.ReadFile(filepath.Join(units, "notes.target"))
+	// The target is systemd's own unit, so it goes in the systemd directory;
+	// Quadlet ignores a .target among its files, and a Node that wrote it
+	// there answered every start with "Unit notes.target not found".
+	target, err := os.ReadFile(filepath.Join(dir, "systemd", "notes.target"))
 	if err != nil || !strings.Contains(string(target), "[Install]") {
 		t.Errorf("target: %v\n%s", err, target)
+	}
+	if _, err := os.Stat(filepath.Join(units, "notes.target")); err == nil {
+		t.Error("target written among the Quadlet files, where Quadlet ignores it")
 	}
 	// Both volume directories were created under the Service's folder.
 	for _, v := range []string{"data", "db"} {
@@ -126,6 +132,49 @@ func TestMultiContainerInstall(t *testing.T) {
 	cmds := strings.Join(run.cmds, "\n")
 	if !strings.Contains(cmds, "systemctl start --no-block notes.target") {
 		t.Fatalf("did not start the target:\n%s", cmds)
+	}
+	if !strings.Contains(cmds, "systemctl enable notes.target") {
+		t.Fatalf("did not enable the target, so it would not start at boot:\n%s", cmds)
+	}
+}
+
+// A Node from before the fix left the target among the Quadlet files;
+// RepairUnits at start writes the units again, in the right place, and
+// starts the Service.
+func TestRepairUnitsMovesTarget(t *testing.T) {
+	ctx := context.Background()
+	run := &fakeRunner{state: "active"}
+	m, _, dir := newMultiManager(t, run)
+	if _, err := m.Install(ctx, multiSpec()); err != nil {
+		t.Fatal(err)
+	}
+	// Put the Node back as the old code left it.
+	good := filepath.Join(dir, "systemd", "notes.target")
+	old := filepath.Join(dir, "units", "notes.target")
+	if err := os.Rename(good, old); err != nil {
+		t.Fatal(err)
+	}
+	run.cmds = nil
+
+	m.RepairUnits(ctx)
+
+	if _, err := os.Stat(good); err != nil {
+		t.Fatal("target not written to the systemd directory")
+	}
+	if _, err := os.Stat(old); err == nil {
+		t.Error("stale target left among the Quadlet files")
+	}
+	cmds := strings.Join(run.cmds, "\n")
+	for _, want := range []string{"systemctl daemon-reload", "systemctl enable notes.target", "systemctl start --no-block notes.target"} {
+		if !strings.Contains(cmds, want) {
+			t.Errorf("missing %q:\n%s", want, cmds)
+		}
+	}
+	// With the target in place, a second run changes nothing.
+	run.cmds = nil
+	m.RepairUnits(ctx)
+	if len(run.cmds) != 0 {
+		t.Errorf("repaired again when nothing was wrong:\n%s", strings.Join(run.cmds, "\n"))
 	}
 }
 

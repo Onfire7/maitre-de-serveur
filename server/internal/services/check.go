@@ -50,7 +50,7 @@ func Check(ctx context.Context, in *maitrev1.ServiceSpec) (*CheckResult, error) 
 		return nil, err
 	}
 	defer st.Close()
-	m := New(Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools}, st, checkRunner{})
+	m := New(Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools}, st, checkRunner{})
 
 	spec.VolumeSpaces = map[string]string{}
 	for _, v := range spec.GetVolumes() {

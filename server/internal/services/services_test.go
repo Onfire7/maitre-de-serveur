@@ -69,7 +69,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
 		st, run)
 
 	s, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", map[string]string{"TZ": "Europe/Paris"}, ""))
@@ -210,7 +210,7 @@ func TestAutoTimezoneFollowsTheFleet(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
 	unit := func() string {
 		b, err := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))
 		if err != nil {
@@ -280,7 +280,7 @@ func TestInstallClaimsTombstoneOfAnotherNode(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
 		st, &fakeRunner{state: "active"})
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
 		t.Fatalf("install over another Node's tombstone: %v", err)

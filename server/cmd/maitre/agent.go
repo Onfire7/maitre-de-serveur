@@ -986,6 +986,9 @@ func runAgent(args []string) error {
 	// Decision 189: a Service with protected options runs only while each
 	// has a grant; a revoked grant stops it.
 	mgr.EnforceGrants(ctx)
+	// A multi-container Service whose grouping target an older Node wrote
+	// where Quadlet ignored it gets its units written again.
+	mgr.RepairUnits(ctx)
 	// Decision 282: the Node's clock follows the Fleet's time zone, and so
 	// do the Services whose TZ setting is "auto"; checked at start, after a
 	// write to this Node, and after records arrived from a peer.

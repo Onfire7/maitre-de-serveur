@@ -33,7 +33,7 @@ func TestSetSettings(t *testing.T) {
 	pools := filepath.Join(dir, "pools")
 	os.MkdirAll(filepath.Join(pools, "general"), 0o755)
 	units := filepath.Join(dir, "units")
-	m := services.New(services.Config{UnitsDir: units, PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: units, SystemdDir: filepath.Join(units, "..", "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("minecraft"), "", nil, "")); err != nil {
 		t.Fatal(err)
 	}
