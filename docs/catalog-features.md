@@ -40,6 +40,7 @@ No entry has a required grant yet.
 | Emby | Raspberry Pi devices (`/dev/vchiq`, `/dev/video1x`) and its HTTPS port | Dropped; Maître serves the page |
 | Heimdall | Port 443 of the Node | Dropped; the Node's web server holds it |
 | Open WebUI | The NVIDIA runtime (CasaOS's file, `GlobalArgs=--runtime nvidia`) | Converted from Big Bear's file instead, which has none |
+| Homepage | The Docker socket | Dropped; its container discovery and Docker widgets do not work |
 
 ## Waiting on support
 
@@ -51,7 +52,7 @@ Each of these fails `catalog-check` with what Maître needs: SELinux work to be 
 | `/dev/net/tun` (the same rule) | WireGuard, Tailscale, Gluetun |
 | `/dev/kfd` (the same rule) | Ollama on AMD GPUs |
 | NVIDIA's container runtime or CDI devices (a design, and drivers in the image) | Ollama, Open WebUI, Jellyfin, Plex and Immich on NVIDIA GPUs |
-| The Podman socket (SELinux without `label=disable`) | Dozzle, Portainer, Homarr's and Homepage's container views |
+| The Podman socket (SELinux without `label=disable`) | Dozzle, Portainer, Homarr's and Homepage's container views (both are in, without them) |
 | Bluetooth over the system bus (BlueZ in the image, and SELinux to the bus) | Home Assistant's Bluetooth |
 
 ## Left out for other reasons

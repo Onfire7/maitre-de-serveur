@@ -326,8 +326,12 @@ func validateContainers(spec *maitrev1.ServiceSpec) error {
 
 // renderComponentBody executes one component's [Container] template, with
 // its references to the bundle's own units renamed as they are written.
+// The template's .Name is the Service's, as in a single container's: an
+// entry builds its public address from it (http://{{ .Name }}.local), and
+// the component's own unit name (service-component) is nothing a person
+// reaches.
 func renderComponentBody(spec *maitrev1.ServiceSpec, c comp, vols map[string]string) (string, error) {
-	body, err := renderTemplate(unitBase(spec.GetName(), c), c.Quadlet, c.Image, spec, vols)
+	body, err := renderTemplate(spec.GetName(), c.Quadlet, c.Image, spec, vols)
 	if err != nil {
 		return "", err
 	}

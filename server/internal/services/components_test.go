@@ -24,7 +24,7 @@ func multiSpec() *maitrev1.ServiceSpec {
 			{
 				Name:    "app",
 				Image:   "docker.io/example/notes:1@sha256:" + strings.Repeat("a", 64),
-				Quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=DB_HOST=db\nVolume={{ .Volumes.data }}:/data:Z\n",
+				Quadlet: "[Container]\nImage={{ .Image }}\nEnvironment=DB_HOST=db\nEnvironment=\"APP_URL=http://{{ .Name }}.local\"\nVolume={{ .Volumes.data }}:/data:Z\n",
 				After:   []string{"db"},
 			},
 			{
@@ -90,6 +90,8 @@ func TestMultiContainerInstall(t *testing.T) {
 		"After=notes-db.service",
 		"PublishPort=127.0.0.1:" + itoa(int(st.GetSpec().GetWebHostPort())) + ":3000",
 		"Label=dev.maitre.component=app",
+		// .Name is the Service's name, not the component unit's (notes-app).
+		"Environment=\"APP_URL=http://notes.local\"",
 		"PartOf=notes.target",
 		"WantedBy=notes.target",
 		"NoNewPrivileges=true",
