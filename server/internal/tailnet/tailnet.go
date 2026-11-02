@@ -11,6 +11,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -169,4 +171,51 @@ func AuthKey(ctx context.Context, cfg *maitrev1.TailscaleConfig, ephemeral bool)
 		return "", fmt.Errorf("tailscale: create auth key: %w", err)
 	}
 	return key, nil
+}
+
+// IsTailnetAddr reports whether a host:port (or bare host) is on Tailscale's
+// own ranges, 100.64.0.0/10 or fd7a:115c:a1e0::/48, or a .ts.net name
+// (decision 284): the addresses a Node keeps in its record across restarts.
+func IsTailnetAddr(addr string) bool {
+	host := addr
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if strings.HasSuffix(host, ".ts.net") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return cgnat.Contains(ip) || tsULA.Contains(ip)
+}
+
+var (
+	cgnat = mustCIDR("100.64.0.0/10")
+	tsULA = mustCIDR("fd7a:115c:a1e0::/48")
+)
+
+func mustCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(err)
+	}
+	return n
+}
+
+// KeepTailnet returns lan followed by the tailnet addresses in prev, in
+// their order, so a Node that starts with no tailnet yet still advertises
+// the address it had: the Console away from home reaches it there while
+// tsnet comes back (decision 284). A new tailnet address replaces them
+// when tsnet reports one.
+func KeepTailnet(lan, prev []string) []string {
+	out := append([]string{}, lan...)
+	for _, a := range prev {
+		if IsTailnetAddr(a) && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }

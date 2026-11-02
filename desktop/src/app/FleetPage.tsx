@@ -40,6 +40,8 @@ export function FleetPage({
   onAct,
   now,
   onRefresh,
+  connection,
+  onConnection,
 }: {
   tab: FleetTab;
   nodeId?: string;
@@ -58,15 +60,21 @@ export function FleetPage({
   now: number;
   /** Ask for the Fleet snapshot again, after a write. */
   onRefresh?: () => void;
+  /** "through Alder over Tailscale" (decision 284), and the chooser behind it. */
+  connection?: string;
+  onConnection?: () => void;
 }) {
   const { go } = useRoute();
-  const anchorName = snap ? snap.nodes.find((n) => n.nodeId === snap.anchor.nodeId)?.name : undefined;
   return (
     <div className="flex h-full flex-col">
       <header className="shrink-0 border-b px-6 pt-5">
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-semibold">{state.fleet?.name ?? "Fleet"}</h1>
-          {tab === "overview" && anchorName && <span className="text-xs text-muted-foreground">connected through {anchorName}</span>}
+          {connection && (
+            <button type="button" className="text-xs text-muted-foreground hover:text-foreground hover:underline" onClick={onConnection} title="Choose which Node to read the Fleet through, and how">
+              {snap ? `connected ${connection}` : connection}
+            </button>
+          )}
           {GRAPH_TABS.has(tab) && <RangePicker className="ml-auto self-center" />}
         </div>
         <Tabs value={tab} onValueChange={(v) => go({ name: "fleet", tab: v as FleetTab })} className="mt-3">

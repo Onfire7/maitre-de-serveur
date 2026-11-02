@@ -2,7 +2,7 @@
 // GetFleetStatus through the anchor Node every 3 s, with failover. Page-
 // scoped calls to a particular Node (logs, files, Drives...) use
 // `transportFor` directly and are not routed through here.
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { create, fromBinary } from "@bufbuild/protobuf";
@@ -12,8 +12,9 @@ import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
 import { transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
-import { pickAnchor, type AnchorPick } from "./anchor";
-import { domainAddr, domainOrder, rememberDomain } from "./domain";
+import { allPicks, attemptKey, pickAnchor, type AnchorPick } from "./anchor";
+import { chooseAddress, forgetRoute, lastAnchor, pinned, rememberRoute, routeKind, setLastAnchor, setPinned } from "./route";
+import { domainAddr, rememberDomain } from "./domain";
 
 export const FLEET_POLL_MS = 3000;
 /** Metrics older than this are shown dimmed (decision 158). */
@@ -73,7 +74,7 @@ async function legacyStatus(anchor: AnchorPick, nodes: Node[], known: KnownNode[
   const ids = Array.from(new Set([anchor.nodeId, ...nodes.map((n) => n.nodeId), ...peers.keys()]));
   return Promise.all(
     ids.map(async (id) => {
-      const addr = id === anchor.nodeId ? anchor.addr : (peers.get(id)?.address || nodes.find((n) => n.nodeId === id)?.addresses[0] || known.find((k) => k.node_id === id)?.addresses[0]);
+      const addr = id === anchor.nodeId ? anchor.addr : chooseAddress(id, nodes.find((n) => n.nodeId === id)?.addresses ?? known.find((k) => k.node_id === id)?.addresses ?? [], routeKind(anchor.addr, domainAddr())) || peers.get(id)?.address;
       const base = create(FleetNodeStatusSchema, { nodeId: id, reachable: false, lastSeenUnixMs: peers.get(id)?.lastSeenUnixMs ?? 0n });
       if (!addr) return base;
       const t = { addr, fingerprint: id };
@@ -127,15 +128,38 @@ export async function readFleet(anchor: AnchorPick, known: KnownNode[] = [], tf:
   };
 }
 
+/** One try at reading the Fleet this round (decision 284), for the connection chooser. */
+export interface Attempt {
+  nodeId: string;
+  addr: string;
+  /** "" when it answered. */
+  error: string;
+  at: number;
+}
+
+/** The error text as the chooser shows it: the Node's words, without the Connect code. */
+function errorText(e: unknown): string {
+  const msg = e instanceof ConnectError ? e.rawMessage : String((e as Error)?.message ?? e);
+  return msg || "did not answer";
+}
+
 /**
  * Poll the Fleet through the anchor. `known` is the Console's own Node list
  * (addresses to try before the first answer); after that the synced Node
  * records supply addresses, so a renamed or re-addressed Node is followed.
+ * Every address of every Node is tried in turn (decision 284): the user's
+ * pin first, then the way that answered last, then by letter.
  */
 export function useFleet(known: KnownNode[]) {
   const qc = useQueryClient();
   const last = useRef<AnchorPick | undefined>(undefined);
   const failed = useRef(new Set<string>());
+  const [pin, setPinState] = useState<Target | undefined>(() => pinned());
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  if (last.current === undefined) {
+    const l = lastAnchor();
+    if (l) last.current = { nodeId: l.fingerprint, addr: l.addr };
+  }
 
   const candidates = useCallback(() => {
     const snap = qc.getQueryData<FleetSnapshot>(["fleet"]);
@@ -147,8 +171,17 @@ export function useFleet(known: KnownNode[]) {
     const fromRecords = snap?.nodes.map((n) => ({ nodeId: n.nodeId, letter: n.letter, addresses: withDomain(n.addresses) })) ?? [];
     const fromKnown = known.map((n) => ({ nodeId: n.node_id, letter: "", addresses: withDomain(n.addresses) }));
     const seen = new Set(fromRecords.map((n) => n.nodeId));
-    return [...fromRecords, ...fromKnown.filter((n) => !seen.has(n.nodeId))];
-  }, [known, qc]);
+    const out = [...fromRecords, ...fromKnown.filter((n) => !seen.has(n.nodeId))];
+    // A pinned or remembered way the records do not list (typed by the
+    // user, or a Node whose record lost it) stays a way to that Node.
+    for (const extra of [pin && { nodeId: pin.fingerprint, addr: pin.addr }, last.current]) {
+      if (!extra) continue;
+      const n = out.find((c) => c.nodeId === extra.nodeId);
+      if (n && !n.addresses.includes(extra.addr)) n.addresses = [...n.addresses, extra.addr];
+      else if (!n) out.push({ nodeId: extra.nodeId, letter: "", addresses: [extra.addr] });
+    }
+    return out;
+  }, [known, qc, pin]);
 
   const query = useQuery<FleetSnapshot>({
     queryKey: ["fleet"],
@@ -160,61 +193,76 @@ export function useFleet(known: KnownNode[]) {
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const nodes = candidates();
-      let tries = nodes.length;
+      const total = allPicks(nodes).length;
+      let tries = total;
       let lastErr: unknown;
+      const round: Attempt[] = [];
+      const tried = new Set<string>();
+      // The pin comes first every round; a pin that does not answer is let
+      // go, so the app finds another way and says so.
+      const picks = (): AnchorPick | undefined => {
+        if (pin && !tried.has(attemptKey({ nodeId: pin.fingerprint, addr: pin.addr }))) return { nodeId: pin.fingerprint, addr: pin.addr };
+        return pickAnchor(nodes, last.current, failed.current);
+      };
       while (tries-- > 0) {
-        const pick = pickAnchor(nodes, last.current, failed.current);
-        if (!pick) break;
+        const pick = picks();
+        if (!pick || tried.has(attemptKey(pick))) break;
+        tried.add(attemptKey(pick));
         try {
           const data = await readFleet(pick, known);
+          round.push({ nodeId: pick.nodeId, addr: pick.addr, error: "", at: Date.now() });
+          setAttempts(round);
           last.current = pick;
           failed.current.clear();
+          setLastAnchor({ fingerprint: pick.nodeId, addr: pick.addr });
+          rememberRoute(pick.nodeId, pick.addr);
           const snap = { ...data, anchor: pick, at: Date.now() };
           rememberDomain(snap);
           return snap;
         } catch (e) {
           lastErr = e;
-          failed.current.add(pick.nodeId);
-          if (failed.current.size >= nodes.length) failed.current.clear();
-        }
-      }
-      // No Node answers at home: try the domain, which reaches one Node; the
-      // one that held it last first. A Node that is not the one there fails
-      // its key check, so the next is tried.
-      const dom = domainAddr();
-      if (dom) {
-        for (const nodeId of domainOrder(nodes.map((n) => n.nodeId))) {
-          const pick = { nodeId, addr: dom };
-          if (last.current?.nodeId === nodeId && last.current.addr === dom) continue;
-          try {
-            const data = await readFleet(pick, known);
-            last.current = pick;
-            failed.current.clear();
-            const snap = { ...data, anchor: pick, at: Date.now() };
-            rememberDomain(snap);
-            return snap;
-          } catch (e) {
-            lastErr = e;
+          round.push({ nodeId: pick.nodeId, addr: pick.addr, error: errorText(e), at: Date.now() });
+          failed.current.add(attemptKey(pick));
+          forgetRoute(pick.nodeId, pick.addr);
+          if (pin && pick.nodeId === pin.fingerprint && pick.addr === pin.addr) {
+            setPinned(undefined);
+            setPinState(undefined);
           }
+          if (failed.current.size >= total) failed.current.clear();
         }
       }
+      setAttempts(round);
       throw lastErr ?? new Error("no Node to ask");
     },
   });
 
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ["fleet"] }), [qc]);
-  /** Read the Fleet through this Node from now on (decision 169). */
+  /**
+   * Read the Fleet through this Node from now on (decision 169), by this
+   * address when given (decision 284): the choice is pinned on this device
+   * until it fails or the user lets the app choose again.
+   */
   const readThrough = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, addr?: string) => {
       const c = candidates().find((n) => n.nodeId === nodeId);
-      if (!c || c.addresses.length === 0) return;
-      last.current = { nodeId, addr: c.addresses[0] };
+      const a = addr ?? chooseAddress(nodeId, c?.addresses ?? [], undefined, domainAddr());
+      if (!a) return;
+      const t = { fingerprint: nodeId, addr: a };
+      setPinned(t);
+      setPinState(t);
+      last.current = { nodeId, addr: a };
       failed.current.clear();
       void refresh();
     },
     [candidates, refresh],
   );
-  return { ...query, refresh, readThrough };
+  /** Let the app choose again. */
+  const unpin = useCallback(() => {
+    setPinned(undefined);
+    setPinState(undefined);
+    failed.current.clear();
+  }, []);
+  return { ...query, refresh, readThrough, unpin, pin, attempts, candidates };
 }
 
 /**
