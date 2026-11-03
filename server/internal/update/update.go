@@ -261,6 +261,14 @@ func (m *Manager) allowInsecure(image string) error {
 // removes it.
 const InsecureDropIn = "maitre-depot.conf"
 
+// PlainHTTP reports whether an update to image must let its registry
+// speak plain HTTP: the registry is a LAN host, as a Depot on the LAN is
+// (decision 291). The Console applies the same rule to the image it offers;
+// the staged rollout, which re-pulls the booted reference, applies it here,
+// since staging a secure reference removes the drop-in and the next pull
+// from the Depot would ask it for TLS it does not speak.
+func PlainHTTP(image string) bool { return LANHost(RegistryHost(image)) }
+
 // LANHost reports whether host (host or host:port) is an IP literal,
 // localhost, or a .local name: the only registries allowed without TLS.
 func LANHost(host string) bool {

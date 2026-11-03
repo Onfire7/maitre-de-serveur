@@ -275,3 +275,21 @@ func TestHooks(t *testing.T) {
 		})
 	}
 }
+
+// The staged rollout re-pulls the booted reference; one from a Depot on
+// the LAN needs plain HTTP allowed again (decision 291).
+func TestPlainHTTPFollowsTheRegistryHost(t *testing.T) {
+	for in, want := range map[string]bool{
+		"192.168.4.54:8080/maitre-server:dev":          true,
+		"depot.local:8080/maitre-server:dev":           true,
+		"localhost:5000/maitre-server:dev":             true,
+		"ghcr.io/onfire7/maitre-server:dev":            false,
+		"docker.io/library/postgres:15":                false,
+		"postgres:15":                                  false,
+		"docker://192.168.4.54:8080/maitre-server:dev": true,
+	} {
+		if got := PlainHTTP(in); got != want {
+			t.Errorf("PlainHTTP(%q) = %v, want %v", in, got, want)
+		}
+	}
+}

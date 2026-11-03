@@ -185,7 +185,7 @@ func (r *Runner) Tick(ctx context.Context) {
 	r.Last = d
 	if d.Update && !r.up.Busy() {
 		r.log.Info("staged rollout: updating", "reason", d.Reason, "ref", ref)
-		if err := r.up.Start(ref, true, false); err != nil {
+		if err := r.up.Start(ref, true, update.PlainHTTP(ref)); err != nil {
 			r.log.Warn("staged rollout", "err", err)
 		}
 	}
