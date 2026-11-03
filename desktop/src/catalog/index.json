@@ -4793,7 +4793,7 @@
           "after": [
             "db"
           ],
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=DB_ENGINE=django.db.backends.postgresql\nEnvironment=POSTGRES_DB=tandoordb\nEnvironment=POSTGRES_HOST=db\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_PORT=5432\nEnvironment=POSTGRES_USER=tandoor\nEnvironment=\"SECRET_KEY={{ .Settings.SECRET_KEY }}\"\nVolume={{ .Volumes.staticfiles }}:/opt/recipes/staticfiles:Z\nVolume={{ .Volumes.mediafiles }}:/opt/recipes/mediafiles:Z\n"
+          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=ALLOWED_HOSTS=*\nEnvironment=DB_ENGINE=django.db.backends.postgresql\nEnvironment=POSTGRES_DB=tandoordb\nEnvironment=POSTGRES_HOST=db\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_PORT=5432\nEnvironment=POSTGRES_USER=tandoor\nEnvironment=\"SECRET_KEY={{ .Settings.SECRET_KEY }}\"\nVolume={{ .Volumes.staticfiles }}:/opt/recipes/staticfiles:Z\nVolume={{ .Volumes.mediafiles }}:/opt/recipes/mediafiles:Z\n"
         },
         {
           "name": "db",
