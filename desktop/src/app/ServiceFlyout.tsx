@@ -1,7 +1,10 @@
 // The flyout that slides out from behind the sidebar next to a Service row
 // (decisions 131, 142, 143). It follows the pointer from row to row. Its
 // top row holds the page's browser controls (decision 286): Back, Forward,
-// Stop or Refresh, Home, and Copy address.
+// Stop or Refresh, Home, and Copy address. The flyout is a panel the full
+// height of the window (decision 293), and the Service page slides aside
+// to make room for it, so nothing of the Console ever floats over the page.
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, ShieldAlert, Trash2, Truck, X } from "lucide-react";
@@ -12,6 +15,10 @@ import { nodeWord } from "@/fleet/useFleet";
 import { canRollBack } from "@/fleet/components";
 import { catalogById, StatusWord } from "./status";
 import { canGo, frameCommand, idleRemaining, useFrame, type FrameCommand } from "./frames";
+import { closePanel, openPanel } from "./layout";
+
+/** The panel's width, which the page slides aside by. */
+export const FLYOUT_WIDTH = 240;
 
 export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "ports" | "storage" | "grants" | "move" | "remove";
 
@@ -33,6 +40,10 @@ export function ServiceFlyout({
   const s = service.status;
   const nw = nodeWord(service.nodeStatus, Date.now());
   const items = flyoutItems(service);
+  useEffect(() => {
+    openPanel(FLYOUT_WIDTH);
+    return closePanel;
+  }, []);
   return (
     <motion.div
       role="menu"
@@ -40,10 +51,18 @@ export function ServiceFlyout({
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       initial={{ x: -24, opacity: 0 }}
-      animate={{ x: 0, opacity: 1, top }}
+      animate={{ x: 0, opacity: 1 }}
       exit={{ x: -24, opacity: 0 }}
-      transition={{ duration: 0.15, ease: "easeOut", top: { type: "spring", stiffness: 500, damping: 40 } }}
-      className="absolute left-full z-10 w-60 rounded-r-xl border border-l-0 bg-popover text-popover-foreground shadow-lg"
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className="absolute inset-y-0 left-full z-10 border-r bg-popover text-popover-foreground shadow-lg"
+      style={{ width: FLYOUT_WIDTH }}
+    >
+    <motion.div
+      data-testid="flyout-content"
+      initial={false}
+      animate={{ top }}
+      transition={{ top: { type: "spring", stiffness: 500, damping: 40 } }}
+      className="absolute inset-x-0 border-y"
       style={{ top }}
     >
       <FrameControls service={service} />
@@ -81,6 +100,7 @@ export function ServiceFlyout({
           </li>
         ))}
       </ul>
+    </motion.div>
     </motion.div>
   );
 }

@@ -9,13 +9,15 @@
 // At z-10 it painted over an open flyout, which then closed as soon as the
 // pointer reached it.
 import { frameLoaded, registerFrameElement, useFrames, shownFrame } from "./frames";
+import { PageSurface } from "./PageSurface";
 
 export function ServiceFrames() {
   const frames = useFrames().filter((f) => f.live);
   const shown = shownFrame();
   if (frames.length === 0) return null;
   return (
-    <div className="pointer-events-none absolute inset-0 z-0" data-testid="service-frames">
+    <PageSurface className="pointer-events-none z-0">
+    <div className="pointer-events-none absolute inset-0" data-testid="service-frames">
       {frames.map((f) => (
         <iframe
           key={f.service}
@@ -29,5 +31,6 @@ export function ServiceFrames() {
         />
       ))}
     </div>
+    </PageSurface>
   );
 }

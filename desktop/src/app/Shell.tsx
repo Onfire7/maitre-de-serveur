@@ -134,7 +134,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const [provisioning, setProvisioning] = useState<Provisioning | null>(null);
   const present = state.nodes.length > 0 || provisioning !== null;
 
-  const [prefs, setPrefs] = useState(false);
+  // `?prefs` opens Preferences on load (screenshot fixture for the covered page).
+  const [prefs, setPrefs] = useState(() => new URLSearchParams(window.location.search).has("prefs"));
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [moving, setMoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
@@ -248,7 +249,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               </button>
             </div>
           )}
-          <div className="relative min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={routeKey(route)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="absolute inset-0">
               {route.name === "service" &&

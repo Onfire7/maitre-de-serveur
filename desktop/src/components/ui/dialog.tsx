@@ -6,6 +6,7 @@ import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
+import { ModalMark } from "@/app/ModalMark"
 
 function Dialog({
   ...props
@@ -57,6 +58,7 @@ function DialogContent({
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
+      <ModalMark />
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"

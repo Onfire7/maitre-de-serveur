@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
+import { ModalMark } from "@/app/ModalMark"
 
 function AlertDialog({
   ...props
@@ -51,6 +52,7 @@ function AlertDialogContent({
 }) {
   return (
     <AlertDialogPortal>
+      <ModalMark />
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"

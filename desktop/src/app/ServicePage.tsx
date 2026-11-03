@@ -3,7 +3,7 @@
 // takes its place (decision 144). The page itself is drawn by the frame
 // layer (ServiceFrames, decision 286), which keeps it when another page is
 // shown; this component only says which frame is the one shown.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ExternalLink, Play, ScrollText, RotateCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,6 +15,8 @@ import { isDemo } from "@/demo/flag";
 import { ServiceIcon, StatusWord } from "./status";
 import { catalogById } from "./status";
 import { dropFrame, hideFrame, showFrame } from "./frames";
+import { PageSurface } from "./PageSurface";
+import { sampleElement, setSampler } from "./layout";
 
 export function ServicePage({ service, target, onAction }: { service: FleetService; target: Target | undefined; onAction: (a: "start" | "restart" | "logs" | "open") => void }) {
   const s = service.status;
@@ -109,8 +111,16 @@ export function ServicePage({ service, target, onAction }: { service: FleetServi
 /** Stands in for the Service's web page in the demo Fleet, which has no network. */
 function DemoFrame({ service }: { service: FleetService }) {
   const entry = catalogById.get(service.spec.catalogId);
+  // The stand-in is in the Console's own document, so a modal's backdrop
+  // can read its colours straight off the DOM (decision 293).
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setSampler(async () => (ref.current ? sampleElement(ref.current) : []));
+    return () => setSampler(undefined);
+  }, []);
   return (
-    <div className="flex h-full flex-col bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100">
+    <PageSurface>
+    <div ref={ref} data-demo-frame className="flex h-full flex-col bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100">
       <div className="flex items-center gap-3 border-b px-5 py-3">
         <ServiceIcon catalogId={service.spec.catalogId} word="Online" size={32} />
         <div className="text-lg font-semibold">{entry?.name ?? service.spec.name}</div>
@@ -134,5 +144,6 @@ function DemoFrame({ service }: { service: FleetService }) {
         </div>
       </div>
     </div>
+    </PageSurface>
   );
 }

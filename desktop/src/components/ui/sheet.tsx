@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { XIcon } from "lucide-react"
 import { Dialog as SheetPrimitive } from "radix-ui"
+import { ModalMark } from "@/app/ModalMark"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -55,6 +56,7 @@ function SheetContent({
 }) {
   return (
     <SheetPortal>
+      <ModalMark />
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"

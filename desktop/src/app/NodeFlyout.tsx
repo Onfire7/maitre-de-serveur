@@ -3,6 +3,7 @@
 // (decision 142): status, gauges, every Drive and how full it is, what it
 // runs. Everything comes from the anchor's GetFleetStatus (ADR 0006), so it
 // is there for every Node without calling each one.
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import { ArrowUpCircle, Cpu, HardDrive, MemoryStick, Thermometer, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ import { colorOf } from "./StorageTab";
 import { useNodeLogs } from "./LogsTab";
 import { useRoute } from "./routes";
 import { averageUpdateMs, formatDuration, updatingLine } from "@/fleet/updateTimes";
+import { closePanel, openPanel } from "./layout";
 
 const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
 const fillColor = (p: number) => (p >= 90 ? "bg-destructive" : p >= 75 ? "bg-status-attention" : "bg-status-online");
@@ -48,6 +50,13 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
     onPicked();
     go(r);
   };
+  // The panel's width follows how many columns the Drives need; the page
+  // slides aside by it (decision 293).
+  const width = cols === 1 ? 288 : cols === 2 ? 480 : 660;
+  useEffect(() => {
+    openPanel(width);
+    return closePanel;
+  }, [width]);
   return (
     <motion.div
       role="dialog"
@@ -55,12 +64,13 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       initial={{ x: -24, opacity: 0 }}
-      animate={{ x: 0, opacity: 1, bottom }}
+      animate={{ x: 0, opacity: 1 }}
       exit={{ x: -24, opacity: 0 }}
-      transition={{ duration: 0.15, ease: "easeOut", bottom: { type: "spring", stiffness: 500, damping: 40 } }}
-      className="absolute left-full z-10 rounded-r-xl border border-l-0 bg-popover text-popover-foreground shadow-lg"
-      style={{ bottom, width: cols === 1 ? 288 : cols === 2 ? 480 : 660 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className="absolute inset-y-0 left-full z-10 border-r bg-popover text-popover-foreground shadow-lg"
+      style={{ width }}
     >
+    <motion.div data-testid="flyout-content" initial={false} animate={{ bottom }} transition={{ bottom: { type: "spring", stiffness: 500, damping: 40 } }} className="absolute inset-x-0 border-y" style={{ bottom }}>
       <div className="flex items-center gap-2.5 border-b px-3 py-2.5">
         <NodeMark word={word} size={32} />
         <div className="min-w-0 flex-1">
@@ -171,6 +181,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
           </button>
         </div>
       </div>
+    </motion.div>
     </motion.div>
   );
 }
