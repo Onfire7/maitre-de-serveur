@@ -458,11 +458,20 @@ pub fn run() {
                 .unwrap_or_default();
             // WebKitGTK 2.52 crashes on a page's first View Transition when
             // the DMA-BUF renderer is off (see webkit.rs): turn the feature off.
+            // A Service's page is a frame on a loopback origin of its own,
+            // so to WebKitGTK its cookies are third-party, which its default
+            // policy refuses: a login that lives in a cookie (Mealie,
+            // Tandoor, Paperless) never held (decision 292). The Console
+            // frames only Services of the user's own Fleet, so every
+            // cookie is accepted.
             #[cfg(target_os = "linux")]
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.with_webview(|w| {
                     if let Err(why) = webkit::disable_view_transitions(&w.inner()) {
                         eprintln!("webkit: WebKitGTK {} left as it is: {why}", webkit::version());
+                    }
+                    if let Err(why) = webkit::accept_every_cookie(&w.inner()) {
+                        eprintln!("webkit: cookies of a Service's frame may not hold: {why}");
                     }
                 });
             }

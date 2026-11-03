@@ -1,5 +1,10 @@
 //! WebKitGTK quirks, Linux only.
 //!
+//! WebKitGTK's default cookie policy refuses third-party cookies, and a
+//! Service's page is a frame on a loopback origin of its own inside the
+//! Console's origin: so a login kept in a cookie was set and dropped at
+//! once (decision 292). `accept_every_cookie` turns the policy to always.
+//!
 //! WebKitGTK 2.52 dereferences a null accelerated backing store when a
 //! page's first View Transition is the first thing to ask for accelerated
 //! compositing and that store could not be made (bugs.webkit.org 321683).
@@ -18,7 +23,7 @@
 //! another machine can be read.
 use glib::translate::ToGlibPtr;
 use std::ffi::{c_char, c_void, CStr};
-use webkit2gtk::WebViewExt;
+use webkit2gtk::{CookieAcceptPolicy, CookieManagerExt, WebContextExt, WebViewExt};
 
 type Feature = *mut c_void;
 type FeatureList = *mut c_void;
@@ -73,4 +78,13 @@ pub fn disable_view_transitions(view: &webkit2gtk::WebView) -> Result<(), &'stat
         unref(list);
         if found { Ok(()) } else { Err("it has no ViewTransitions feature") }
     }
+}
+
+/// Makes `view`'s web context accept every cookie, first- or third-party,
+/// so a Service's frame keeps its login. Err says what was missing.
+pub fn accept_every_cookie(view: &webkit2gtk::WebView) -> Result<(), &'static str> {
+    let Some(context) = view.web_context() else { return Err("the view has no web context") };
+    let Some(cookies) = context.cookie_manager() else { return Err("the web context has no cookie manager") };
+    cookies.set_accept_policy(CookieAcceptPolicy::Always);
+    Ok(())
 }
