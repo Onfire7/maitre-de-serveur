@@ -220,6 +220,8 @@ func runInfo(args []string) error {
 	rename := fs.String("rename", "", "give the Node this name instead")
 	hist := fs.Duration("history", 0, "print the Node's stored metrics over this long (e.g. 1h, 168h) instead: each series' step, latest average and peak")
 	series := fs.String("series", "", "with --history: comma-separated series or prefixes ending in / (default node/ and drive/)")
+	logs := fs.String("logs", "", "print the Node's logs from this source instead (\"agent\", \"pool\", \"caddy\", \"health\", \"kernel\", \"system\"); --lines says how many")
+	logLines := fs.Uint("lines", 300, "with --logs: how many lines, at most 5000")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -235,6 +237,20 @@ func runInfo(args []string) error {
 	client := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if *logs != "" {
+		src := *logs
+		if src == "agent" {
+			src = ""
+		}
+		res, err := client.GetNodeLogs(ctx, &maitrev1.GetNodeLogsRequest{Source: src, Lines: uint32(*logLines)})
+		if err != nil {
+			return err
+		}
+		for _, l := range res.GetLines() {
+			fmt.Println(l)
+		}
+		return nil
+	}
 	if *rename != "" {
 		res, err := client.RenameNode(ctx, &maitrev1.RenameNodeRequest{Name: *rename})
 		if err != nil {

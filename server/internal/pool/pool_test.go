@@ -56,14 +56,34 @@ func TestBranches(t *testing.T) {
 // handles to, numbers inodes by path and reports a folder's times from the
 // branch changed last; the Node's own full Pool does not need any of it.
 func TestOptionsForExportedPool(t *testing.T) {
-	own := Options("maitre-data", "ff", false)
+	own := Options("maitre-data", "ff", false, false)
 	if strings.Contains(own, "never-forget-nodes") || strings.Contains(own, "func.getattr") || !strings.Contains(own, "category.create=ff,") {
 		t.Fatalf("own Pool options %q", own)
 	}
-	shared := Options("maitre-shared-data", "ff", true)
+	shared := Options("maitre-shared-data", "ff", true, false)
 	for _, want := range []string{"never-forget-nodes=true", "inodecalc=path-hash", "func.getattr=newest", "fsname=maitre-shared-data"} {
 		if !strings.Contains(shared, want) {
 			t.Fatalf("shared Pool options %q lack %s", shared, want)
 		}
+	}
+}
+
+// Decision 290: a Space that keeps copies has the same file on several
+// branches, and the one written last is the live one; its Pool answers
+// from it. Without copies the first branch answers, as before.
+func TestSearchPolicyFollowsCopies(t *testing.T) {
+	if Search(false) != "ff" || Search(true) != "newest" {
+		t.Fatalf("Search = %q, %q", Search(false), Search(true))
+	}
+	if opts := Options("maitre-services", "pfrd", false, true); !strings.Contains(opts, ",category.search=newest,") {
+		t.Fatalf("Pool with copies %q", opts)
+	}
+	if opts := Options("maitre-media", "pfrd", false, false); !strings.Contains(opts, ",category.search=ff,") {
+		t.Fatalf("Pool without copies %q", opts)
+	}
+	// The exported Pool sets getattr after the search category, so
+	// decision 283's newest folder times hold either way.
+	if opts := Options("maitre-shared-media", "pfrd", true, false); strings.Index(opts, "category.search=ff") > strings.Index(opts, "func.getattr=newest") {
+		t.Fatalf("exported Pool orders %q", opts)
 	}
 }

@@ -72,7 +72,7 @@ func runFiles(args []string) error {
 			for _, l := range e.GetLocations() {
 				locs = append(locs, l.GetNodeId()[:8]+"/"+short(l.GetDriveId()))
 			}
-			fmt.Printf("%s %12d  %-40s %s\n", kind, e.GetSizeBytes(), e.GetName(), strings.Join(locs, ","))
+			fmt.Printf("%s %12d  %s  %-40s %s\n", kind, e.GetSizeBytes(), time.UnixMilli(e.GetModifiedUnixMs()).Format("2006-01-02T15:04:05.000"), e.GetName(), strings.Join(locs, ","))
 		}
 	case "du":
 		for {

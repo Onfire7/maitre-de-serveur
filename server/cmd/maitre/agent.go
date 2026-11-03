@@ -605,11 +605,12 @@ func runAgent(args []string) error {
 			if b := spaceByID[space]; b.GetSpanNodes() && b.GetParityLevel() > 0 && !b.GetMirrored() {
 				nc = storage.UnprotectedNoCreate(noCreate, branches, remote[space], id.Fingerprint(), int(b.GetParityLevel()), parityCount)
 			}
-			if err := pool.Assemble(ctx, space, all, len(branches), placement[space], nc); err != nil {
+			copies := storage.Copies(spaceByID[space]) > 1
+			if err := pool.Assemble(ctx, space, all, len(branches), placement[space], nc, copies); err != nil {
 				log.Warn("pool", "space", space, "err", err)
 			}
 			// What peers mount: our own branches only (decision 188).
-			if err := pool.AssembleShared(ctx, space, branches, placement[space], noCreate); err != nil {
+			if err := pool.AssembleShared(ctx, space, branches, placement[space], noCreate, copies); err != nil {
 				log.Warn("shared pool", "space", space, "err", err)
 			}
 		}

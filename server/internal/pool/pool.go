@@ -75,15 +75,16 @@ func PlacementOf(placement string, preferLocal bool) Placement {
 // branches: this Node's Space folders first (local of them), then peers'
 // Pools. Idempotent; an empty branch list unmounts. Branches in noCreate
 // take no new files (mergerfs "=NC", decision 247): a draining Drive's
-// files stay visible while they move.
-func Assemble(ctx context.Context, space string, branches []string, local int, p Placement, noCreate map[string]bool) error {
-	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, p, noCreate, false)
+// files stay visible while they move. A Space that keeps copies answers
+// for a file from its newest copy (decision 290).
+func Assemble(ctx context.Context, space string, branches []string, local int, p Placement, noCreate map[string]bool, copies bool) error {
+	return assemble(ctx, filepath.Join(PoolsDir, space), "maitre-"+space, branches, local, p, noCreate, false, copies)
 }
 
 // AssembleShared mounts the local-only Pool of one Space at
 // SharedDir/<space>, over this Node's own branches.
-func AssembleShared(ctx context.Context, space string, branches []string, p Placement, noCreate map[string]bool) error {
-	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), p, noCreate, true)
+func AssembleShared(ctx context.Context, space string, branches []string, p Placement, noCreate map[string]bool, copies bool) error {
+	return assemble(ctx, filepath.Join(SharedDir, space), "maitre-shared-"+space, branches, len(branches), p, noCreate, true, copies)
 }
 
 // Branches writes the branch list as mergerfs takes it, a no-create branch
@@ -99,7 +100,7 @@ func Branches(branches []string, noCreate map[string]bool) string {
 	return strings.Join(out, ":")
 }
 
-func assemble(ctx context.Context, mount, fsname string, branches []string, local int, p Placement, noCreate map[string]bool, exported bool) error {
+func assemble(ctx context.Context, mount, fsname string, branches []string, local int, p Placement, noCreate map[string]bool, exported, copies bool) error {
 	space := filepath.Base(mount)
 	if len(branches) == 0 {
 		if mounted(mount) {
@@ -117,6 +118,9 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 			return fmt.Errorf("update %s branches: %v: %s", space, err, out)
 		}
 		_ = exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.category.create", "-v", create, ctl).Run()
+		// Decision 290: the search policy covers getattr, so it goes
+		// first and decision 283's getattr after it.
+		_ = exec.CommandContext(ctx, "setfattr", "-n", "user.mergerfs.category.search", "-v", Search(copies), ctl).Run()
 		if exported {
 			// Decision 283: settable live; the mount-time options wait
 			// for the next boot.
@@ -124,28 +128,48 @@ func assemble(ctx context.Context, mount, fsname string, branches []string, loca
 		}
 		return nil
 	}
-	opts := Options(fsname, create, exported)
+	opts := Options(fsname, create, exported, copies)
 	if out, err := exec.CommandContext(ctx, "mergerfs", "-o", opts, Branches(branches, noCreate), mount).CombinedOutput(); err != nil {
 		return fmt.Errorf("mergerfs %s: %v: %s", space, err, out)
 	}
 	return nil
 }
 
-// Options are the mergerfs mount options of a Pool. An exported Pool (the
-// shared one peers mount over NFS, decision 283) also keeps every node NFS
-// may hold a handle to, numbers inodes by path so a file's inode does not
-// move with the branch that answers for it (both as mergerfs advises for
-// NFS exports), and answers a directory's attributes from the branch
-// changed most recently: mergerfs otherwise reports the first branch's
-// times, so a folder appearing on a second Drive left the parent looking
-// unchanged to the peers' NFS clients, which then kept serving their
-// cached listing and "no such folder" lookups.
-func Options(fsname, create string, exported bool) string {
-	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",moveonenospc=true,fsname=" + fsname
+// Options are the mergerfs mount options of a Pool. A Pool of a Space
+// that keeps copies finds a file on the branch holding its newest copy
+// (Search, decision 290). An exported Pool (the shared one peers mount
+// over NFS, decision 283) also keeps every node NFS may hold a handle to,
+// numbers inodes by path so a file's inode does not move with the branch
+// that answers for it (both as mergerfs advises for NFS exports), and
+// answers a directory's attributes from the branch changed most recently:
+// mergerfs otherwise reports the first branch's times, so a folder
+// appearing on a second Drive left the parent looking unchanged to the
+// peers' NFS clients, which then kept serving their cached listing and
+// "no such folder" lookups.
+func Options(fsname, create string, exported, copies bool) string {
+	opts := "allow_other,cache.files=partial,dropcacheonclose=true,category.create=" + create + ",category.search=" + Search(copies) + ",moveonenospc=true,fsname=" + fsname
 	if exported {
 		opts += ",never-forget-nodes=true,inodecalc=path-hash,func.getattr=newest"
 	}
 	return opts
+}
+
+// Search is the mergerfs policy that picks the branch answering for an
+// existing file (open, getattr, access and the rest of the search
+// category). A Space that keeps copies has the same file on several
+// branches, and the copy made of a file something still writes to (a
+// database's write-ahead log, say) is a snapshot that falls behind the
+// original. With "ff" the first branch answers whichever copy it holds,
+// so a copy landing on an earlier branch shadowed the live file: Immich's
+// and Tandoor's databases on Avalon opened a stale copy of their current
+// WAL segment after a restart and refused to start (decision 290).
+// "newest" answers from the copy written last, which is the live one; a
+// Space without copies keeps "ff", where every file is on one branch.
+func Search(copies bool) string {
+	if copies {
+		return "newest"
+	}
+	return "ff"
 }
 
 // Stat is a branch's free bytes and share of free space; ok is false when

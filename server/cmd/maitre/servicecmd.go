@@ -60,15 +60,17 @@ func runPoolUp(args []string) error {
 	}
 	spaces, _ := storage.Spaces(ctx, db)
 	placement := map[string]pool.Placement{}
+	copies := map[string]bool{}
 	for _, b := range spaces {
 		placement[b.GetSpaceId()] = pool.PlacementOf(b.GetPlacement(), b.GetPreferLocal())
+		copies[b.GetSpaceId()] = storage.Copies(b) > 1
 	}
 	if len(bySpace) == 0 {
 		fmt.Println("pool-up: the Fleet has no Storage Spaces yet")
 	}
 	for space, branches := range bySpace {
 		storage.MarkSpaceFolders(branches)
-		if err := pool.Assemble(ctx, space, branches, len(branches), placement[space], noCreate); err != nil {
+		if err := pool.Assemble(ctx, space, branches, len(branches), placement[space], noCreate, copies[space]); err != nil {
 			fmt.Fprintln(os.Stderr, "pool-up:", err)
 		} else if len(branches) > 0 {
 			fmt.Printf("pool-up: Pool %s over %s\n", space, strings.Join(branches, ", "))

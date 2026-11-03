@@ -392,7 +392,10 @@ func (m *Manager) Changed(path string) {
 }
 
 // Run copies changed files as they go quiet and runs a full pass every
-// hour (and once at start) until ctx ends.
+// hour until ctx ends. The pass runs on its own goroutine: over a Space
+// of millions of files it takes hours, and a changed file (a database's
+// control file, say) must not wait for it (decision 290). A pass that
+// finds the last one still running is skipped.
 func (m *Manager) Run(ctx context.Context) {
 	hourly := time.NewTicker(time.Hour)
 	defer hourly.Stop()
@@ -403,9 +406,12 @@ func (m *Manager) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-hourly.C:
-			if err := m.Pass(ctx); err != nil && ctx.Err() == nil {
-				m.log.Warn("copy pass", "err", err)
-			}
+			go func() {
+				if err := m.Pass(ctx); err != nil && ctx.Err() == nil {
+					m.log.Warn("copy pass", "err", err)
+				}
+			}()
+			continue
 		case <-m.wake:
 		case <-timer.C:
 		}
