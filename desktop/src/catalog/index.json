@@ -4799,7 +4799,7 @@
           "name": "db",
           "image": "docker.io/library/postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f",
           "wait_healthy": true,
-          "quadlet": "[Container]\nImage={{ .Image }}\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=tandoordb\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_PORT=5432\nEnvironment=POSTGRES_USER=tandoor\nVolume={{ .Volumes.postgresql }}:/var/lib/postgresql/data:Z\nHealthCmd=pg_isready -d tandoor\n"
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=tandoordb\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_PORT=5432\nEnvironment=POSTGRES_USER=tandoor\nVolume={{ .Volumes.postgresql }}:/var/lib/postgresql/data:Z\nHealthCmd=pg_isready -U tandoor -d tandoordb\n"
         }
       ],
       "source": {
