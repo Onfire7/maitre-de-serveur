@@ -1,9 +1,11 @@
 // A Service's page is its own web page, full-bleed, with no bar above it
 // (decision 138). When it is not Online, or has no web page, a status card
-// takes its place (decision 144). The page itself is drawn by the frame
-// layer (ServiceFrames, decision 286), which keeps it when another page is
-// shown; this component only says which frame is the one shown.
-import { useEffect, useRef } from "react";
+// takes its place (decision 144). The page itself is a native view of the
+// view layer (ServiceViews, decision 294), which keeps it when another
+// page is shown; this component says which frame is the one shown, and
+// takes the page's place with a card when the view could not be opened or
+// its web process died.
+import { useEffect, useRef, type ReactNode } from "react";
 import { ExternalLink, Play, ScrollText, RotateCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
@@ -14,7 +16,7 @@ import type { FleetService } from "@/fleet/useFleet";
 import { isDemo } from "@/demo/flag";
 import { ServiceIcon, StatusWord } from "./status";
 import { catalogById } from "./status";
-import { dropFrame, hideFrame, showFrame } from "./frames";
+import { dropFrame, frameCommand, hideFrame, showFrame, useFrame } from "./frames";
 import { PageSurface } from "./PageSurface";
 import { sampleElement, setSampler } from "./layout";
 
@@ -32,9 +34,9 @@ export function ServicePage({ service, target, onAction }: { service: FleetServi
     retry: 1,
     queryFn: () => invoke<string>("service_url", { addr: target!.addr, fingerprint: target!.fingerprint, service: service.spec.name }),
   });
-  // Outside the app (no Tauri) the proxy is not there: use the address.
-  const src = online && !isDemo() ? (local.data ?? (local.error ? s!.url : undefined)) : undefined;
+  const src = online && !isDemo() ? local.data : undefined;
   const name = service.spec.name;
+  const frame = useFrame(name);
   useEffect(() => {
     if (!src) return;
     showFrame(name, src);
@@ -44,25 +46,60 @@ export function ServicePage({ service, target, onAction }: { service: FleetServi
   useEffect(() => {
     if (!online) dropFrame(name);
   }, [name, online]);
+  const openInBrowser = (
+    <Button size="sm" variant="outline" onClick={() => onAction("open")}>
+      <ExternalLink /> Open in your browser
+    </Button>
+  );
   if (online) {
     if (isDemo()) return <DemoFrame service={service} />;
+    // Outside the app (no Tauri) there is no proxy and no view.
+    const failed = local.error ? String((local.error as Error).message ?? local.error) : frame?.failed;
+    if (failed)
+      return (
+        <PageCard service={service} actions={openInBrowser}>
+          <p>The page could not be opened here.</p>
+          <p className="rounded-md bg-muted px-3 py-2 font-mono text-xs">{failed}</p>
+        </PageCard>
+      );
+    if (frame?.crashed)
+      return (
+        <PageCard
+          service={service}
+          actions={
+            <>
+              <Button size="sm" onClick={() => frameCommand(name, "reload")}>
+                <RotateCw /> Reload
+              </Button>
+              {openInBrowser}
+            </>
+          }
+        >
+          <p>The page stopped: its web process ended. The Console is unaffected; reload the page to start it again.</p>
+        </PageCard>
+      );
     return null;
   }
   const entry = catalogById.get(service.spec.catalogId);
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex-row items-center gap-3">
-          <ServiceIcon catalogId={service.spec.catalogId} word={service.word} size={44} />
-          <div className="min-w-0">
-            <CardTitle className="truncate">{service.spec.name}</CardTitle>
-            <CardDescription>
-              <StatusWord word={service.word} />
-              {service.node && <> · on {service.node.name}</>}
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+    <PageCard service={service} actions={<>
+            {service.word === "Stopped" && !service.nodeUnreachable && (
+              <Button size="sm" onClick={() => onAction("start")}>
+                <Play /> Start
+              </Button>
+            )}
+            {service.word === "Attention" && (
+              <Button size="sm" onClick={() => onAction("restart")}>
+                <RotateCw /> Restart
+              </Button>
+            )}
+            {!service.nodeUnreachable && (
+              <Button size="sm" variant="outline" onClick={() => onAction("logs")}>
+                <ScrollText /> Logs
+              </Button>
+            )}
+            {web && service.word === "Online" && openInBrowser}
+          </>}>
           {service.nodeUnreachable && service.node ? (
             <p>
               <b>{service.node.name}</b> is unreachable, so this Service cannot be reached either. Check that the machine is on and connected.
@@ -80,28 +117,29 @@ export function ServicePage({ service, target, onAction }: { service: FleetServi
               {service.word === "Stopped" && !service.nodeUnreachable && <p className="text-muted-foreground">Stopped. Its data stays where it is.</p>}
             </>
           )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {service.word === "Stopped" && !service.nodeUnreachable && (
-              <Button size="sm" onClick={() => onAction("start")}>
-                <Play /> Start
-              </Button>
-            )}
-            {service.word === "Attention" && (
-              <Button size="sm" onClick={() => onAction("restart")}>
-                <RotateCw /> Restart
-              </Button>
-            )}
-            {!service.nodeUnreachable && (
-              <Button size="sm" variant="outline" onClick={() => onAction("logs")}>
-                <ScrollText /> Logs
-              </Button>
-            )}
-            {web && service.word === "Online" && (
-              <Button size="sm" variant="outline" onClick={() => onAction("open")}>
-                <ExternalLink /> Open in your browser
-              </Button>
-            )}
+    </PageCard>
+  );
+}
+
+/** The card that takes the page's place: the Service's icon, name and
+ * state, what there is to say, and what can be done. */
+function PageCard({ service, children, actions }: { service: FleetService; children: ReactNode; actions: ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center p-8">
+      <Card className="w-full max-w-md">
+        <CardHeader className="flex-row items-center gap-3">
+          <ServiceIcon catalogId={service.spec.catalogId} word={service.word} size={44} />
+          <div className="min-w-0">
+            <CardTitle className="truncate">{service.spec.name}</CardTitle>
+            <CardDescription>
+              <StatusWord word={service.word} />
+              {service.node && <> · on {service.node.name}</>}
+            </CardDescription>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {children}
+          <div className="flex flex-wrap gap-2 pt-1">{actions}</div>
         </CardContent>
       </Card>
     </div>

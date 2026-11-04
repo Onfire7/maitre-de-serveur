@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IDLE_MS, MAX_LIVE, __subscribeForTest, canGo, dropFrame, frameCommand, getFrame, handleFrameMessage, hideFrame, idleRemaining, registerFrameElement, resetFrames, showFrame, tick } from "./frames";
+import { IDLE_MS, MAX_LIVE, __subscribeForTest, canGo, dropFrame, frameCommand, frameCrashed, getFrame, hideFrame, idleRemaining, reportFrame, resetFrames, setFrameHost, showFrame, tick, type FrameEvent } from "./frames";
 
 const HOME = "http://127.0.0.1:4100/";
 
-/** A stand-in for the frame's window: what the Console posts to it, and a source for its messages. */
+/** A stand-in for the view layer: what the Console asks of a view, and a way for its page to report. */
 function mountFrame(service: string) {
-  const posted: unknown[] = [];
-  const win = { postMessage: (m: unknown) => posted.push(m) };
-  const el = { contentWindow: win, src: "" } as unknown as HTMLIFrameElement;
-  registerFrameElement(service, el);
-  return { posted, win, el, say: (event: string, path: string) => handleFrameMessage(win, { maitre: "frame", event, url: new URL(path, HOME).href }) };
+  const asked: unknown[] = [];
+  setFrameHost({
+    navigate: (s, url) => asked.push({ cmd: "go", service: s, url }),
+    reload: (s) => asked.push({ cmd: "reload", service: s }),
+    stop: (s) => asked.push({ cmd: "stop", service: s }),
+  });
+  return { asked, say: (event: string, path: string) => reportFrame(service, event as FrameEvent, new URL(path, HOME).href) };
 }
 
 describe("frames (286)", () => {
@@ -33,7 +35,7 @@ describe("frames (286)", () => {
     expect(canGo(getFrame("jellyfin"), "forward")).toBe(false);
 
     frameCommand("jellyfin", "back");
-    expect(f.posted.at(-1)).toEqual({ maitre: "frame-cmd", cmd: "go", url: `${HOME}web/movies` });
+    expect(f.asked.at(-1)).toEqual({ cmd: "go", service: "jellyfin", url: `${HOME}web/movies` });
     expect(getFrame("jellyfin")?.loading).toBe(true);
     f.say("load", "/web/movies");
     expect(getFrame("jellyfin")?.index).toBe(1);
@@ -56,24 +58,40 @@ describe("frames (286)", () => {
     expect(getFrame("jellyfin")?.index).toBe(1);
   });
 
-  it("Home adds an entry at the root; Stop and Refresh speak to the page once it has spoken", () => {
+  it("Home adds an entry at the root; Stop and Refresh are the view's own, before the page has spoken too (294)", () => {
     showFrame("memos", HOME);
     const f = mountFrame("memos");
-    // Before the page's script has spoken, nothing can be sent to it: Refresh sets the src again.
     expect(canGo(getFrame("memos"), "back")).toBe(false);
     frameCommand("memos", "reload");
-    expect(f.el.src).toBe(HOME);
+    expect(f.asked.at(-1)).toEqual({ cmd: "reload", service: "memos" });
     f.say("load", "/explore");
     frameCommand("memos", "home");
-    expect(f.posted.at(-1)).toEqual({ maitre: "frame-cmd", cmd: "go", url: HOME });
+    expect(f.asked.at(-1)).toEqual({ cmd: "go", service: "memos", url: HOME });
     f.say("load", "/");
     expect(getFrame("memos")?.entries).toEqual(["/explore", "/"]);
     expect(getFrame("memos")?.index).toBe(1);
     frameCommand("memos", "stop");
-    expect(f.posted.at(-1)).toEqual({ maitre: "frame-cmd", cmd: "stop" });
+    expect(f.asked.at(-1)).toEqual({ cmd: "stop", service: "memos" });
     expect(getFrame("memos")?.loading).toBe(false);
     frameCommand("memos", "reload");
-    expect(f.posted.at(-1)).toEqual({ maitre: "frame-cmd", cmd: "reload" });
+    expect(f.asked.at(-1)).toEqual({ cmd: "reload", service: "memos" });
+  });
+
+  it("a page whose web process died is marked until it is reloaded or speaks again (294)", () => {
+    showFrame("memos", HOME);
+    const f = mountFrame("memos");
+    f.say("load", "/");
+    frameCrashed("memos");
+    expect(getFrame("memos")).toMatchObject({ crashed: true, loading: false, live: true });
+    frameCommand("memos", "reload");
+    expect(getFrame("memos")).toMatchObject({ crashed: false, loading: true });
+    frameCrashed("memos");
+    f.say("load", "/");
+    expect(getFrame("memos")?.crashed).toBe(false);
+    // A dropped frame has no process to lose.
+    dropFrame("memos");
+    frameCrashed("memos");
+    expect(getFrame("memos")?.crashed).toBe(false);
   });
 
   it("an idle frame drains over an hour, is dropped, and comes back at the path it was on", () => {
@@ -119,8 +137,8 @@ describe("frames (286)", () => {
     mountFrame("adguard").say("load", "/dns");
     dropFrame("adguard");
     expect(getFrame("adguard")).toMatchObject({ live: false, path: "/dns", reported: false });
-    // A message from a window that is not a live frame is ignored.
-    handleFrameMessage({}, { maitre: "frame", event: "push", url: `${HOME}x` });
+    // A report for a frame that is not live is ignored.
+    reportFrame("adguard", "push", `${HOME}x`);
     expect(getFrame("adguard")?.path).toBe("/dns");
   });
 

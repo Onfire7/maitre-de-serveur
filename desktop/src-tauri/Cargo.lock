@@ -2163,8 +2163,10 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "cairo-rs",
  "futures-util",
  "glib",
+ "gtk",
  "hex",
  "http-body-util",
  "hyper",

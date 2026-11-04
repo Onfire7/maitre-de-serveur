@@ -4,14 +4,17 @@
 //! X-Maitre-Service header, which the agent routes to the Service. HTTP/1.1
 //! end to end so WebSocket upgrades (chat-style apps, dashboards) work.
 //!
-//! A Service's page is cross-origin to the Console, which can neither read
-//! where the page has gone nor move it back and forward (decision 286). So
-//! a page proxy serves a small script at /__maitre/frame.js and adds a tag
-//! for it to every HTML document it relays (asked for without compression,
-//! so the document can be edited). The script tells the Console the frame's
-//! address on each load and on pushState, replaceState and popstate, and
-//! takes the Console's go, reload and stop. A page whose Content-Security-
-//! Policy refuses the script works as before, without the controls.
+//! A Service's page is a document of its own, which the Console cannot
+//! read where it has gone, and so cannot move back and forward (decision
+//! 286). So a page proxy serves a small script at /__maitre/frame.js and
+//! adds a tag for it to every HTML document it relays (asked for without
+//! compression, so the document can be edited). The script sends the
+//! page's address to /__maitre/nav on each load and on pushState,
+//! replaceState and popstate, which the proxy hands to the Console
+//! (decision 294: the page is a native view, so the beacon is the way
+//! back; going, reloading and stopping are the view's own). A page whose
+//! Content-Security-Policy refuses the script works as before, without
+//! the history controls.
 //!
 //! A Service's port is the same from one launch to the next and whichever
 //! way its Node is reached (decision 288): the webview's HTTP cache, cookies
@@ -55,12 +58,16 @@ struct Live {
     upstream: Upstream,
 }
 
+/// Hears what a page's script reports: the Service, the event and the URL.
+pub type Reporter = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
+
 /// One proxy per Service, on a port kept across launches, and one file
 /// proxy per Node.
 #[derive(Default)]
 pub struct Proxies {
     ports: Mutex<HashMap<String, Live>>,
     files: Mutex<HashMap<String, String>>,
+    reporter: Mutex<Option<Reporter>>,
 }
 
 /// The lowest and the number of ports a Service's port is picked from.
@@ -88,6 +95,10 @@ pub fn port_candidates(service: &str, remembered: Option<u16>) -> Vec<u16> {
 }
 
 impl Proxies {
+    pub fn set_reporter(&self, f: impl Fn(&str, &str, &str) + Send + Sync + 'static) {
+        *self.reporter.lock().unwrap() = Some(Arc::new(f));
+    }
+
     /// Returns the local URL for a Service and the port it is on, starting a
     /// proxy if needed: on `remembered` when it is free, else on a port from
     /// the Service's name. A proxy already running for the Service is
@@ -143,14 +154,16 @@ impl Proxies {
         let tls = Arc::new(pinned_tls_config(&id, &target.fingerprint, &[b"http/1.1".to_vec()])?);
         let upstream: Upstream = Arc::new(RwLock::new((target, tls)));
         let up = upstream.clone();
+        let reporter = self.reporter.lock().unwrap().clone();
         tokio::spawn(async move {
             loop {
                 let Ok((stream, _)) = listener.accept().await else { break };
                 let up = up.clone();
+                let reporter = reporter.clone();
                 tokio::spawn(async move {
                     let svc = hyper::service::service_fn(move |req| {
                         let (target, tls) = up.read().unwrap().clone();
-                        relay(req, target, tls)
+                        relay(req, target, tls, reporter.clone())
                     });
                     let _ = hyper::server::conn::http1::Builder::new()
                         .preserve_header_case(true)
@@ -170,6 +183,7 @@ async fn relay(
     mut req: Request<Incoming>,
     target: Target,
     tls: Arc<rustls::ClientConfig>,
+    reporter: Option<Reporter>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     if !target.token.is_empty() {
         let prefix = format!("/{}/maitre/files/content", target.token);
@@ -187,6 +201,19 @@ async fn relay(
             .header("content-type", "application/javascript; charset=utf-8")
             .header("cache-control", "no-store")
             .body(http_body_util::Full::new(Bytes::from_static(FRAME_SCRIPT.as_bytes())).map_err(|never| match never {}).boxed())
+            .unwrap());
+    }
+    if page && req.uri().path() == NAV_PATH {
+        if req.method() == hyper::Method::POST {
+            let body = req.into_body().collect().await.map(|b| b.to_bytes()).unwrap_or_default();
+            if let (Some(report), Some((event, url))) = (reporter, parse_nav(&body)) {
+                report(&target.service, &event, &url);
+            }
+        }
+        return Ok(Response::builder()
+            .status(204)
+            .header("cache-control", "no-store")
+            .body(http_body_util::Empty::new().map_err(|never| match never {}).boxed())
             .unwrap());
     }
     // A document is asked for uncompressed so the frame script can be added to it.
@@ -265,15 +292,17 @@ fn text(status: u16, body: String) -> Response<BoxBody<Bytes, hyper::Error>> {
 
 const FRAME_SCRIPT_PATH: &str = "/__maitre/frame.js";
 const FRAME_SCRIPT_TAG: &[u8] = b"<script src=\"/__maitre/frame.js\"></script>";
+/// Where the script reports to: a POST whose body is `{"event","url"}`.
+const NAV_PATH: &str = "/__maitre/nav";
 
 /// Runs inside a Service's page (decision 286). It reports the page's
-/// address to the Console on load and on every History change, and does
-/// what the Console asks: `go` (replace the address, so the window's own
-/// history is left alone), `reload`, `stop`.
+/// address to the Console on load and on every History change, through a
+/// beacon to the proxy: the page is a view of its own (decision 294), with
+/// no parent window to post to. A frame inside the page says nothing.
 const FRAME_SCRIPT: &str = r#"(function () {
-  if (window.parent === window) return;
+  if (window.parent !== window) return;
   var send = function (event) {
-    try { window.parent.postMessage({ maitre: "frame", event: event, url: location.href }, "*"); } catch (e) {}
+    try { navigator.sendBeacon("/__maitre/nav", JSON.stringify({ event: event, url: location.href })); } catch (e) {}
   };
   var wrap = function (name, event) {
     var orig = history[name];
@@ -284,16 +313,20 @@ const FRAME_SCRIPT: &str = r#"(function () {
   wrap("replaceState", "replace");
   window.addEventListener("popstate", function () { send("pop"); });
   window.addEventListener("pagehide", function () { send("unload"); });
-  window.addEventListener("message", function (e) {
-    var d = e.data;
-    if (!d || d.maitre !== "frame-cmd" || e.source !== window.parent) return;
-    if (d.cmd === "go" && typeof d.url === "string") location.replace(d.url);
-    else if (d.cmd === "reload") location.reload();
-    else if (d.cmd === "stop") window.stop();
-  });
   send("load");
 })();
 "#;
+
+/// The event and URL of a beacon's body; None for anything else.
+fn parse_nav(body: &[u8]) -> Option<(String, String)> {
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let event = v.get("event")?.as_str()?;
+    if !["load", "push", "replace", "pop", "unload"].contains(&event) {
+        return None;
+    }
+    let url = v.get("url")?.as_str()?;
+    Some((event.to_string(), url.to_string()))
+}
 
 /// A request for a document, by its Accept header: a page, not a script,
 /// a style, an image or an API call.
@@ -346,6 +379,13 @@ mod tests {
     fn script_leads_a_document_without_head() {
         let out = inject_frame_script(b"<p>hi</p>");
         assert_eq!(&out[..], &b"<script src=\"/__maitre/frame.js\"></script><p>hi</p>"[..]);
+    }
+
+    #[test]
+    fn a_beacon_names_one_of_the_page_events() {
+        assert_eq!(parse_nav(br#"{"event":"push","url":"http://127.0.0.1:4100/web/movies"}"#), Some(("push".into(), "http://127.0.0.1:4100/web/movies".into())));
+        assert_eq!(parse_nav(br#"{"event":"eval","url":"x"}"#), None);
+        assert_eq!(parse_nav(b"not json"), None);
     }
 
     #[test]

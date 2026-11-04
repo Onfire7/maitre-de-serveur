@@ -6,6 +6,7 @@ mod netboot;
 mod pairing;
 pub mod proxy;
 pub mod transfer;
+pub mod views;
 #[cfg(target_os = "linux")]
 mod webkit;
 mod recovery;
@@ -86,6 +87,7 @@ struct AppState {
     discovery: Discovery,
     netboot: netboot::Netboot,
     media: media::Media,
+    views: views::Views,
 }
 
 impl AppState {
@@ -203,6 +205,69 @@ async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: Stri
 #[tauri::command]
 async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String) -> Result<String, String> {
     state.proxies.open_files(state.identity.clone(), addr, fingerprint).await
+}
+
+/// A Service's page in a view of its own (decision 294, src/views.rs):
+/// opened at `url` where the Console says, placed again as the Console's
+/// layout moves, shown or hidden, driven and asked for its colours.
+/// Opening and closing wait on the main thread, so they run off it: a
+/// sync command runs on the main thread and would wait for itself.
+#[tauri::command]
+async fn view_open(app: tauri::AppHandle, state: State<'_, AppState>, service: String, url: String, bounds: views::Bounds, shown: bool) -> Result<(), String> {
+    state.views.open(&app, &service, &url, bounds, shown)
+}
+
+#[tauri::command]
+fn view_place(state: State<'_, AppState>, service: String, bounds: views::Bounds) -> Result<(), String> {
+    state.views.place(&service, bounds)
+}
+
+#[tauri::command]
+fn view_show(state: State<'_, AppState>, service: String, shown: bool) -> Result<(), String> {
+    state.views.show(&service, shown)
+}
+
+#[tauri::command]
+async fn view_close(state: State<'_, AppState>, service: String) -> Result<(), String> {
+    state.views.close(&service)
+}
+
+#[tauri::command]
+fn view_navigate(state: State<'_, AppState>, service: String, url: String) -> Result<(), String> {
+    state.views.navigate(&service, &url)
+}
+
+#[tauri::command]
+fn view_reload(state: State<'_, AppState>, service: String) -> Result<(), String> {
+    state.views.reload(&service)
+}
+
+#[tauri::command]
+fn view_stop(state: State<'_, AppState>, service: String) -> Result<(), String> {
+    state.views.stop(&service)
+}
+
+/// Dev tool: what a view (the main one for an empty `service`) shows, as a PNG.
+#[tauri::command]
+async fn view_snapshot(app: tauri::AppHandle, state: State<'_, AppState>, service: String, path: String) -> Result<(), String> {
+    views::snapshot_to(&app, &state.views, &service, path).await
+}
+
+/// Dev tool: a script's result in a view, as JSON.
+#[tauri::command]
+async fn view_eval(state: State<'_, AppState>, service: String, js: String) -> Result<String, String> {
+    views::eval_in(&state.views, &service, js).await
+}
+
+/// Dev tool: end a view's web process, to see the Console take a crash.
+#[tauri::command]
+fn view_crash(state: State<'_, AppState>, service: String) -> Result<(), String> {
+    views::crash(&state.views, &service)
+}
+
+#[tauri::command]
+async fn view_sample(state: State<'_, AppState>, service: String, cols: i32, rows: i32) -> Result<Vec<Vec<String>>, String> {
+    state.views.sample(&service, cols, rows).await
 }
 
 /// Save a file (or a folder as a zip) from a Node to `dest` on this computer.
@@ -464,6 +529,8 @@ pub fn run() {
             // Tandoor, Paperless) never held (decision 292). The Console
             // frames only Services of the user's own Fleet, so every
             // cookie is accepted.
+            // The Service views need a layer above the main view to sit
+            // on (decision 294, views.rs).
             #[cfg(target_os = "linux")]
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.with_webview(|w| {
@@ -473,17 +540,26 @@ pub fn run() {
                     if let Err(why) = webkit::accept_every_cookie(&w.inner()) {
                         eprintln!("webkit: cookies of a Service's frame may not hold: {why}");
                     }
+                    if let Err(why) = views::placement::prepare(&w.inner()) {
+                        eprintln!("views: Service pages cannot be placed: {why}");
+                    }
                 });
             }
+            // What a page's own script reports through the proxy's beacon
+            // reaches the Console as a view event.
+            let handle = app.handle().clone();
+            let proxies = proxy::Proxies::default();
+            proxies.set_reporter(move |service, event, url| views::report(&handle, service, event, url));
             app.manage(AppState {
                 data_dir,
                 identity: Arc::new(identity),
-                proxies: proxy::Proxies::default(),
+                proxies,
                 state: Mutex::new(state),
                 clients: Mutex::new(HashMap::new()),
                 discovery: Discovery::start(),
                 netboot: netboot::Netboot::default(),
                 media: media::Media::default(),
+                views: views::Views::default(),
             });
             Ok(())
         })
@@ -497,6 +573,17 @@ pub fn run() {
             discover,
             peek_installer,
             service_url,
+            view_open,
+            view_place,
+            view_show,
+            view_close,
+            view_navigate,
+            view_reload,
+            view_stop,
+            view_sample,
+            view_snapshot,
+            view_eval,
+            view_crash,
             files_url,
             files_download,
             files_upload,

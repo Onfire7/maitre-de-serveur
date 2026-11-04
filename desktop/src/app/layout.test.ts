@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closePanel, fallbackColors, modalClosed, modalOpened, openPanel, pageLayout, resetLayout, setSampler } from "./layout";
+import { TOAST_GAP, TOAST_WIDTH, closePanel, fallbackColors, modalClosed, modalOpened, openPanel, pageLayout, resetLayout, setSampler, setToastRoom, toastRoom } from "./layout";
 
 // Decision 293: the page slides by the open flyout's width and hides behind
 // a stand-in of its own colours while a modal is open.
@@ -68,5 +68,22 @@ describe("page layout", () => {
   it("closing more than opened is harmless", () => {
     modalClosed();
     expect(pageLayout().covered).toBe(false);
+  });
+});
+
+describe("toast room (294)", () => {
+  beforeEach(() => resetLayout());
+
+  it("a toast beside a sidebar too narrow for it slides the page; a panel's width wins when wider", () => {
+    expect(toastRoom(240)).toBe(0);
+    expect(toastRoom(56)).toBe(TOAST_WIDTH + 2 * TOAST_GAP - 56);
+    setToastRoom(toastRoom(56));
+    expect(pageLayout().offset).toBe(184);
+    openPanel(240);
+    expect(pageLayout().offset).toBe(240);
+    closePanel();
+    expect(pageLayout().offset).toBe(184);
+    setToastRoom(0);
+    expect(pageLayout().offset).toBe(0);
   });
 });

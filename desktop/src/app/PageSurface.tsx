@@ -1,17 +1,18 @@
 // Where a Service's page sits (decision 293): the area slides right by the
 // open flyout's width, its size untouched so the page never reflows, and
 // under a modal the page is hidden behind a blurred stand-in made from a
-// few of its colours. The real frame layer and the demo's stand-in page
-// both draw inside this, so the HTML page today and the native view next
-// follow the same rules.
+// few of its colours. The view layer (ServiceViews, decision 294) measures
+// this box to place each native view, and the demo's stand-in page draws
+// inside it, so both follow the same rules.
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { usePageLayout, type ColorGrid } from "./layout";
 
-export function PageSurface({ children, className }: { children: ReactNode; className?: string }) {
+export function PageSurface({ children, className, ref }: { children: ReactNode; className?: string; ref?: React.Ref<HTMLDivElement> }) {
   const { offset, covered, colors } = usePageLayout();
   return (
     <div
+      ref={ref}
       data-testid="page-surface"
       data-offset={offset}
       data-covered={covered ? "true" : undefined}

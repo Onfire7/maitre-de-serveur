@@ -8,7 +8,7 @@ import { ServiceSpecSchema, ServiceStatusSchema } from "@/gen/maitre/v1/service_
 import type { FleetService } from "@/fleet/useFleet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServiceFlyout } from "./ServiceFlyout";
-import { handleFrameMessage, registerFrameElement, resetFrames, showFrame } from "./frames";
+import { reportFrame, resetFrames, setFrameHost, showFrame } from "./frames";
 
 const service: FleetService = {
   spec: create(ServiceSpecSchema, { name: "jellyfin", catalogId: "jellyfin", nodeId: "a" }),
@@ -35,15 +35,13 @@ describe("ServiceFlyout", () => {
   it("copies the page's address, said in the Service's own address, without opening it (286)", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    const win = { postMessage: vi.fn() };
     showFrame("jellyfin", HOME);
-    registerFrameElement("jellyfin", { contentWindow: win } as unknown as HTMLIFrameElement);
     const onItem = renderFlyout();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
     });
     expect(writeText).toHaveBeenCalledWith("http://jellyfin.local/");
-    act(() => handleFrameMessage(win, { maitre: "frame", event: "load", url: `${HOME}web/movies?sort=name` }));
+    act(() => reportFrame("jellyfin", "load", `${HOME}web/movies?sort=name`));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
     });
@@ -52,25 +50,25 @@ describe("ServiceFlyout", () => {
   });
 
   it("the browser controls follow the frame: Back once there is history, Stop while loading, Home always (286)", async () => {
-    const win = { postMessage: vi.fn() };
+    const host = { navigate: vi.fn(), reload: vi.fn(), stop: vi.fn() };
+    setFrameHost(host);
     showFrame("jellyfin", HOME);
-    registerFrameElement("jellyfin", { contentWindow: win } as unknown as HTMLIFrameElement);
     renderFlyout();
     const btn = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
-    // Mounted and loading, but the page has not spoken: nothing can be sent to it.
+    // Open and loading: the view can be stopped, but there is no history yet.
     expect(btn("Back").disabled).toBe(true);
-    expect(btn("Stop").disabled).toBe(true);
+    expect(btn("Stop").disabled).toBe(false);
     expect(btn("Home").disabled).toBe(false);
-    act(() => handleFrameMessage(win, { maitre: "frame", event: "load", url: HOME }));
-    act(() => handleFrameMessage(win, { maitre: "frame", event: "push", url: `${HOME}web/movies` }));
+    act(() => reportFrame("jellyfin", "load", HOME));
+    act(() => reportFrame("jellyfin", "push", `${HOME}web/movies`));
     expect(btn("Back").disabled).toBe(false);
     expect(btn("Forward").disabled).toBe(true);
     expect(btn("Refresh").disabled).toBe(false);
     fireEvent.click(btn("Back"));
-    expect(win.postMessage).toHaveBeenLastCalledWith({ maitre: "frame-cmd", cmd: "go", url: HOME }, "http://127.0.0.1:4100");
+    expect(host.navigate).toHaveBeenLastCalledWith("jellyfin", HOME);
     expect(btn("Stop").disabled).toBe(false);
     fireEvent.click(btn("Stop"));
-    expect(win.postMessage).toHaveBeenLastCalledWith({ maitre: "frame-cmd", cmd: "stop" }, "http://127.0.0.1:4100");
+    expect(host.stop).toHaveBeenLastCalledWith("jellyfin");
     expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
   });
 });

@@ -7,10 +7,22 @@
 // with a blurred stand-in made from a few of its colours, taken before the
 // page is hidden, and the page comes back when the modal closes.
 //
-// This store is the one place both the HTML frame layer (today) and the
-// native views (next) read from: the offset to sit at, and whether to be
-// hidden under a modal.
+// A toast is a short-lived panel of the same kind: it shows at the bottom
+// of the sidebar's column, and when the sidebar is too narrow to hold it
+// (collapsed to its rail) the page slides right by what the toast needs
+// while one is up.
+//
+// This store is the one place the view layer (ServiceViews) reads from:
+// the offset to sit at, and whether to be hidden under a modal.
 import { useSyncExternalStore } from "react";
+
+export const TOAST_WIDTH = 216;
+export const TOAST_GAP = 12;
+
+/** How far the page must slide for a toast beside a sidebar this wide. */
+export function toastRoom(sidebar: number): number {
+  return Math.max(0, TOAST_WIDTH + 2 * TOAST_GAP - sidebar);
+}
 
 /** A grid of CSS colours, rows of columns, as sampled from the page. */
 export type ColorGrid = string[][];
@@ -30,6 +42,7 @@ export interface PageLayout {
 export type Sampler = () => Promise<ColorGrid>;
 
 let panel = 0;
+let toasts = 0;
 let modals = 0;
 let covered = false;
 let colors: ColorGrid = [];
@@ -40,7 +53,7 @@ const listeners = new Set<() => void>();
 let covering = 0;
 
 function emit() {
-  snapshot = { offset: panel, covered, colors };
+  snapshot = { offset: Math.max(panel, toasts), covered, colors };
   listeners.forEach((l) => l());
 }
 
@@ -55,6 +68,13 @@ export function openPanel(width: number) {
 export function closePanel() {
   if (panel === 0) return;
   panel = 0;
+  emit();
+}
+
+/** Toasts are up and need this much room past the sidebar; 0 when none is. */
+export function setToastRoom(px: number) {
+  if (toasts === px) return;
+  toasts = px;
   emit();
 }
 
@@ -117,6 +137,7 @@ export function pageLayout(): PageLayout {
 /** Tests: start over. */
 export function resetLayout() {
   panel = 0;
+  toasts = 0;
   modals = 0;
   covered = false;
   colors = [];

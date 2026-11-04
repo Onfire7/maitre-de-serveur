@@ -138,7 +138,7 @@ function FrameControls({ service }: { service: FleetService }) {
   const controls: { label: string; icon: React.ReactNode; disabled: boolean; onClick: () => void }[] = [
     { label: "Back", icon: <ArrowLeft />, disabled: !canGo(frame, "back"), onClick: () => act("back") },
     { label: "Forward", icon: <ArrowRight />, disabled: !canGo(frame, "forward"), onClick: () => act("forward") },
-    frame?.loading && live ? { label: "Stop", icon: <X />, disabled: !frame.reported, onClick: () => act("stop") } : { label: "Refresh", icon: <RotateCw />, disabled: !live, onClick: () => act("reload") },
+    frame?.loading && live ? { label: "Stop", icon: <X />, disabled: false, onClick: () => act("stop") } : { label: "Refresh", icon: <RotateCw />, disabled: !live, onClick: () => act("reload") },
     { label: "Home", icon: <House />, disabled: !web, onClick: () => act("home") },
     { label: "Copy address", icon: <Copy />, disabled: !address, onClick: copy },
   ];

@@ -29,11 +29,13 @@ import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { AddNode, type Provisioning } from "./AddNode";
 import { CodeScreen } from "./FirstRun";
-import { Sidebar, sidebarNodes } from "./Sidebar";
+import { SIDEBAR_COLLAPSED, SIDEBAR_WIDTH, Sidebar, sidebarNodes } from "./Sidebar";
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
-import { ServiceFrames } from "./ServiceFrames";
+import { ServiceViews } from "./ServiceViews";
+import { ToastRoom } from "./ToastRoom";
 import { forgetFrame } from "./frames";
+import { TOAST_GAP, TOAST_WIDTH } from "./layout";
 import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
 import { useCatalogs } from "@/fleet/catalogs";
@@ -136,6 +138,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
 
   // `?prefs` opens Preferences on load (screenshot fixture for the covered page).
   const [prefs, setPrefs] = useState(() => new URLSearchParams(window.location.search).has("prefs"));
+  // `?toast` shows one on load (screenshot fixture for the page making room).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("toast")) toast.success("jellyfin: restarting", { duration: 60_000 });
+  }, []);
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [moving, setMoving] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
@@ -291,7 +297,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               )}
             </motion.div>
           </AnimatePresence>
-          <ServiceFrames />
+          <ServiceViews />
           </div>
         </main>
       </div>
@@ -359,7 +365,9 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Toaster position="bottom-right" />
+      {/* Toasts sit at the bottom of the sidebar's column, off the page (decision 294). */}
+      <Toaster position="bottom-left" offset={{ bottom: TOAST_GAP, left: TOAST_GAP }} mobileOffset={{ bottom: TOAST_GAP, left: TOAST_GAP }} style={{ "--width": `${TOAST_WIDTH}px` } as React.CSSProperties} />
+      <ToastRoom sidebar={present ? (collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH) : 0} />
     </TooltipProvider>
   );
 }
