@@ -140,8 +140,14 @@ jobs:
       # Full Milestone 1 demo: boot the image as installer media, provision it
       # from the host, reboot into the Node. Needs rootful podman + KVM. Then
       # the Catalog's third check: the changed entries install and are healthy.
+      # apt-get update first: a runner's package index goes stale as Ubuntu
+      # rotates versions, and the install then 404s on files the index still
+      # names ("E: Unable to fetch some archives, maybe run apt update"),
+      # which took the boot test — the only automated check that a Node
+      # actually boots — down for days without anyone noticing it was the
+      # index and not the image. The two installs above already do this.
       - run: |
-          if [ -e /dev/kvm ]; then sudo apt-get install -y qemu-system-x86 qemu-utils ovmf && make image-boot VERSION=${{ github.sha }}; \
+          if [ -e /dev/kvm ]; then sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils ovmf && make image-boot VERSION=${{ github.sha }}; \
           else echo "no /dev/kvm on this runner; boot test skipped"; fi
         env:
           CATALOG_ENTRIES: ${{ steps.entries.outputs.ids }}
@@ -167,7 +173,7 @@ jobs:
           qemu-img convert -O raw media/maitre-installer.qcow2 media/maitre-installer.img && xz -T0 -3 media/maitre-installer.img
           echo "$REF:${{ github.sha }}" > media/image-ref.txt
           # Ship the firmware that booted this media in the boot test (edk2 202505+ faults in GRUB).
-          sudo apt-get install -y ovmf >/dev/null
+          sudo apt-get update >/dev/null && sudo apt-get install -y ovmf >/dev/null
           cp /usr/share/OVMF/OVMF_CODE_4M.fd media/OVMF_CODE.fd; cp /usr/share/OVMF/OVMF_VARS_4M.fd media/OVMF_VARS.fd
           # Netboot bundle for Maître Desktop (decision 93): shim, GRUB, kernel,
           # live initramfs, squashed root, and netboot.json naming the image.
