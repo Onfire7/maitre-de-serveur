@@ -103,8 +103,18 @@ func Support(option string) (ok bool, needs string) {
 		// container-selinux lets containers use GPUs (container_use_dri_devices,
 		// on by default); any other device needs container_use_devices, off.
 		// host[:container[:permissions]], as Quadlet and Podman read it.
-		if host, _, _ := strings.Cut(value, ":"); host == "/dev/dri" || strings.HasPrefix(host, "/dev/dri/") {
+		host, _, _ := strings.Cut(value, ":")
+		if host == "/dev/dri" || strings.HasPrefix(host, "/dev/dri/") {
 			return true, ""
+		}
+		if host == "/dev/net/tun" {
+			// What every Tunnel needs (ADR 0010): a VPN client makes its
+			// own interface. container-selinux may already allow
+			// tun_tap_device_t to container_t, which would make this a
+			// one-line table change; until someone has run a container
+			// with the device on a Node and watched the audit log,
+			// Maître does not promise to run it.
+			return false, "a check on a Node that SELinux lets a container use /dev/net/tun (run a container with the device and watch for an AVC denial of tun_tap_device_t); if it is denied, a rule in the Node image. Every Tunnel needs this"
 		}
 		return false, "SELinux letting a container use the device (container-selinux's container_use_devices boolean, off on Fedora, or a narrower rule) set in the Node image, checked on a Node with the device plugged in"
 	case "AddCapability", "Sysctl", "UserNS", "NoNewPrivileges":
