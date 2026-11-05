@@ -19,18 +19,11 @@
 // presence is already assumed.
 package debugsurface
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 // Enabled reports whether this binary carries the debug surface. False
 // here, and the Console turns the whole image box amber when it is true.
 const Enabled = false
-
-// ErrNotADebugBuild is what every procedure answers with in a shipped
-// image: not "forbidden", which would imply a way in, but absent.
-var ErrNotADebugBuild = errors.New("this Node was not built with the debug console; rebuild the image with -tags maitredebug to use it")
 
 // Exec runs a command. Never, in this build.
 func Exec(context.Context, string, []string) (string, error) { return "", ErrNotADebugBuild }

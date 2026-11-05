@@ -104,6 +104,8 @@ func main() {
 		err = runRecoveryCode(os.Args[2:])
 	case "media":
 		err = runMedia(os.Args[2:])
+	case "debug":
+		err = runDebug(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -115,7 +117,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|catalog-check|catalog-notice|catalog|depot|update|netboot|tui|record|recover|authorize|media> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: maitre <agent|installer|pool-up|dev|keygen|info|provision|service|catalog-index|catalog-check|catalog-notice|catalog|depot|update|netboot|tui|record|recover|authorize|media|debug> [flags]")
 }
 
 func runDev(args []string) error {

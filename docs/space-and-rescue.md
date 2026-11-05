@@ -9,19 +9,27 @@ how each piece is proven.
 
 ## The baseline
 
-Commit `bcfcb38` landed the parts that need no change to the disk layout:
+All of it is built, as of 2026-11-05, except what the last section names.
+The work landed in six commits, in the dependency order below: `bcfcb38`
+(the owner filter, the start limit, the prune and the greenboot space
+check), `93cbf91` (the guards before a pull), `f4c7922` (the gauges and the
+per-Service series), `f056218` (the store off root and root at 6x the
+image), `eba68de` (zram, greenboot falling into rescue, the rescue menu and
+the staging reserve) and `ff56a63` (the three tiers and the Console's
+amber image box).
 
-- `Manager.mine`, the owner filter `List` and `AutoUpdate` lacked (318).
-- `AutoUpdate` skipping a Service that is not `RUNNING` (315).
-- `showUnit` reading `LoadState`, so an absent unit no longer reports `STOPPED`.
-- `apply`'s refusal naming the owning Node; `Control`'s Start clearing the
-  start limit.
-- `StartLimitIntervalSec=1h` with `StartLimitBurst=5` in `render.go`.
-- `services/prune.go` `PruneImages`, its RPC, and `maitre service prune`.
-- `image/greenboot/20-maitre-space.sh`, reporting root's free space on every
-  boot and failing below 3 GiB, as a *wanted* check.
+What is **not** built, and is the honest remainder:
 
-None of it has run on a real Node. Everything below is unbuilt.
+- **The Debug Console app itself.** Its Node-side surface exists and the
+  Console advertises a debug image loudly, but the separate paired
+  application does not exist, and `authz.Role` has no fourth `Debug` member
+  — a Debug Console pairs as a Trusted Device today, and the debug tier
+  refuses a Node caller rather than demanding a role of its own.
+- **A volume-less Service still skips both storage guards** (the open item
+  below).
+- Nothing has run on a real Node. The whole of it has been verified in
+  tests, against the built image, and against a real registry where that
+  was the question; none of it has been through a boot.
 
 ## Stage 1 — stop paying for pulls
 

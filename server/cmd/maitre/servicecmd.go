@@ -97,7 +97,7 @@ func runService(args []string) error {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune|move-image-store>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune|images|move-image-store>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
@@ -205,6 +205,27 @@ func runService(args []string) error {
 		fmt.Printf("removed %d:\n", len(res.GetRemoved()))
 		for _, r := range res.GetRemoved() {
 			fmt.Printf("  %s\n", r)
+		}
+	case "images":
+		// Decision 326's basic tier: nothing could ask a Node what it had
+		// pulled before, which is part of why a store that grew without
+		// bound went unnoticed.
+		res, err := c.ListImages(ctx, &maitrev1.ListImagesRequest{})
+		if err != nil {
+			return err
+		}
+		gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
+		fmt.Printf("store %s: %.1f GiB free of %.1f GiB, %d image(s)\n",
+			res.GetStoreDir(), gib(res.GetFreeBytes()), gib(res.GetTotalBytes()), len(res.GetImages()))
+		for _, im := range res.GetImages() {
+			who := "unnamed by any Service"
+			if im.GetService() != "" {
+				who = im.GetService()
+				if im.GetRollbackTarget() {
+					who += " (Rollback)"
+				}
+			}
+			fmt.Printf("  %-12s %7.2f GiB  %-48s %s\n", im.GetId()[:min(12, len(im.GetId()))], gib(im.GetSizeBytes()), im.GetReference(), who)
 		}
 	case "move-image-store":
 		// Decision 319: off the root partition, which was never sized for

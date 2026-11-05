@@ -15,6 +15,7 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/authz"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/debugsurface"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depots"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
@@ -78,6 +79,10 @@ type Service struct {
 	// Rename gives the Node a new name (record, host name, announcement);
 	// nil in dev mode.
 	Rename func(ctx context.Context, name string) (*maitrev1.Node, error)
+	// IsNode reports whether a caller key is one of the Fleet's Nodes,
+	// which the debug tier refuses: nothing in the Fleet protocol needs
+	// it, so a Node asking is a Node that has been taken over.
+	IsNode func(fingerprint string) bool
 	// Limited reports whether a caller key is recovery-only (decision 100):
 	// such a caller may only add a Trusted Device.
 	Limited func(fingerprint string) bool
@@ -610,4 +615,54 @@ func (s *Service) ImportMetrics(_ context.Context, in *maitrev1.ImportMetricsReq
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
 	}
 	return &maitrev1.ImportMetricsResponse{}, nil
+}
+
+// debugCaller is who may use the debug tier (decisions 323, 326): a
+// Trusted Device, standing in for the Debug Console until that app
+// exists, and never a Node — nothing in the Fleet protocol needs these,
+// so a Node asking is a Node that has been taken over.
+func (s *Service) debugCaller(ctx context.Context) error {
+	p, ok := peer.From(ctx)
+	if !ok {
+		return connect.NewError(connect.CodePermissionDenied, "the debug console needs a Trusted Device")
+	}
+	if s.IsNode != nil && s.IsNode(p.Fingerprint) {
+		return connect.NewError(connect.CodePermissionDenied, "the debug console is for a Device, not for another Node")
+	}
+	if s.Limited != nil && s.Limited(p.Fingerprint) {
+		return connect.NewError(connect.CodePermissionDenied, "the Recovery Phrase may only add a Trusted Device")
+	}
+	return nil
+}
+
+// DebugReadFile reads a file for diagnosis, if this image was built for it
+// and the allowlist covers the path (decision 326).
+func (s *Service) DebugReadFile(ctx context.Context, in *maitrev1.DebugReadFileRequest) (*maitrev1.DebugReadFileResponse, error) {
+	if err := s.debugCaller(ctx); err != nil {
+		return nil, err
+	}
+	b, err := debugsurface.ReadFile(in.GetPath())
+	if err != nil {
+		if errors.Is(err, debugsurface.ErrNotADebugBuild) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error())
+	}
+	return &maitrev1.DebugReadFileResponse{Content: b}, nil
+}
+
+// DebugExec runs a command on the Node, in an image built for it only.
+func (s *Service) DebugExec(ctx context.Context, in *maitrev1.DebugExecRequest) (*maitrev1.DebugExecResponse, error) {
+	if err := s.debugCaller(ctx); err != nil {
+		return nil, err
+	}
+	out, err := debugsurface.Exec(ctx, in.GetCommand(), in.GetArgs())
+	if err != nil {
+		if errors.Is(err, debugsurface.ErrNotADebugBuild) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+		}
+		// The output is the diagnosis even when the command failed.
+		return &maitrev1.DebugExecResponse{Output: out}, connect.NewError(connect.CodeAborted, err.Error())
+	}
+	return &maitrev1.DebugExecResponse{Output: out}, nil
 }

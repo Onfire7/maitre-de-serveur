@@ -58,6 +58,10 @@ const (
 	NodeServiceExportMetricsProcedure = "/maitre.v1.NodeService/ExportMetrics"
 	// NodeServiceImportMetricsProcedure is the procedure name of the NodeService's ImportMetrics RPC.
 	NodeServiceImportMetricsProcedure = "/maitre.v1.NodeService/ImportMetrics"
+	// NodeServiceDebugReadFileProcedure is the procedure name of the NodeService's DebugReadFile RPC.
+	NodeServiceDebugReadFileProcedure = "/maitre.v1.NodeService/DebugReadFile"
+	// NodeServiceDebugExecProcedure is the procedure name of the NodeService's DebugExec RPC.
+	NodeServiceDebugExecProcedure = "/maitre.v1.NodeService/DebugExec"
 )
 
 var (
@@ -173,6 +177,20 @@ var (
 			Procedure:  NodeServiceImportMetricsProcedure,
 		}
 	})
+	nodeServiceDebugReadFileSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("DebugReadFile"),
+			Procedure:  NodeServiceDebugReadFileProcedure,
+		}
+	})
+	nodeServiceDebugExecSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_node_proto.Services().ByName("NodeService").Methods().ByName("DebugExec"),
+			Procedure:  NodeServiceDebugExecProcedure,
+		}
+	})
 )
 
 // NodeServiceClient is a client for the maitre.v1.NodeService service.
@@ -233,6 +251,14 @@ type NodeServiceClient interface {
 	// their history. Both optional.
 	ExportMetrics(context.Context, *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error)
 	ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error)
+	// Decisions 323 and 326: the debug console's remote half. Present in
+	// every build so that a Console can ask and be told plainly, and
+	// answered only by an image built with the debug tag — a shipped binary
+	// does not contain the procedures at all, so these say "not a debug
+	// build" rather than "forbidden", which would imply a way in. For a
+	// Trusted Device, never Node to Node.
+	DebugReadFile(context.Context, *v1.DebugReadFileRequest) (*v1.DebugReadFileResponse, error)
+	DebugExec(context.Context, *v1.DebugExecRequest) (*v1.DebugExecResponse, error)
 }
 
 // NewNodeServiceClient constructs a client for the maitre.v1.NodeService service. Multiple service
@@ -299,6 +325,14 @@ type NodeServiceHandler interface {
 	// their history. Both optional.
 	ExportMetrics(context.Context, *v1.ExportMetricsRequest) (*v1.ExportMetricsResponse, error)
 	ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error)
+	// Decisions 323 and 326: the debug console's remote half. Present in
+	// every build so that a Console can ask and be told plainly, and
+	// answered only by an image built with the debug tag — a shipped binary
+	// does not contain the procedures at all, so these say "not a debug
+	// build" rather than "forbidden", which would imply a way in. For a
+	// Trusted Device, never Node to Node.
+	DebugReadFile(context.Context, *v1.DebugReadFileRequest) (*v1.DebugReadFileResponse, error)
+	DebugExec(context.Context, *v1.DebugExecRequest) (*v1.DebugExecResponse, error)
 }
 
 // RegisterNodeServiceHandler registers svc as the maitre.v1.NodeService implementation on server.
@@ -321,6 +355,8 @@ func RegisterNodeServiceHandler(server *connect.Server, svc NodeServiceHandler) 
 		connect.Method{Spec: nodeServiceGetMetricsHistorySpec(), Handler: adapter.getMetricsHistory},
 		connect.Method{Spec: nodeServiceExportMetricsSpec(), Handler: adapter.exportMetrics},
 		connect.Method{Spec: nodeServiceImportMetricsSpec(), Handler: adapter.importMetrics},
+		connect.Method{Spec: nodeServiceDebugReadFileSpec(), Handler: adapter.debugReadFile},
+		connect.Method{Spec: nodeServiceDebugExecSpec(), Handler: adapter.debugExec},
 	)
 }
 
@@ -389,6 +425,14 @@ func (UnimplementedNodeServiceHandler) ExportMetrics(context.Context, *v1.Export
 
 func (UnimplementedNodeServiceHandler) ImportMetrics(context.Context, *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.ImportMetrics is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) DebugReadFile(context.Context, *v1.DebugReadFileRequest) (*v1.DebugReadFileResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.DebugReadFile is not implemented")
+}
+
+func (UnimplementedNodeServiceHandler) DebugExec(context.Context, *v1.DebugExecRequest) (*v1.DebugExecResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.NodeService.DebugExec is not implemented")
 }
 
 type nodeServiceClient struct {
@@ -518,6 +562,22 @@ func (c *nodeServiceClient) ExportMetrics(ctx context.Context, req *v1.ExportMet
 func (c *nodeServiceClient) ImportMetrics(ctx context.Context, req *v1.ImportMetricsRequest) (*v1.ImportMetricsResponse, error) {
 	var res v1.ImportMetricsResponse
 	if err := c.client.CallUnary(ctx, nodeServiceImportMetricsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) DebugReadFile(ctx context.Context, req *v1.DebugReadFileRequest) (*v1.DebugReadFileResponse, error) {
+	var res v1.DebugReadFileResponse
+	if err := c.client.CallUnary(ctx, nodeServiceDebugReadFileSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *nodeServiceClient) DebugExec(ctx context.Context, req *v1.DebugExecRequest) (*v1.DebugExecResponse, error) {
+	var res v1.DebugExecResponse
+	if err := c.client.CallUnary(ctx, nodeServiceDebugExecSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -711,6 +771,30 @@ func (h nodeServiceHandler) importMetrics(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.ImportMetrics(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) debugReadFile(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.DebugReadFileRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.DebugReadFile(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h nodeServiceHandler) debugExec(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.DebugExecRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.DebugExec(ctx, &req)
 	if err != nil {
 		return err
 	}

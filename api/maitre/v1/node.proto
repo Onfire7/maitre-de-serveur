@@ -77,6 +77,14 @@ service NodeService {
   // their history. Both optional.
   rpc ExportMetrics(ExportMetricsRequest) returns (ExportMetricsResponse) {}
   rpc ImportMetrics(ImportMetricsRequest) returns (ImportMetricsResponse) {}
+  // Decisions 323 and 326: the debug console's remote half. Present in
+  // every build so that a Console can ask and be told plainly, and
+  // answered only by an image built with the debug tag — a shipped binary
+  // does not contain the procedures at all, so these say "not a debug
+  // build" rather than "forbidden", which would imply a way in. For a
+  // Trusted Device, never Node to Node.
+  rpc DebugReadFile(DebugReadFileRequest) returns (DebugReadFileResponse) {}
+  rpc DebugExec(DebugExecRequest) returns (DebugExecResponse) {}
 }
 
 message GetMetricsHistoryRequest {
@@ -507,4 +515,23 @@ message GetNodeLogsResponse {
   repeated string lines = 1;
   // What this Node can show, the agent first.
   repeated LogSource sources = 2;
+}
+
+// Decision 326's debug tier. An allowlist decides what may be read, and
+// the Node's own identity and Fleet database are never in it.
+message DebugReadFileRequest {
+  string path = 1;
+}
+message DebugReadFileResponse {
+  bytes content = 1;
+}
+// The dangerous procedure, and the reason the whole surface is a build
+// tag: nothing diagnostic depends on it, so a shipped image loses only
+// this.
+message DebugExecRequest {
+  string command = 1;
+  repeated string args = 2;
+}
+message DebugExecResponse {
+  string output = 1;
 }

@@ -2873,6 +2873,195 @@ func (x *GetNodeLogsResponse) GetSources() []*LogSource {
 	return nil
 }
 
+// Decision 326's debug tier. An allowlist decides what may be read, and
+// the Node's own identity and Fleet database are never in it.
+type DebugReadFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebugReadFileRequest) Reset() {
+	*x = DebugReadFileRequest{}
+	mi := &file_maitre_v1_node_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebugReadFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebugReadFileRequest) ProtoMessage() {}
+
+func (x *DebugReadFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebugReadFileRequest.ProtoReflect.Descriptor instead.
+func (*DebugReadFileRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *DebugReadFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type DebugReadFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebugReadFileResponse) Reset() {
+	*x = DebugReadFileResponse{}
+	mi := &file_maitre_v1_node_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebugReadFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebugReadFileResponse) ProtoMessage() {}
+
+func (x *DebugReadFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebugReadFileResponse.ProtoReflect.Descriptor instead.
+func (*DebugReadFileResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *DebugReadFileResponse) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+// The dangerous procedure, and the reason the whole surface is a build
+// tag: nothing diagnostic depends on it, so a shipped image loses only
+// this.
+type DebugExecRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Command       string                 `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	Args          []string               `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebugExecRequest) Reset() {
+	*x = DebugExecRequest{}
+	mi := &file_maitre_v1_node_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebugExecRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebugExecRequest) ProtoMessage() {}
+
+func (x *DebugExecRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebugExecRequest.ProtoReflect.Descriptor instead.
+func (*DebugExecRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *DebugExecRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *DebugExecRequest) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+type DebugExecResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Output        string                 `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DebugExecResponse) Reset() {
+	*x = DebugExecResponse{}
+	mi := &file_maitre_v1_node_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DebugExecResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DebugExecResponse) ProtoMessage() {}
+
+func (x *DebugExecResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_node_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DebugExecResponse.ProtoReflect.Descriptor instead.
+func (*DebugExecResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_node_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *DebugExecResponse) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
 var File_maitre_v1_node_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_node_proto_rawDesc = "" +
@@ -3079,8 +3268,16 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x05label\x18\x02 \x01(\tR\x05label\"[\n" +
 	"\x13GetNodeLogsResponse\x12\x14\n" +
 	"\x05lines\x18\x01 \x03(\tR\x05lines\x12.\n" +
-	"\asources\x18\x02 \x03(\v2\x14.maitre.v1.LogSourceR\asources2\xa5\n" +
-	"\n" +
+	"\asources\x18\x02 \x03(\v2\x14.maitre.v1.LogSourceR\asources\"*\n" +
+	"\x14DebugReadFileRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"1\n" +
+	"\x15DebugReadFileResponse\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\"@\n" +
+	"\x10DebugExecRequest\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12\x12\n" +
+	"\x04args\x18\x02 \x03(\tR\x04args\"+\n" +
+	"\x11DebugExecResponse\x12\x16\n" +
+	"\x06output\x18\x01 \x01(\tR\x06output2\xc5\v\n" +
 	"\vNodeService\x12N\n" +
 	"\vGetNodeInfo\x12\x1d.maitre.v1.GetNodeInfoRequest\x1a\x1e.maitre.v1.GetNodeInfoResponse\"\x00\x12N\n" +
 	"\vListRecords\x12\x1d.maitre.v1.ListRecordsRequest\x1a\x1e.maitre.v1.ListRecordsResponse\"\x00\x12H\n" +
@@ -3099,7 +3296,9 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"PushStatus\x12\x1c.maitre.v1.PushStatusRequest\x1a\x1d.maitre.v1.PushStatusResponse\"\x00\x12`\n" +
 	"\x11GetMetricsHistory\x12#.maitre.v1.GetMetricsHistoryRequest\x1a$.maitre.v1.GetMetricsHistoryResponse\"\x00\x12T\n" +
 	"\rExportMetrics\x12\x1f.maitre.v1.ExportMetricsRequest\x1a .maitre.v1.ExportMetricsResponse\"\x00\x12T\n" +
-	"\rImportMetrics\x12\x1f.maitre.v1.ImportMetricsRequest\x1a .maitre.v1.ImportMetricsResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\rImportMetrics\x12\x1f.maitre.v1.ImportMetricsRequest\x1a .maitre.v1.ImportMetricsResponse\"\x00\x12T\n" +
+	"\rDebugReadFile\x12\x1f.maitre.v1.DebugReadFileRequest\x1a .maitre.v1.DebugReadFileResponse\"\x00\x12H\n" +
+	"\tDebugExec\x12\x1b.maitre.v1.DebugExecRequest\x1a\x1c.maitre.v1.DebugExecResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_node_proto_rawDescOnce sync.Once
@@ -3114,7 +3313,7 @@ func file_maitre_v1_node_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_maitre_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_maitre_v1_node_proto_goTypes = []any{
 	(UpdateStatus_State)(0),           // 0: maitre.v1.UpdateStatus.State
 	(*GetMetricsHistoryRequest)(nil),  // 1: maitre.v1.GetMetricsHistoryRequest
@@ -3161,50 +3360,54 @@ var file_maitre_v1_node_proto_goTypes = []any{
 	(*GetNodeLogsRequest)(nil),        // 42: maitre.v1.GetNodeLogsRequest
 	(*LogSource)(nil),                 // 43: maitre.v1.LogSource
 	(*GetNodeLogsResponse)(nil),       // 44: maitre.v1.GetNodeLogsResponse
-	nil,                               // 45: maitre.v1.ExportMetricsResponse.FilesEntry
-	nil,                               // 46: maitre.v1.ImportMetricsRequest.FilesEntry
-	(*ServiceStatus)(nil),             // 47: maitre.v1.ServiceStatus
-	(*Provisioning)(nil),              // 48: maitre.v1.Provisioning
-	(*ParityStatus)(nil),              // 49: maitre.v1.ParityStatus
-	(*DrainJob)(nil),                  // 50: maitre.v1.DrainJob
-	(*CopiesStatus)(nil),              // 51: maitre.v1.CopiesStatus
-	(*MirrorStatus)(nil),              // 52: maitre.v1.MirrorStatus
-	(*Record)(nil),                    // 53: maitre.v1.Record
-	(*Node)(nil),                      // 54: maitre.v1.Node
-	(*TailscaleStatus)(nil),           // 55: maitre.v1.TailscaleStatus
+	(*DebugReadFileRequest)(nil),      // 45: maitre.v1.DebugReadFileRequest
+	(*DebugReadFileResponse)(nil),     // 46: maitre.v1.DebugReadFileResponse
+	(*DebugExecRequest)(nil),          // 47: maitre.v1.DebugExecRequest
+	(*DebugExecResponse)(nil),         // 48: maitre.v1.DebugExecResponse
+	nil,                               // 49: maitre.v1.ExportMetricsResponse.FilesEntry
+	nil,                               // 50: maitre.v1.ImportMetricsRequest.FilesEntry
+	(*ServiceStatus)(nil),             // 51: maitre.v1.ServiceStatus
+	(*Provisioning)(nil),              // 52: maitre.v1.Provisioning
+	(*ParityStatus)(nil),              // 53: maitre.v1.ParityStatus
+	(*DrainJob)(nil),                  // 54: maitre.v1.DrainJob
+	(*CopiesStatus)(nil),              // 55: maitre.v1.CopiesStatus
+	(*MirrorStatus)(nil),              // 56: maitre.v1.MirrorStatus
+	(*Record)(nil),                    // 57: maitre.v1.Record
+	(*Node)(nil),                      // 58: maitre.v1.Node
+	(*TailscaleStatus)(nil),           // 59: maitre.v1.TailscaleStatus
 }
 var file_maitre_v1_node_proto_depIdxs = []int32{
 	3,  // 0: maitre.v1.GetMetricsHistoryResponse.series:type_name -> maitre.v1.MetricSeries
-	45, // 1: maitre.v1.ExportMetricsResponse.files:type_name -> maitre.v1.ExportMetricsResponse.FilesEntry
-	46, // 2: maitre.v1.ImportMetricsRequest.files:type_name -> maitre.v1.ImportMetricsRequest.FilesEntry
+	49, // 1: maitre.v1.ExportMetricsResponse.files:type_name -> maitre.v1.ExportMetricsResponse.FilesEntry
+	50, // 2: maitre.v1.ImportMetricsRequest.files:type_name -> maitre.v1.ImportMetricsRequest.FilesEntry
 	12, // 3: maitre.v1.PushStatusRequest.status:type_name -> maitre.v1.FleetNodeStatus
 	12, // 4: maitre.v1.GetFleetStatusResponse.nodes:type_name -> maitre.v1.FleetNodeStatus
 	33, // 5: maitre.v1.FleetNodeStatus.metrics:type_name -> maitre.v1.NodeMetrics
-	47, // 6: maitre.v1.FleetNodeStatus.services:type_name -> maitre.v1.ServiceStatus
+	51, // 6: maitre.v1.FleetNodeStatus.services:type_name -> maitre.v1.ServiceStatus
 	0,  // 7: maitre.v1.FleetNodeStatus.update_state:type_name -> maitre.v1.UpdateStatus.State
-	48, // 8: maitre.v1.FleetNodeStatus.provisioning:type_name -> maitre.v1.Provisioning
+	52, // 8: maitre.v1.FleetNodeStatus.provisioning:type_name -> maitre.v1.Provisioning
 	14, // 9: maitre.v1.FleetNodeStatus.sync_gaps:type_name -> maitre.v1.SyncGap
 	13, // 10: maitre.v1.FleetNodeStatus.entries:type_name -> maitre.v1.EntryHold
-	49, // 11: maitre.v1.FleetNodeStatus.parity:type_name -> maitre.v1.ParityStatus
-	50, // 12: maitre.v1.FleetNodeStatus.drains:type_name -> maitre.v1.DrainJob
-	51, // 13: maitre.v1.FleetNodeStatus.copies:type_name -> maitre.v1.CopiesStatus
-	52, // 14: maitre.v1.FleetNodeStatus.mirrors:type_name -> maitre.v1.MirrorStatus
-	53, // 15: maitre.v1.PushRecordsRequest.records:type_name -> maitre.v1.Record
+	53, // 11: maitre.v1.FleetNodeStatus.parity:type_name -> maitre.v1.ParityStatus
+	54, // 12: maitre.v1.FleetNodeStatus.drains:type_name -> maitre.v1.DrainJob
+	55, // 13: maitre.v1.FleetNodeStatus.copies:type_name -> maitre.v1.CopiesStatus
+	56, // 14: maitre.v1.FleetNodeStatus.mirrors:type_name -> maitre.v1.MirrorStatus
+	57, // 15: maitre.v1.PushRecordsRequest.records:type_name -> maitre.v1.Record
 	21, // 16: maitre.v1.GetUpdateStatusResponse.status:type_name -> maitre.v1.UpdateStatus
 	20, // 17: maitre.v1.UpdateStatus.booted:type_name -> maitre.v1.ImageDeployment
 	20, // 18: maitre.v1.UpdateStatus.staged:type_name -> maitre.v1.ImageDeployment
 	20, // 19: maitre.v1.UpdateStatus.rollback:type_name -> maitre.v1.ImageDeployment
 	0,  // 20: maitre.v1.UpdateStatus.state:type_name -> maitre.v1.UpdateStatus.State
 	22, // 21: maitre.v1.UpdateStatus.depot_images:type_name -> maitre.v1.DepotImage
-	54, // 22: maitre.v1.RenameNodeResponse.node:type_name -> maitre.v1.Node
+	58, // 22: maitre.v1.RenameNodeResponse.node:type_name -> maitre.v1.Node
 	33, // 23: maitre.v1.GetNodeMetricsResponse.metrics:type_name -> maitre.v1.NodeMetrics
 	34, // 24: maitre.v1.NodeMetrics.drives:type_name -> maitre.v1.DriveUsage
-	53, // 25: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
-	53, // 26: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
-	53, // 27: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
+	57, // 25: maitre.v1.ListRecordsResponse.records:type_name -> maitre.v1.Record
+	57, // 26: maitre.v1.PutRecordRequest.record:type_name -> maitre.v1.Record
+	57, // 27: maitre.v1.PutRecordResponse.record:type_name -> maitre.v1.Record
 	41, // 28: maitre.v1.GetNodeInfoResponse.node:type_name -> maitre.v1.NodeInfo
 	17, // 29: maitre.v1.NodeInfo.peers:type_name -> maitre.v1.PeerStatus
-	55, // 30: maitre.v1.NodeInfo.tailscale:type_name -> maitre.v1.TailscaleStatus
+	59, // 30: maitre.v1.NodeInfo.tailscale:type_name -> maitre.v1.TailscaleStatus
 	43, // 31: maitre.v1.GetNodeLogsResponse.sources:type_name -> maitre.v1.LogSource
 	39, // 32: maitre.v1.NodeService.GetNodeInfo:input_type -> maitre.v1.GetNodeInfoRequest
 	35, // 33: maitre.v1.NodeService.ListRecords:input_type -> maitre.v1.ListRecordsRequest
@@ -3222,24 +3425,28 @@ var file_maitre_v1_node_proto_depIdxs = []int32{
 	1,  // 45: maitre.v1.NodeService.GetMetricsHistory:input_type -> maitre.v1.GetMetricsHistoryRequest
 	4,  // 46: maitre.v1.NodeService.ExportMetrics:input_type -> maitre.v1.ExportMetricsRequest
 	6,  // 47: maitre.v1.NodeService.ImportMetrics:input_type -> maitre.v1.ImportMetricsRequest
-	40, // 48: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
-	36, // 49: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
-	38, // 50: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
-	32, // 51: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
-	19, // 52: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
-	24, // 53: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
-	26, // 54: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
-	30, // 55: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
-	28, // 56: maitre.v1.NodeService.RenameNode:output_type -> maitre.v1.RenameNodeResponse
-	16, // 57: maitre.v1.NodeService.PushRecords:output_type -> maitre.v1.PushRecordsResponse
-	11, // 58: maitre.v1.NodeService.GetFleetStatus:output_type -> maitre.v1.GetFleetStatusResponse
-	44, // 59: maitre.v1.NodeService.GetNodeLogs:output_type -> maitre.v1.GetNodeLogsResponse
-	9,  // 60: maitre.v1.NodeService.PushStatus:output_type -> maitre.v1.PushStatusResponse
-	2,  // 61: maitre.v1.NodeService.GetMetricsHistory:output_type -> maitre.v1.GetMetricsHistoryResponse
-	5,  // 62: maitre.v1.NodeService.ExportMetrics:output_type -> maitre.v1.ExportMetricsResponse
-	7,  // 63: maitre.v1.NodeService.ImportMetrics:output_type -> maitre.v1.ImportMetricsResponse
-	48, // [48:64] is the sub-list for method output_type
-	32, // [32:48] is the sub-list for method input_type
+	45, // 48: maitre.v1.NodeService.DebugReadFile:input_type -> maitre.v1.DebugReadFileRequest
+	47, // 49: maitre.v1.NodeService.DebugExec:input_type -> maitre.v1.DebugExecRequest
+	40, // 50: maitre.v1.NodeService.GetNodeInfo:output_type -> maitre.v1.GetNodeInfoResponse
+	36, // 51: maitre.v1.NodeService.ListRecords:output_type -> maitre.v1.ListRecordsResponse
+	38, // 52: maitre.v1.NodeService.PutRecord:output_type -> maitre.v1.PutRecordResponse
+	32, // 53: maitre.v1.NodeService.GetNodeMetrics:output_type -> maitre.v1.GetNodeMetricsResponse
+	19, // 54: maitre.v1.NodeService.GetUpdateStatus:output_type -> maitre.v1.GetUpdateStatusResponse
+	24, // 55: maitre.v1.NodeService.UpdateImage:output_type -> maitre.v1.UpdateImageResponse
+	26, // 56: maitre.v1.NodeService.Rollback:output_type -> maitre.v1.RollbackResponse
+	30, // 57: maitre.v1.NodeService.Reboot:output_type -> maitre.v1.RebootResponse
+	28, // 58: maitre.v1.NodeService.RenameNode:output_type -> maitre.v1.RenameNodeResponse
+	16, // 59: maitre.v1.NodeService.PushRecords:output_type -> maitre.v1.PushRecordsResponse
+	11, // 60: maitre.v1.NodeService.GetFleetStatus:output_type -> maitre.v1.GetFleetStatusResponse
+	44, // 61: maitre.v1.NodeService.GetNodeLogs:output_type -> maitre.v1.GetNodeLogsResponse
+	9,  // 62: maitre.v1.NodeService.PushStatus:output_type -> maitre.v1.PushStatusResponse
+	2,  // 63: maitre.v1.NodeService.GetMetricsHistory:output_type -> maitre.v1.GetMetricsHistoryResponse
+	5,  // 64: maitre.v1.NodeService.ExportMetrics:output_type -> maitre.v1.ExportMetricsResponse
+	7,  // 65: maitre.v1.NodeService.ImportMetrics:output_type -> maitre.v1.ImportMetricsResponse
+	46, // 66: maitre.v1.NodeService.DebugReadFile:output_type -> maitre.v1.DebugReadFileResponse
+	48, // 67: maitre.v1.NodeService.DebugExec:output_type -> maitre.v1.DebugExecResponse
+	50, // [50:68] is the sub-list for method output_type
+	32, // [32:50] is the sub-list for method input_type
 	32, // [32:32] is the sub-list for extension type_name
 	32, // [32:32] is the sub-list for extension extendee
 	0,  // [0:32] is the sub-list for field type_name
@@ -3261,7 +3468,7 @@ func file_maitre_v1_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_node_proto_rawDesc), len(file_maitre_v1_node_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   46,
+			NumMessages:   50,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

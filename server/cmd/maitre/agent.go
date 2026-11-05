@@ -1193,6 +1193,8 @@ func runAgent(args []string) error {
 	go fm.Run(ctx)
 	fsvc := filesservice.New(fm)
 	fsvc.IsNode = list.Node
+	// Decision 326: the debug tier is for a Device, never Node to Node.
+	svc.IsNode = list.Node
 	maitrev1connect.RegisterFilesServiceHandler(rpc, fsvc)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
