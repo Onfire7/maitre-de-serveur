@@ -157,45 +157,93 @@ allocated at install and deleted when an update starts. xfs has no tunable
 reserve of ext4's kind. 110% of the image is generous rather than tight: only a
 large version jump approaches it.
 
-**13. Rescue, which costs nothing.** The rescue environment is the same image
-booted with a rescue flag; there is no separate boot image. It is half built
-already, because decision 101's recovery mode is exactly this shape:
+**13. Rescue, which costs nothing (324, 325).** The rescue environment is the
+same image booted with a rescue flag; there is no separate boot image. It is
+half built already, because decision 101's recovery mode is exactly this shape:
 `recoverymode.RequestFile` in the state directory asks the next boot to enter
 recovery, `screen.go`'s `RebootRecovery` writes it and reboots, and the agent
 reads it at start (`agent.go:151`) and runs `runRecoveryScreen` with networking
-off. Nothing in `image/` takes part. A rescue boot for space is the same
-mechanism with a different payload: Services not started, the agent reduced, and
-the repair actions — prune first — on the Node's own screen.
+off.
 
-That screen is the surface this incident needed and nobody reached for.
-`tui.Source` already gives status, the metrics charts, the containers and any
-unit's journal, with Reboot and RebootRecovery behind a confirm. "A Node has no
-terminal" is about shells; a menu on tty1 is not one, and it keeps working when
-the network, the Console and podman do not. Adding "Reclaim image space" to it
-is small, and it is the only repair path that does not depend on the thing being
-repaired.
+A Node also has to be able to *reach* rescue when its agent cannot start, which
+today it cannot: only a running agent writes the flag. greenboot is the answer
+and the hook already runs at the right moment — `image/greenboot/red-maitre.sh`,
+installed as `/etc/greenboot/red.d/10-maitre.sh`, is what greenboot runs on a
+red boot, and it already writes `/var/lib/maitre/last-rollback`. That directory
+is the config partition, shared by both deployments, so a request written there
+survives the rollback greenboot then arranges, and the rolled-back image honours
+it. `recoverymode.Requested` clears the request as it reads it, so a crash loop
+cannot hold a Node in rescue.
 
-**14. The Debug Console (323).** A separate app, paired as a device is.
+Two things to get right. Rescue belongs *after* a rollback has had its turn and
+failed, not on the first red boot, or an unrelated red boot takes a Node off the
+network and needs someone standing at it; greenboot counts in the bootloader
+environment, so rather than depend on its internals the red script can keep its
+own tally beside `last-rollback`. And a flag in a file changes the agent's
+behaviour and nothing else — every Service unit is
+`WantedBy=multi-user.target default.target`, so systemd starts them in parallel
+with the agent whatever the agent then does. For decision 101 that is harmless;
+for a rescue boot meant to free space it is backwards, since the crash-looping
+Services would be pulling images while someone tries to prune. Holding them
+needs the flag visible to systemd at boot — a kernel argument, or a rescue
+target the boot is pointed at — and not a file under `/var/lib/maitre`, which a
+generator could not read that early anyway, since `var-lib-maitre.mount` has not
+run yet. Which mechanism, and whether it is one-shot, is the open part.
+
+**14. What rescue can do.** Today it shows a one-time pairing code and waits for
+Enter — `runRecoveryScreen` is a `printf` screen, not a menu, because decision
+101 needed nothing more. Expanding it is its own piece of work: rescue becomes a
+menu, with Services held down, offering at least
+
+- report space: root free and total, the image store's path and size;
+- prune images, which is the repair this incident needed;
+- roll back to the previous image;
+- re-run the health checks and show what they say;
+- view a unit's journal;
+- a shell, as the escape hatch (326);
+- reboot normally, and the existing one-time code for pairing a Desktop.
+
+The curated actions matter more than the shell: each one that exists is a repair
+nobody has to improvise. `tui.Source` is the shape to reuse — it already serves
+status, the metrics charts, the containers and any unit's journal, with Reboot
+and RebootRecovery behind a confirm — with a reduced implementation that does not
+assume a running agent, since the case that reaches rescue is the one where the
+agent did not start.
+
+**15. Three tiers of diagnostics (326), split by what can reach them.**
+
+- *The regular server*, in every shipped image: basic diagnostics that are not a
+  security surface — filesystem usage, the image list, a unit's journal, prune —
+  for a Trusted Device, which can already install Services and open their pages,
+  so none of it is an escalation.
+- *The debug build*, behind a Go build tag: the dangerous remote half, meaning
+  diagnostics over the wire and command execution, for a paired Debug Console.
+  Absent from a shipped binary rather than guarded inside one.
+- *Rescue mode*, with networking off: a shell, on the Node's own screen, reached
+  only by someone standing at the machine.
+
+What this preserves is worth stating precisely, because it is stronger than the
+rule it replaces: "a Node has no terminal" becomes a property of the *network*
+rather than of the image. Nothing reachable over a network can run a command on
+a Node unless the image was built for it, and a shell exists only where physical
+presence is already assumed. It is also honest — physical access to an
+unencrypted disk is root anyway, so the rescue shell takes nothing that was not
+already there. It would become the hole to think about if disk encryption or
+measured boot ever arrive.
+
+**16. The Debug Console (323).** A separate app, paired as a device is.
 `authz.Role` is `Stranger`, `Device`, `Recovery`, `Node`, and `trust.List`
 already keeps three key sets through `ReplaceRoles`, so `Debug` is a fourth and
 pairing is ADR 0002 and 0005 untouched. The loud advertising is the whole image
 box turning amber on both the Update and Node screens with a "Debug Console"
 pill inside it — one component, `ServerImage` in `NodeDetails.tsx`, which
 `UpdatesTab.tsx` imports, where `dev_mode` already renders beside the version as
-precedent. Diagnostic procedures come before any exec, and are finite: read a
-file under an allowlist, tail a unit's journal, list images, report filesystem
-usage, prune.
+precedent.
 
 ## Still open
 
-- **325:** how a Node enters rescue when its agent cannot start. Today the flag
-  is written by a running agent from its own screen, so the one case that most
-  needs rescue cannot ask for it. Cheapest candidate: greenboot falling into
-  rescue after its three failed boots instead of only rolling back.
-- **326:** whether 323's diagnostics are gated by the build tag or by a rescue
-  boot. Rescue-as-boot-flag means they could ship inert in every image and
-  answer only in a rescue boot, which is the only way to diagnose a Node already
-  running a shipped image. Exec can stay behind the build tag either way.
+- How a rescue boot holds the Services down: a kernel argument, a rescue target,
+  or something else, and whether it is one-shot. Item 13 has the constraint.
 - A Service with no volumes skips both storage guards, since the default-Space
   check runs only `for _, v := range spec.GetVolumes()`, so a Tunnel could still
   install on a Drive-less Node.
