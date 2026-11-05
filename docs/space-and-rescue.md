@@ -279,15 +279,18 @@ the rung below it has passed.
 1. **Unit tests on the dev box.** Items 1-6 are all `fakeRunner` work: scripted
    `podman manifest inspect` output for an index and for a plain manifest, a
    free-space floor, a prune trigger, a gauge. No hardware.
-2. **Two Nodes on loopback.** `scripts/m3-check.sh` already stands up two Nodes
-   of one Fleet with `--fake-install`, no root and no hardware. It is where
-   decision 318 is proven end to end rather than in a unit test: `maitre record
-   --kind service put` a spec on A, then assert B's `service list` is empty
-   while A's is not. That is the exact bug, reproduced over the real sync path.
-   One trap, already hit once while writing the prune tests: `mine` filters on
-   the spec's own `node_id`, which only `Install` sets — a seeded body must
-   carry it, or the Service vanishes from both Nodes and the test passes for the
-   wrong reason.
+2. **Two Nodes on loopback.** `scripts/m3-check.sh` stands up two Nodes of
+   one Fleet with `--fake-install`, no root and no hardware, and `make
+   m1-check`/`m0-check` cover a single Node and the mTLS refusals. What
+   they cannot easily do is seed a Service: `maitre record put` takes a raw
+   protobuf body, not JSON, and `service install` wants podman, so decision
+   318's end-to-end case is covered by the unit tests instead — they seed a
+   foreign spec through the real store and assert both that `List` and
+   `AutoUpdate` pass it over and that no registry is contacted for it.
+   One trap worth keeping in mind for any future attempt: `mine` filters on
+   the spec's own `node_id`, which only `Install` sets, so a seeded body
+   must carry it or the Service vanishes from both Nodes and the test
+   passes for the wrong reason.
 3. **A VM.** `make image` then `make image-boot` installs from the image in
    QEMU and reboots into a Node. This is where greenboot's new check runs for
    real, where 319's SELinux labelling and mount ordering are either right or
