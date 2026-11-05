@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -128,6 +129,13 @@ type Manager struct {
 	cfg   Config
 	store *store.Store
 	run   Runner
+	// Decision 317: bytes each Service's images have cost to pull since
+	// this agent started (pull.go).
+	pullMu    sync.Mutex
+	pullBytes map[string]uint64
+	// The graphroot podman reports, resolved once (prune.go).
+	storeMu sync.Mutex
+	store_  string
 }
 
 // New builds a Manager.
@@ -1012,7 +1020,10 @@ func (m *Manager) Update(ctx context.Context, spec *maitrev1.ServiceSpec) (bool,
 		if err := m.ensureRoomToPull(ctx); err != nil {
 			return false, err
 		}
-		if _, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef); err != nil {
+		if err := m.countPull(spec.GetName(), func() error {
+			_, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef)
+			return err
+		}); err != nil {
 			return false, fmt.Errorf("pull %s: %w", tagRef, err)
 		}
 		out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", tagRef)
@@ -1233,7 +1244,10 @@ func (m *Manager) SetImage(ctx context.Context, name, image, component string) (
 		if err := m.ensureRoomToPull(ctx); err != nil {
 			return nil, err
 		}
-		if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
+		if err := m.countPull(name, func() error {
+			_, err := m.run.Run(ctx, "podman", "pull", "-q", image)
+			return err
+		}); err != nil {
 			return nil, fmt.Errorf("pull %s: %w", image, err)
 		}
 		out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", image)
@@ -1249,7 +1263,10 @@ func (m *Manager) SetImage(ctx context.Context, name, image, component string) (
 		if err := m.ensureRoomToPull(ctx); err != nil {
 			return nil, err
 		}
-		if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
+		if err := m.countPull(name, func() error {
+			_, err := m.run.Run(ctx, "podman", "pull", "-q", image)
+			return err
+		}); err != nil {
 			return nil, fmt.Errorf("pull %s: %w", image, err)
 		}
 	}
@@ -1401,6 +1418,12 @@ func (m *Manager) SetPortForwarding(ctx context.Context, name string, enabled bo
 
 func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*maitrev1.ServiceStatus, error) {
 	st := &maitrev1.ServiceStatus{Spec: spec}
+	// Decision 317: a Service that shares another's network namespace says
+	// whose, so the Console can show the figure marked as shared rather
+	// than splitting it dishonestly or hiding it.
+	if owner := netOwner(spec); owner != spec.GetName() && owner != "" {
+		st.NetworkSharedWith = owner
+	}
 	if m.cfg.Forward != nil {
 		if spec.GetForwardPorts() {
 			st.ForwardState = m.cfg.Forward(spec.GetName())

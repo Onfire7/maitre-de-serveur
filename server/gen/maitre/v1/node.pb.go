@@ -90,10 +90,20 @@ type GetMetricsHistoryRequest struct {
 	//	node/temperature  degrees Celsius, highest thermal zone
 	//	node/net_rx, node/net_tx  bytes per second, all non-loopback links
 	//	node/pool         percent of the default Pool in use
+	//	node/system_disk  percent of the root filesystem in use
+	//	node/image_store  percent of the image store's filesystem in use
 	//	drive/<drive_id>  percent of that Drive in use
 	//	service/<name>/cpu         percent of all the Node's cores
 	//	service/<name>/memory      bytes in use (without reclaimable cache)
 	//	service/<name>/disk_read, service/<name>/disk_write  bytes per second
+	//	service/<name>/net_rx, service/<name>/net_tx  bytes per second, from
+	//	  the container's own network namespace. A Service on the Node's own
+	//	  network has none of its own, so it reports nothing and its traffic
+	//	  is the Node's; a Service on a Tunnel reports under the Tunnel's
+	//	  name, which every member shares (decision 317).
+	//	service/<name>/image_pull  bytes per second its images cost to pull,
+	//	  counted by the agent, since a pull runs in the host namespace and
+	//	  would otherwise be invisible exactly when it matters
 	//
 	// Empty means every node/ and drive/ series.
 	Series     []string `protobuf:"bytes,1,rep,name=series,proto3" json:"series,omitempty"`
@@ -2060,9 +2070,22 @@ type NodeMetrics struct {
 	Load_1M      float64 `protobuf:"fixed64,10,opt,name=load_1m,json=load1m,proto3" json:"load_1m,omitempty"`
 	// Every mounted Drive of this Node: how full it is. Gossiped with the
 	// rest, so the Console shows every Node's Drives from one call.
-	Drives        []*DriveUsage `protobuf:"bytes,11,rep,name=drives,proto3" json:"drives,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Drives []*DriveUsage `protobuf:"bytes,11,rep,name=drives,proto3" json:"drives,omitempty"`
+	// The root filesystem, which carries the OS, the journal and (until
+	// decision 319 moves it) podman's image store. The Node had no gauge for
+	// it at all, so when it filled on 2026-11-04 the Console could show only
+	// the symptom — Services failing and the network saturated — and never
+	// the cause. It is also what decides whether an update can be staged.
+	SystemDiskTotalBytes uint64 `protobuf:"varint,12,opt,name=system_disk_total_bytes,json=systemDiskTotalBytes,proto3" json:"system_disk_total_bytes,omitempty"`
+	SystemDiskUsedBytes  uint64 `protobuf:"varint,13,opt,name=system_disk_used_bytes,json=systemDiskUsedBytes,proto3" json:"system_disk_used_bytes,omitempty"`
+	// The filesystem holding podman's image store, and where that is. The
+	// same numbers as system_disk until decision 319 moves the store off
+	// root, and the ones that say whether another image will fit.
+	ImageStoreTotalBytes uint64 `protobuf:"varint,14,opt,name=image_store_total_bytes,json=imageStoreTotalBytes,proto3" json:"image_store_total_bytes,omitempty"`
+	ImageStoreUsedBytes  uint64 `protobuf:"varint,15,opt,name=image_store_used_bytes,json=imageStoreUsedBytes,proto3" json:"image_store_used_bytes,omitempty"`
+	ImageStoreDir        string `protobuf:"bytes,16,opt,name=image_store_dir,json=imageStoreDir,proto3" json:"image_store_dir,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *NodeMetrics) Reset() {
@@ -2170,6 +2193,41 @@ func (x *NodeMetrics) GetDrives() []*DriveUsage {
 		return x.Drives
 	}
 	return nil
+}
+
+func (x *NodeMetrics) GetSystemDiskTotalBytes() uint64 {
+	if x != nil {
+		return x.SystemDiskTotalBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetSystemDiskUsedBytes() uint64 {
+	if x != nil {
+		return x.SystemDiskUsedBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetImageStoreTotalBytes() uint64 {
+	if x != nil {
+		return x.ImageStoreTotalBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetImageStoreUsedBytes() uint64 {
+	if x != nil {
+		return x.ImageStoreUsedBytes
+	}
+	return 0
+}
+
+func (x *NodeMetrics) GetImageStoreDir() string {
+	if x != nil {
+		return x.ImageStoreDir
+	}
+	return ""
 }
 
 // DriveUsage is one Drive's capacity, by its drive_id.
@@ -2944,7 +3002,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x0eRebootResponse\"\x17\n" +
 	"\x15GetNodeMetricsRequest\"J\n" +
 	"\x16GetNodeMetricsResponse\x120\n" +
-	"\ametrics\x18\x01 \x01(\v2\x16.maitre.v1.NodeMetricsR\ametrics\"\xcc\x03\n" +
+	"\ametrics\x18\x01 \x01(\v2\x16.maitre.v1.NodeMetricsR\ametrics\"\xcc\x05\n" +
 	"\vNodeMetrics\x12\x1f\n" +
 	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
 	"cpuPercent\x12,\n" +
@@ -2958,7 +3016,12 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\rtemperature_c\x18\t \x01(\x01R\ftemperatureC\x12\x17\n" +
 	"\aload_1m\x18\n" +
 	" \x01(\x01R\x06load1m\x12-\n" +
-	"\x06drives\x18\v \x03(\v2\x15.maitre.v1.DriveUsageR\x06drives\"g\n" +
+	"\x06drives\x18\v \x03(\v2\x15.maitre.v1.DriveUsageR\x06drives\x125\n" +
+	"\x17system_disk_total_bytes\x18\f \x01(\x04R\x14systemDiskTotalBytes\x123\n" +
+	"\x16system_disk_used_bytes\x18\r \x01(\x04R\x13systemDiskUsedBytes\x125\n" +
+	"\x17image_store_total_bytes\x18\x0e \x01(\x04R\x14imageStoreTotalBytes\x123\n" +
+	"\x16image_store_used_bytes\x18\x0f \x01(\x04R\x13imageStoreUsedBytes\x12&\n" +
+	"\x0fimage_store_dir\x18\x10 \x01(\tR\rimageStoreDir\"g\n" +
 	"\n" +
 	"DriveUsage\x12\x19\n" +
 	"\bdrive_id\x18\x01 \x01(\tR\adriveId\x12\x1f\n" +

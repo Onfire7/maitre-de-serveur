@@ -87,10 +87,20 @@ message GetMetricsHistoryRequest {
   //   node/temperature  degrees Celsius, highest thermal zone
   //   node/net_rx, node/net_tx  bytes per second, all non-loopback links
   //   node/pool         percent of the default Pool in use
+  //   node/system_disk  percent of the root filesystem in use
+  //   node/image_store  percent of the image store's filesystem in use
   //   drive/<drive_id>  percent of that Drive in use
   //   service/<name>/cpu         percent of all the Node's cores
   //   service/<name>/memory      bytes in use (without reclaimable cache)
   //   service/<name>/disk_read, service/<name>/disk_write  bytes per second
+  //   service/<name>/net_rx, service/<name>/net_tx  bytes per second, from
+  //     the container's own network namespace. A Service on the Node's own
+  //     network has none of its own, so it reports nothing and its traffic
+  //     is the Node's; a Service on a Tunnel reports under the Tunnel's
+  //     name, which every member shares (decision 317).
+  //   service/<name>/image_pull  bytes per second its images cost to pull,
+  //     counted by the agent, since a pull runs in the host namespace and
+  //     would otherwise be invisible exactly when it matters
   // Empty means every node/ and drive/ series.
   repeated string series = 1;
   int64 from_unix_ms = 2;
@@ -394,6 +404,19 @@ message NodeMetrics {
   // Every mounted Drive of this Node: how full it is. Gossiped with the
   // rest, so the Console shows every Node's Drives from one call.
   repeated DriveUsage drives = 11;
+  // The root filesystem, which carries the OS, the journal and (until
+  // decision 319 moves it) podman's image store. The Node had no gauge for
+  // it at all, so when it filled on 2026-11-04 the Console could show only
+  // the symptom — Services failing and the network saturated — and never
+  // the cause. It is also what decides whether an update can be staged.
+  uint64 system_disk_total_bytes = 12;
+  uint64 system_disk_used_bytes = 13;
+  // The filesystem holding podman's image store, and where that is. The
+  // same numbers as system_disk until decision 319 moves the store off
+  // root, and the ones that say whether another image will fit.
+  uint64 image_store_total_bytes = 14;
+  uint64 image_store_used_bytes = 15;
+  string image_store_dir = 16;
 }
 
 // DriveUsage is one Drive's capacity, by its drive_id.

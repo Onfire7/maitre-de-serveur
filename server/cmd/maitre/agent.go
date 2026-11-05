@@ -306,6 +306,9 @@ func runAgent(args []string) error {
 		}
 		return ""
 	}
+	// Built below, once its dependencies exist; the closures that follow
+	// are called long after that.
+	var mgr *services.Manager
 	collector := metrics.New(func() string {
 		id := defaultSpace(ctx)
 		if id == "" {
@@ -334,6 +337,14 @@ func runAgent(args []string) error {
 		}
 		return out
 	}
+	// Decision 317: the filesystem the images are on, which decision 319
+	// moves off root. Resolved by the Manager and cached there.
+	collector.ImageStoreDir = func() string {
+		if mgr == nil {
+			return ""
+		}
+		return mgr.ImageStoreDir(ctx)
+	}
 	svc.Metrics = collector.Read
 	// Decision 210: the long-term metrics, a reading every 10 s.
 	if hist, err := history.Open(filepath.Join(*state, "metrics")); err != nil {
@@ -343,6 +354,7 @@ func runAgent(args []string) error {
 		svc.History = hist
 		own := metrics.New(collector.PoolDir)
 		own.Drives = collector.Drives
+		own.ImageStoreDir = collector.ImageStoreDir
 		sampler := &history.Sampler{Node: own.Read, Services: func() []string {
 			specs, err := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
 			if err != nil {
@@ -356,6 +368,20 @@ func runAgent(args []string) error {
 			}
 			return names
 		}}
+		// Decision 317: who owns the namespace a Service's traffic is in,
+		// and what its pulls have cost, which only the agent can say.
+		sampler.NetOwner = func(name string) string {
+			if mgr == nil {
+				return name
+			}
+			return mgr.NetOwner(name)
+		}
+		sampler.Pulls = func() map[string]uint64 {
+			if mgr == nil {
+				return nil
+			}
+			return mgr.PullBytes()
+		}
 		go recordHistory(ctx, log, hist, sampler)
 	}
 	svc.Updates = update.New(nil, log)
@@ -451,7 +477,7 @@ func runAgent(args []string) error {
 		}
 		return 0
 	}
-	mgr := services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
+	mgr = services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
 		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf, ValidateUnits: true,
 		LocalPool: func(ctx context.Context, space string) (string, bool) {
 			spaces, _ := storage.Spaces(ctx, st)

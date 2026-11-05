@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/metrics"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
 
@@ -186,4 +187,64 @@ func iec(n uint64) string {
 	default:
 		return fmt.Sprintf("%d bytes", n)
 	}
+}
+
+// Pull bytes (decision 317). A pull runs in the Node's own network
+// namespace, so the per-Service counters read zero through exactly the
+// failure that made this series necessary: Avalon's three Services spent
+// about 3 TB and their service/<name>/net_rx would have shown nothing.
+// Only the agent knows a pull is happening, so only the agent can say.
+//
+// What is counted is the Node's own received bytes across the pull, not
+// the growth of the store, because a pull that fails on ENOSPC keeps
+// nothing and the store grows by nothing — the case worth seeing most.
+// Other traffic during the pull is attributed to it, which is the price of
+// counting it at all, and over the timescale this series is read at (a
+// pull that saturates a link for minutes) it does not mislead.
+func (m *Manager) countPull(name string, pull func() error) error {
+	before, _ := metrics.NetCounters()
+	err := pull()
+	if after, _ := metrics.NetCounters(); after > before {
+		m.pullMu.Lock()
+		if m.pullBytes == nil {
+			m.pullBytes = map[string]uint64{}
+		}
+		m.pullBytes[name] += after - before
+		m.pullMu.Unlock()
+	}
+	return err
+}
+
+// PullBytes is what each Service's images have cost to pull since the
+// agent started, for the history sampler to read as a counter.
+func (m *Manager) PullBytes() map[string]uint64 {
+	m.pullMu.Lock()
+	defer m.pullMu.Unlock()
+	out := make(map[string]uint64, len(m.pullBytes))
+	for k, v := range m.pullBytes {
+		out[k] = v
+	}
+	return out
+}
+
+// NetOwner names whose network namespace carries a Service's traffic
+// (decision 317): itself when it has one of its own, the Tunnel it joins
+// when it shares one, and "" when it is on the Node's own network, where
+// the traffic is the Node's and already counted there.
+func (m *Manager) NetOwner(name string) string {
+	var spec maitrev1.ServiceSpec
+	if _, err := m.store.Get(context.Background(), KindService, name, &spec); err != nil {
+		return name
+	}
+	return netOwner(&spec)
+}
+
+func netOwner(spec *maitrev1.ServiceSpec) string {
+	switch {
+	case spec.GetNetworkKind() == NetworkTunnel && spec.GetNetworkTarget() != "":
+		return spec.GetNetworkTarget()
+	case spec.GetNetworkKind() == NetworkHost || onHostNetwork(spec):
+		return ""
+	}
+	return spec.GetName()
 }

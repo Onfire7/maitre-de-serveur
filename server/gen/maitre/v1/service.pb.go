@@ -2417,9 +2417,15 @@ type ServiceStatus struct {
 	Components []*ComponentStatus `protobuf:"bytes,11,rep,name=components,proto3" json:"components,omitempty"`
 	// One per Page (ADR 0010), in the spec's order; url, remote_url,
 	// remote_state and healthy above are the first Page's.
-	Pages         []*PageStatus `protobuf:"bytes,12,rep,name=pages,proto3" json:"pages,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Pages []*PageStatus `protobuf:"bytes,12,rep,name=pages,proto3" json:"pages,omitempty"`
+	// Decision 317: the name whose network namespace carries this Service's
+	// traffic when it is not its own — the Tunnel it joins. Its per-Service
+	// network series is reported under that name, and the Console shows the
+	// figure on each member marked as shared rather than splitting it
+	// dishonestly or hiding it.
+	NetworkSharedWith string `protobuf:"bytes,13,opt,name=network_shared_with,json=networkSharedWith,proto3" json:"network_shared_with,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ServiceStatus) Reset() {
@@ -2534,6 +2540,13 @@ func (x *ServiceStatus) GetPages() []*PageStatus {
 		return x.Pages
 	}
 	return nil
+}
+
+func (x *ServiceStatus) GetNetworkSharedWith() string {
+	if x != nil {
+		return x.NetworkSharedWith
+	}
+	return ""
 }
 
 // PageStatus is where one Page answers and whether it does.
@@ -3673,7 +3686,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aA\n" +
 	"\x13OptionalGrantsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xcb\x04\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xfb\x04\n" +
 	"\rServiceStatus\x12*\n" +
 	"\x04spec\x18\x01 \x01(\v2\x16.maitre.v1.ServiceSpecR\x04spec\x124\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1e.maitre.v1.ServiceStatus.StateR\x05state\x12\x18\n" +
@@ -3690,7 +3703,8 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"components\x18\v \x03(\v2\x1a.maitre.v1.ComponentStatusR\n" +
 	"components\x12+\n" +
-	"\x05pages\x18\f \x03(\v2\x15.maitre.v1.PageStatusR\x05pages\"~\n" +
+	"\x05pages\x18\f \x03(\v2\x15.maitre.v1.PageStatusR\x05pages\x12.\n" +
+	"\x13network_shared_with\x18\r \x01(\tR\x11networkSharedWith\"~\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rSTATE_STOPPED\x10\x01\x12\x12\n" +

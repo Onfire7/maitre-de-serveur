@@ -88,14 +88,26 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	return res, nil
 }
 
+// ImageStoreDir is storeDir for other packages: the metrics collector
+// gauges the filesystem the images are on (decision 317), and after
+// decision 319 that is not the root partition.
+func (m *Manager) ImageStoreDir(ctx context.Context) string { return m.storeDir(ctx) }
+
 // storeDir is where podman keeps its images, which decision 319 moves off
-// the root partition. Asked of podman rather than assumed, so it follows.
+// the root partition. Asked of podman rather than assumed, so it follows —
+// and cached, since a reading every ten seconds should not run `podman
+// info` and the graphroot does not move while the Node is up.
 func (m *Manager) storeDir(ctx context.Context) string {
-	out, err := m.run.Run(ctx, "podman", "info", "--format", "{{.Store.GraphRoot}}")
-	if err == nil {
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
+	if m.store_ != "" {
+		return m.store_
+	}
+	m.store_ = "/var/lib/containers/storage"
+	if out, err := m.run.Run(ctx, "podman", "info", "--format", "{{.Store.GraphRoot}}"); err == nil {
 		if dir := strings.TrimSpace(out); dir != "" {
-			return dir
+			m.store_ = dir
 		}
 	}
-	return "/var/lib/containers/storage"
+	return m.store_
 }

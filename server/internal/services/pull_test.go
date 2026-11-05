@@ -275,3 +275,36 @@ func TestAnUnmeasurableStoreDoesNotRefuseAPull(t *testing.T) {
 		t.Fatalf("want one pull, got %d: %v", run.pulls(), run.cmds)
 	}
 }
+
+// Decision 317: a Service on a Tunnel says whose network it is on, so the
+// Console can mark the figure shared instead of splitting or hiding it.
+func TestAServiceOnATunnelSaysWhoseNetworkItShares(t *testing.T) {
+	ctx := context.Background()
+	run := &pullRunner{}
+	m, st := managerOver(t, run)
+	member := single("qbittorrent", 8080)
+	member.NodeId = "node-a"
+	member.NetworkKind, member.NetworkTarget = services.NetworkTunnel, "gluetun"
+	if _, err := st.Put(ctx, services.KindService, member.GetName(), member, true); err != nil {
+		t.Fatal(err)
+	}
+	status, err := m.Status(ctx, member)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.GetNetworkSharedWith() != "gluetun" {
+		t.Fatalf("want gluetun, got %q", status.GetNetworkSharedWith())
+	}
+	// A Service with a network of its own shares nobody's.
+	own := single("memos", 5230)
+	own.NodeId = "node-a"
+	if _, err := st.Put(ctx, services.KindService, own.GetName(), own, true); err != nil {
+		t.Fatal(err)
+	}
+	if status, err = m.Status(ctx, own); err != nil {
+		t.Fatal(err)
+	}
+	if status.GetNetworkSharedWith() != "" {
+		t.Fatalf("want no sharing, got %q", status.GetNetworkSharedWith())
+	}
+}

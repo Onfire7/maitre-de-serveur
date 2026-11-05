@@ -475,6 +475,12 @@ message ServiceStatus {
   // One per Page (ADR 0010), in the spec's order; url, remote_url,
   // remote_state and healthy above are the first Page's.
   repeated PageStatus pages = 12;
+  // Decision 317: the name whose network namespace carries this Service's
+  // traffic when it is not its own — the Tunnel it joins. Its per-Service
+  // network series is reported under that name, and the Console shows the
+  // figure on each member marked as shared rather than splitting it
+  // dishonestly or hiding it.
+  string network_shared_with = 13;
 }
 
 // PageStatus is where one Page answers and whether it does.

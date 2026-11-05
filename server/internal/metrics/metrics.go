@@ -24,7 +24,11 @@ type Collector struct {
 	PoolDir func() string
 	// Drives returns this Node's mounted Drives, drive id to mount path;
 	// nil means none are reported.
-	Drives   func() map[string]string
+	Drives func() map[string]string
+	// ImageStoreDir returns podman's graphroot, which decision 319 moves
+	// off the root partition; "" reports no image store gauge. Cached by
+	// the caller: this runs on every reading.
+	ImageStoreDir func() string
 	lastAt   time.Time
 	cpuBusy  uint64
 	cpuTotal uint64
@@ -63,6 +67,15 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 		m.PoolTotalBytes, m.PoolUsedBytes = disk(dir)
 	} else {
 		m.PoolFallback = true
+	}
+	// The root filesystem: the gauge the Node never had, and the one that
+	// says whether an update can still be staged.
+	m.SystemDiskTotalBytes, m.SystemDiskUsedBytes = disk("/")
+	if c.ImageStoreDir != nil {
+		if dir := c.ImageStoreDir(); dir != "" {
+			m.ImageStoreDir = dir
+			m.ImageStoreTotalBytes, m.ImageStoreUsedBytes = disk(dir)
+		}
 	}
 	m.TemperatureC = temperature()
 	m.Load_1M = load()
@@ -125,6 +138,11 @@ func memory() (total, used uint64) {
 	}
 	return total, used
 }
+
+// NetCounters is the Node's own network totals, which the agent reads
+// around a pull to tell what it cost (decision 317): a pull runs in the
+// Node's namespace, so there is nowhere else for those bytes to show.
+func NetCounters() (rx, tx uint64) { return netCounters() }
 
 func netCounters() (rx, tx uint64) {
 	b, err := os.ReadFile("/proc/net/dev")
