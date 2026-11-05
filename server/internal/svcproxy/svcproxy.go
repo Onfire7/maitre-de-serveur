@@ -32,6 +32,9 @@ import (
 // Header names the Service.
 const Header = "X-Maitre-Service"
 
+// PageHeader names the Page of the Service (ADR 0010); empty is its first.
+const PageHeader = "X-Maitre-Page"
+
 // Handler wraps next: requests with the header go to the Service, the rest
 // to next.
 func Handler(st *store.Store, next http.Handler) http.Handler {
@@ -42,17 +45,22 @@ func Handler(st *store.Store, next http.Handler) http.Handler {
 			return
 		}
 		var spec maitrev1.ServiceSpec
-		if _, err := st.Get(r.Context(), services.KindService, name, &spec); err != nil || spec.GetWebHostPort() == 0 {
-			http.Error(w, "no such Service or it has no web page", http.StatusNotFound)
+		var page *maitrev1.ServicePage
+		if _, err := st.Get(r.Context(), services.KindService, name, &spec); err == nil {
+			page = services.PageByName(&spec, r.Header.Get(PageHeader))
+		}
+		if page == nil || page.GetHostPort() == 0 {
+			http.Error(w, "no such Service or it has no such Page", http.StatusNotFound)
 			return
 		}
-		target := &url.URL{Scheme: "http", Host: "127.0.0.1:" + strconv.Itoa(int(spec.GetWebHostPort()))}
+		target := &url.URL{Scheme: "http", Host: "127.0.0.1:" + strconv.Itoa(int(page.GetHostPort()))}
 		rp := httputil.NewSingleHostReverseProxy(target)
 		director := rp.Director
-		host := spec.GetName() + "." + services.DefaultSuffix
+		host := services.PageHost(&spec, page) + "." + services.DefaultSuffix
 		rp.Director = func(req *http.Request) {
 			director(req)
 			req.Header.Del(Header)
+			req.Header.Del(PageHeader)
 			// Apps see the name they are known by, not the loopback port.
 			req.Host = host
 			// The Console's frame is on a loopback origin of its own; the
@@ -148,5 +156,6 @@ func Lookup(ctx context.Context, st *store.Store, name string) (int, bool) {
 	if _, err := st.Get(ctx, services.KindService, name, &spec); err != nil {
 		return 0, false
 	}
-	return int(spec.GetWebHostPort()), spec.GetWebHostPort() != 0
+	port := services.WebHostPort(&spec)
+	return port, port != 0
 }

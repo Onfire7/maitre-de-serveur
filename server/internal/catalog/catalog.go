@@ -36,11 +36,22 @@ type Manifest struct {
 	// PortForward (decision 115): the app is meant to be reached from the
 	// internet at its host_ports (a game server), so the Console offers to
 	// have the router forward them. Still off until the user turns it on.
-	PortForward bool      `yaml:"port_forward,omitempty" json:"port_forward,omitempty"`
-	Web         *Web      `yaml:"web,omitempty" json:"web,omitempty"`
-	Volumes     []Volume  `yaml:"volumes,omitempty" json:"volumes"`
-	Settings    []Setting `yaml:"settings,omitempty" json:"settings,omitempty"`
-	Health      *Health   `yaml:"health,omitempty" json:"health,omitempty"`
+	PortForward bool `yaml:"port_forward,omitempty" json:"port_forward,omitempty"`
+	// Web is the entry's one page, the form from before Pages (ADR 0010):
+	// read as a Pages list of one, named "web".
+	Web *Web `yaml:"web,omitempty" json:"web,omitempty"`
+	// Pages are the web UIs the entry offers (ADR 0010); an entry gives
+	// web or pages, not both.
+	Pages []Page `yaml:"pages,omitempty" json:"pages,omitempty"`
+	// Ports other Services may use beyond the Pages', "5432/tcp" style,
+	// reachable from the Fleet's other Nodes once the person turns that on.
+	Ports []string `yaml:"ports,omitempty" json:"ports,omitempty"`
+	// Tunnel marks an entry whose only job is to carry other Services'
+	// traffic (a VPN client); other Services may join its network.
+	Tunnel   bool      `yaml:"tunnel,omitempty" json:"tunnel,omitempty"`
+	Volumes  []Volume  `yaml:"volumes,omitempty" json:"volumes"`
+	Settings []Setting `yaml:"settings,omitempty" json:"settings,omitempty"`
+	Health   *Health   `yaml:"health,omitempty" json:"health,omitempty"`
 	// Quadlet is the [Container] template, filled from <id>.container. Empty
 	// in an entry of several components, whose templates are theirs.
 	Quadlet string `yaml:"-" json:"quadlet"`
@@ -112,6 +123,36 @@ type Web struct {
 	Path string `yaml:"path,omitempty" json:"path"`
 	// Component serves the page, in an entry of several components.
 	Component string `yaml:"component,omitempty" json:"component,omitempty"`
+}
+
+// Page is one web UI of an entry (ADR 0010).
+type Page struct {
+	// Name is [a-z0-9-]; the first Page is reached at <service>.local, the
+	// others at <service>-<name>.local.
+	Name string `yaml:"name" json:"name"`
+	// Label is what the sidebar calls it when the Service has several.
+	Label     string `yaml:"label,omitempty" json:"label,omitempty"`
+	Port      int    `yaml:"port" json:"port"`
+	Path      string `yaml:"path,omitempty" json:"path"`
+	Component string `yaml:"component,omitempty" json:"component,omitempty"`
+	// Health is the HTTP path probed; empty means the Page's path.
+	Health string `yaml:"health,omitempty" json:"health,omitempty"`
+}
+
+// PagesOf is the entry's Pages: pages as given, else web as one Page
+// named "web" with the entry's health path.
+func (m *Manifest) PagesOf() []Page {
+	if len(m.Pages) > 0 {
+		return m.Pages
+	}
+	if m.Web == nil {
+		return nil
+	}
+	p := Page{Name: "web", Port: m.Web.Port, Path: m.Web.Path, Component: m.Web.Component}
+	if m.Health != nil {
+		p.Health = m.Health.HTTP
+	}
+	return []Page{p}
 }
 
 // Volume is a named data directory.
@@ -351,6 +392,31 @@ func (m *Manifest) Validate() error {
 	if m.Web != nil && (m.Web.Port <= 0 || m.Web.Port > 65535) {
 		return fmt.Errorf("web.port out of range")
 	}
+	if m.Web != nil && len(m.Pages) > 0 {
+		return fmt.Errorf("give web or pages, not both")
+	}
+	pageNames := map[string]bool{}
+	for _, p := range m.Pages {
+		switch {
+		case !compRe.MatchString(p.Name):
+			return fmt.Errorf("page name %q: lowercase letters, digits and dashes", p.Name)
+		case pageNames[p.Name]:
+			return fmt.Errorf("two pages named %q", p.Name)
+		case p.Port <= 0 || p.Port > 65535:
+			return fmt.Errorf("page %s: port out of range", p.Name)
+		case strings.ContainsAny(p.Path+p.Health+p.Label, "\n\r"):
+			return fmt.Errorf("page %s: a line break", p.Name)
+		}
+		pageNames[p.Name] = true
+	}
+	for _, hp := range m.Ports {
+		if !portRe.MatchString(hp) {
+			return fmt.Errorf("port %q: write it as 5432/tcp or 1194/udp", hp)
+		}
+	}
+	if m.Tunnel && len(m.Components) > 0 {
+		return fmt.Errorf("a Tunnel is an entry of one container")
+	}
 	if err := m.validateGrants(); err != nil {
 		return err
 	}
@@ -380,6 +446,8 @@ func (m *Manifest) validateComponents() error {
 			return fmt.Errorf("quadlet template needs a [Container] section")
 		case m.Web != nil && m.Web.Component != "":
 			return fmt.Errorf("web.component names a component, and the entry has none")
+		case pageComponent(m.Pages) != "":
+			return fmt.Errorf("page %s names a component, and the entry has none", pageComponent(m.Pages))
 		case len(m.Units) > 0:
 			return fmt.Errorf(".volume and .network units need components")
 		case m.Network != "":
@@ -417,12 +485,27 @@ func (m *Manifest) validateComponents() error {
 	if m.Web != nil && !names[m.Web.Component] {
 		return fmt.Errorf("web.component must name the component that serves the page")
 	}
+	for _, p := range m.Pages {
+		if !names[p.Component] {
+			return fmt.Errorf("page %s: component must name the component that serves it", p.Name)
+		}
+	}
 	for _, u := range m.Units {
 		if !unitRe.MatchString(u.Name) {
 			return fmt.Errorf("unit %q: name it <name>.volume or <name>.network", u.Name)
 		}
 	}
 	return nil
+}
+
+// pageComponent is the name of the first page naming a component, "" if none.
+func pageComponent(pages []Page) string {
+	for _, p := range pages {
+		if p.Component != "" {
+			return p.Name
+		}
+	}
+	return ""
 }
 
 // noCycle refuses components that wait for each other in a ring, which
@@ -649,14 +732,18 @@ func SpecWithout(e *Manifest, name string, settings map[string]string, exposure 
 	for _, u := range e.Units {
 		spec.Units = append(spec.Units, &maitrev1.ServiceUnit{Name: u.Name, Body: u.Body})
 	}
-	if e.Web != nil {
-		spec.WebPort = uint32(e.Web.Port)
-		spec.WebPath = e.Web.Path
-		spec.WebComponent = e.Web.Component
+	for i, p := range e.PagesOf() {
+		spec.Pages = append(spec.Pages, &maitrev1.ServicePage{Name: p.Name, Label: p.Label, Component: p.Component, Port: uint32(p.Port), Path: p.Path, HealthHttp: p.Health})
+		if i == 0 {
+			// Mirrored for code from before Pages.
+			spec.WebPort = uint32(p.Port)
+			spec.WebPath = p.Path
+			spec.WebComponent = p.Component
+			spec.HealthHttp = p.Health
+		}
 	}
-	if e.Health != nil {
-		spec.HealthHttp = e.Health.HTTP
-	}
+	spec.Ports = append([]string(nil), e.Ports...)
+	spec.Tunnel = e.Tunnel
 	for _, v := range e.Volumes {
 		spec.Volumes = append(spec.Volumes, &maitrev1.ServiceVolume{Name: v.Name, Path: v.Path, Size: v.Size, Shared: v.Shared})
 	}

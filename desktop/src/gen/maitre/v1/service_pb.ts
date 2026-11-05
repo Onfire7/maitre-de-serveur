@@ -10,7 +10,187 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/service.proto.
  */
 export const file_maitre_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIiIKEkxpc3REZXZpY2VzUmVxdWVzdBIMCgRraW5kGAEgASgJIjkKE0xpc3REZXZpY2VzUmVzcG9uc2USIgoHZGV2aWNlcxgBIAMoCzIRLm1haXRyZS52MS5EZXZpY2UiMgoGRGV2aWNlEgwKBHBhdGgYASABKAkSDAoEa2luZBgCIAEoCRIMCgRuYW1lGAMgASgJIjsKE0NoZWNrU2VydmljZVJlcXVlc3QSJAoEc3BlYxgBIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlYyKuAQoUQ2hlY2tTZXJ2aWNlUmVzcG9uc2USOQoFdW5pdHMYASADKAsyKi5tYWl0cmUudjEuQ2hlY2tTZXJ2aWNlUmVzcG9uc2UuVW5pdHNFbnRyeRItCglwcm90ZWN0ZWQYAiADKAsyGi5tYWl0cmUudjEuUHJvdGVjdGVkT3B0aW9uGiwKClVuaXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJOCg9Qcm90ZWN0ZWRPcHRpb24SEQoJY29tcG9uZW50GAEgASgJEhgKEGltYWdlX3JlcG9zaXRvcnkYAiABKAkSDgoGb3B0aW9uGAMgASgJIkEKD1NldEltYWdlUmVxdWVzdBIMCgRuYW1lGAEgASgJEg0KBWltYWdlGAIgASgJEhEKCWNvbXBvbmVudBgDIAEoCSI9ChBTZXRJbWFnZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyK8AQoSU2V0U2V0dGluZ3NSZXF1ZXN0EgwKBG5hbWUYASABKAkSPQoIc2V0dGluZ3MYAiADKAsyKy5tYWl0cmUudjEuU2V0U2V0dGluZ3NSZXF1ZXN0LlNldHRpbmdzRW50cnkSGAoLYXV0b191cGRhdGUYAyABKAhIAIgBARovCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAFCDgoMX2F1dG9fdXBkYXRlIkAKE1NldFNldHRpbmdzUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIsUCChFTZXRGb2xkZXJzUmVxdWVzdBIMCgRuYW1lGAEgASgJEkcKDnZvbHVtZV9mb2xkZXJzGAIgAygLMi8ubWFpdHJlLnYxLlNldEZvbGRlcnNSZXF1ZXN0LlZvbHVtZUZvbGRlcnNFbnRyeRJFCg12b2x1bWVfc3BhY2VzGAMgAygLMi4ubWFpdHJlLnYxLlNldEZvbGRlcnNSZXF1ZXN0LlZvbHVtZVNwYWNlc0VudHJ5EicKBm1vdW50cxgEIAMoCzIXLm1haXRyZS52MS5TZXJ2aWNlTW91bnQaNAoSVm9sdW1lRm9sZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaMwoRVm9sdW1lU3BhY2VzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI/ChJTZXRGb2xkZXJzUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIkMKEU1vdmVWb2x1bWVSZXF1ZXN0EgwKBG5hbWUYASABKAkSDgoGdm9sdW1lGAIgASgJEhAKCHRvX3NwYWNlGAMgASgJIiQKEk1vdmVWb2x1bWVSZXNwb25zZRIOCgZqb2JfaWQYASABKAkiEwoRR2V0Q2F0YWxvZ1JlcXVlc3QiUQoSR2V0Q2F0YWxvZ1Jlc3BvbnNlEhIKCmluZGV4X2pzb24YASABKAwSDgoGc291cmNlGAIgASgJEhcKD2ZldGNoZWRfdW5peF9tcxgDIAEoAyKNAQoQU2VydmljZUNvbXBvbmVudBIMCgRuYW1lGAEgASgJEg0KBWltYWdlGAIgASgJEhYKDnByZXZpb3VzX2ltYWdlGAMgASgJEg8KB3F1YWRsZXQYBCABKAkSDQoFYWZ0ZXIYBSADKAkSFAoMd2FpdF9oZWFsdGh5GAYgASgIEg4KBmVncmVzcxgHIAEoCCIpCgtTZXJ2aWNlVW5pdBIMCgRuYW1lGAEgASgJEgwKBGJvZHkYAiABKAkiSQoNU2VydmljZVZvbHVtZRIMCgRuYW1lGAEgASgJEgwKBHBhdGgYAiABKAkSDAoEc2l6ZRgDIAEoCRIOCgZzaGFyZWQYBCABKAgiUQoMU2VydmljZU1vdW50EhAKCHNwYWNlX2lkGAEgASgJEg4KBmZvbGRlchgCIAEoCRIMCgRwYXRoGAMgASgJEhEKCXJlYWRfb25seRgEIAEoCCKoCAoLU2VydmljZVNwZWMSDAoEbmFtZRgBIAEoCRISCgpjYXRhbG9nX2lkGAIgASgJEg0KBWltYWdlGAMgASgJEg8KB25vZGVfaWQYBCABKAkSNgoIc2V0dGluZ3MYBSADKAsyJC5tYWl0cmUudjEuU2VydmljZVNwZWMuU2V0dGluZ3NFbnRyeRIQCghleHBvc3VyZRgGIAEoCRITCgtwdWJsaWNfaG9zdBgTIAEoCRI/Cg12b2x1bWVfc3BhY2VzGAcgAygLMigubWFpdHJlLnYxLlNlcnZpY2VTcGVjLlZvbHVtZVNwYWNlc0VudHJ5EhUKDWFjY2Vzc19wb2xpY3kYCCABKAkSFwoPY3JlYXRlZF91bml4X21zGAkgASgDEhUKDXdlYl9ob3N0X3BvcnQYCiABKA0SFgoOcHJldmlvdXNfaW1hZ2UYESABKAkSEwoLYXV0b191cGRhdGUYEiABKAgSDwoHcXVhZGxldBgLIAEoCRIWCg5pbmZyYXN0cnVjdHVyZRgMIAEoCBIQCgh3ZWJfcG9ydBgNIAEoDRIQCgh3ZWJfcGF0aBgOIAEoCRITCgtoZWFsdGhfaHR0cBgPIAEoCRIpCgd2b2x1bWVzGBAgAygLMhgubWFpdHJlLnYxLlNlcnZpY2VWb2x1bWUSLwoKY29tcG9uZW50cxgYIAMoCzIbLm1haXRyZS52MS5TZXJ2aWNlQ29tcG9uZW50EhUKDXdlYl9jb21wb25lbnQYGSABKAkSJQoFdW5pdHMYGiADKAsyFi5tYWl0cmUudjEuU2VydmljZVVuaXQSGAoQbmV0d29ya19pbnRlcm5hbBgbIAEoCBISCgpob3N0X3BvcnRzGBQgAygJEhUKDWZvcndhcmRfcG9ydHMYFSABKAgSQQoOdm9sdW1lX2ZvbGRlcnMYFiADKAsyKS5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lRm9sZGVyc0VudHJ5EicKBm1vdW50cxgXIAMoCzIXLm1haXRyZS52MS5TZXJ2aWNlTW91bnQSQwoPb3B0aW9uYWxfZ3JhbnRzGBwgAygLMioubWFpdHJlLnYxLlNlcnZpY2VTcGVjLk9wdGlvbmFsR3JhbnRzRW50cnkaLwoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGjMKEVZvbHVtZVNwYWNlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaNAoSVm9sdW1lRm9sZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaNQoTT3B0aW9uYWxHcmFudHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAg6AjgBIq8DCg1TZXJ2aWNlU3RhdHVzEiQKBHNwZWMYASABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWMSLQoFc3RhdGUYAiABKA4yHi5tYWl0cmUudjEuU2VydmljZVN0YXR1cy5TdGF0ZRIPCgdoZWFsdGh5GAMgASgIEhAKCHJlc3RhcnRzGAQgASgNEg8KB21lc3NhZ2UYBSABKAkSCwoDdXJsGAYgASgJEhcKD3N0YXJ0ZWRfdW5peF9tcxgHIAEoAxISCgpyZW1vdGVfdXJsGAggASgJEhQKDHJlbW90ZV9zdGF0ZRgJIAEoCRIVCg1mb3J3YXJkX3N0YXRlGAogASgJEi4KCmNvbXBvbmVudHMYCyADKAsyGi5tYWl0cmUudjEuQ29tcG9uZW50U3RhdHVzIn4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfU1RPUFBFRBABEhIKDlNUQVRFX1NUQVJUSU5HEAISEQoNU1RBVEVfUlVOTklORxADEhAKDFNUQVRFX0ZBSUxFRBAEEhIKDlNUQVRFX1JFTU9WSU5HEAUiggEKD0NvbXBvbmVudFN0YXR1cxIMCgRuYW1lGAEgASgJEi0KBXN0YXRlGAIgASgOMh4ubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMuU3RhdGUSDwoHaGVhbHRoeRgDIAEoCBIQCghyZXN0YXJ0cxgEIAEoDRIPCgdtZXNzYWdlGAUgASgJIiQKDlB1YmxpY1NldHRpbmdzEhIKCmFjbWVfZW1haWwYASABKAkiOAoMVXNlckNhdGFsb2dzEigKCGNhdGFsb2dzGAEgAygLMhYubWFpdHJlLnYxLlVzZXJDYXRhbG9nIooBCgtVc2VyQ2F0YWxvZxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmZvbGRlchgDIAEoCRIVCg1mb2xkZXJfZGV2aWNlGAQgASgJEg8KB2dpdF91cmwYBSABKAkSEgoKZ2l0X2JyYW5jaBgGIAEoCRIVCg1hZGRlZF91bml4X21zGAcgASgDIjkKGFNldFBvcnRGb3J3YXJkaW5nUmVxdWVzdBIMCgRuYW1lGAEgASgJEg8KB2VuYWJsZWQYAiABKAgiRgoZU2V0UG9ydEZvcndhcmRpbmdSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiQwoVSW5zdGFsbFNlcnZpY2VSZXF1ZXN0EiQKBHNwZWMYBSABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWNKBAgBEAUiQwoWSW5zdGFsbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiiAIKFUNvbnRyb2xTZXJ2aWNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEjcKBmFjdGlvbhgCIAEoDjInLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlcXVlc3QuQWN0aW9uEhMKC2RlbGV0ZV9kYXRhGAMgASgIIpIBCgZBY3Rpb24SFgoSQUNUSU9OX1VOU1BFQ0lGSUVEEAASEAoMQUNUSU9OX1NUQVJUEAESDwoLQUNUSU9OX1NUT1AQAhISCg5BQ1RJT05fUkVTVEFSVBADEhEKDUFDVElPTl9SRU1PVkUQBBIRCg1BQ1RJT05fVVBEQVRFEAUSEwoPQUNUSU9OX1JPTExCQUNLEAYiQwoWQ29udHJvbFNlcnZpY2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiFQoTTGlzdFNlcnZpY2VzUmVxdWVzdCJCChRMaXN0U2VydmljZXNSZXNwb25zZRIqCghzZXJ2aWNlcxgBIAMoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIkkKElNldEV4cG9zdXJlUmVxdWVzdBIMCgRuYW1lGAEgASgJEhAKCGV4cG9zdXJlGAIgASgJEhMKC3B1YmxpY19ob3N0GAMgASgJIkAKE1NldEV4cG9zdXJlUmVzcG9uc2USKQoHc2VydmljZRgBIAEoCzIYLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzIkcKFUdldFNlcnZpY2VMb2dzUmVxdWVzdBIMCgRuYW1lGAEgASgJEg0KBWxpbmVzGAIgASgNEhEKCWNvbXBvbmVudBgDIAEoCSInChZHZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlEg0KBWxpbmVzGAEgAygJMsEICg5TZXJ2aWNlU2VydmljZRJLCgpHZXRDYXRhbG9nEhwubWFpdHJlLnYxLkdldENhdGFsb2dSZXF1ZXN0Gh0ubWFpdHJlLnYxLkdldENhdGFsb2dSZXNwb25zZSIAElcKDkluc3RhbGxTZXJ2aWNlEiAubWFpdHJlLnYxLkluc3RhbGxTZXJ2aWNlUmVxdWVzdBohLm1haXRyZS52MS5JbnN0YWxsU2VydmljZVJlc3BvbnNlIgASVwoOQ29udHJvbFNlcnZpY2USIC5tYWl0cmUudjEuQ29udHJvbFNlcnZpY2VSZXF1ZXN0GiEubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVzcG9uc2UiABJRCgxMaXN0U2VydmljZXMSHi5tYWl0cmUudjEuTGlzdFNlcnZpY2VzUmVxdWVzdBofLm1haXRyZS52MS5MaXN0U2VydmljZXNSZXNwb25zZSIAElcKDkdldFNlcnZpY2VMb2dzEiAubWFpdHJlLnYxLkdldFNlcnZpY2VMb2dzUmVxdWVzdBohLm1haXRyZS52MS5HZXRTZXJ2aWNlTG9nc1Jlc3BvbnNlIgASTgoLU2V0RXhwb3N1cmUSHS5tYWl0cmUudjEuU2V0RXhwb3N1cmVSZXF1ZXN0Gh4ubWFpdHJlLnYxLlNldEV4cG9zdXJlUmVzcG9uc2UiABJgChFTZXRQb3J0Rm9yd2FyZGluZxIjLm1haXRyZS52MS5TZXRQb3J0Rm9yd2FyZGluZ1JlcXVlc3QaJC5tYWl0cmUudjEuU2V0UG9ydEZvcndhcmRpbmdSZXNwb25zZSIAEksKCk1vdmVWb2x1bWUSHC5tYWl0cmUudjEuTW92ZVZvbHVtZVJlcXVlc3QaHS5tYWl0cmUudjEuTW92ZVZvbHVtZVJlc3BvbnNlIgASSwoKU2V0Rm9sZGVycxIcLm1haXRyZS52MS5TZXRGb2xkZXJzUmVxdWVzdBodLm1haXRyZS52MS5TZXRGb2xkZXJzUmVzcG9uc2UiABJOCgtTZXRTZXR0aW5ncxIdLm1haXRyZS52MS5TZXRTZXR0aW5nc1JlcXVlc3QaHi5tYWl0cmUudjEuU2V0U2V0dGluZ3NSZXNwb25zZSIAEkUKCFNldEltYWdlEhoubWFpdHJlLnYxLlNldEltYWdlUmVxdWVzdBobLm1haXRyZS52MS5TZXRJbWFnZVJlc3BvbnNlIgASUQoMQ2hlY2tTZXJ2aWNlEh4ubWFpdHJlLnYxLkNoZWNrU2VydmljZVJlcXVlc3QaHy5tYWl0cmUudjEuQ2hlY2tTZXJ2aWNlUmVzcG9uc2UiABJOCgtMaXN0RGV2aWNlcxIdLm1haXRyZS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHi5tYWl0cmUudjEuTGlzdERldmljZXNSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChdtYWl0cmUvdjEvc2VydmljZS5wcm90bxIJbWFpdHJlLnYxIkQKE1ByZXZpZXdTZXR1cFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIfCgVzZXR1cBgCIAEoCzIQLm1haXRyZS52MS5TZXR1cCJ/ChRQcmV2aWV3U2V0dXBSZXNwb25zZRImCgV1bml0cxgBIAMoCzIXLm1haXRyZS52MS5SZW5kZXJlZFVuaXQSLQoJcHJvdGVjdGVkGAIgAygLMhoubWFpdHJlLnYxLlByb3RlY3RlZE9wdGlvbhIQCghyZXN0YXJ0cxgDIAMoCSI7CgxSZW5kZXJlZFVuaXQSDAoEbmFtZRgBIAEoCRIMCgRib2R5GAIgASgJEg8KB3NvdXJjZXMYAyADKAkiQAoPU2V0U2V0dXBSZXF1ZXN0EgwKBG5hbWUYASABKAkSHwoFc2V0dXAYAiABKAsyEC5tYWl0cmUudjEuU2V0dXAiPQoQU2V0U2V0dXBSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMi1wEKBVNldHVwEhQKDG5ldHdvcmtfa2luZBgBIAEoCRIWCg5uZXR3b3JrX3RhcmdldBgCIAEoCRITCgtmbGVldF9yZWFjaBgDIAEoCBINCgVwb3J0cxgEIAMoCRIPCgdhZGRyZXNzGAUgASgJEiUKBXBhZ2VzGAYgAygLMhYubWFpdHJlLnYxLlNlcnZpY2VQYWdlEioKCW92ZXJyaWRlcxgHIAMoCzIXLm1haXRyZS52MS5Vbml0T3ZlcnJpZGUSGAoQbmV0d29ya19pbnRlcm5hbBgIIAEoCCIiChJMaXN0RGV2aWNlc1JlcXVlc3QSDAoEa2luZBgBIAEoCSI5ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiIKB2RldmljZXMYASADKAsyES5tYWl0cmUudjEuRGV2aWNlIjIKBkRldmljZRIMCgRwYXRoGAEgASgJEgwKBGtpbmQYAiABKAkSDAoEbmFtZRgDIAEoCSI7ChNDaGVja1NlcnZpY2VSZXF1ZXN0EiQKBHNwZWMYASABKAsyFi5tYWl0cmUudjEuU2VydmljZVNwZWMirgEKFENoZWNrU2VydmljZVJlc3BvbnNlEjkKBXVuaXRzGAEgAygLMioubWFpdHJlLnYxLkNoZWNrU2VydmljZVJlc3BvbnNlLlVuaXRzRW50cnkSLQoJcHJvdGVjdGVkGAIgAygLMhoubWFpdHJlLnYxLlByb3RlY3RlZE9wdGlvbhosCgpVbml0c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiTgoPUHJvdGVjdGVkT3B0aW9uEhEKCWNvbXBvbmVudBgBIAEoCRIYChBpbWFnZV9yZXBvc2l0b3J5GAIgASgJEg4KBm9wdGlvbhgDIAEoCSJBCg9TZXRJbWFnZVJlcXVlc3QSDAoEbmFtZRgBIAEoCRINCgVpbWFnZRgCIAEoCRIRCgljb21wb25lbnQYAyABKAkiPQoQU2V0SW1hZ2VSZXNwb25zZRIpCgdzZXJ2aWNlGAEgASgLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMivAEKElNldFNldHRpbmdzUmVxdWVzdBIMCgRuYW1lGAEgASgJEj0KCHNldHRpbmdzGAIgAygLMisubWFpdHJlLnYxLlNldFNldHRpbmdzUmVxdWVzdC5TZXR0aW5nc0VudHJ5EhgKC2F1dG9fdXBkYXRlGAMgASgISACIAQEaLwoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBQg4KDF9hdXRvX3VwZGF0ZSJAChNTZXRTZXR0aW5nc1Jlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyLFAgoRU2V0Rm9sZGVyc1JlcXVlc3QSDAoEbmFtZRgBIAEoCRJHCg52b2x1bWVfZm9sZGVycxgCIAMoCzIvLm1haXRyZS52MS5TZXRGb2xkZXJzUmVxdWVzdC5Wb2x1bWVGb2xkZXJzRW50cnkSRQoNdm9sdW1lX3NwYWNlcxgDIAMoCzIuLm1haXRyZS52MS5TZXRGb2xkZXJzUmVxdWVzdC5Wb2x1bWVTcGFjZXNFbnRyeRInCgZtb3VudHMYBCADKAsyFy5tYWl0cmUudjEuU2VydmljZU1vdW50GjQKElZvbHVtZUZvbGRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGjMKEVZvbHVtZVNwYWNlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPwoSU2V0Rm9sZGVyc1Jlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyJDChFNb3ZlVm9sdW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJEg4KBnZvbHVtZRgCIAEoCRIQCgh0b19zcGFjZRgDIAEoCSIkChJNb3ZlVm9sdW1lUmVzcG9uc2USDgoGam9iX2lkGAEgASgJIhMKEUdldENhdGFsb2dSZXF1ZXN0IlEKEkdldENhdGFsb2dSZXNwb25zZRISCgppbmRleF9qc29uGAEgASgMEg4KBnNvdXJjZRgCIAEoCRIXCg9mZXRjaGVkX3VuaXhfbXMYAyABKAMijQEKEFNlcnZpY2VDb21wb25lbnQSDAoEbmFtZRgBIAEoCRINCgVpbWFnZRgCIAEoCRIWCg5wcmV2aW91c19pbWFnZRgDIAEoCRIPCgdxdWFkbGV0GAQgASgJEg0KBWFmdGVyGAUgAygJEhQKDHdhaXRfaGVhbHRoeRgGIAEoCBIOCgZlZ3Jlc3MYByABKAgiKQoLU2VydmljZVVuaXQSDAoEbmFtZRgBIAEoCRIMCgRib2R5GAIgASgJIqgBCgtTZXJ2aWNlUGFnZRIMCgRuYW1lGAEgASgJEhEKCWNvbXBvbmVudBgCIAEoCRIMCgRwb3J0GAMgASgNEgwKBHBhdGgYBCABKAkSEAoIZXhwb3N1cmUYBSABKAkSEwoLcHVibGljX2hvc3QYBiABKAkSEQoJaG9zdF9wb3J0GAcgASgNEhMKC2hlYWx0aF9odHRwGAggASgJEg0KBWxhYmVsGAkgASgJIk0KDFVuaXRPdmVycmlkZRIRCgljb21wb25lbnQYASABKAkSCwoDa2V5GAIgASgJEg0KBXZhbHVlGAMgASgJEg4KBnJlbW92ZRgEIAEoCCJJCg1TZXJ2aWNlVm9sdW1lEgwKBG5hbWUYASABKAkSDAoEcGF0aBgCIAEoCRIMCgRzaXplGAMgASgJEg4KBnNoYXJlZBgEIAEoCCJRCgxTZXJ2aWNlTW91bnQSEAoIc3BhY2VfaWQYASABKAkSDgoGZm9sZGVyGAIgASgJEgwKBHBhdGgYAyABKAkSEQoJcmVhZF9vbmx5GAQgASgIIu4JCgtTZXJ2aWNlU3BlYxIMCgRuYW1lGAEgASgJEhIKCmNhdGFsb2dfaWQYAiABKAkSDQoFaW1hZ2UYAyABKAkSDwoHbm9kZV9pZBgEIAEoCRI2CghzZXR0aW5ncxgFIAMoCzIkLm1haXRyZS52MS5TZXJ2aWNlU3BlYy5TZXR0aW5nc0VudHJ5EhAKCGV4cG9zdXJlGAYgASgJEhMKC3B1YmxpY19ob3N0GBMgASgJEj8KDXZvbHVtZV9zcGFjZXMYByADKAsyKC5tYWl0cmUudjEuU2VydmljZVNwZWMuVm9sdW1lU3BhY2VzRW50cnkSFQoNYWNjZXNzX3BvbGljeRgIIAEoCRIXCg9jcmVhdGVkX3VuaXhfbXMYCSABKAMSFQoNd2ViX2hvc3RfcG9ydBgKIAEoDRIWCg5wcmV2aW91c19pbWFnZRgRIAEoCRITCgthdXRvX3VwZGF0ZRgSIAEoCBIPCgdxdWFkbGV0GAsgASgJEhYKDmluZnJhc3RydWN0dXJlGAwgASgIEhAKCHdlYl9wb3J0GA0gASgNEhAKCHdlYl9wYXRoGA4gASgJEhMKC2hlYWx0aF9odHRwGA8gASgJEikKB3ZvbHVtZXMYECADKAsyGC5tYWl0cmUudjEuU2VydmljZVZvbHVtZRIvCgpjb21wb25lbnRzGBggAygLMhsubWFpdHJlLnYxLlNlcnZpY2VDb21wb25lbnQSFQoNd2ViX2NvbXBvbmVudBgZIAEoCRIlCgV1bml0cxgaIAMoCzIWLm1haXRyZS52MS5TZXJ2aWNlVW5pdBIYChBuZXR3b3JrX2ludGVybmFsGBsgASgIEhIKCmhvc3RfcG9ydHMYFCADKAkSFQoNZm9yd2FyZF9wb3J0cxgVIAEoCBJBCg52b2x1bWVfZm9sZGVycxgWIAMoCzIpLm1haXRyZS52MS5TZXJ2aWNlU3BlYy5Wb2x1bWVGb2xkZXJzRW50cnkSJwoGbW91bnRzGBcgAygLMhcubWFpdHJlLnYxLlNlcnZpY2VNb3VudBJDCg9vcHRpb25hbF9ncmFudHMYHCADKAsyKi5tYWl0cmUudjEuU2VydmljZVNwZWMuT3B0aW9uYWxHcmFudHNFbnRyeRIlCgVwYWdlcxgdIAMoCzIWLm1haXRyZS52MS5TZXJ2aWNlUGFnZRIUCgxuZXR3b3JrX2tpbmQYHiABKAkSFgoObmV0d29ya190YXJnZXQYHyABKAkSEwoLZmxlZXRfcmVhY2gYICABKAgSDQoFcG9ydHMYISADKAkSDwoHYWRkcmVzcxgiIAEoCRIqCglvdmVycmlkZXMYIyADKAsyFy5tYWl0cmUudjEuVW5pdE92ZXJyaWRlEg4KBnR1bm5lbBgkIAEoCBovCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaMwoRVm9sdW1lU3BhY2VzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARo0ChJWb2x1bWVGb2xkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARo1ChNPcHRpb25hbEdyYW50c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCDoCOAEi1QMKDVNlcnZpY2VTdGF0dXMSJAoEc3BlYxgBIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlYxItCgVzdGF0ZRgCIAEoDjIeLm1haXRyZS52MS5TZXJ2aWNlU3RhdHVzLlN0YXRlEg8KB2hlYWx0aHkYAyABKAgSEAoIcmVzdGFydHMYBCABKA0SDwoHbWVzc2FnZRgFIAEoCRILCgN1cmwYBiABKAkSFwoPc3RhcnRlZF91bml4X21zGAcgASgDEhIKCnJlbW90ZV91cmwYCCABKAkSFAoMcmVtb3RlX3N0YXRlGAkgASgJEhUKDWZvcndhcmRfc3RhdGUYCiABKAkSLgoKY29tcG9uZW50cxgLIAMoCzIaLm1haXRyZS52MS5Db21wb25lbnRTdGF0dXMSJAoFcGFnZXMYDCADKAsyFS5tYWl0cmUudjEuUGFnZVN0YXR1cyJ+CgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEhEKDVNUQVRFX1NUT1BQRUQQARISCg5TVEFURV9TVEFSVElORxACEhEKDVNUQVRFX1JVTk5JTkcQAxIQCgxTVEFURV9GQUlMRUQQBBISCg5TVEFURV9SRU1PVklORxAFImIKClBhZ2VTdGF0dXMSDAoEbmFtZRgBIAEoCRILCgN1cmwYAiABKAkSEgoKcmVtb3RlX3VybBgDIAEoCRIUCgxyZW1vdGVfc3RhdGUYBCABKAkSDwoHaGVhbHRoeRgFIAEoCCKCAQoPQ29tcG9uZW50U3RhdHVzEgwKBG5hbWUYASABKAkSLQoFc3RhdGUYAiABKA4yHi5tYWl0cmUudjEuU2VydmljZVN0YXR1cy5TdGF0ZRIPCgdoZWFsdGh5GAMgASgIEhAKCHJlc3RhcnRzGAQgASgNEg8KB21lc3NhZ2UYBSABKAkiJAoOUHVibGljU2V0dGluZ3MSEgoKYWNtZV9lbWFpbBgBIAEoCSI4CgxVc2VyQ2F0YWxvZ3MSKAoIY2F0YWxvZ3MYASADKAsyFi5tYWl0cmUudjEuVXNlckNhdGFsb2ciigEKC1VzZXJDYXRhbG9nEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZm9sZGVyGAMgASgJEhUKDWZvbGRlcl9kZXZpY2UYBCABKAkSDwoHZ2l0X3VybBgFIAEoCRISCgpnaXRfYnJhbmNoGAYgASgJEhUKDWFkZGVkX3VuaXhfbXMYByABKAMiOQoYU2V0UG9ydEZvcndhcmRpbmdSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHZW5hYmxlZBgCIAEoCCJGChlTZXRQb3J0Rm9yd2FyZGluZ1Jlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyJDChVJbnN0YWxsU2VydmljZVJlcXVlc3QSJAoEc3BlYxgFIAEoCzIWLm1haXRyZS52MS5TZXJ2aWNlU3BlY0oECAEQBSJDChZJbnN0YWxsU2VydmljZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyKIAgoVQ29udHJvbFNlcnZpY2VSZXF1ZXN0EgwKBG5hbWUYASABKAkSNwoGYWN0aW9uGAIgASgOMicubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVxdWVzdC5BY3Rpb24SEwoLZGVsZXRlX2RhdGEYAyABKAgikgEKBkFjdGlvbhIWChJBQ1RJT05fVU5TUEVDSUZJRUQQABIQCgxBQ1RJT05fU1RBUlQQARIPCgtBQ1RJT05fU1RPUBACEhIKDkFDVElPTl9SRVNUQVJUEAMSEQoNQUNUSU9OX1JFTU9WRRAEEhEKDUFDVElPTl9VUERBVEUQBRITCg9BQ1RJT05fUk9MTEJBQ0sQBiJDChZDb250cm9sU2VydmljZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyIVChNMaXN0U2VydmljZXNSZXF1ZXN0IkIKFExpc3RTZXJ2aWNlc1Jlc3BvbnNlEioKCHNlcnZpY2VzGAEgAygLMhgubWFpdHJlLnYxLlNlcnZpY2VTdGF0dXMiVwoSU2V0RXhwb3N1cmVSZXF1ZXN0EgwKBG5hbWUYASABKAkSEAoIZXhwb3N1cmUYAiABKAkSEwoLcHVibGljX2hvc3QYAyABKAkSDAoEcGFnZRgEIAEoCSJAChNTZXRFeHBvc3VyZVJlc3BvbnNlEikKB3NlcnZpY2UYASABKAsyGC5tYWl0cmUudjEuU2VydmljZVN0YXR1cyJHChVHZXRTZXJ2aWNlTG9nc1JlcXVlc3QSDAoEbmFtZRgBIAEoCRINCgVsaW5lcxgCIAEoDRIRCgljb21wb25lbnQYAyABKAkiJwoWR2V0U2VydmljZUxvZ3NSZXNwb25zZRINCgVsaW5lcxgBIAMoCTLbCQoOU2VydmljZVNlcnZpY2USSwoKR2V0Q2F0YWxvZxIcLm1haXRyZS52MS5HZXRDYXRhbG9nUmVxdWVzdBodLm1haXRyZS52MS5HZXRDYXRhbG9nUmVzcG9uc2UiABJXCg5JbnN0YWxsU2VydmljZRIgLm1haXRyZS52MS5JbnN0YWxsU2VydmljZVJlcXVlc3QaIS5tYWl0cmUudjEuSW5zdGFsbFNlcnZpY2VSZXNwb25zZSIAElcKDkNvbnRyb2xTZXJ2aWNlEiAubWFpdHJlLnYxLkNvbnRyb2xTZXJ2aWNlUmVxdWVzdBohLm1haXRyZS52MS5Db250cm9sU2VydmljZVJlc3BvbnNlIgASUQoMTGlzdFNlcnZpY2VzEh4ubWFpdHJlLnYxLkxpc3RTZXJ2aWNlc1JlcXVlc3QaHy5tYWl0cmUudjEuTGlzdFNlcnZpY2VzUmVzcG9uc2UiABJXCg5HZXRTZXJ2aWNlTG9ncxIgLm1haXRyZS52MS5HZXRTZXJ2aWNlTG9nc1JlcXVlc3QaIS5tYWl0cmUudjEuR2V0U2VydmljZUxvZ3NSZXNwb25zZSIAEk4KC1NldEV4cG9zdXJlEh0ubWFpdHJlLnYxLlNldEV4cG9zdXJlUmVxdWVzdBoeLm1haXRyZS52MS5TZXRFeHBvc3VyZVJlc3BvbnNlIgASYAoRU2V0UG9ydEZvcndhcmRpbmcSIy5tYWl0cmUudjEuU2V0UG9ydEZvcndhcmRpbmdSZXF1ZXN0GiQubWFpdHJlLnYxLlNldFBvcnRGb3J3YXJkaW5nUmVzcG9uc2UiABJLCgpNb3ZlVm9sdW1lEhwubWFpdHJlLnYxLk1vdmVWb2x1bWVSZXF1ZXN0Gh0ubWFpdHJlLnYxLk1vdmVWb2x1bWVSZXNwb25zZSIAEksKClNldEZvbGRlcnMSHC5tYWl0cmUudjEuU2V0Rm9sZGVyc1JlcXVlc3QaHS5tYWl0cmUudjEuU2V0Rm9sZGVyc1Jlc3BvbnNlIgASTgoLU2V0U2V0dGluZ3MSHS5tYWl0cmUudjEuU2V0U2V0dGluZ3NSZXF1ZXN0Gh4ubWFpdHJlLnYxLlNldFNldHRpbmdzUmVzcG9uc2UiABJFCghTZXRJbWFnZRIaLm1haXRyZS52MS5TZXRJbWFnZVJlcXVlc3QaGy5tYWl0cmUudjEuU2V0SW1hZ2VSZXNwb25zZSIAElEKDENoZWNrU2VydmljZRIeLm1haXRyZS52MS5DaGVja1NlcnZpY2VSZXF1ZXN0Gh8ubWFpdHJlLnYxLkNoZWNrU2VydmljZVJlc3BvbnNlIgASTgoLTGlzdERldmljZXMSHS5tYWl0cmUudjEuTGlzdERldmljZXNSZXF1ZXN0Gh4ubWFpdHJlLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiABJRCgxQcmV2aWV3U2V0dXASHi5tYWl0cmUudjEuUHJldmlld1NldHVwUmVxdWVzdBofLm1haXRyZS52MS5QcmV2aWV3U2V0dXBSZXNwb25zZSIAEkUKCFNldFNldHVwEhoubWFpdHJlLnYxLlNldFNldHVwUmVxdWVzdBobLm1haXRyZS52MS5TZXRTZXR1cFJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+
+/**
+ * @generated from message maitre.v1.PreviewSetupRequest
+ */
+export type PreviewSetupRequest = Message<"maitre.v1.PreviewSetupRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Left unset: the Service as it is.
+   *
+   * @generated from field: maitre.v1.Setup setup = 2;
+   */
+  setup?: Setup | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.PreviewSetupRequest.
+ * Use `create(PreviewSetupRequestSchema)` to create a new message.
+ */
+export const PreviewSetupRequestSchema: GenMessage<PreviewSetupRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 0);
+
+/**
+ * @generated from message maitre.v1.PreviewSetupResponse
+ */
+export type PreviewSetupResponse = Message<"maitre.v1.PreviewSetupResponse"> & {
+  /**
+   * @generated from field: repeated maitre.v1.RenderedUnit units = 1;
+   */
+  units: RenderedUnit[];
+
+  /**
+   * @generated from field: repeated maitre.v1.ProtectedOption protected = 2;
+   */
+  protected: ProtectedOption[];
+
+  /**
+   * Services that restart when this Setup is applied, this one first.
+   *
+   * @generated from field: repeated string restarts = 3;
+   */
+  restarts: string[];
+};
+
+/**
+ * Describes the message maitre.v1.PreviewSetupResponse.
+ * Use `create(PreviewSetupResponseSchema)` to create a new message.
+ */
+export const PreviewSetupResponseSchema: GenMessage<PreviewSetupResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 1);
+
+/**
+ * RenderedUnit is one unit file as the Node would write it, with where
+ * each line came from, so Setup can show what is the template's, what the
+ * Node added and what the person changed.
+ *
+ * @generated from message maitre.v1.RenderedUnit
+ */
+export type RenderedUnit = Message<"maitre.v1.RenderedUnit"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string body = 2;
+   */
+  body: string;
+
+  /**
+   * One per line of body: "template", "agent", "override" or "".
+   *
+   * @generated from field: repeated string sources = 3;
+   */
+  sources: string[];
+};
+
+/**
+ * Describes the message maitre.v1.RenderedUnit.
+ * Use `create(RenderedUnitSchema)` to create a new message.
+ */
+export const RenderedUnitSchema: GenMessage<RenderedUnit> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 2);
+
+/**
+ * @generated from message maitre.v1.SetSetupRequest
+ */
+export type SetSetupRequest = Message<"maitre.v1.SetSetupRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: maitre.v1.Setup setup = 2;
+   */
+  setup?: Setup | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.SetSetupRequest.
+ * Use `create(SetSetupRequestSchema)` to create a new message.
+ */
+export const SetSetupRequestSchema: GenMessage<SetSetupRequest> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 3);
+
+/**
+ * @generated from message maitre.v1.SetSetupResponse
+ */
+export type SetSetupResponse = Message<"maitre.v1.SetSetupResponse"> & {
+  /**
+   * @generated from field: maitre.v1.ServiceStatus service = 1;
+   */
+  service?: ServiceStatus | undefined;
+};
+
+/**
+ * Describes the message maitre.v1.SetSetupResponse.
+ * Use `create(SetSetupResponseSchema)` to create a new message.
+ */
+export const SetSetupResponseSchema: GenMessage<SetSetupResponse> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 4);
+
+/**
+ * Setup is the part of a ServiceSpec the Setup page edits (ADR 0010),
+ * replaced whole by SetSetup.
+ *
+ * @generated from message maitre.v1.Setup
+ */
+export type Setup = Message<"maitre.v1.Setup"> & {
+  /**
+   * @generated from field: string network_kind = 1;
+   */
+  networkKind: string;
+
+  /**
+   * @generated from field: string network_target = 2;
+   */
+  networkTarget: string;
+
+  /**
+   * @generated from field: bool fleet_reach = 3;
+   */
+  fleetReach: boolean;
+
+  /**
+   * @generated from field: repeated string ports = 4;
+   */
+  ports: string[];
+
+  /**
+   * @generated from field: string address = 5;
+   */
+  address: string;
+
+  /**
+   * @generated from field: repeated maitre.v1.ServicePage pages = 6;
+   */
+  pages: ServicePage[];
+
+  /**
+   * @generated from field: repeated maitre.v1.UnitOverride overrides = 7;
+   */
+  overrides: UnitOverride[];
+
+  /**
+   * @generated from field: bool network_internal = 8;
+   */
+  networkInternal: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.Setup.
+ * Use `create(SetupSchema)` to create a new message.
+ */
+export const SetupSchema: GenMessage<Setup> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 5);
 
 /**
  * @generated from message maitre.v1.ListDevicesRequest
@@ -29,7 +209,7 @@ export type ListDevicesRequest = Message<"maitre.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 0);
+  messageDesc(file_maitre_v1_service, 6);
 
 /**
  * @generated from message maitre.v1.ListDevicesResponse
@@ -46,7 +226,7 @@ export type ListDevicesResponse = Message<"maitre.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 1);
+  messageDesc(file_maitre_v1_service, 7);
 
 /**
  * Device is one device of the Node.
@@ -83,7 +263,7 @@ export type Device = Message<"maitre.v1.Device"> & {
  * Use `create(DeviceSchema)` to create a new message.
  */
 export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 2);
+  messageDesc(file_maitre_v1_service, 8);
 
 /**
  * @generated from message maitre.v1.CheckServiceRequest
@@ -100,7 +280,7 @@ export type CheckServiceRequest = Message<"maitre.v1.CheckServiceRequest"> & {
  * Use `create(CheckServiceRequestSchema)` to create a new message.
  */
 export const CheckServiceRequestSchema: GenMessage<CheckServiceRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 3);
+  messageDesc(file_maitre_v1_service, 9);
 
 /**
  * @generated from message maitre.v1.CheckServiceResponse
@@ -126,7 +306,7 @@ export type CheckServiceResponse = Message<"maitre.v1.CheckServiceResponse"> & {
  * Use `create(CheckServiceResponseSchema)` to create a new message.
  */
 export const CheckServiceResponseSchema: GenMessage<CheckServiceResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 4);
+  messageDesc(file_maitre_v1_service, 10);
 
 /**
  * ProtectedOption is one option of a container definition that needs a
@@ -157,7 +337,7 @@ export type ProtectedOption = Message<"maitre.v1.ProtectedOption"> & {
  * Use `create(ProtectedOptionSchema)` to create a new message.
  */
 export const ProtectedOptionSchema: GenMessage<ProtectedOption> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 5);
+  messageDesc(file_maitre_v1_service, 11);
 
 /**
  * @generated from message maitre.v1.SetImageRequest
@@ -190,7 +370,7 @@ export type SetImageRequest = Message<"maitre.v1.SetImageRequest"> & {
  * Use `create(SetImageRequestSchema)` to create a new message.
  */
 export const SetImageRequestSchema: GenMessage<SetImageRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 6);
+  messageDesc(file_maitre_v1_service, 12);
 
 /**
  * @generated from message maitre.v1.SetImageResponse
@@ -207,7 +387,7 @@ export type SetImageResponse = Message<"maitre.v1.SetImageResponse"> & {
  * Use `create(SetImageResponseSchema)` to create a new message.
  */
 export const SetImageResponseSchema: GenMessage<SetImageResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 7);
+  messageDesc(file_maitre_v1_service, 13);
 
 /**
  * @generated from message maitre.v1.SetSettingsRequest
@@ -239,7 +419,7 @@ export type SetSettingsRequest = Message<"maitre.v1.SetSettingsRequest"> & {
  * Use `create(SetSettingsRequestSchema)` to create a new message.
  */
 export const SetSettingsRequestSchema: GenMessage<SetSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 8);
+  messageDesc(file_maitre_v1_service, 14);
 
 /**
  * @generated from message maitre.v1.SetSettingsResponse
@@ -256,7 +436,7 @@ export type SetSettingsResponse = Message<"maitre.v1.SetSettingsResponse"> & {
  * Use `create(SetSettingsResponseSchema)` to create a new message.
  */
 export const SetSettingsResponseSchema: GenMessage<SetSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 9);
+  messageDesc(file_maitre_v1_service, 15);
 
 /**
  * @generated from message maitre.v1.SetFoldersRequest
@@ -292,7 +472,7 @@ export type SetFoldersRequest = Message<"maitre.v1.SetFoldersRequest"> & {
  * Use `create(SetFoldersRequestSchema)` to create a new message.
  */
 export const SetFoldersRequestSchema: GenMessage<SetFoldersRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 10);
+  messageDesc(file_maitre_v1_service, 16);
 
 /**
  * @generated from message maitre.v1.SetFoldersResponse
@@ -309,7 +489,7 @@ export type SetFoldersResponse = Message<"maitre.v1.SetFoldersResponse"> & {
  * Use `create(SetFoldersResponseSchema)` to create a new message.
  */
 export const SetFoldersResponseSchema: GenMessage<SetFoldersResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 11);
+  messageDesc(file_maitre_v1_service, 17);
 
 /**
  * @generated from message maitre.v1.MoveVolumeRequest
@@ -336,7 +516,7 @@ export type MoveVolumeRequest = Message<"maitre.v1.MoveVolumeRequest"> & {
  * Use `create(MoveVolumeRequestSchema)` to create a new message.
  */
 export const MoveVolumeRequestSchema: GenMessage<MoveVolumeRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 12);
+  messageDesc(file_maitre_v1_service, 18);
 
 /**
  * @generated from message maitre.v1.MoveVolumeResponse
@@ -353,7 +533,7 @@ export type MoveVolumeResponse = Message<"maitre.v1.MoveVolumeResponse"> & {
  * Use `create(MoveVolumeResponseSchema)` to create a new message.
  */
 export const MoveVolumeResponseSchema: GenMessage<MoveVolumeResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 13);
+  messageDesc(file_maitre_v1_service, 19);
 
 /**
  * @generated from message maitre.v1.GetCatalogRequest
@@ -366,7 +546,7 @@ export type GetCatalogRequest = Message<"maitre.v1.GetCatalogRequest"> & {
  * Use `create(GetCatalogRequestSchema)` to create a new message.
  */
 export const GetCatalogRequestSchema: GenMessage<GetCatalogRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 14);
+  messageDesc(file_maitre_v1_service, 20);
 
 /**
  * @generated from message maitre.v1.GetCatalogResponse
@@ -397,7 +577,7 @@ export type GetCatalogResponse = Message<"maitre.v1.GetCatalogResponse"> & {
  * Use `create(GetCatalogResponseSchema)` to create a new message.
  */
 export const GetCatalogResponseSchema: GenMessage<GetCatalogResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 15);
+  messageDesc(file_maitre_v1_service, 21);
 
 /**
  * ServiceComponent is one container of a multi-container Service (plan C1).
@@ -467,7 +647,7 @@ export type ServiceComponent = Message<"maitre.v1.ServiceComponent"> & {
  * Use `create(ServiceComponentSchema)` to create a new message.
  */
 export const ServiceComponentSchema: GenMessage<ServiceComponent> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 16);
+  messageDesc(file_maitre_v1_service, 22);
 
 /**
  * ServiceUnit is an extra Quadlet unit a bundle ships beside its containers,
@@ -493,7 +673,129 @@ export type ServiceUnit = Message<"maitre.v1.ServiceUnit"> & {
  * Use `create(ServiceUnitSchema)` to create a new message.
  */
 export const ServiceUnitSchema: GenMessage<ServiceUnit> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 17);
+  messageDesc(file_maitre_v1_service, 23);
+
+/**
+ * ServicePage is one web UI a Service offers (ADR 0010). A Service has
+ * zero or more Pages; the first is its main Page, reached at
+ * <service>.local, and every other at <service>-<name>.local. The Node
+ * publishes each Page's port on a loopback port of its own for Caddy, the
+ * Console's proxy and the health probe.
+ *
+ * @generated from message maitre.v1.ServicePage
+ */
+export type ServicePage = Message<"maitre.v1.ServicePage"> & {
+  /**
+   * [a-z0-9-], unique within the Service; "web" for an entry's one page.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The component that serves it, in a Service of several; "" otherwise.
+   *
+   * @generated from field: string component = 2;
+   */
+  component: string;
+
+  /**
+   * @generated from field: uint32 port = 3;
+   */
+  port: number;
+
+  /**
+   * Path the Console opens, "/" if empty.
+   *
+   * @generated from field: string path = 4;
+   */
+  path: string;
+
+  /**
+   * Exposure level of this Page; "" follows the Service's.
+   *
+   * @generated from field: string exposure = 5;
+   */
+  exposure: string;
+
+  /**
+   * For a "direct" exposure of its own: the host name it answers at.
+   *
+   * @generated from field: string public_host = 6;
+   */
+  publicHost: string;
+
+  /**
+   * Loopback port on the Node; chosen by the agent.
+   *
+   * @generated from field: uint32 host_port = 7;
+   */
+  hostPort: number;
+
+  /**
+   * HTTP path probed for health; empty means the Page's path.
+   *
+   * @generated from field: string health_http = 8;
+   */
+  healthHttp: string;
+
+  /**
+   * What the sidebar calls it when the Service has several; "" is name.
+   *
+   * @generated from field: string label = 9;
+   */
+  label: string;
+};
+
+/**
+ * Describes the message maitre.v1.ServicePage.
+ * Use `create(ServicePageSchema)` to create a new message.
+ */
+export const ServicePageSchema: GenMessage<ServicePage> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 24);
+
+/**
+ * UnitOverride is one change a person made to a container's options in
+ * Setup (ADR 0010): a [Container] key set to a value, or a line removed.
+ * Overrides are kept on the Service's record and applied after the
+ * bundle's template is rendered, so they survive Catalog updates; the
+ * options they add go through the grant check like the template's.
+ *
+ * @generated from message maitre.v1.UnitOverride
+ */
+export type UnitOverride = Message<"maitre.v1.UnitOverride"> & {
+  /**
+   * The component it applies to; "" for a Service of one container.
+   *
+   * @generated from field: string component = 1;
+   */
+  component: string;
+
+  /**
+   * @generated from field: string key = 2;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string value = 3;
+   */
+  value: string;
+
+  /**
+   * Remove every Key=value line (or every Key= line when value is empty)
+   * instead of setting one.
+   *
+   * @generated from field: bool remove = 4;
+   */
+  remove: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.UnitOverride.
+ * Use `create(UnitOverrideSchema)` to create a new message.
+ */
+export const UnitOverrideSchema: GenMessage<UnitOverride> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 25);
 
 /**
  * ServiceVolume is a named data directory of a Service.
@@ -535,7 +837,7 @@ export type ServiceVolume = Message<"maitre.v1.ServiceVolume"> & {
  * Use `create(ServiceVolumeSchema)` to create a new message.
  */
 export const ServiceVolumeSchema: GenMessage<ServiceVolume> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 18);
+  messageDesc(file_maitre_v1_service, 26);
 
 /**
  * ServiceMount is an extra folder of a Space mounted into a Service
@@ -574,7 +876,7 @@ export type ServiceMount = Message<"maitre.v1.ServiceMount"> & {
  * Use `create(ServiceMountSchema)` to create a new message.
  */
 export const ServiceMountSchema: GenMessage<ServiceMount> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 19);
+  messageDesc(file_maitre_v1_service, 27);
 
 /**
  * ServiceSpec is the kind "service" Record body: everything the Node needs
@@ -790,6 +1092,70 @@ export type ServiceSpec = Message<"maitre.v1.ServiceSpec"> & {
    * @generated from field: map<string, bool> optional_grants = 28;
    */
   optionalGrants: { [key: string]: boolean };
+
+  /**
+   * The Service's Pages (ADR 0010). The Node fills them from web_port,
+   * web_path and web_component when a spec from before Pages has none,
+   * and keeps those fields mirroring the first Page.
+   *
+   * @generated from field: repeated maitre.v1.ServicePage pages = 29;
+   */
+  pages: ServicePage[];
+
+  /**
+   * Which network the Service is on (ADR 0010): "" its own, "tunnel"
+   * the network of the Tunnel named by network_target (it shares that
+   * container's network namespace and starts, stops and moves with it),
+   * "service" its own plus the network of the Service of components
+   * named by network_target, "host" the Node's own (the Network=host
+   * grant).
+   *
+   * @generated from field: string network_kind = 30;
+   */
+  networkKind: string;
+
+  /**
+   * @generated from field: string network_target = 31;
+   */
+  networkTarget: string;
+
+  /**
+   * Reachable by Services on the Fleet's other Nodes at <name>.local on
+   * its declared ports: every Page's port and ports below. The agents
+   * carry the traffic between Nodes; nothing is opened on the LAN.
+   *
+   * @generated from field: bool fleet_reach = 32;
+   */
+  fleetReach: boolean;
+
+  /**
+   * Ports other Services may use, "5432/tcp" style, beyond its Pages'.
+   *
+   * @generated from field: repeated string ports = 33;
+   */
+  ports: string[];
+
+  /**
+   * The Service's fixed address on the shared maitre network, unique
+   * across the Fleet and kept through a move; allocated at install when
+   * empty. <name>.local resolves to it for every container of the Fleet.
+   *
+   * @generated from field: string address = 34;
+   */
+  address: string;
+
+  /**
+   * @generated from field: repeated maitre.v1.UnitOverride overrides = 35;
+   */
+  overrides: UnitOverride[];
+
+  /**
+   * The entry is a Tunnel: a Service whose only job is to carry other
+   * Services' traffic (a VPN client). Other Services may join it.
+   *
+   * @generated from field: bool tunnel = 36;
+   */
+  tunnel: boolean;
 };
 
 /**
@@ -797,7 +1163,7 @@ export type ServiceSpec = Message<"maitre.v1.ServiceSpec"> & {
  * Use `create(ServiceSpecSchema)` to create a new message.
  */
 export const ServiceSpecSchema: GenMessage<ServiceSpec> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 20);
+  messageDesc(file_maitre_v1_service, 28);
 
 /**
  * @generated from message maitre.v1.ServiceStatus
@@ -874,6 +1240,14 @@ export type ServiceStatus = Message<"maitre.v1.ServiceStatus"> & {
    * @generated from field: repeated maitre.v1.ComponentStatus components = 11;
    */
   components: ComponentStatus[];
+
+  /**
+   * One per Page (ADR 0010), in the spec's order; url, remote_url,
+   * remote_state and healthy above are the first Page's.
+   *
+   * @generated from field: repeated maitre.v1.PageStatus pages = 12;
+   */
+  pages: PageStatus[];
 };
 
 /**
@@ -881,7 +1255,7 @@ export type ServiceStatus = Message<"maitre.v1.ServiceStatus"> & {
  * Use `create(ServiceStatusSchema)` to create a new message.
  */
 export const ServiceStatusSchema: GenMessage<ServiceStatus> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 21);
+  messageDesc(file_maitre_v1_service, 29);
 
 /**
  * @generated from enum maitre.v1.ServiceStatus.State
@@ -922,7 +1296,46 @@ export enum ServiceStatus_State {
  * Describes the enum maitre.v1.ServiceStatus.State.
  */
 export const ServiceStatus_StateSchema: GenEnum<ServiceStatus_State> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_service, 21, 0);
+  enumDesc(file_maitre_v1_service, 29, 0);
+
+/**
+ * PageStatus is where one Page answers and whether it does.
+ *
+ * @generated from message maitre.v1.PageStatus
+ */
+export type PageStatus = Message<"maitre.v1.PageStatus"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string url = 2;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string remote_url = 3;
+   */
+  remoteUrl: string;
+
+  /**
+   * @generated from field: string remote_state = 4;
+   */
+  remoteState: string;
+
+  /**
+   * @generated from field: bool healthy = 5;
+   */
+  healthy: boolean;
+};
+
+/**
+ * Describes the message maitre.v1.PageStatus.
+ * Use `create(PageStatusSchema)` to create a new message.
+ */
+export const PageStatusSchema: GenMessage<PageStatus> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_service, 30);
 
 /**
  * ComponentStatus is one container's state within a multi-container Service.
@@ -961,7 +1374,7 @@ export type ComponentStatus = Message<"maitre.v1.ComponentStatus"> & {
  * Use `create(ComponentStatusSchema)` to create a new message.
  */
 export const ComponentStatusSchema: GenMessage<ComponentStatus> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 22);
+  messageDesc(file_maitre_v1_service, 31);
 
 /**
  * Decision 114: Fleet-wide settings for Services published at the user's
@@ -984,7 +1397,7 @@ export type PublicSettings = Message<"maitre.v1.PublicSettings"> & {
  * Use `create(PublicSettingsSchema)` to create a new message.
  */
 export const PublicSettingsSchema: GenMessage<PublicSettings> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 23);
+  messageDesc(file_maitre_v1_service, 32);
 
 /**
  * Plan C9: the Catalogs the Fleet's Consoles show beside the project's own.
@@ -1007,7 +1420,7 @@ export type UserCatalogs = Message<"maitre.v1.UserCatalogs"> & {
  * Use `create(UserCatalogsSchema)` to create a new message.
  */
 export const UserCatalogsSchema: GenMessage<UserCatalogs> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 24);
+  messageDesc(file_maitre_v1_service, 33);
 
 /**
  * @generated from message maitre.v1.UserCatalog
@@ -1062,7 +1475,7 @@ export type UserCatalog = Message<"maitre.v1.UserCatalog"> & {
  * Use `create(UserCatalogSchema)` to create a new message.
  */
 export const UserCatalogSchema: GenMessage<UserCatalog> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 25);
+  messageDesc(file_maitre_v1_service, 34);
 
 /**
  * @generated from message maitre.v1.SetPortForwardingRequest
@@ -1084,7 +1497,7 @@ export type SetPortForwardingRequest = Message<"maitre.v1.SetPortForwardingReque
  * Use `create(SetPortForwardingRequestSchema)` to create a new message.
  */
 export const SetPortForwardingRequestSchema: GenMessage<SetPortForwardingRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 26);
+  messageDesc(file_maitre_v1_service, 35);
 
 /**
  * @generated from message maitre.v1.SetPortForwardingResponse
@@ -1101,7 +1514,7 @@ export type SetPortForwardingResponse = Message<"maitre.v1.SetPortForwardingResp
  * Use `create(SetPortForwardingResponseSchema)` to create a new message.
  */
 export const SetPortForwardingResponseSchema: GenMessage<SetPortForwardingResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 27);
+  messageDesc(file_maitre_v1_service, 36);
 
 /**
  * @generated from message maitre.v1.InstallServiceRequest
@@ -1122,7 +1535,7 @@ export type InstallServiceRequest = Message<"maitre.v1.InstallServiceRequest"> &
  * Use `create(InstallServiceRequestSchema)` to create a new message.
  */
 export const InstallServiceRequestSchema: GenMessage<InstallServiceRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 28);
+  messageDesc(file_maitre_v1_service, 37);
 
 /**
  * @generated from message maitre.v1.InstallServiceResponse
@@ -1139,7 +1552,7 @@ export type InstallServiceResponse = Message<"maitre.v1.InstallServiceResponse">
  * Use `create(InstallServiceResponseSchema)` to create a new message.
  */
 export const InstallServiceResponseSchema: GenMessage<InstallServiceResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 29);
+  messageDesc(file_maitre_v1_service, 38);
 
 /**
  * @generated from message maitre.v1.ControlServiceRequest
@@ -1166,7 +1579,7 @@ export type ControlServiceRequest = Message<"maitre.v1.ControlServiceRequest"> &
  * Use `create(ControlServiceRequestSchema)` to create a new message.
  */
 export const ControlServiceRequestSchema: GenMessage<ControlServiceRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 30);
+  messageDesc(file_maitre_v1_service, 39);
 
 /**
  * @generated from enum maitre.v1.ControlServiceRequest.Action
@@ -1220,7 +1633,7 @@ export enum ControlServiceRequest_Action {
  * Describes the enum maitre.v1.ControlServiceRequest.Action.
  */
 export const ControlServiceRequest_ActionSchema: GenEnum<ControlServiceRequest_Action> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_service, 30, 0);
+  enumDesc(file_maitre_v1_service, 39, 0);
 
 /**
  * @generated from message maitre.v1.ControlServiceResponse
@@ -1237,7 +1650,7 @@ export type ControlServiceResponse = Message<"maitre.v1.ControlServiceResponse">
  * Use `create(ControlServiceResponseSchema)` to create a new message.
  */
 export const ControlServiceResponseSchema: GenMessage<ControlServiceResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 31);
+  messageDesc(file_maitre_v1_service, 40);
 
 /**
  * @generated from message maitre.v1.ListServicesRequest
@@ -1250,7 +1663,7 @@ export type ListServicesRequest = Message<"maitre.v1.ListServicesRequest"> & {
  * Use `create(ListServicesRequestSchema)` to create a new message.
  */
 export const ListServicesRequestSchema: GenMessage<ListServicesRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 32);
+  messageDesc(file_maitre_v1_service, 41);
 
 /**
  * @generated from message maitre.v1.ListServicesResponse
@@ -1267,7 +1680,7 @@ export type ListServicesResponse = Message<"maitre.v1.ListServicesResponse"> & {
  * Use `create(ListServicesResponseSchema)` to create a new message.
  */
 export const ListServicesResponseSchema: GenMessage<ListServicesResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 33);
+  messageDesc(file_maitre_v1_service, 42);
 
 /**
  * @generated from message maitre.v1.SetExposureRequest
@@ -1289,6 +1702,14 @@ export type SetExposureRequest = Message<"maitre.v1.SetExposureRequest"> & {
    * @generated from field: string public_host = 3;
    */
   publicHost: string;
+
+  /**
+   * The Page to change (ADR 0010); empty changes the Service's own level,
+   * which every Page without a level of its own follows.
+   *
+   * @generated from field: string page = 4;
+   */
+  page: string;
 };
 
 /**
@@ -1296,7 +1717,7 @@ export type SetExposureRequest = Message<"maitre.v1.SetExposureRequest"> & {
  * Use `create(SetExposureRequestSchema)` to create a new message.
  */
 export const SetExposureRequestSchema: GenMessage<SetExposureRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 34);
+  messageDesc(file_maitre_v1_service, 43);
 
 /**
  * @generated from message maitre.v1.SetExposureResponse
@@ -1313,7 +1734,7 @@ export type SetExposureResponse = Message<"maitre.v1.SetExposureResponse"> & {
  * Use `create(SetExposureResponseSchema)` to create a new message.
  */
 export const SetExposureResponseSchema: GenMessage<SetExposureResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 35);
+  messageDesc(file_maitre_v1_service, 44);
 
 /**
  * @generated from message maitre.v1.GetServiceLogsRequest
@@ -1344,7 +1765,7 @@ export type GetServiceLogsRequest = Message<"maitre.v1.GetServiceLogsRequest"> &
  * Use `create(GetServiceLogsRequestSchema)` to create a new message.
  */
 export const GetServiceLogsRequestSchema: GenMessage<GetServiceLogsRequest> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 36);
+  messageDesc(file_maitre_v1_service, 45);
 
 /**
  * @generated from message maitre.v1.GetServiceLogsResponse
@@ -1361,7 +1782,7 @@ export type GetServiceLogsResponse = Message<"maitre.v1.GetServiceLogsResponse">
  * Use `create(GetServiceLogsResponseSchema)` to create a new message.
  */
 export const GetServiceLogsResponseSchema: GenMessage<GetServiceLogsResponse> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_service, 37);
+  messageDesc(file_maitre_v1_service, 46);
 
 /**
  * ServiceService manages Services on the Node that serves it. Definitions
@@ -1522,6 +1943,32 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof ListDevicesRequestSchema;
     output: typeof ListDevicesResponseSchema;
+  },
+  /**
+   * PreviewSetup renders a Service as SetSetup would leave it, without
+   * changing anything (ADR 0010): the unit files with each line's source,
+   * the options that would need a grant, and the Services that would
+   * restart. A nil setup renders the Service as it is.
+   *
+   * @generated from rpc maitre.v1.ServiceService.PreviewSetup
+   */
+  previewSetup: {
+    methodKind: "unary";
+    input: typeof PreviewSetupRequestSchema;
+    output: typeof PreviewSetupResponseSchema;
+  },
+  /**
+   * SetSetup replaces a Service's Setup (ADR 0010): its network choice,
+   * reach from other Nodes, fixed address, Pages and container-option
+   * overrides. Saved, applied, and the Service restarted along with the
+   * Tunnel it joins or leaves and that Tunnel's other Services.
+   *
+   * @generated from rpc maitre.v1.ServiceService.SetSetup
+   */
+  setSetup: {
+    methodKind: "unary";
+    input: typeof SetSetupRequestSchema;
+    output: typeof SetSetupResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_maitre_v1_service, 0);

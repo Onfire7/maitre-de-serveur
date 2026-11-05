@@ -56,6 +56,61 @@ service ServiceService {
   // Optional: older Nodes answer Unimplemented, and the Console then asks
   // for a path.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {}
+  // PreviewSetup renders a Service as SetSetup would leave it, without
+  // changing anything (ADR 0010): the unit files with each line's source,
+  // the options that would need a grant, and the Services that would
+  // restart. A nil setup renders the Service as it is.
+  rpc PreviewSetup(PreviewSetupRequest) returns (PreviewSetupResponse) {}
+  // SetSetup replaces a Service's Setup (ADR 0010): its network choice,
+  // reach from other Nodes, fixed address, Pages and container-option
+  // overrides. Saved, applied, and the Service restarted along with the
+  // Tunnel it joins or leaves and that Tunnel's other Services.
+  rpc SetSetup(SetSetupRequest) returns (SetSetupResponse) {}
+}
+
+message PreviewSetupRequest {
+  string name = 1;
+  // Left unset: the Service as it is.
+  Setup setup = 2;
+}
+
+message PreviewSetupResponse {
+  repeated RenderedUnit units = 1;
+  repeated ProtectedOption protected = 2;
+  // Services that restart when this Setup is applied, this one first.
+  repeated string restarts = 3;
+}
+
+// RenderedUnit is one unit file as the Node would write it, with where
+// each line came from, so Setup can show what is the template's, what the
+// Node added and what the person changed.
+message RenderedUnit {
+  string name = 1;
+  string body = 2;
+  // One per line of body: "template", "agent", "override" or "".
+  repeated string sources = 3;
+}
+
+message SetSetupRequest {
+  string name = 1;
+  Setup setup = 2;
+}
+
+message SetSetupResponse {
+  ServiceStatus service = 1;
+}
+
+// Setup is the part of a ServiceSpec the Setup page edits (ADR 0010),
+// replaced whole by SetSetup.
+message Setup {
+  string network_kind = 1;
+  string network_target = 2;
+  bool fleet_reach = 3;
+  repeated string ports = 4;
+  string address = 5;
+  repeated ServicePage pages = 6;
+  repeated UnitOverride overrides = 7;
+  bool network_internal = 8;
 }
 
 message ListDevicesRequest {
@@ -193,6 +248,46 @@ message ServiceUnit {
   string body = 2;
 }
 
+// ServicePage is one web UI a Service offers (ADR 0010). A Service has
+// zero or more Pages; the first is its main Page, reached at
+// <service>.local, and every other at <service>-<name>.local. The Node
+// publishes each Page's port on a loopback port of its own for Caddy, the
+// Console's proxy and the health probe.
+message ServicePage {
+  // [a-z0-9-], unique within the Service; "web" for an entry's one page.
+  string name = 1;
+  // The component that serves it, in a Service of several; "" otherwise.
+  string component = 2;
+  uint32 port = 3;
+  // Path the Console opens, "/" if empty.
+  string path = 4;
+  // Exposure level of this Page; "" follows the Service's.
+  string exposure = 5;
+  // For a "direct" exposure of its own: the host name it answers at.
+  string public_host = 6;
+  // Loopback port on the Node; chosen by the agent.
+  uint32 host_port = 7;
+  // HTTP path probed for health; empty means the Page's path.
+  string health_http = 8;
+  // What the sidebar calls it when the Service has several; "" is name.
+  string label = 9;
+}
+
+// UnitOverride is one change a person made to a container's options in
+// Setup (ADR 0010): a [Container] key set to a value, or a line removed.
+// Overrides are kept on the Service's record and applied after the
+// bundle's template is rendered, so they survive Catalog updates; the
+// options they add go through the grant check like the template's.
+message UnitOverride {
+  // The component it applies to; "" for a Service of one container.
+  string component = 1;
+  string key = 2;
+  string value = 3;
+  // Remove every Key=value line (or every Key= line when value is empty)
+  // instead of setting one.
+  bool remove = 4;
+}
+
 // ServiceVolume is a named data directory of a Service.
 message ServiceVolume {
   string name = 1;
@@ -293,6 +388,32 @@ message ServiceSpec {
   // as {{ .Grants.<feature> }}, and a feature off leaves out the protected
   // options it needs.
   map<string, bool> optional_grants = 28;
+  // The Service's Pages (ADR 0010). The Node fills them from web_port,
+  // web_path and web_component when a spec from before Pages has none,
+  // and keeps those fields mirroring the first Page.
+  repeated ServicePage pages = 29;
+  // Which network the Service is on (ADR 0010): "" its own, "tunnel"
+  // the network of the Tunnel named by network_target (it shares that
+  // container's network namespace and starts, stops and moves with it),
+  // "service" its own plus the network of the Service of components
+  // named by network_target, "host" the Node's own (the Network=host
+  // grant).
+  string network_kind = 30;
+  string network_target = 31;
+  // Reachable by Services on the Fleet's other Nodes at <name>.local on
+  // its declared ports: every Page's port and ports below. The agents
+  // carry the traffic between Nodes; nothing is opened on the LAN.
+  bool fleet_reach = 32;
+  // Ports other Services may use, "5432/tcp" style, beyond its Pages'.
+  repeated string ports = 33;
+  // The Service's fixed address on the shared maitre network, unique
+  // across the Fleet and kept through a move; allocated at install when
+  // empty. <name>.local resolves to it for every container of the Fleet.
+  string address = 34;
+  repeated UnitOverride overrides = 35;
+  // The entry is a Tunnel: a Service whose only job is to carry other
+  // Services' traffic (a VPN client). Other Services may join it.
+  bool tunnel = 36;
 }
 
 message ServiceStatus {
@@ -325,6 +446,18 @@ message ServiceStatus {
   // Per-component status for a multi-container Service (plan C1); empty for a
   // single-container one. The fields above are the Service-wide rollup.
   repeated ComponentStatus components = 11;
+  // One per Page (ADR 0010), in the spec's order; url, remote_url,
+  // remote_state and healthy above are the first Page's.
+  repeated PageStatus pages = 12;
+}
+
+// PageStatus is where one Page answers and whether it does.
+message PageStatus {
+  string name = 1;
+  string url = 2;
+  string remote_url = 3;
+  string remote_state = 4;
+  bool healthy = 5;
 }
 
 // ComponentStatus is one container's state within a multi-container Service.
@@ -424,6 +557,9 @@ message SetExposureRequest {
   string exposure = 2;
   // Required when exposure is "direct".
   string public_host = 3;
+  // The Page to change (ADR 0010); empty changes the Service's own level,
+  // which every Page without a level of its own follows.
+  string page = 4;
 }
 
 message SetExposureResponse {

@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -177,6 +176,13 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if err := validateContainers(spec); err != nil {
 		return nil, err
 	}
+	normalizePages(spec)
+	if err := validatePages(spec); err != nil {
+		return nil, err
+	}
+	if err := validateOverrides(spec); err != nil {
+		return nil, err
+	}
 	// A name a removed Service left behind (its tombstone, perhaps owned
 	// by a Node since gone from the Fleet) is free to claim: the write
 	// takes ownership, which peers admit (authz: only a live Service of
@@ -231,22 +237,28 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if err := checkMounts(spec.GetVolumes(), spec.GetMounts()); err != nil {
 		return nil, err
 	}
-	spec.WebHostPort = 0
-	if spec.GetWebPort() != 0 {
-		host, err := hostNetworked(spec)
+	if err := m.validateNetwork(ctx, spec); err != nil {
+		return nil, err
+	}
+	// ADR 0010: an address of the Fleet's network, unique across every
+	// Node, kept through a move; the Console may have chosen one.
+	if spec.GetAddress() == "" {
+		addr, err := m.allocateAddress(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if host {
-			// G4: on the Node's own network the app's port is the Node's;
-			// Caddy, Tailscale and the probe reach it there.
-			if err := m.portFree(ctx, name, spec.GetWebPort()); err != nil {
-				return nil, err
-			}
-			spec.WebHostPort = spec.GetWebPort()
-		} else {
-			spec.WebHostPort = uint32(m.hostPort(ctx, name))
-		}
+		spec.Address = addr
+	} else if err := m.checkAddress(ctx, name, spec.GetAddress()); err != nil {
+		return nil, err
+	}
+	for _, p := range spec.GetPages() {
+		p.HostPort = 0
+	}
+	// Each Page gets a loopback port of the Node (G4: on the Node's own
+	// network the app's port is the Node's; Caddy, Tailscale and the
+	// probe reach it there).
+	if err := m.assignHostPorts(ctx, spec); err != nil {
+		return nil, err
 	}
 	if err := m.apply(ctx, spec); err != nil {
 		return nil, err
@@ -261,6 +273,13 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	}
 	if _, err := m.store.Put(ctx, KindService, name, spec, claim); err != nil {
 		return nil, err
+	}
+	// A Service installed onto a Tunnel: the Tunnel's unit now publishes
+	// its ports and wants it, and restarting the Tunnel starts it.
+	if spec.GetNetworkKind() == NetworkTunnel {
+		if err := m.reapplyTunnel(ctx, spec.GetNetworkTarget()); err != nil {
+			return nil, err
+		}
 	}
 	if _, err := m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(spec)); err != nil {
 		return nil, fmt.Errorf("start: %w", err)
@@ -343,7 +362,7 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	if err != nil {
 		return err
 	}
-	if err := m.checkGrants(ctx, spec, vols, managedDirs(vols, extra)); err != nil {
+	if err := m.checkGrants(ctx, spec, vols, extra, managedDirs(vols, extra)); err != nil {
 		return err
 	}
 	share := func(space, dir string) error {
@@ -459,15 +478,29 @@ func (m *Manager) unitPath(name string) string {
 // multi-container one is a unit per component plus its network and grouping
 // target (plan C1).
 func (m *Manager) renderUnits(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra) (map[string]string, error) {
-	spec = m.withTimezone(ctx, spec)
-	if isMulti(spec) {
-		return m.renderMulti(spec, vols, extra)
-	}
-	unit, err := RenderWith(spec, vols, extra)
+	set, err := m.renderAnnotated(ctx, spec, vols, extra)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{spec.GetName() + ".container": string(unit)}, nil
+	out := make(map[string]string, len(set))
+	for name, u := range set {
+		out[name] = u.String()
+	}
+	return out, nil
+}
+
+// renderAnnotated is renderUnits with each line's source kept (ADR 0010).
+func (m *Manager) renderAnnotated(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra) (map[string]unit, error) {
+	spec = m.withTimezone(ctx, spec)
+	plan := m.planNetwork(ctx, spec)
+	if isMulti(spec) {
+		return renderMulti(spec, vols, extra, plan)
+	}
+	u, err := renderContainer(spec, components(spec)[0], vols, extra, plan)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]unit{spec.GetName() + ".container": u}, nil
 }
 
 // validateUnits checks rendered units with podman's own Quadlet generator
@@ -742,99 +775,17 @@ func renderTemplate(name, quadletTmpl, image string, spec *maitrev1.ServiceSpec,
 
 var settingEscape = strings.NewReplacer("$", "$$", "%", "%%")
 
-// RenderWith is Render with picked and extra folders.
+// RenderWith is Render with picked and extra folders: a single
+// container's unit, without the Fleet (no Tunnel joins it).
 func RenderWith(spec *maitrev1.ServiceSpec, volumes map[string]string, extra Extra) ([]byte, error) {
-	rendered, err := renderBody(spec, volumes)
+	if isMulti(spec) {
+		return nil, errors.New("RenderWith renders a Service of one container")
+	}
+	u, err := renderContainer(spec, components(spec)[0], volumes, extra, netPlan{kind: spec.GetNetworkKind(), target: spec.GetNetworkTarget()})
 	if err != nil {
 		return nil, err
 	}
-	if len(extra.Shared) > 0 {
-		hosts := map[string]bool{}
-		for name := range extra.Shared {
-			hosts[volumes[name]] = true
-		}
-		rendered = shareVolumes(rendered, hosts)
-	}
-	// Read the rendered template the way Quadlet does, so decisions below
-	// (NoNewPrivileges, HostName) see continuations and quoting correctly.
-	parsed := parser.NewUnitFile()
-	if err := parsed.Parse(rendered); err != nil {
-		return nil, fmt.Errorf("quadlet unit: %w", err)
-	}
-	// Maître's own [Container] lines go with the template's [Container]
-	// lines; any other section the template has (granted, decision 189)
-	// follows them.
-	container, rest := splitContainer(rendered)
-	body := bytes.NewBufferString(container)
-	var out bytes.Buffer
-	fmt.Fprintf(&out, "# Generated by Maître for Service %q (Catalog entry %q). Do not edit.\n", spec.GetName(), spec.GetCatalogId())
-	fmt.Fprintf(&out, "[Unit]\nDescription=Maître Service %s\n", spec.GetName())
-	if spec.GetInfrastructure() {
-		// Infrastructure Services (DNS, DHCP) must be up before anything that
-		// waits for the network.
-		out.WriteString("Before=network-online.target\nDefaultDependencies=no\nAfter=basic.target maitre-pool.service\n")
-	}
-	out.WriteString("\n")
-	out.Write(body.Bytes())
-	if !strings.HasSuffix(body.String(), "\n") {
-		out.WriteString("\n")
-	}
-	// Decision 189: no gaining privileges through setuid programs, unless
-	// the template says otherwise (a protected option).
-	if !parsed.HasKey("Container", "NoNewPrivileges") {
-		out.WriteString("NoNewPrivileges=true\n")
-	}
-	// The container's hostname is the Service's name, not Podman's random
-	// id, so apps that name themselves after it (Jellyfin's server name)
-	// keep one name across restarts. Not where the template names it or
-	// shares the host's or a pod's UTS namespace.
-	if !parsed.HasKey("Container", "HostName") && !parsed.HasKey("Container", "Pod") && !lookupIs(parsed, "Network", "host") && !lookupIs(parsed, "UTS", "host") {
-		fmt.Fprintf(&out, "HostName=%s\n", spec.GetName())
-	}
-	// On the Node's own network (G4) there is nothing to publish: the app
-	// listens on the Node's port itself, and Podman would discard the line.
-	if spec.GetWebPort() != 0 && spec.GetWebHostPort() != 0 && !lookupIs(parsed, "Network", "host") {
-		fmt.Fprintf(&out, "PublishPort=127.0.0.1:%d:%d\n", spec.GetWebHostPort(), spec.GetWebPort())
-	}
-	for _, mt := range extra.Mounts {
-		opts := "z"
-		if mt.ReadOnly {
-			opts += ",ro"
-		}
-		fmt.Fprintf(&out, "Volume=%s:%s:%s\n", mt.Host, mt.Path, opts)
-	}
-	for _, g := range extra.Groups {
-		fmt.Fprintf(&out, "GroupAdd=%d\n", g)
-	}
-	out.WriteString("Label=dev.maitre.service=" + spec.GetName() + "\n")
-	if rest != "" {
-		out.WriteString("\n" + rest)
-		if !strings.HasSuffix(rest, "\n") {
-			out.WriteString("\n")
-		}
-	}
-	out.WriteString("\n[Service]\nRestart=on-failure\nRestartSec=5\nTimeoutStartSec=900\n")
-	out.WriteString("\n[Install]\nWantedBy=multi-user.target default.target\n")
-	return out.Bytes(), nil
-}
-
-// splitContainer splits a rendered template into its [Container] lines
-// (the header included) and every other section after them.
-func splitContainer(body string) (container, rest string) {
-	var c, r []string
-	in := true
-	for _, l := range strings.Split(body, "\n") {
-		t := strings.TrimSpace(l)
-		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
-			in = t == "[Container]"
-		}
-		if in {
-			c = append(c, l)
-		} else {
-			r = append(r, l)
-		}
-	}
-	return strings.Join(c, "\n"), strings.TrimSpace(strings.Join(r, "\n"))
+	return []byte(u.String()), nil
 }
 
 // lookupIs reports whether the [Container] group sets key to value, read as
@@ -919,23 +870,6 @@ func (m *Manager) portFree(ctx context.Context, name string, port uint32) error 
 	return nil
 }
 
-// hostPort picks a stable loopback port for a Service's web port, avoiding
-// ports already used by other Services.
-func (m *Manager) hostPort(ctx context.Context, name string) int {
-	used := map[int]bool{}
-	specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
-	for _, s := range specs {
-		used[int(s.GetWebHostPort())] = true
-	}
-	h := fnv.New32a()
-	h.Write([]byte(name))
-	p := m.cfg.HostPortBase + int(h.Sum32()%10000)
-	for used[p] {
-		p = m.cfg.HostPortBase + (p-m.cfg.HostPortBase+1)%10000
-	}
-	return p
-}
-
 // Control starts, stops, restarts, or removes a Service.
 func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceRequest) (*maitrev1.ServiceStatus, error) {
 	var spec maitrev1.ServiceSpec
@@ -991,6 +925,11 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 			return nil, err
 		}
 	case maitrev1.ControlServiceRequest_ACTION_REMOVE:
+		// ADR 0010: Services on its network or Tunnel would break; they
+		// leave it first, in their Setup.
+		if deps := m.Dependants(ctx, spec.GetName()); len(deps) > 0 {
+			return nil, fmt.Errorf("%s cannot be removed while %s %s it; change their Setup first", spec.GetName(), strings.Join(deps, ", "), map[bool]string{true: "use", false: "uses"}[len(deps) > 1])
+		}
 		_, _ = m.run.Run(ctx, "systemctl", "stop", unit)
 		for _, f := range unitFiles(&spec) {
 			if isSystemdUnit(f) {
@@ -1018,6 +957,12 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		}
 		if _, err := m.store.Delete(ctx, KindService, spec.Name, false); err != nil {
 			return nil, err
+		}
+		if spec.GetNetworkKind() == NetworkTunnel {
+			// The Tunnel no longer publishes for it.
+			if err := m.reapplyTunnel(ctx, spec.GetNetworkTarget()); err != nil {
+				m.logf("%s: after removing %s: %v", spec.GetNetworkTarget(), spec.GetName(), err)
+			}
 		}
 		return &maitrev1.ServiceStatus{Spec: &spec, State: maitrev1.ServiceStatus_STATE_REMOVING}, nil
 	default:
@@ -1331,8 +1276,8 @@ func (m *Manager) checkExposure(ctx context.Context, name string, spec *maitrev1
 	if (exposure == "public" || exposure == "direct") && spec.GetInfrastructure() {
 		return "", fmt.Errorf("%s is network infrastructure and cannot be public", name)
 	}
-	if exposure != "private" && spec.GetWebPort() == 0 {
-		return "", fmt.Errorf("%s has no web page to expose", name)
+	if exposure != "private" && len(pagesOf(spec)) == 0 {
+		return "", fmt.Errorf("%s has no Page to expose", name)
 	}
 	if publicHost != "" {
 		others, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
@@ -1407,18 +1352,32 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 		}
 		st.State, st.Restarts, st.StartedUnixMs, st.Message = state, restarts, started, msg
 	}
-	if m.cfg.Remote != nil && spec.GetWebPort() != 0 {
-		if u, state := m.cfg.Remote(spec.GetName()); u != "" || state != "" {
-			if u != "" {
-				u += spec.GetWebPath()
-			}
-			st.RemoteUrl, st.RemoteState = u, state
+	// A Service on a Tunnel stops with it (BindsTo): the Tunnel's failure
+	// is its own, in the Console's words.
+	if spec.GetNetworkKind() == NetworkTunnel && st.State != maitrev1.ServiceStatus_STATE_RUNNING {
+		if tstate, _, _, tmsg, err := m.showUnit(ctx, spec.GetNetworkTarget()+".service"); err == nil && tstate == maitrev1.ServiceStatus_STATE_FAILED {
+			st.State = tstate
+			st.Message = "through " + spec.GetNetworkTarget() + ": " + tmsg
 		}
 	}
-	if spec.GetWebPort() != 0 {
-		st.Url = fmt.Sprintf("http://%s.%s%s", spec.GetName(), m.cfg.Suffix, spec.GetWebPath())
-		if st.State == maitrev1.ServiceStatus_STATE_RUNNING && spec.GetWebHostPort() != 0 {
-			st.Healthy = m.probe(ctx, spec.GetWebHostPort(), spec)
+	for i, p := range pagesOf(spec) {
+		ps := &maitrev1.PageStatus{Name: p.GetName()}
+		host := PageHost(spec, p)
+		ps.Url = fmt.Sprintf("http://%s.%s%s", host, m.cfg.Suffix, p.GetPath())
+		if m.cfg.Remote != nil {
+			if u, state := m.cfg.Remote(host); u != "" || state != "" {
+				if u != "" {
+					u += p.GetPath()
+				}
+				ps.RemoteUrl, ps.RemoteState = u, state
+			}
+		}
+		if st.State == maitrev1.ServiceStatus_STATE_RUNNING && p.GetHostPort() != 0 {
+			ps.Healthy = m.probe(ctx, p)
+		}
+		st.Pages = append(st.Pages, ps)
+		if i == 0 {
+			st.Url, st.RemoteUrl, st.RemoteState, st.Healthy = ps.Url, ps.RemoteUrl, ps.RemoteState, ps.Healthy
 		}
 	}
 	return st, nil
@@ -1501,14 +1460,14 @@ func (m *Manager) multiStatus(ctx context.Context, spec *maitrev1.ServiceSpec, s
 	return nil
 }
 
-func (m *Manager) probe(ctx context.Context, hostPort uint32, spec *maitrev1.ServiceSpec) bool {
+func (m *Manager) probe(ctx context.Context, p *maitrev1.ServicePage) bool {
 	path := "/"
-	if spec.GetHealthHttp() != "" {
-		path = spec.GetHealthHttp()
-	} else if spec.GetWebPath() != "" {
-		path = spec.GetWebPath()
+	if p.GetHealthHttp() != "" {
+		path = p.GetHealthHttp()
+	} else if p.GetPath() != "" {
+		path = p.GetPath()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", hostPort, path), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", p.GetHostPort(), path), nil)
 	if err != nil {
 		return false
 	}
@@ -1567,8 +1526,13 @@ func LogUnits(spec *maitrev1.ServiceSpec, component string) ([]string, error) {
 	return componentServiceUnits(spec), nil
 }
 
-// WebHostPort returns the loopback port Caddy should proxy to for a Service.
-func WebHostPort(spec *maitrev1.ServiceSpec) int { return int(spec.GetWebHostPort()) }
+// WebHostPort returns the loopback port of a Service's first Page.
+func WebHostPort(spec *maitrev1.ServiceSpec) int {
+	if pages := pagesOf(spec); len(pages) > 0 {
+		return int(pages[0].GetHostPort())
+	}
+	return 0
+}
 
 func parseProps(out string) map[string]string {
 	props := map[string]string{}

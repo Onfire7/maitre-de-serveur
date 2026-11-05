@@ -228,15 +228,15 @@ type ProtectedOption struct {
 
 // protectedOptions lists the protected options of every component of a
 // Service, rendered with its volumes in place.
-func protectedOptions(spec *maitrev1.ServiceSpec, vols map[string]string, managed []string) ([]ProtectedOption, error) {
+func protectedOptions(spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra, plan netPlan, managed []string) ([]ProtectedOption, error) {
 	var out []ProtectedOption
 	for _, c := range components(spec) {
-		body, err := renderComponentBody(spec, c, vols)
+		body, err := containerBody(spec, c, vols, extra, plan)
 		if err != nil {
 			return nil, err
 		}
 		repo := ImageRepository(c.Image)
-		for _, o := range Protected(body, managed) {
+		for _, o := range Protected(body.String(), managed) {
 			out = append(out, ProtectedOption{Component: c.Name, ImageRepository: repo, Option: o})
 		}
 	}
@@ -247,11 +247,11 @@ func protectedOptions(spec *maitrev1.ServiceSpec, vols map[string]string, manage
 // Service's components has no live grant for this Service, Node, component
 // and image repository, signed by a Trusted Device. A single-container
 // Service is one component with an empty name, so its grants are unchanged.
-func (m *Manager) checkGrants(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, managed []string) error {
+func (m *Manager) checkGrants(ctx context.Context, spec *maitrev1.ServiceSpec, vols map[string]string, extra Extra, managed []string) error {
 	self := m.store.NodeID()
 	type need struct{ component, repo, option, id string }
 	var needs []need
-	opts, err := protectedOptions(spec, vols, managed)
+	opts, err := protectedOptions(spec, vols, extra, m.planNetwork(ctx, spec), managed)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (m *Manager) EnforceGrants(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		if err := m.checkGrants(ctx, spec, vols, managedDirs(vols, extra)); err != nil {
+		if err := m.checkGrants(ctx, spec, vols, extra, managedDirs(vols, extra)); err != nil {
 			m.logf("stopping %s: %v", spec.GetName(), err)
 			m.uninstallUnit(ctx, spec)
 		}

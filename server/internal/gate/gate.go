@@ -37,6 +37,9 @@ var NodeCalls = map[string]bool{
 	"/maitre.v1.FilesService/Move":           true,
 	"/maitre.v1.FilesService/ListJobs":       true,
 	"/maitre.v1.FilesService/CancelJob":      true,
+	// A connection carried to one of this Node's Services for a Service
+	// of the peer's (ADR 0010, fleetnet).
+	"/maitre/relay": true,
 }
 
 // Handler refuses, with 403, requests a caller's role does not allow.

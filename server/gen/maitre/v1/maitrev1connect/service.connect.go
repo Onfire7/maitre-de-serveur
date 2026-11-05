@@ -56,6 +56,11 @@ const (
 	ServiceServiceCheckServiceProcedure = "/maitre.v1.ServiceService/CheckService"
 	// ServiceServiceListDevicesProcedure is the procedure name of the ServiceService's ListDevices RPC.
 	ServiceServiceListDevicesProcedure = "/maitre.v1.ServiceService/ListDevices"
+	// ServiceServicePreviewSetupProcedure is the procedure name of the ServiceService's PreviewSetup
+	// RPC.
+	ServiceServicePreviewSetupProcedure = "/maitre.v1.ServiceService/PreviewSetup"
+	// ServiceServiceSetSetupProcedure is the procedure name of the ServiceService's SetSetup RPC.
+	ServiceServiceSetSetupProcedure = "/maitre.v1.ServiceService/SetSetup"
 )
 
 var (
@@ -150,6 +155,20 @@ var (
 			Procedure:  ServiceServiceListDevicesProcedure,
 		}
 	})
+	serviceServicePreviewSetupSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("PreviewSetup"),
+			Procedure:  ServiceServicePreviewSetupProcedure,
+		}
+	})
+	serviceServiceSetSetupSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("SetSetup"),
+			Procedure:  ServiceServiceSetSetupProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -201,6 +220,16 @@ type ServiceServiceClient interface {
 	// Optional: older Nodes answer Unimplemented, and the Console then asks
 	// for a path.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// PreviewSetup renders a Service as SetSetup would leave it, without
+	// changing anything (ADR 0010): the unit files with each line's source,
+	// the options that would need a grant, and the Services that would
+	// restart. A nil setup renders the Service as it is.
+	PreviewSetup(context.Context, *v1.PreviewSetupRequest) (*v1.PreviewSetupResponse, error)
+	// SetSetup replaces a Service's Setup (ADR 0010): its network choice,
+	// reach from other Nodes, fixed address, Pages and container-option
+	// overrides. Saved, applied, and the Service restarted along with the
+	// Tunnel it joins or leaves and that Tunnel's other Services.
+	SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -258,6 +287,16 @@ type ServiceServiceHandler interface {
 	// Optional: older Nodes answer Unimplemented, and the Console then asks
 	// for a path.
 	ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error)
+	// PreviewSetup renders a Service as SetSetup would leave it, without
+	// changing anything (ADR 0010): the unit files with each line's source,
+	// the options that would need a grant, and the Services that would
+	// restart. A nil setup renders the Service as it is.
+	PreviewSetup(context.Context, *v1.PreviewSetupRequest) (*v1.PreviewSetupResponse, error)
+	// SetSetup replaces a Service's Setup (ADR 0010): its network choice,
+	// reach from other Nodes, fixed address, Pages and container-option
+	// overrides. Saved, applied, and the Service restarted along with the
+	// Tunnel it joins or leaves and that Tunnel's other Services.
+	SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -278,6 +317,8 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceSetImageSpec(), Handler: adapter.setImage},
 		connect.Method{Spec: serviceServiceCheckServiceSpec(), Handler: adapter.checkService},
 		connect.Method{Spec: serviceServiceListDevicesSpec(), Handler: adapter.listDevices},
+		connect.Method{Spec: serviceServicePreviewSetupSpec(), Handler: adapter.previewSetup},
+		connect.Method{Spec: serviceServiceSetSetupSpec(), Handler: adapter.setSetup},
 	)
 }
 
@@ -334,6 +375,14 @@ func (UnimplementedServiceServiceHandler) CheckService(context.Context, *v1.Chec
 
 func (UnimplementedServiceServiceHandler) ListDevices(context.Context, *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.ListDevices is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) PreviewSetup(context.Context, *v1.PreviewSetupRequest) (*v1.PreviewSetupResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.PreviewSetup is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetSetup is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -439,6 +488,22 @@ func (c *serviceServiceClient) CheckService(ctx context.Context, req *v1.CheckSe
 func (c *serviceServiceClient) ListDevices(ctx context.Context, req *v1.ListDevicesRequest) (*v1.ListDevicesResponse, error) {
 	var res v1.ListDevicesResponse
 	if err := c.client.CallUnary(ctx, serviceServiceListDevicesSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) PreviewSetup(ctx context.Context, req *v1.PreviewSetupRequest) (*v1.PreviewSetupResponse, error) {
+	var res v1.PreviewSetupResponse
+	if err := c.client.CallUnary(ctx, serviceServicePreviewSetupSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) SetSetup(ctx context.Context, req *v1.SetSetupRequest) (*v1.SetSetupResponse, error) {
+	var res v1.SetSetupResponse
+	if err := c.client.CallUnary(ctx, serviceServiceSetSetupSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -596,6 +661,30 @@ func (h serviceServiceHandler) listDevices(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.ListDevices(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) previewSetup(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PreviewSetupRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PreviewSetup(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) setSetup(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetSetupRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetSetup(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tailnet"
 )
@@ -56,23 +57,32 @@ func (m *Manager) Reconcile(ctx context.Context, specs []*maitrev1.ServiceSpec) 
 	if _, err := m.st.Get(ctx, tailnet.KindTailscale, "fleet", &cfg); err != nil {
 		configured = false
 	}
-	want := map[string]*maitrev1.ServiceSpec{}
+	// One node per exposed Page (ADR 0010), named as the Page is on the
+	// LAN: the Service's name for its first Page, <service>-<page> after.
+	type wanted struct {
+		exposure string
+		port     uint32
+	}
+	want := map[string]wanted{}
 	for _, sp := range specs {
-		if sp.GetWebHostPort() != 0 && (sp.GetExposure() == "remote" || sp.GetExposure() == "public") {
-			want[sp.GetName()] = sp
+		for _, p := range services.Pages(sp) {
+			exposure, _ := services.PageExposure(sp, p)
+			if p.GetHostPort() != 0 && (exposure == "remote" || exposure == "public") {
+				want[services.PageHost(sp, p)] = wanted{exposure, p.GetHostPort()}
+			}
 		}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for name, s := range m.nodes {
-		sp, ok := want[name]
-		if !ok || sp.GetExposure() != s.exposure || sp.GetWebHostPort() != s.port {
+		w, ok := want[name]
+		if !ok || w.exposure != s.exposure || w.port != s.port {
 			s.cancel()
 			_ = s.node.Close()
 			delete(m.nodes, name)
 		}
 	}
-	for name, sp := range want {
+	for name, w := range want {
 		if _, ok := m.nodes[name]; ok {
 			continue
 		}
@@ -80,12 +90,11 @@ func (m *Manager) Reconcile(ctx context.Context, specs []*maitrev1.ServiceSpec) 
 			m.log.Warn("service wants remote exposure but the Fleet has no Tailscale client", "service", name)
 			continue
 		}
-		m.start(ctx, &cfg, sp)
+		m.start(ctx, &cfg, name, w.exposure, w.port)
 	}
 }
 
-func (m *Manager) start(ctx context.Context, cfg *maitrev1.TailscaleConfig, sp *maitrev1.ServiceSpec) {
-	name := sp.GetName()
+func (m *Manager) start(ctx context.Context, cfg *maitrev1.TailscaleConfig, name, exposure string, port uint32) {
 	dir := tailnet.StateDir(m.stateDir, "svc-"+name)
 	key := ""
 	if _, err := os.Stat(filepath.Join(dir, "tailscaled.state")); err != nil {
@@ -97,7 +106,7 @@ func (m *Manager) start(ctx context.Context, cfg *maitrev1.TailscaleConfig, sp *
 		key = k
 	}
 	nctx, cancel := context.WithCancel(ctx)
-	s := &served{node: tailnet.Start(nctx, m.log, dir, name, key), exposure: sp.GetExposure(), port: sp.GetWebHostPort(), cancel: cancel, state: "starting"}
+	s := &served{node: tailnet.Start(nctx, m.log, dir, name, key), exposure: exposure, port: port, cancel: cancel, state: "starting"}
 	m.nodes[name] = s
 	go m.serve(nctx, s, name)
 }

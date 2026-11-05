@@ -56,15 +56,23 @@ func Check(ctx context.Context, in *maitrev1.ServiceSpec) (*CheckResult, error) 
 	for _, v := range spec.GetVolumes() {
 		spec.VolumeSpaces[v.GetName()] = space
 	}
-	if spec.GetWebPort() != 0 {
-		spec.WebHostPort = uint32(m.cfg.HostPortBase)
+	normalizePages(spec)
+	if err := validatePages(spec); err != nil {
+		return nil, err
 	}
+	if err := validateOverrides(spec); err != nil {
+		return nil, err
+	}
+	for i, p := range spec.GetPages() {
+		p.HostPort = uint32(m.cfg.HostPortBase + i)
+	}
+	normalizePages(spec)
 	vols, extra, err := m.layout(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
 	res := &CheckResult{}
-	if res.Protected, err = protectedOptions(spec, vols, managedDirs(vols, extra)); err != nil {
+	if res.Protected, err = protectedOptions(spec, vols, extra, netPlan{kind: spec.GetNetworkKind(), target: spec.GetNetworkTarget()}, managedDirs(vols, extra)); err != nil {
 		return nil, err
 	}
 	if res.Units, err = m.renderUnits(ctx, spec, vols, extra); err != nil {

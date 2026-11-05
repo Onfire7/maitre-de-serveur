@@ -118,7 +118,7 @@ func (s *Service) ListServices(ctx context.Context, _ *maitrev1.ListServicesRequ
 
 // SetExposure implements ServiceService.
 func (s *Service) SetExposure(ctx context.Context, req *maitrev1.SetExposureRequest) (*maitrev1.SetExposureResponse, error) {
-	st, err := s.mgr.SetExposure(ctx, req.GetName(), req.GetExposure(), req.GetPublicHost())
+	st, err := s.mgr.SetPageExposure(ctx, req.GetName(), req.GetPage(), req.GetExposure(), req.GetPublicHost())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -202,6 +202,33 @@ func (s *Service) CheckService(ctx context.Context, req *maitrev1.CheckServiceRe
 		out.Protected = append(out.Protected, &maitrev1.ProtectedOption{Component: p.Component, ImageRepository: p.ImageRepository, Option: p.Option})
 	}
 	return out, nil
+}
+
+// PreviewSetup implements ServiceService (ADR 0010).
+func (s *Service) PreviewSetup(ctx context.Context, req *maitrev1.PreviewSetupRequest) (*maitrev1.PreviewSetupResponse, error) {
+	pv, err := s.mgr.PreviewSetup(ctx, req.GetName(), req.GetSetup())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := &maitrev1.PreviewSetupResponse{Restarts: pv.Restarts}
+	for _, name := range pv.Names() {
+		u := pv.Units[name]
+		out.Units = append(out.Units, &maitrev1.RenderedUnit{Name: name, Body: u.String(), Sources: u.Sources()})
+	}
+	for _, p := range pv.Protected {
+		out.Protected = append(out.Protected, &maitrev1.ProtectedOption{Component: p.Component, ImageRepository: p.ImageRepository, Option: p.Option})
+	}
+	return out, nil
+}
+
+// SetSetup implements ServiceService (ADR 0010).
+func (s *Service) SetSetup(ctx context.Context, req *maitrev1.SetSetupRequest) (*maitrev1.SetSetupResponse, error) {
+	st, err := s.mgr.SetSetup(ctx, req.GetName(), req.GetSetup())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	s.changed()
+	return &maitrev1.SetSetupResponse{Service: st}, nil
 }
 
 // ListDevices implements ServiceService (G5): this Node's devices a

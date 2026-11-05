@@ -85,19 +85,41 @@ func (m *Manager) PublicIP() string {
 	return m.publicIP
 }
 
-// Reconcile replaces the set of direct Services and re-checks them soon.
-func (m *Manager) Reconcile(specs []*maitrev1.ServiceSpec) {
+// Hosts are the Pages at the user's domain: each Page's name on the LAN
+// (the Service's name for its first Page, <service>-<page> after, ADR
+// 0010) to the public host it answers at.
+type Hosts map[string]string
+
+// HostsOf is the Hosts of a set of Services.
+func HostsOf(specs []*maitrev1.ServiceSpec, pages func(*maitrev1.ServiceSpec) []Page) Hosts {
+	out := Hosts{}
+	for _, sp := range specs {
+		for _, p := range pages(sp) {
+			if p.Exposure == Exposure && p.PublicHost != "" && p.HostPort != 0 {
+				out[p.Name] = p.PublicHost
+			}
+		}
+	}
+	return out
+}
+
+// Page is what HostsOf needs of a Page: its name on the LAN, its level,
+// public host and loopback port.
+type Page struct {
+	Name, Exposure, PublicHost string
+	HostPort                   uint32
+}
+
+// Reconcile replaces the set of direct hosts and re-checks them soon.
+func (m *Manager) Reconcile(hosts Hosts) {
 	m.mu.Lock()
 	next := map[string]*watched{}
-	for _, sp := range specs {
-		if sp.GetExposure() != Exposure || sp.GetPublicHost() == "" || sp.GetWebHostPort() == 0 {
+	for name, publicHost := range hosts {
+		if w, ok := m.hosts[name]; ok && w.host == publicHost {
+			next[name] = w
 			continue
 		}
-		if w, ok := m.hosts[sp.GetName()]; ok && w.host == sp.GetPublicHost() {
-			next[sp.GetName()] = w
-			continue
-		}
-		next[sp.GetName()] = &watched{host: sp.GetPublicHost(), state: "checking"}
+		next[name] = &watched{host: publicHost, state: "checking"}
 	}
 	m.hosts = next
 	m.mu.Unlock()

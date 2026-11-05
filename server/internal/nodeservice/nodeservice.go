@@ -135,7 +135,7 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 		UptimeSeconds: uint64(time.Since(s.started).Seconds()),
 		DevMode:       s.info.DevMode,
 		// Capabilities the Console checks before offering a feature (plan C5).
-		Features: []string{"components"},
+		Features: []string{"components", "setup"},
 	}
 	if s.Peers != nil {
 		info.Peers = s.Peers.Status(ctx)

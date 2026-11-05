@@ -44,6 +44,14 @@ _Avoid_: Cluster, site, group
 A containerised app the user has chosen to run on a Node, as the user sees it (name, settings, status).
 _Avoid_: Container, app, workload, pod
 
+**Page**:
+A web UI a Service offers, opened from the sidebar. A Service has zero or more Pages; its exposure level is set per Page, defaulting from the Service.
+_Avoid_: Frame, tab, web UI, link
+
+**Tunnel**:
+A Service whose only job is to carry other Services' traffic (a VPN client such as gluetun). A Service attached to a Tunnel shares its network, lives on its Node, and starts, stops and moves with it.
+_Avoid_: VPN container, gateway, group, stack
+
 **Provisioning**:
 The guided process that turns a freshly installed machine into a Node of an existing Fleet.
 _Avoid_: Joining, bootstrapping, onboarding
@@ -148,6 +156,10 @@ _Avoid_: User, guest, viewer
 **Fleet page**:
 The area of the Console for administering the Fleet itself (Nodes, Storage, Devices, Updates, remote access) rather than using its Services.
 _Avoid_: Settings, admin, config
+
+**Setup**:
+The Console page where a Service's settings beyond its install form are changed: its network choice, Pages, fixed address, exposure and container options, with the rendered configuration shown read-only. Changes apply with a restart.
+_Avoid_: Advanced settings, config editor, YAML
 
 **Service status**:
 One of four words the Console uses for a Service: **Online** (running and healthy), **Starting** (starting, or being updated), **Stopped** (stopped by the user), **Attention** (failed, running but unhealthy, or restart-looping).

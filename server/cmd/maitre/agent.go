@@ -41,6 +41,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/entry"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/files"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/filesservice"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/fleetnet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
@@ -465,6 +466,16 @@ func runAgent(args []string) error {
 			return "", false
 		}}, st, nil)
 	ssvc := serviceservice.New(mgr, cat)
+	// ADR 0010: the Fleet's Services reach each other by name through
+	// the agents; the shared network gets the Fleet's subnet first.
+	fnet := fleetnet.New(fleetnet.Config{Log: log, Self: id.Fingerprint(), DNSAddr: services.FleetDNS, HTTP: pm.HTTPClient(),
+		Services: func(ctx context.Context) []*maitrev1.ServiceSpec {
+			specs, _ := store.ListLive(ctx, st, services.KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+			return specs
+		},
+		PeerAddresses: func(nodeID string) []string { return pm.Addresses()[nodeID] },
+	})
+	defer fnet.Close()
 	svc.Services = func(ctx context.Context) []*maitrev1.ServiceStatus {
 		list, err := mgr.List(ctx)
 		if err != nil {
@@ -835,32 +846,38 @@ func runAgent(args []string) error {
 			if local {
 				mine = append(mine, sp)
 			}
-			if sp.GetWebHostPort() == 0 {
-				continue
-			}
-			r := caddy.Route{Upstream: fmt.Sprintf("127.0.0.1:%d", sp.GetWebHostPort())}
-			if local {
-				here = append(here, caddy.Route{Host: sp.GetName(), Upstream: r.Upstream})
-			} else if addr := peersWeb[sp.GetNodeId()]; addr != "" {
-				r.Upstream, r.Hop = addr, sp.GetName()
-			} else {
-				continue
-			}
-			r.Host = sp.GetName() + "." + services.DefaultSuffix
-			routes = append(routes, r)
-			if sp.GetExposure() != direct.Exposure || !direct.ValidHost(sp.GetPublicHost()) {
-				continue
-			}
-			r.Host = sp.GetPublicHost()
-			// With a web entry Node, it alone has certificates for every
-			// public host and the router sends it 80 and 443; before one,
-			// each Node publishes its own as it did.
-			switch {
-			case webOn && holdWeb, !webOn && local:
-				public = append(public, r)
-				ownPublic = ownPublic || local
-			default:
-				plain = append(plain, r)
+			// One route per Page (ADR 0010): the Service's name for its
+			// first Page, <service>-<page> for the others.
+			for _, p := range services.Pages(sp) {
+				if p.GetHostPort() == 0 {
+					continue
+				}
+				host := services.PageHost(sp, p)
+				r := caddy.Route{Upstream: fmt.Sprintf("127.0.0.1:%d", p.GetHostPort())}
+				if local {
+					here = append(here, caddy.Route{Host: host, Upstream: r.Upstream})
+				} else if addr := peersWeb[sp.GetNodeId()]; addr != "" {
+					r.Upstream, r.Hop = addr, host
+				} else {
+					continue
+				}
+				r.Host = host + "." + services.DefaultSuffix
+				routes = append(routes, r)
+				exposure, publicHost := services.PageExposure(sp, p)
+				if exposure != direct.Exposure || !direct.ValidHost(publicHost) {
+					continue
+				}
+				r.Host = publicHost
+				// With a web entry Node, it alone has certificates for every
+				// public host and the router sends it 80 and 443; before one,
+				// each Node publishes its own as it did.
+				switch {
+				case webOn && holdWeb, !webOn && local:
+					public = append(public, r)
+					ownPublic = ownPublic || local
+				default:
+					plain = append(plain, r)
+				}
 			}
 		}
 		specs = mine
@@ -873,8 +890,10 @@ func runAgent(args []string) error {
 					}
 				}
 			}
-			if sp.GetWebHostPort() != 0 {
-				names = append(names, sp.GetName()+"."+services.DefaultSuffix)
+			for _, p := range services.Pages(sp) {
+				if p.GetHostPort() != 0 {
+					names = append(names, services.PageHost(sp, p)+"."+services.DefaultSuffix)
+				}
 			}
 		}
 		if holdWeb || (!webOn && ownPublic) {
@@ -906,10 +925,13 @@ func runAgent(args []string) error {
 			}
 		}
 		dir.SetTLSAddr(tlsAddr)
-		dir.Reconcile(specs)
+		dir.Reconcile(direct.HostsOf(specs, services.DirectPages))
 		if !*noTailscale {
 			rem.Reconcile(ctx, specs)
 		}
+		// ADR 0010: every Service of the Fleet reachable at <name>.local
+		// from this Node's containers.
+		fnet.Reconcile(ctx)
 		if !*noMDNS {
 			if hostAd != nil {
 				hostAd.Close()
@@ -984,6 +1006,9 @@ func runAgent(args []string) error {
 		withPublicApplied()
 		publish()
 	}
+	// ADR 0010: the shared network takes the Fleet's subnet, every Service
+	// of this Node its address, and units from before are written again.
+	mgr.Migrate(ctx)
 	// Decision 189: a Service with protected options runs only while each
 	// has a grant; a revoked grant stops it.
 	mgr.EnforceGrants(ctx)
@@ -1074,6 +1099,8 @@ func runAgent(args []string) error {
 	maitrev1connect.RegisterFilesServiceHandler(rpc, fsvc)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
+	// ADR 0010: a peer's connection to one of this Node's Services.
+	mux.Handle(fleetnet.RelayPath, fnet.Handler())
 	// Decision 183: file contents for the file manager, same callers as RPCs.
 	mux.Handle(files.ContentPath, fm.Handler(func(r *http.Request) bool {
 		p, ok := peer.From(r.Context())
