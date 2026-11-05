@@ -179,16 +179,30 @@ Two things to get right. Rescue belongs *after* a rollback has had its turn and
 failed, not on the first red boot, or an unrelated red boot takes a Node off the
 network and needs someone standing at it; greenboot counts in the bootloader
 environment, so rather than depend on its internals the red script can keep its
-own tally beside `last-rollback`. And a flag in a file changes the agent's
-behaviour and nothing else — every Service unit is
-`WantedBy=multi-user.target default.target`, so systemd starts them in parallel
-with the agent whatever the agent then does. For decision 101 that is harmless;
-for a rescue boot meant to free space it is backwards, since the crash-looping
-Services would be pulling images while someone tries to prune. Holding them
-needs the flag visible to systemd at boot — a kernel argument, or a rescue
-target the boot is pointed at — and not a file under `/var/lib/maitre`, which a
-generator could not read that early anyway, since `var-lib-maitre.mount` has not
-run yet. Which mechanism, and whether it is one-shot, is the open part.
+own tally beside `last-rollback`.
+
+The second is that a rescue boot does not need to stop the Services, which is
+worth writing down because the opposite looks true at first. Every Service unit
+is `WantedBy=multi-user.target default.target`, so systemd starts them in
+parallel with the agent whatever the agent then does — but rescue runs with
+`nmcli networking off`, and a pull with no route and no DNS fails at connect. It
+transfers nothing, so it stages no blob into `/var/tmp` and adds no layer to the
+store. A crash-looping Service in a rescue boot costs CPU and a few journal
+lines, and `StartLimitBurst=5` caps even that. So no kernel argument, no rescue
+target and no boot-time mechanism: the file is enough, exactly as decision 324
+says, and rescue stays entirely inside the agent with `image/` untouched.
+
+What is left is a race, not a leak. The agent is `After=network-online.target`
+and the Services are its siblings on `multi-user.target`, and the agent opens the
+store, loads the trust list and runs `ResignOwn` before it reaches the flag
+check, so for a second or so the interfaces are up and a Service can be pulling.
+The fix is ordering, not machinery: read the flag and turn networking off at the
+top of the agent's startup, before `store.Open`, since the flag needs only the
+state directory path. The screen itself still needs the Node and Fleet names, so
+it draws after the store is open, as it does now — the networking call is the
+only part that moves. Beyond that, "stop all Services" can be one of the rescue
+menu's actions, an ordinary `systemctl` call for whoever wants the machine quiet
+while they work.
 
 **14. What rescue can do.** Today it shows a one-time pairing code and waits for
 Enter — `runRecoveryScreen` is a `printf` screen, not a menu, because decision
@@ -242,8 +256,6 @@ precedent.
 
 ## Still open
 
-- How a rescue boot holds the Services down: a kernel argument, a rescue target,
-  or something else, and whether it is one-shot. Item 13 has the constraint.
 - A Service with no volumes skips both storage guards, since the default-Space
   check runs only `for _, v := range spec.GetVolumes()`, so a Tunnel could still
   install on a Drive-less Node.
