@@ -33,6 +33,9 @@ type Info struct {
 	FleetID string
 	Version string
 	DevMode bool
+	// DebugBuild is decision 323: this image carries the debug console's
+	// remote surface, which the Console advertises in amber.
+	DebugBuild bool
 }
 
 // Service answers NodeService calls.
@@ -134,6 +137,7 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 		Version:       s.info.Version,
 		UptimeSeconds: uint64(time.Since(s.started).Seconds()),
 		DevMode:       s.info.DevMode,
+		DebugBuild:    s.info.DebugBuild,
 		// Capabilities the Console checks before offering a feature (plan C5).
 		Features: []string{"components", "setup"},
 	}

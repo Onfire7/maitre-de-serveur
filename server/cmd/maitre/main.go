@@ -321,6 +321,11 @@ func runInfo(args []string) error {
 	n := res.GetNode()
 	fmt.Printf("node_id   %s\nname      %s\nfleet_id  %s\nversion   %s\nuptime    %ds\ndev_mode  %v\n",
 		n.GetNodeId(), n.GetName(), n.GetFleetId(), n.GetVersion(), n.GetUptimeSeconds(), n.GetDevMode())
+	if n.GetDebugBuild() {
+		// Decision 323: said plainly wherever a Node is described, because
+		// the risk is a debug image running in production unnoticed.
+		fmt.Printf("debug     yes — this image carries the debug console's remote surface\n")
+	}
 	return nil
 }
 

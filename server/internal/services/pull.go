@@ -248,3 +248,9 @@ func netOwner(spec *maitrev1.ServiceSpec) string {
 	}
 	return spec.GetName()
 }
+
+// totalBytes is the size of the filesystem holding dir, so a listing can
+// say how full the store's filesystem is and not only what is left.
+func (m *Manager) totalBytes(dir string) uint64 {
+	return storage.TotalBytes(dir)
+}

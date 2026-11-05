@@ -71,6 +71,12 @@ service ServiceService {
   // digest it has ever pulled, and a Node has no terminal: this is the only
   // way the space comes back. Optional: older Nodes answer Unimplemented.
   rpc PruneImages(PruneImagesRequest) returns (PruneImagesResponse) {}
+  // Decision 326's basic tier: what the image store holds, for a Trusted
+  // Device. Read-only and no security surface of its own — a Trusted
+  // Device can already install Services and open their pages — and until
+  // now nothing could ask a Node what it had pulled, which is part of why
+  // a store that grew without bound went unnoticed.
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse) {}
   // Decision 319: move the image store off the root partition, onto the
   // OS disk's data partition or the largest Drive of the default Pool.
   // Asked for rather than done at boot: the copy is large, and removing
@@ -79,6 +85,23 @@ service ServiceService {
   rpc MoveImageStore(MoveImageStoreRequest) returns (MoveImageStoreResponse) {}
 }
 
+message ListImagesRequest {}
+message ListImagesResponse {
+  message Image {
+    string id = 1;
+    string reference = 2;
+    uint64 size_bytes = 3;
+    int64 created_unix_ms = 4;
+    // The Service whose spec names this image, and whether as its
+    // deployed image or as its Rollback target (decision 320).
+    string service = 5;
+    bool rollback_target = 6;
+  }
+  repeated Image images = 1;
+  string store_dir = 2;
+  uint64 free_bytes = 3;
+  uint64 total_bytes = 4;
+}
 message MoveImageStoreRequest {
   // Where to put it; empty lets the Node choose, which is what the Console
   // asks for.

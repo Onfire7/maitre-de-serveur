@@ -29,10 +29,10 @@ type Collector struct {
 	// off the root partition; "" reports no image store gauge. Cached by
 	// the caller: this runs on every reading.
 	ImageStoreDir func() string
-	lastAt   time.Time
-	cpuBusy  uint64
-	cpuTotal uint64
-	rx, tx   uint64
+	lastAt        time.Time
+	cpuBusy       uint64
+	cpuTotal      uint64
+	rx, tx        uint64
 }
 
 // New builds a Collector; poolDir resolves the Pool to report each time.

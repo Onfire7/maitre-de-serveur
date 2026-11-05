@@ -47,8 +47,10 @@ export function demoHistory(f: DemoFleet, me: DemoNode, input: { series?: string
     "node/net_rx",
     "node/net_tx",
     "node/pool",
+    "node/system_disk",
+    "node/image_store",
     ...drives.map((d) => `drive/${d.driveId}`),
-    ...own.flatMap((n) => ["cpu", "memory", "disk_read", "disk_write"].map((k) => `service/${n}/${k}`)),
+    ...own.flatMap((n) => ["cpu", "memory", "disk_read", "disk_write", "net_rx", "net_tx", "image_pull"].map((k) => `service/${n}/${k}`)),
   ];
   const asked = input.series?.length ? input.series : ["node/", "drive/"];
   const names = all.filter((n) => asked.some((a) => (a.endsWith("/") ? n.startsWith(a) : n === a)));
@@ -81,6 +83,20 @@ export function demoHistory(f: DemoFleet, me: DemoNode, input: { series?: string
       const cur = dr ? pct(Number(dr.sizeBytes - dr.freeBytes), Number(dr.sizeBytes)) : pct(Number(m.poolUsedBytes), Number(m.poolTotalBytes));
       avg = Math.max(1, cur - ageDays * 0.08 + 0.2 * r);
       peak = 1;
+    } else if (name === "node/system_disk" || name === "node/image_store") {
+      // Both climb slowly and never fall on their own: that is the shape
+      // that filled a real Node's root, and what the gauge now shows.
+      const cur = name === "node/system_disk" ? pct(Number(m.systemDiskUsedBytes), Number(m.systemDiskTotalBytes)) : pct(Number(m.imageStoreUsedBytes), Number(m.imageStoreTotalBytes));
+      avg = Math.max(1, cur - ageDays * 0.15 + 0.1 * r);
+      peak = 1;
+    } else if (what === "net_rx") avg = (5e3 + 900e3 * seed * d) * (0.4 + 1.2 * r) * spike;
+    else if (what === "net_tx") avg = (3e3 + 300e3 * seed * d) * (0.4 + 1.2 * r) * spike;
+    else if (what === "image_pull") {
+      // Nothing most of the time: an image is pulled when it moves, and
+      // the series exists so that a Service pulling without end is
+      // visible instead of being mystery traffic.
+      avg = seed > 0.82 && d > 0.9 ? (2e6 + 30e6 * seed) * (0.5 + r) : 0;
+      peak = 1.4;
     } else if (what === "cpu") avg = (0.3 + 6 * seed * d) * (0.5 + r) * spike;
     else if (what === "memory") {
       avg = (150 + 1800 * seed) * 1e6 * (0.85 + 0.15 * d + 0.05 * r);
@@ -88,7 +104,7 @@ export function demoHistory(f: DemoFleet, me: DemoNode, input: { series?: string
     } else if (what === "disk_read") avg = (20e3 + 4e6 * seed * d) * (0.3 + 1.4 * r) * spike;
     else avg = (10e3 + 1.5e6 * seed * d) * (0.3 + 1.4 * r) * spike;
     avg = Math.max(0, avg);
-    return [avg, name.endsWith("cpu") || name === "node/memory" || name === "node/pool" || name.startsWith("drive/") ? Math.min(100, avg * peak) : avg * peak];
+    return [avg, name.endsWith("cpu") || name === "node/memory" || name === "node/pool" || name === "node/system_disk" || name === "node/image_store" || name.startsWith("drive/") ? Math.min(100, avg * peak) : avg * peak];
   };
 
   return {

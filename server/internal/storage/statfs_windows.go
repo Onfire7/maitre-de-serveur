@@ -19,3 +19,7 @@ func usedBytes(string) uint64 { return 0 }
 
 // ownedBy: Windows files have no Unix owner.
 func ownedBy(os.FileInfo, uint32) bool { return false }
+
+// TotalBytes is the size of the filesystem holding path; the Desktop's
+// side never asks a Windows machine about a Node's disks.
+func TotalBytes(path string) uint64 { return 0 }

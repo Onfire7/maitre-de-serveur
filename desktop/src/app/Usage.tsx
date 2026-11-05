@@ -78,6 +78,8 @@ export function NodeUsage({ node, target, snap }: { node: Node; target: Target |
       <HistoryChart title="Load" series={[{ label: "Load", points: one("node/load"), color: "chart-1" }]} format={fmtLoad} {...common} />
       {hasReadings(temp) && <HistoryChart title="Temperature" series={[{ label: "Temperature", points: temp, color: "chart-1" }]} format={fmtTemp} {...common} />}
       {s.has("node/pool") && <HistoryChart title="Pool used" percent series={[{ label: "Pool", points: one("node/pool"), color: "chart-1" }]} format={fmtPercent} {...common} />}
+      {s.has("node/system_disk") && <HistoryChart title="System disk used" percent series={[{ label: "System disk", points: one("node/system_disk"), color: "chart-1" }]} format={fmtPercent} {...common} />}
+      {s.has("node/image_store") && <HistoryChart title="Image store used" percent series={[{ label: "Image store", points: one("node/image_store"), color: "chart-1" }]} format={fmtPercent} {...common} />}
       {drives.map((d) => (
         <HistoryChart key={d.key} title={`${d.name} used`} percent series={[{ label: d.name, points: one(d.key), color: "chart-1" }]} format={fmtPercent} {...common} />
       ))}
@@ -94,6 +96,7 @@ export function ServiceUsage({ service: sv, snap }: { service: FleetService; sna
   const h = q.data;
   const one = (k: string) => pointsOf(h.series.get(`service/${name}/${k}`));
   const common = { from: h.from, to: h.to, range: h.range, dim: q.isPlaceholderData };
+  const shared = sv.status?.networkSharedWith ?? "";
   return (
     <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
       <HistoryChart title="CPU, of all the Node's cores" percent series={[{ label: "CPU", points: one("cpu"), color: "chart-1" }]} format={fmtPercent} {...common} />
@@ -107,6 +110,33 @@ export function ServiceUsage({ service: sv, snap }: { service: FleetService; sna
         format={fmtRate}
         {...common}
       />
+      {/* Decision 317: a Service on a Tunnel has no network of its own —
+          its traffic is the Tunnel's, reported there and marked shared
+          here, rather than counted twice or quietly hidden. */}
+      {shared ? (
+        <HistoryChart
+          title={`Network, shared with ${shared}`}
+          empty={`Its traffic is ${shared}'s: they are in one network namespace, so it is counted there.`}
+          series={[]}
+          format={fmtRate}
+          {...common}
+        />
+      ) : (
+        hasReadings(one("net_rx")) && (
+          <HistoryChart
+            title="Network"
+            series={[
+              { label: "In", points: one("net_rx"), color: "chart-1" },
+              { label: "Out", points: one("net_tx"), color: "chart-2" },
+            ]}
+            format={fmtRate}
+            {...common}
+          />
+        )
+      )}
+      {/* Pull bytes are the agent's own tally: a pull runs in the Node's
+          network namespace, so this is the only place it shows. */}
+      {hasReadings(one("image_pull")) && <HistoryChart title="Image downloads" series={[{ label: "Pulled", points: one("image_pull"), color: "chart-2" }]} format={fmtRate} {...common} />}
     </div>
   );
 }

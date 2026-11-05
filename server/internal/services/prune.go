@@ -111,3 +111,86 @@ func (m *Manager) storeDir(ctx context.Context) string {
 	}
 	return m.store_
 }
+
+// ListImages says what the image store holds and which Service, if any,
+// names each one (decision 326's basic tier). Nothing could ask a Node
+// this before, which is part of why a store that grew without bound went
+// unnoticed for as long as it did.
+func (m *Manager) ListImages(ctx context.Context) (*maitrev1.ListImagesResponse, error) {
+	res := &maitrev1.ListImagesResponse{StoreDir: m.storeDir(ctx)}
+	res.FreeBytes = m.freeBytes(res.GetStoreDir())
+	res.TotalBytes = m.totalBytes(res.GetStoreDir())
+
+	// Which Service names what, by the ID podman resolves its reference
+	// to: a pinned digest may name an index or one platform's manifest,
+	// and comparing the strings would mismatch half of them.
+	type owner struct {
+		service  string
+		rollback bool
+	}
+	named := map[string]owner{}
+	specs, err := m.mine(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, spec := range specs {
+		for _, h := range imageHolders(spec) {
+			for rollback, ref := range map[bool]string{false: *h.image, true: *h.prev} {
+				if ref == "" {
+					continue
+				}
+				out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Id}}", ref)
+				if err != nil {
+					continue
+				}
+				if id := strings.TrimSpace(out); id != "" {
+					if cur, ok := named[id]; !ok || (cur.rollback && !rollback) {
+						named[id] = owner{spec.GetName(), rollback}
+					}
+				}
+			}
+		}
+	}
+
+	out, err := m.run.Run(ctx, "podman", "images", "--all", "--format", "{{.Id}}\t{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}")
+	if err != nil {
+		return nil, fmt.Errorf("list images: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		f := strings.Split(strings.TrimSpace(line), "\t")
+		if len(f) < 2 || f[0] == "" {
+			continue
+		}
+		img := &maitrev1.ListImagesResponse_Image{Id: f[0], Reference: f[1]}
+		if len(f) > 2 {
+			img.SizeBytes = podmanSize(f[2])
+		}
+		if o, ok := named[f[0]]; ok {
+			img.Service, img.RollbackTarget = o.service, o.rollback
+		}
+		res.Images = append(res.Images, img)
+	}
+	return res, nil
+}
+
+// podmanSize reads podman's human size ("1.23 GB") back into bytes. Its
+// --format has no raw size, and asking per image would be a subprocess
+// each; an approximation is what a listing needs.
+func podmanSize(s string) uint64 {
+	var n float64
+	var unit string
+	if _, err := fmt.Sscanf(strings.TrimSpace(s), "%f %s", &n, &unit); err != nil {
+		return 0
+	}
+	switch strings.ToUpper(unit) {
+	case "KB":
+		n *= 1e3
+	case "MB":
+		n *= 1e6
+	case "GB":
+		n *= 1e9
+	case "TB":
+		n *= 1e12
+	}
+	return uint64(n)
+}

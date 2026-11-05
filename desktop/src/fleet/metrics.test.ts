@@ -81,7 +81,18 @@ describe("readHistory", () => {
     expect([...h.series.keys()].some((k) => k.startsWith("service/"))).toBe(false);
     expect(h.to - h.from).toBe(86400_000);
     const svc = await readHistory(createDemoTransport("10.0.0.6:7443", fleet), ["service/minecraft/"], "1h", fleet.now);
-    expect(svc.supported && [...svc.series.keys()].sort()).toEqual(["service/minecraft/cpu", "service/minecraft/disk_read", "service/minecraft/disk_write", "service/minecraft/memory"]);
+    // Decision 317 added the network and the pull bytes: a Service on a
+    // Tunnel has no network of its own, and a pull runs in the Node's
+    // namespace, so these are the only places either shows.
+    expect(svc.supported && [...svc.series.keys()].sort()).toEqual([
+      "service/minecraft/cpu",
+      "service/minecraft/disk_read",
+      "service/minecraft/disk_write",
+      "service/minecraft/image_pull",
+      "service/minecraft/memory",
+      "service/minecraft/net_rx",
+      "service/minecraft/net_tx",
+    ]);
   });
 
   it("says a Node from before keeps no history rather than failing, and passes other errors on", async () => {

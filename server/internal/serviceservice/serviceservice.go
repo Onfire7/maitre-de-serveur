@@ -279,3 +279,8 @@ func (s *Service) PruneImages(ctx context.Context, req *maitrev1.PruneImagesRequ
 func (s *Service) MoveImageStore(ctx context.Context, req *maitrev1.MoveImageStoreRequest) (*maitrev1.MoveImageStoreResponse, error) {
 	return s.mgr.MoveImageStore(ctx, req.GetDir())
 }
+
+// ListImages implements ServiceService (decision 326's basic tier).
+func (s *Service) ListImages(ctx context.Context, _ *maitrev1.ListImagesRequest) (*maitrev1.ListImagesResponse, error) {
+	return s.mgr.ListImages(ctx)
+}

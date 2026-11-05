@@ -328,11 +328,29 @@ export function Gauges({ m }: { m: NodeMetrics }) {
   const pct = (used: bigint, total: bigint) => (total > 0n ? Number((used * 1000n) / total) / 10 : 0);
   const memPct = pct(m.memoryUsedBytes, m.memoryTotalBytes);
   const poolPct = pct(m.poolUsedBytes, m.poolTotalBytes);
+  // The Node's own disk, which had no gauge at all until a full one took
+  // Avalon down for twenty hours: this is the number that was missing.
+  const sysPct = pct(m.systemDiskUsedBytes, m.systemDiskTotalBytes);
+  const sysFree = m.systemDiskTotalBytes - m.systemDiskUsedBytes;
+  const storePct = pct(m.imageStoreUsedBytes, m.imageStoreTotalBytes);
+  // The same filesystem until decision 319 moves the store off root, and
+  // then a gauge worth its own tile.
+  const storeApart = m.imageStoreTotalBytes > 0n && m.imageStoreTotalBytes !== m.systemDiskTotalBytes;
   return (
     <>
       <Gauge label="CPU" value={`${m.cpuPercent.toFixed(0)}%`} pct={m.cpuPercent} sub={`load ${m.load1m.toFixed(2)}`} />
       <Gauge label="Memory" value={`${memPct.toFixed(0)}%`} pct={memPct} sub={`${formatBytes(m.memoryUsedBytes)} of ${formatBytes(m.memoryTotalBytes)}`} />
       <Gauge label="Storage" value={`${poolPct.toFixed(0)}%`} pct={poolPct} sub={m.poolFallback ? "no Pool: data lives on the system disk" : `${formatBytes(m.poolUsedBytes)} of ${formatBytes(m.poolTotalBytes)}`} warn={m.poolFallback} />
+      {m.systemDiskTotalBytes > 0n && (
+        <Gauge
+          label="System disk"
+          value={`${sysPct.toFixed(0)}%`}
+          pct={sysPct}
+          sub={sysFree < 3n * 1024n * 1024n * 1024n ? `only ${formatBytes(sysFree)} free: an update cannot be staged` : `${formatBytes(sysFree)} free of ${formatBytes(m.systemDiskTotalBytes)}`}
+          warn={sysFree < 3n * 1024n * 1024n * 1024n}
+        />
+      )}
+      {storeApart && <Gauge label="Image store" value={`${storePct.toFixed(0)}%`} pct={storePct} sub={m.imageStoreDir} />}
       <Gauge label="Network" value={`↓ ${formatBytes(m.netRxBytesPerSec)}/s`} sub={`↑ ${formatBytes(m.netTxBytesPerSec)}/s`} />
       {m.temperatureC > 0 && <Gauge label="Temperature" value={`${m.temperatureC.toFixed(0)} °C`} pct={m.temperatureC} />}
     </>

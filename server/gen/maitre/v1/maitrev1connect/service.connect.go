@@ -63,6 +63,8 @@ const (
 	ServiceServiceSetSetupProcedure = "/maitre.v1.ServiceService/SetSetup"
 	// ServiceServicePruneImagesProcedure is the procedure name of the ServiceService's PruneImages RPC.
 	ServiceServicePruneImagesProcedure = "/maitre.v1.ServiceService/PruneImages"
+	// ServiceServiceListImagesProcedure is the procedure name of the ServiceService's ListImages RPC.
+	ServiceServiceListImagesProcedure = "/maitre.v1.ServiceService/ListImages"
 	// ServiceServiceMoveImageStoreProcedure is the procedure name of the ServiceService's
 	// MoveImageStore RPC.
 	ServiceServiceMoveImageStoreProcedure = "/maitre.v1.ServiceService/MoveImageStore"
@@ -181,6 +183,13 @@ var (
 			Procedure:  ServiceServicePruneImagesProcedure,
 		}
 	})
+	serviceServiceListImagesSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("ListImages"),
+			Procedure:  ServiceServiceListImagesProcedure,
+		}
+	})
 	serviceServiceMoveImageStoreSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -254,6 +263,12 @@ type ServiceServiceClient interface {
 	// digest it has ever pulled, and a Node has no terminal: this is the only
 	// way the space comes back. Optional: older Nodes answer Unimplemented.
 	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
+	// Decision 326's basic tier: what the image store holds, for a Trusted
+	// Device. Read-only and no security surface of its own — a Trusted
+	// Device can already install Services and open their pages — and until
+	// now nothing could ask a Node what it had pulled, which is part of why
+	// a store that grew without bound went unnoticed.
+	ListImages(context.Context, *v1.ListImagesRequest) (*v1.ListImagesResponse, error)
 	// Decision 319: move the image store off the root partition, onto the
 	// OS disk's data partition or the largest Drive of the default Pool.
 	// Asked for rather than done at boot: the copy is large, and removing
@@ -332,6 +347,12 @@ type ServiceServiceHandler interface {
 	// digest it has ever pulled, and a Node has no terminal: this is the only
 	// way the space comes back. Optional: older Nodes answer Unimplemented.
 	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
+	// Decision 326's basic tier: what the image store holds, for a Trusted
+	// Device. Read-only and no security surface of its own — a Trusted
+	// Device can already install Services and open their pages — and until
+	// now nothing could ask a Node what it had pulled, which is part of why
+	// a store that grew without bound went unnoticed.
+	ListImages(context.Context, *v1.ListImagesRequest) (*v1.ListImagesResponse, error)
 	// Decision 319: move the image store off the root partition, onto the
 	// OS disk's data partition or the largest Drive of the default Pool.
 	// Asked for rather than done at boot: the copy is large, and removing
@@ -361,6 +382,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServicePreviewSetupSpec(), Handler: adapter.previewSetup},
 		connect.Method{Spec: serviceServiceSetSetupSpec(), Handler: adapter.setSetup},
 		connect.Method{Spec: serviceServicePruneImagesSpec(), Handler: adapter.pruneImages},
+		connect.Method{Spec: serviceServiceListImagesSpec(), Handler: adapter.listImages},
 		connect.Method{Spec: serviceServiceMoveImageStoreSpec(), Handler: adapter.moveImageStore},
 	)
 }
@@ -430,6 +452,10 @@ func (UnimplementedServiceServiceHandler) SetSetup(context.Context, *v1.SetSetup
 
 func (UnimplementedServiceServiceHandler) PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.PruneImages is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) ListImages(context.Context, *v1.ListImagesRequest) (*v1.ListImagesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.ListImages is not implemented")
 }
 
 func (UnimplementedServiceServiceHandler) MoveImageStore(context.Context, *v1.MoveImageStoreRequest) (*v1.MoveImageStoreResponse, error) {
@@ -563,6 +589,14 @@ func (c *serviceServiceClient) SetSetup(ctx context.Context, req *v1.SetSetupReq
 func (c *serviceServiceClient) PruneImages(ctx context.Context, req *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
 	var res v1.PruneImagesResponse
 	if err := c.client.CallUnary(ctx, serviceServicePruneImagesSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) ListImages(ctx context.Context, req *v1.ListImagesRequest) (*v1.ListImagesResponse, error) {
+	var res v1.ListImagesResponse
+	if err := c.client.CallUnary(ctx, serviceServiceListImagesSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -764,6 +798,18 @@ func (h serviceServiceHandler) pruneImages(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.PruneImages(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) listImages(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListImagesRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListImages(ctx, &req)
 	if err != nil {
 		return err
 	}

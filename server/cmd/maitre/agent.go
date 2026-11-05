@@ -34,6 +34,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/caddy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/copies"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/debugsurface"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depot"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/depots"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
@@ -250,7 +251,7 @@ func runAgent(args []string) error {
 	}
 	assignLetter()
 
-	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version}, st)
+	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version, DebugBuild: debugsurface.Enabled}, st)
 	svc.Peers = pm
 	svc.Limited = list.Limited
 	svc.Authz = policy

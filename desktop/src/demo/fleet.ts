@@ -271,7 +271,18 @@ export interface DemoJob extends Omit<Job, "$typeName" | "request"> {
   onDone?: () => void;
 }
 
-function metrics(init: Partial<Omit<NodeMetrics, "memoryTotalBytes" | "memoryUsedBytes" | "poolTotalBytes" | "poolUsedBytes">> & { memoryTotalBytes?: number; memoryUsedBytes?: number; poolTotalBytes?: number; poolUsedBytes?: number }): NodeMetrics {
+function metrics(
+  init: Partial<Omit<NodeMetrics, "memoryTotalBytes" | "memoryUsedBytes" | "poolTotalBytes" | "poolUsedBytes" | "systemDiskTotalBytes" | "systemDiskUsedBytes" | "imageStoreTotalBytes" | "imageStoreUsedBytes">> & {
+    memoryTotalBytes?: number;
+    memoryUsedBytes?: number;
+    poolTotalBytes?: number;
+    poolUsedBytes?: number;
+    systemDiskTotalBytes?: number;
+    systemDiskUsedBytes?: number;
+    imageStoreTotalBytes?: number;
+    imageStoreUsedBytes?: number;
+  },
+): NodeMetrics {
   const big = (v: number | undefined, d: bigint) => (v === undefined ? d : BigInt(Math.round(v)));
   return {
     cpuPercent: 0,
@@ -285,6 +296,15 @@ function metrics(init: Partial<Omit<NodeMetrics, "memoryTotalBytes" | "memoryUse
     memoryUsedBytes: big(init.memoryUsedBytes, BigInt(4 * GiB)),
     poolTotalBytes: big(init.poolTotalBytes, 0n),
     poolUsedBytes: big(init.poolUsedBytes, 0n),
+    // The Node's own disk, which had no gauge until a full one took a real
+    // Node down for twenty hours (decisions 315-321). Six times a 2 GB
+    // image is decision 321's root; the image store has left it for a
+    // Drive, which is 319.
+    systemDiskTotalBytes: big(init.systemDiskTotalBytes, BigInt(12 * GiB)),
+    systemDiskUsedBytes: big(init.systemDiskUsedBytes, BigInt(Math.round(4.1 * GiB))),
+    imageStoreTotalBytes: big(init.imageStoreTotalBytes, BigInt(26 * GiB)),
+    imageStoreUsedBytes: big(init.imageStoreUsedBytes, BigInt(Math.round(9.4 * GiB))),
+    imageStoreDir: init.imageStoreDir ?? "/var/mnt/drives/internal/.maitre/imagestore",
   } as NodeMetrics;
 }
 

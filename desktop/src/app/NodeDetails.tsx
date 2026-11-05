@@ -198,11 +198,19 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
 
   if (maint) return <MaintenanceCard job={maint} />;
 
+  // Decision 323: a debug image carries the debug console's remote surface
+  // — diagnostics over the wire and command execution. The risk is not
+  // that such an image exists but that one runs in production unnoticed,
+  // so the whole box goes amber on both the Update and the Node screen,
+  // which are this one component.
+  const debugBuild = !!i?.debugBuild;
+
   return (
     <>
-      <section className="space-y-2">
+      <section className={debugBuild ? "space-y-2 rounded-md border border-status-attention/60 bg-status-attention/10 p-2" : "space-y-2"}>
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">{title}</h3>
+          {debugBuild && <Badge className="bg-status-attention text-black">Debug Console</Badge>}
           {st?.state === UpdateStatus_State.UPDATING && <Badge className="bg-status-starting text-white">updating {Math.round(st.progress * 100)}%</Badge>}
           {st?.state === UpdateStatus_State.FAILED && <Badge variant="destructive">last update failed</Badge>}
           <span className="flex-1" />
@@ -261,6 +269,11 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
         {st?.available && st.state !== UpdateStatus_State.UPDATING && <p className="text-xs text-muted-foreground">The registry has a newer build of {st.booted?.image || "this Node's image"}.</p>}
         {st?.rollout && <p className="text-xs text-muted-foreground">Automatic updates: {st.rollout}.</p>}
         {st?.lastRollback && <p className="text-xs text-status-attention">The last update was rolled back: {st.lastRollback}. The Node runs the image from before it.</p>}
+        {debugBuild && (
+          <p className="text-xs text-status-attention">
+            This image was built with the debug console, so a paired Debug Console can read files and run commands on this Node over the network. Fine while something is being diagnosed; install a normal image when it is not.
+          </p>
+        )}
       </section>
 
       {client && st && <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} status={st} queue={busy(snap)} onRun={async (image, reboot, insecure) => run(() => client.updateImage({ image, reboot, insecureRegistry: insecure }), { kind: "update", target: image, reboot })} />}

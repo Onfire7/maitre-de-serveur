@@ -35,3 +35,15 @@ func ownedBy(info os.FileInfo, id uint32) bool {
 	st, ok := info.Sys().(*syscall.Stat_t)
 	return ok && st.Uid == id
 }
+
+// TotalBytes is the size of the filesystem holding path, 0 when it cannot
+// be read. Decision 317: a gauge wants the whole as well as the free.
+func TotalBytes(path string) uint64 { return totalBytes(path) }
+
+func totalBytes(path string) uint64 {
+	var fs syscall.Statfs_t
+	if syscall.Statfs(path, &fs) != nil {
+		return 0
+	}
+	return fs.Blocks * uint64(fs.Bsize)
+}
