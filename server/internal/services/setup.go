@@ -182,11 +182,11 @@ func (m *Manager) SetSetup(ctx context.Context, name string, setup *maitrev1.Set
 		return nil, fmt.Errorf("%s runs on another Node; ask that one", name)
 	}
 	spec := withSetup(&cur, setup)
-	if err := m.checkSetup(ctx, spec); err != nil {
-		return nil, err
-	}
 	if cur.GetTunnel() && spec.GetNetworkKind() != NetworkOwn {
 		return nil, fmt.Errorf("%s is a Tunnel; it stays on its own network", name)
+	}
+	if err := m.checkSetup(ctx, spec); err != nil {
+		return nil, err
 	}
 	if err := m.apply(ctx, spec); err != nil {
 		return nil, err

@@ -115,7 +115,7 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           <ul className="space-y-1">
             {services.map((s) => (
               <li key={s.spec.name}>
-                <button onClick={() => go({ name: "service", service: s.spec.name })} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent">
+                <button onClick={() => go({ name: "page", service: s.spec.name, page: "" })} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent">
                   <ServiceIcon catalogId={s.spec.catalogId} word={s.word} size={24} />
                   <span className="flex-1 truncate">{s.spec.name}</span>
                   <StatusWord word={s.word} className="text-xs" />

@@ -30,7 +30,7 @@ describe("demo Fleet", () => {
     expect(fromA.nodeId).toBe(NODE_A);
     expect(fromA.nodes.map((n) => n.nodeId)).toEqual([NODE_A, NODE_B]);
     expect(fromA.nodes.every((n) => n.reachable && n.metrics)).toBe(true);
-    expect(fromA.nodes[1].services.map((s) => s.spec?.name).sort()).toEqual(["minecraft", "uptime"]);
+    expect(fromA.nodes[1].services.map((s) => s.spec?.name).sort()).toEqual(["minecraft", "qbittorrent", "uptime", "vpn"]);
     const fromB = await at(B).node.getFleetStatus({});
     expect(fromB.nodes[0].nodeId).toBe(NODE_B);
   });
@@ -235,5 +235,63 @@ describe("SetImage (decision 195)", () => {
     await svc.setImage({ name: "minecraft", image: "docker.io/itzg/minecraft-server:java21" });
     expect(mc().spec.image).toMatch(/^docker\.io\/itzg\/minecraft-server:java21@sha256:[0-9a-f]{64}$/);
     expect(mc().spec.previousImage).toBe(old);
+  });
+});
+
+describe("Setup on the demo Fleet (ADR 0010)", () => {
+  it("shows what the Node would write, with the Tunnel's ports and the lines' sources", async () => {
+    const now = await at(B).services.previewSetup({ name: "qbittorrent" });
+    const unit = now.units.find((u) => u.name === "qbittorrent.container")!;
+    expect(unit.body).toContain("Network=container:vpn");
+    expect(unit.body).toContain("BindsTo=vpn.service");
+    // The override set in the demo is marked as the person's own.
+    const i = unit.body.split("\n").indexOf("Environment=WEBUI_PORT=8080");
+    expect(unit.sources[i]).toBe("override");
+    // The Tunnel publishes the Service's page and wants its unit.
+    const vpn = (await at(B).services.previewSetup({ name: "vpn" })).units.find((u) => u.name === "vpn.container")!;
+    expect(vpn.body).toContain("Wants=qbittorrent.service");
+    expect(vpn.body).toMatch(/PublishPort=127\.0\.0\.1:\d+:8080/);
+  });
+
+  it("previews a change as a change, naming what restarts, and applies it", async () => {
+    const before = await at(B).services.previewSetup({ name: "qbittorrent" });
+    const setup = {
+      networkKind: "",
+      networkTarget: "",
+      fleetReach: true,
+      ports: ["6881/tcp"],
+      address: "10.90.0.42",
+      pages: before.units.length ? [{ name: "web", port: 8080, path: "/" }] : [],
+      overrides: [],
+    };
+    const preview = await at(B).services.previewSetup({ name: "qbittorrent", setup });
+    expect(preview.restarts).toEqual(["qbittorrent", "vpn"]);
+    const unit = preview.units.find((u) => u.name === "qbittorrent.container")!;
+    expect(unit.body).not.toContain("Network=container:vpn");
+    expect(unit.body).toContain("Network=maitre.network");
+    const after = await at(B).services.setSetup({ name: "qbittorrent", setup });
+    expect(after.service?.spec?.networkKind).toBe("");
+    expect(after.service?.spec?.address).toBe("10.90.0.42");
+    expect(after.service?.spec?.fleetReach).toBe(true);
+    // The Tunnel no longer publishes for it.
+    const vpn = (await at(B).services.previewSetup({ name: "vpn" })).units.find((u) => u.name === "vpn.container")!;
+    expect(vpn.body).not.toContain("Wants=qbittorrent.service");
+  });
+
+  it("refuses an address another Service holds and a Tunnel that is not one", async () => {
+    const page = [{ name: "web", port: 8080, path: "/" }];
+    await expect(at(B).services.setSetup({ name: "qbittorrent", setup: { address: "10.90.0.10", pages: page } })).rejects.toThrow(/already has the address 10\.90\.0\.10/);
+    await expect(at(B).services.setSetup({ name: "qbittorrent", setup: { networkKind: "tunnel", networkTarget: "uptime", pages: page } })).rejects.toThrow(/uptime is not a Tunnel/);
+    await expect(at(B).services.setSetup({ name: "vpn", setup: { networkKind: "tunnel", networkTarget: "qbittorrent" } })).rejects.toThrow(/vpn is a Tunnel/);
+    await expect(at(B).services.setSetup({ name: "qbittorrent", setup: { pages: [{ name: "Web", port: 8080 }] } })).rejects.toThrow(/page name "Web"/);
+  });
+
+  it("changes one Page's access without touching the Service's", async () => {
+    const r = await at(A).services.setExposure({ name: "immich", page: "admin", exposure: "private" });
+    expect(r.service?.spec?.exposure).toBe("remote");
+    expect(r.service?.spec?.pages.find((p) => p.name === "admin")?.exposure).toBe("private");
+    expect(r.service?.pages.find((p) => p.name === "admin")?.remoteUrl).toBe("");
+    expect(r.service?.pages.find((p) => p.name === "web")?.remoteUrl).toBe("https://immich.home-fleet.ts.net");
+    await expect(at(A).services.setExposure({ name: "immich", page: "nope", exposure: "private" })).rejects.toThrow(/no Page "nope"/);
   });
 });

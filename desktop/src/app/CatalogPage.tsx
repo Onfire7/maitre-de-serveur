@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { create } from "@bufbuild/protobuf";
-import { ServiceMountSchema, type Device, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { clone, create } from "@bufbuild/protobuf";
+import { ServiceMountSchema, ServiceSpecSchema, SetupSchema, type Device, type ServiceSpec, type Setup } from "@/gen/maitre/v1/service_pb";
 import { FoldersEditor, defaultFolders, type Folders } from "@/files/FoldersEditor";
 import { folderSource, ownSpacesOn, spacesOn } from "@/files/sources";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,8 @@ import bundledCatalog from "@/catalog/index.json";
 import { GENERATE, catalogKey, formatStars, generatedSettings, sortEntries, specFor, type CatalogEntry, type CatalogIndex, type CatalogSort } from "@/services";
 import { changeCount, changesSince, lastSeen, markSeen, useCatalogs, type LoadedCatalog } from "@/fleet/catalogs";
 import { CatalogsSheet, ChangesDialog } from "./UserCatalogs";
+import { SetupFields } from "./SetupPage";
+import { networkChoices, setupOf } from "@/fleet/setup";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import type { Target } from "@/transport";
 import { AccessChoice, accessReady, useNodeInfo } from "./ServiceSheets";
@@ -295,15 +297,23 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { en
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [forward, setForward] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  // ADR 0010: the Setup form, offered here under Advanced, so a Service
+  // can be put on a Tunnel or given a page of its own from the start.
+  const [setup, setSetup] = useState<Setup | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const taken = new Set(snap?.specs.map((s) => s.name));
+  // The Fleet's Services, so Advanced can offer the Tunnels and the
+  // Services of several containers on the chosen Node (ADR 0010).
+  const fleetServices = useMemo(() => (snap?.specs ?? []).map((spec) => ({ spec, word: "Online" as const, nodeUnreachable: false, node: snap?.nodes.find((n) => n.nodeId === spec.nodeId) as never })), [snap]);
   const effName = (name || entry?.id || "").trim();
   const effNode = nodeId || nodes[0]?.nodeId || "";
   // Decision 287: all four kinds of access at install, so the chosen
   // Node's Tailscale state and public address are asked for.
   const webEntry = !!entry?.web && !entry?.infrastructure;
   const nodeTarget = target?.(effNode);
+  // What Advanced starts from: the entry as installed, until it is touched.
+  const entrySetup = useMemo(() => (entry ? setupOf(specFor(entry, effName || entry.id, {})) : undefined), [entry, effName]);
   const info = useNodeInfo(nodeTarget, !!entry && webEntry);
   const accessOk = !webEntry || accessReady(exposure, publicHost, publicAck);
   const reset = () => {
@@ -316,6 +326,7 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { en
     setAutoUpdate(true);
     setForward(false);
     setSettings({});
+    setSetup(null);
     setError("");
   };
   // Passwords the entry has made up (plan C7): fresh for each entry opened.
@@ -437,6 +448,26 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { en
                 </div>
               </details>
               {error && <p className="text-sm text-destructive">{error}</p>}
+              {/* ADR 0010: the same fields as the Service's Setup page. */}
+              <details className="group rounded-lg border">
+                <summary className="flex cursor-pointer items-center gap-1 px-3 py-2 text-sm font-medium">
+                  <ChevronRight className="size-4 transition-transform group-open:rotate-90" /> Advanced
+                </summary>
+                <div className="space-y-4 border-t px-3 py-3">
+                  <p className="text-xs text-muted-foreground">Its network, which Services may reach it, its pages and the options of its container. All of this can be changed later from its Setup.</p>
+                  <SetupFields
+                    setup={setup ?? entrySetup!}
+                    edit={(f) => {
+                      const next = clone(SetupSchema, setup ?? entrySetup!);
+                      f(next);
+                      setSetup(next);
+                    }}
+                    subject={{ name: effName || entry.id, components: (entry.components ?? []).map((c) => c.name), tunnel: !!entry.tunnel, nodeName: nodes.find((n) => n.nodeId === effNode)?.name, dependants: [] }}
+                    choices={networkChoices({ spec: create(ServiceSpecSchema, { name: effName || entry.id, nodeId: effNode }), word: "Online", nodeUnreachable: false }, fleetServices)}
+                    stack={[effName || entry.id]}
+                  />
+                </div>
+              </details>
               {!!entry.unfinished?.length && (
                 <div className="rounded-md border border-status-attention/60 bg-status-attention/5 p-3 text-sm">
                   <p className="font-medium">Not ready to install</p>
@@ -457,6 +488,20 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { en
                   setError("");
                   try {
                     const spec = specFor(entry, effName, Object.fromEntries((entry.settings ?? []).map((s) => [s.key, settingValue(s.key, s.default ?? "")])));
+                    // Advanced, when it was touched (ADR 0010).
+                    if (setup) {
+                      spec.networkKind = setup.networkKind;
+                      spec.networkTarget = setup.networkTarget;
+                      spec.fleetReach = setup.fleetReach;
+                      spec.ports = setup.ports;
+                      spec.address = setup.address;
+                      spec.networkInternal = setup.networkInternal;
+                      spec.pages = setup.pages;
+                      spec.overrides = setup.overrides;
+                      spec.webPort = setup.pages[0]?.port ?? 0;
+                      spec.webPath = setup.pages[0]?.path ?? "";
+                      spec.webComponent = setup.pages[0]?.component ?? "";
+                    }
                     spec.exposure = webEntry ? exposure : "private";
                     spec.publicHost = webEntry && exposure === "direct" ? publicHost.trim().toLowerCase() : "";
                     spec.autoUpdate = autoUpdate;

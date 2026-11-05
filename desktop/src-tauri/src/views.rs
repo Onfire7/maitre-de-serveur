@@ -1,4 +1,4 @@
-//! A Service's page in a web view of its own (decision 294). The page used
+//! A Service's Page in a web view of its own (decision 294). The page used
 //! to be an iframe inside the Console's document, which made it a foreign
 //! frame to the app (refused by X-Frame-Options and frame-ancestors,
 //! cookies dropped as third-party) and a tenant of the Console's own web
@@ -51,7 +51,9 @@ pub struct Bounds {
 /// What a view says to the Console (event `service-view`).
 #[derive(Clone, Serialize)]
 pub struct Report {
-    pub service: String,
+    /// The Page's host name, which keys its view, its proxy and its frame
+    /// (ADR 0010): the Service's own name for its first Page.
+    pub view: String,
     /// `started`, `finished`, `crashed`; or from the page's script: `load`,
     /// `push`, `replace`, `pop`, `unload`.
     pub event: String,
@@ -60,37 +62,37 @@ pub struct Report {
 
 pub const EVENT: &str = "service-view";
 
-pub fn report(app: &AppHandle, service: &str, event: &str, url: &str) {
-    let _ = app.emit_to("main", EVENT, Report { service: service.into(), event: event.into(), url: url.into() });
+pub fn report(app: &AppHandle, view: &str, event: &str, url: &str) {
+    let _ = app.emit_to("main", EVENT, Report { view: view.into(), event: event.into(), url: url.into() });
 }
 
-/// The open views, by Service name.
+/// The open views, by the Page's host name.
 #[derive(Default)]
 pub struct Views {
     open: Mutex<HashMap<String, Webview<Wry>>>,
 }
 
-fn label(service: &str) -> String {
-    format!("svc-{service}")
+fn label(view: &str) -> String {
+    format!("svc-{view}")
 }
 
 impl Views {
-    fn get(&self, service: &str) -> Result<Webview<Wry>, String> {
-        self.open.lock().unwrap().get(service).cloned().ok_or_else(|| format!("{service} has no view open"))
+    fn get(&self, view: &str) -> Result<Webview<Wry>, String> {
+        self.open.lock().unwrap().get(view).cloned().ok_or_else(|| format!("{view} has no view open"))
     }
 
-    /// Opens a view for `service` at `url`, placed at `bounds` and shown
+    /// Opens the view keyed `view` at `url`, placed at `bounds` and shown
     /// or not; a view already open is only placed.
-    pub fn open(&self, app: &AppHandle, service: &str, url: &str, bounds: Bounds, shown: bool) -> Result<(), String> {
-        if self.open.lock().unwrap().contains_key(service) {
-            return self.place(service, bounds);
+    pub fn open(&self, app: &AppHandle, view: &str, url: &str, bounds: Bounds, shown: bool) -> Result<(), String> {
+        if self.open.lock().unwrap().contains_key(view) {
+            return self.place(view, bounds);
         }
         let url: tauri::Url = url.parse().map_err(|e| format!("{url}: {e}"))?;
         let window = app.get_window("main").ok_or("the main window is gone")?;
-        let name = service.to_string();
+        let name = view.to_string();
         let app1 = app.clone();
         let name1 = name.clone();
-        let builder = WebviewBuilder::new(label(service), WebviewUrl::External(url))
+        let builder = WebviewBuilder::new(label(view), WebviewUrl::External(url))
             .on_page_load(move |_, payload| {
                 let event = match payload.event() {
                     PageLoadEvent::Started => "started",
@@ -104,12 +106,12 @@ impl Views {
                 let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
                 NewWindowResponse::Deny
             });
-        let view = window.add_child(builder, LogicalPosition::new(bounds.x, bounds.y), LogicalSize::new(bounds.width, bounds.height)).map_err(|e| e.to_string())?;
+        let child = window.add_child(builder, LogicalPosition::new(bounds.x, bounds.y), LogicalSize::new(bounds.width, bounds.height)).map_err(|e| e.to_string())?;
         #[cfg(target_os = "linux")]
         {
             let app2 = app.clone();
             let name2 = name.clone();
-            view.with_webview(move |pw| {
+            child.with_webview(move |pw| {
                 let inner = pw.inner();
                 if let Err(why) = placement::adopt(&inner, bounds) {
                     eprintln!("views: {name2}'s view could not be placed: {why}");
@@ -124,55 +126,55 @@ impl Views {
             .map_err(|e| e.to_string())?;
         }
         if !shown {
-            view.hide().map_err(|e| e.to_string())?;
+            child.hide().map_err(|e| e.to_string())?;
         }
-        self.open.lock().unwrap().insert(name, view);
+        self.open.lock().unwrap().insert(name, child);
         Ok(())
     }
 
-    pub fn place(&self, service: &str, bounds: Bounds) -> Result<(), String> {
-        let view = self.get(service)?;
+    pub fn place(&self, view: &str, bounds: Bounds) -> Result<(), String> {
+        let v = self.get(view)?;
         #[cfg(target_os = "linux")]
         {
-            view.with_webview(move |pw| placement::place(&pw.inner(), bounds)).map_err(|e| e.to_string())
+            v.with_webview(move |pw| placement::place(&pw.inner(), bounds)).map_err(|e| e.to_string())
         }
         #[cfg(not(target_os = "linux"))]
         {
-            view.set_bounds(tauri::Rect { position: LogicalPosition::new(bounds.x, bounds.y).into(), size: LogicalSize::new(bounds.width, bounds.height).into() }).map_err(|e| e.to_string())
+            v.set_bounds(tauri::Rect { position: LogicalPosition::new(bounds.x, bounds.y).into(), size: LogicalSize::new(bounds.width, bounds.height).into() }).map_err(|e| e.to_string())
         }
     }
 
-    pub fn show(&self, service: &str, shown: bool) -> Result<(), String> {
-        let view = self.get(service)?;
-        if shown { view.show() } else { view.hide() }.map_err(|e| e.to_string())
+    pub fn show(&self, view: &str, shown: bool) -> Result<(), String> {
+        let v = self.get(view)?;
+        if shown { v.show() } else { v.hide() }.map_err(|e| e.to_string())
     }
 
-    pub fn close(&self, service: &str) -> Result<(), String> {
-        let Some(view) = self.open.lock().unwrap().remove(service) else { return Ok(()) };
-        view.close().map_err(|e| e.to_string())
+    pub fn close(&self, view: &str) -> Result<(), String> {
+        let Some(v) = self.open.lock().unwrap().remove(view) else { return Ok(()) };
+        v.close().map_err(|e| e.to_string())
     }
 
-    pub fn navigate(&self, service: &str, url: &str) -> Result<(), String> {
+    pub fn navigate(&self, view: &str, url: &str) -> Result<(), String> {
         let url: tauri::Url = url.parse().map_err(|e| format!("{url}: {e}"))?;
-        self.get(service)?.navigate(url).map_err(|e| e.to_string())
+        self.get(view)?.navigate(url).map_err(|e| e.to_string())
     }
 
-    pub fn reload(&self, service: &str) -> Result<(), String> {
-        self.get(service)?.reload().map_err(|e| e.to_string())
+    pub fn reload(&self, view: &str) -> Result<(), String> {
+        self.get(view)?.reload().map_err(|e| e.to_string())
     }
 
-    pub fn stop(&self, service: &str) -> Result<(), String> {
-        self.get(service)?.eval("window.stop()").map_err(|e| e.to_string())
+    pub fn stop(&self, view: &str) -> Result<(), String> {
+        self.get(view)?.eval("window.stop()").map_err(|e| e.to_string())
     }
 
     /// A few of the page's colours, `cols` by `rows`, from the engine's
     /// snapshot of what the view shows; empty where the engine cannot say.
-    pub async fn sample(&self, service: &str, cols: i32, rows: i32) -> Result<Vec<Vec<String>>, String> {
-        let view = self.get(service)?;
+    pub async fn sample(&self, view: &str, cols: i32, rows: i32) -> Result<Vec<Vec<String>>, String> {
+        let v = self.get(view)?;
         #[cfg(target_os = "linux")]
         {
             let (tx, rx) = tokio::sync::oneshot::channel();
-            view.with_webview(move |pw| {
+            v.with_webview(move |pw| {
                 use webkit2gtk::{SnapshotOptions, SnapshotRegion, WebViewExt};
                 pw.inner().snapshot(SnapshotRegion::Visible, SnapshotOptions::NONE, None::<&gtk::gio::Cancellable>, move |res| {
                     let grid = res.ok().and_then(|s| shrink(&s, cols, rows)).unwrap_or_default();
@@ -184,18 +186,18 @@ impl Views {
         }
         #[cfg(not(target_os = "linux"))]
         {
-            let _ = (view, cols, rows);
+            let _ = (v, cols, rows);
             Ok(Vec::new())
         }
     }
 }
 
 /// Dev tool: evaluates `js` in a view and returns the result as JSON.
-pub async fn eval_in(views: &Views, service: &str, js: String) -> Result<String, String> {
-    let view = views.get(service)?;
+pub async fn eval_in(views: &Views, view: &str, js: String) -> Result<String, String> {
+    let v = views.get(view)?;
     let (tx, rx) = tokio::sync::oneshot::channel::<String>();
     let tx = std::sync::Mutex::new(Some(tx));
-    view.eval_with_callback(js, move |out| {
+    v.eval_with_callback(js, move |out| {
         if let Some(tx) = tx.lock().unwrap().take() {
             let _ = tx.send(out);
         }
@@ -205,11 +207,11 @@ pub async fn eval_in(views: &Views, service: &str, js: String) -> Result<String,
 }
 
 /// Dev tool: ends a view's web process, as a crash would.
-pub fn crash(views: &Views, service: &str) -> Result<(), String> {
-    let view = views.get(service)?;
+pub fn crash(views: &Views, view: &str) -> Result<(), String> {
+    let v = views.get(view)?;
     #[cfg(target_os = "linux")]
     {
-        view.with_webview(|pw| {
+        v.with_webview(|pw| {
             use webkit2gtk::WebViewExt;
             pw.inner().terminate_web_process();
         })
@@ -217,15 +219,15 @@ pub fn crash(views: &Views, service: &str) -> Result<(), String> {
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = view;
+        let _ = v;
         Err("Linux only".into())
     }
 }
 
 /// Writes what a view shows to a PNG at `path`, for checking the views
 /// from outside (a compositor's capture does not show them): the main
-/// view for an empty `service`. Linux only; elsewhere an error.
-pub async fn snapshot_to(app: &AppHandle, views: &Views, service: &str, path: String) -> Result<(), String> {
+/// view for an empty `view`. Linux only; elsewhere an error.
+pub async fn snapshot_to(app: &AppHandle, views: &Views, view: &str, path: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
@@ -240,16 +242,16 @@ pub async fn snapshot_to(app: &AppHandle, views: &Views, service: &str, path: St
                 let _ = tx.send(out);
             });
         };
-        if service.is_empty() {
+        if view.is_empty() {
             app.get_webview("main").ok_or("no main view")?.with_webview(take).map_err(|e| e.to_string())?;
         } else {
-            views.get(service)?.with_webview(take).map_err(|e| e.to_string())?;
+            views.get(view)?.with_webview(take).map_err(|e| e.to_string())?;
         }
         rx.await.map_err(|_| "the snapshot never came".to_string())?
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = (app, views, service, path);
+        let _ = (app, views, view, path);
         Err("snapshots are Linux only".into())
     }
 }

@@ -110,7 +110,7 @@ export function RemoteTab({ snap, state }: { snap: FleetSnapshot | undefined; st
             {remote.map((s) => (
               <li key={s.spec.name} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <ServiceIcon catalogId={s.spec.catalogId} word={s.word} size={24} />
-                <button className="font-medium hover:underline" onClick={() => go({ name: "service", service: s.spec.name })}>
+                <button className="font-medium hover:underline" onClick={() => go({ name: "page", service: s.spec.name, page: "" })}>
                   {s.spec.name}
                 </button>
                 <Badge variant="outline">

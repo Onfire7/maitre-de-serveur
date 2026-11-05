@@ -21,27 +21,28 @@ export interface ViewBounds {
 }
 
 interface ViewReport {
-  service: string;
+  /** The Page's host name, which keys its view and its frame (ADR 0010). */
+  view: string;
   event: "started" | "finished" | "crashed" | FrameEvent;
   url: string;
 }
 
 const host: FrameHost = {
-  navigate: (service, url) => void invoke("view_navigate", { service, url }).catch(() => {}),
-  reload: (service) => void invoke("view_reload", { service }).catch(() => {}),
-  stop: (service) => void invoke("view_stop", { service }).catch(() => {}),
+  navigate: (view, url) => void invoke("view_navigate", { view, url }).catch(() => {}),
+  reload: (view) => void invoke("view_reload", { view }).catch(() => {}),
+  stop: (view) => void invoke("view_stop", { view }).catch(() => {}),
 };
 
-export function onViewReport({ service, event, url }: ViewReport) {
+export function onViewReport({ view, event, url }: ViewReport) {
   switch (event) {
     case "started":
-      return frameLoadStarted(service);
+      return frameLoadStarted(view);
     case "finished":
-      return frameLoaded(service);
+      return frameLoaded(view);
     case "crashed":
-      return frameCrashed(service);
+      return frameCrashed(view);
     default:
-      return reportFrame(service, event, url);
+      return reportFrame(view, event, url);
   }
 }
 
@@ -62,22 +63,23 @@ export function ServiceViews() {
   // A modal's stand-in takes its colours from the shown view (decision 293).
   useEffect(() => {
     if (!shown) return;
-    setSampler(() => invoke<string[][]>("view_sample", { service: shown, cols: 4, rows: 3 }));
+    setSampler(() => invoke<string[][]>("view_sample", { view: shown, cols: 4, rows: 3 }));
     return () => setSampler(undefined);
   }, [shown]);
   return (
     <PageSurface ref={ref} className="pointer-events-none z-0">
       {frames.map((f) => (
-        <NativeView key={f.service} service={f.service} src={f.src} bounds={bounds} visible={f.service === shown && !covered && !f.crashed} />
+        <NativeView key={f.key} view={f.key} src={f.src} bounds={bounds} visible={f.key === shown && !covered && !f.crashed} />
       ))}
     </PageSurface>
   );
 }
 
-/** One view: opened where the surface is, moved with it, shown while it
- * is the page and nothing covers it, closed with its frame. The calls go
- * one after another, so a view is never shown before it is open. */
-function NativeView({ service, src, bounds, visible }: { service: string; src: string; bounds: ViewBounds | null; visible: boolean }) {
+/** One Page's view: opened where the surface is, moved with it, shown
+ * while it is the Page shown and nothing covers it, closed with its
+ * frame. The calls go one after another, so a view is never shown before
+ * it is open. */
+function NativeView({ view, src, bounds, visible }: { view: string; src: string; bounds: ViewBounds | null; visible: boolean }) {
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const opened = useRef<string | null>(null);
   const shown = useRef(false);
@@ -90,29 +92,29 @@ function NativeView({ service, src, bounds, visible }: { service: string; src: s
       // Opened, or reopened after the dev-time double mount, at this src.
       opened.current = src;
       shown.current = visible;
-      run(() => invoke("view_open", { service, url: src, bounds, shown: visible }).catch((e) => frameFailed(service, String(e))));
-    } else run(() => invoke("view_place", { service, bounds }));
-  }, [service, bounds]);
+      run(() => invoke("view_open", { view, url: src, bounds, shown: visible }).catch((e) => frameFailed(view, String(e))));
+    } else run(() => invoke("view_place", { view, bounds }));
+  }, [view, bounds]);
   useEffect(() => {
     if (opened.current !== null && opened.current !== src) {
       opened.current = src;
-      run(() => invoke("view_navigate", { service, url: src }));
+      run(() => invoke("view_navigate", { view, url: src }));
     }
-  }, [service, src]);
+  }, [view, src]);
   useEffect(() => {
     if (opened.current === null || shown.current === visible) return;
     shown.current = visible;
-    run(() => invoke("view_show", { service, shown: visible }));
-  }, [service, visible]);
+    run(() => invoke("view_show", { view, shown: visible }));
+  }, [view, visible]);
   // Unmounted: the view closes. (React's dev-time double mount closes and
   // reopens it, since `opened` is reset here.)
   useEffect(() => {
     return () => {
       if (opened.current === null) return;
       opened.current = null;
-      run(() => invoke("view_close", { service }));
+      run(() => invoke("view_close", { view }));
     };
-  }, [service]);
+  }, [view]);
   return null;
 }
 

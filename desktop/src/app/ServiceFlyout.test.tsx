@@ -11,8 +11,8 @@ import { ServiceFlyout } from "./ServiceFlyout";
 import { reportFrame, resetFrames, setFrameHost, showFrame } from "./frames";
 
 const service: FleetService = {
-  spec: create(ServiceSpecSchema, { name: "jellyfin", catalogId: "jellyfin", nodeId: "a" }),
-  status: create(ServiceStatusSchema, { url: "http://jellyfin.local/", state: 3 }),
+  spec: create(ServiceSpecSchema, { name: "jellyfin", catalogId: "jellyfin", nodeId: "a", pages: [{ name: "web", port: 8096, path: "/", hostPort: 20001 }] }),
+  status: create(ServiceStatusSchema, { url: "http://jellyfin.local/", state: 3, pages: [{ name: "web", url: "http://jellyfin.local/" }] }),
   word: "Online",
   nodeUnreachable: false,
 };

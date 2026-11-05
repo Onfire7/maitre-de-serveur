@@ -116,7 +116,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
     );
 
   const row = (s: FleetService) => (
-    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "service", service: s.spec.name })} snap={snap} open={open === s.spec.name} edit={open === s.spec.name ? edit : undefined} onToggle={() => (setEdit(undefined), setOpen((o) => (o === s.spec.name ? null : s.spec.name)))} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
+    <ServiceRow key={s.spec.name} service={s} picked={picked.has(s.spec.name)} onPick={(on) => toggle(s.spec.name, on)} onAct={(it) => onAct(s, it)} onOpenPage={() => go({ name: "page", service: s.spec.name, page: "" })} snap={snap} open={open === s.spec.name} edit={open === s.spec.name ? edit : undefined} onToggle={() => (setEdit(undefined), setOpen((o) => (o === s.spec.name ? null : s.spec.name)))} showNode={!byNode} spaces={[...new Set(Object.values(s.spec.volumeSpaces))].map(spaceName)} now={now} />
   );
 
   return (

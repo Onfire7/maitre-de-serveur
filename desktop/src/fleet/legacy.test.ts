@@ -24,7 +24,7 @@ describe("readFleet against older Nodes", () => {
     expect(snap.nodes.map((n) => n.name)).toEqual(["Alder", "Basalt"]);
     expect(snap.status.get(NODE_A)?.reachable).toBe(true);
     expect(snap.status.get(NODE_B)?.reachable).toBe(true);
-    expect(snap.status.get(NODE_B)?.services.map((s) => s.spec?.name).sort()).toEqual(["minecraft", "uptime"]);
+    expect(snap.status.get(NODE_B)?.services.map((s) => s.spec?.name).sort()).toEqual(["minecraft", "qbittorrent", "uptime", "vpn"]);
     expect(snap.status.get(NODE_A)?.metrics?.cpuPercent).toBeGreaterThan(0);
   });
 

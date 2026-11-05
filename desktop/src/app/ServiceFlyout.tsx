@@ -7,20 +7,22 @@
 import { useEffect } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, HardDrive, ShieldAlert, Trash2, Truck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, SlidersHorizontal, HardDrive, ShieldAlert, Trash2, Truck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FleetService } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
 import { canRollBack } from "@/fleet/components";
 import { catalogById, StatusWord } from "./status";
+import { mainPage, pageViewOf, pageViews, type PageView } from "@/fleet/pages";
 import { canGo, frameCommand, idleRemaining, useFrame, type FrameCommand } from "./frames";
 import { closePanel, openPanel } from "./layout";
+import { useRoute } from "./routes";
 
 /** The panel's width, which the page slides aside by. */
 export const FLYOUT_WIDTH = 240;
 
-export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "ports" | "storage" | "grants" | "move" | "remove";
+export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "setup" | "ports" | "storage" | "grants" | "move" | "remove";
 
 export function ServiceFlyout({
   service,
@@ -105,9 +107,9 @@ export function ServiceFlyout({
   );
 }
 
-/** The address of the page the frame is on, said in the Service's own address (not the proxy's). */
-export function pageAddress(service: FleetService, path: string | undefined): string | undefined {
-  const base = service.status?.url;
+/** The address of the page the frame is on, said in the Page's own address (not the proxy's). */
+export function pageAddress(page: PageView | undefined, path: string | undefined): string | undefined {
+  const base = page?.url;
   if (!base) return undefined;
   try {
     return new URL(path ?? "/", base).href;
@@ -121,13 +123,23 @@ function minutesLeft(remaining: number): string {
   return min >= 60 ? "an hour" : `${min} min`;
 }
 
+/** The Page the flyout's controls drive: the one shown when it is this
+ * Service's, else its first (ADR 0010). */
+function drivenPage(service: FleetService, route: ReturnType<typeof useRoute>["route"]): PageView | undefined {
+  const name = route.name === "page" && route.service === service.spec.name ? route.page : "";
+  return pageViewOf(service, name) ?? mainPage(service);
+}
+
 function FrameControls({ service }: { service: FleetService }) {
-  const frame = useFrame(service.spec.name);
-  const web = !!service.status?.url && service.word === "Online";
+  const { route } = useRoute();
+  const page = drivenPage(service, route);
+  const host = page?.host ?? service.spec.name;
+  const frame = useFrame(host);
+  const web = !!page?.url && service.word === "Online";
   const live = !!frame?.live;
   const remaining = idleRemaining(frame);
-  const address = pageAddress(service, frame?.path);
-  const act = (cmd: FrameCommand) => frameCommand(service.spec.name, cmd);
+  const address = pageAddress(page, frame?.path);
+  const act = (cmd: FrameCommand) => frameCommand(host, cmd);
   const copy = () => {
     if (!address) return;
     navigator.clipboard?.writeText(address).then(
@@ -144,7 +156,7 @@ function FrameControls({ service }: { service: FleetService }) {
   ];
   return (
     <div className="border-b px-2 py-1.5">
-      <div role="toolbar" aria-label={`${service.spec.name} page`} className="flex items-center justify-between">
+      <div role="toolbar" aria-label={`${page && !page.first ? page.host : service.spec.name} page`} className="flex items-center justify-between">
         {controls.map((c) => (
           <Tooltip key={c.label}>
             <TooltipTrigger asChild>
@@ -179,14 +191,16 @@ export function flyoutItems(service: FleetService): FlyoutEntry[] {
   const s = service.status;
   const running = s?.state === 3 || s?.state === 2;
   const entry = catalogById.get(service.spec.catalogId);
+  const pages = pageViews(service);
   return [
-    { id: "open", label: "Open in your browser", icon: <ExternalLink />, disabled: !s?.url || service.word !== "Online" },
+    { id: "open", label: pages.length > 1 ? "Open this page in your browser" : "Open in your browser", icon: <ExternalLink />, disabled: pages.length === 0 || service.word !== "Online" },
     running ? { id: "stop", label: "Stop", icon: <Square />, disabled: service.nodeUnreachable } : { id: "start", label: "Start", icon: <Play />, disabled: service.nodeUnreachable },
     { id: "restart", label: "Restart", icon: <RotateCw />, disabled: service.nodeUnreachable },
     { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
     ...(canRollBack(service.spec) ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
     { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
     { id: "access", label: "Access…", icon: <Globe /> },
+    { id: "setup", label: "Setup…", icon: <SlidersHorizontal /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
     { id: "storage", label: "Storage…", icon: <HardDrive /> },
     ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),

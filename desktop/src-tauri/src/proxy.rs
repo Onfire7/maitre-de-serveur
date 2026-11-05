@@ -1,8 +1,9 @@
 //! Loopback proxy for the built-in browser (decision 71). Each opened
-//! Service gets a port on 127.0.0.1; the webview talks plain HTTP to it and
-//! every request is relayed over mutual TLS to the Node's agent with the
-//! X-Maitre-Service header, which the agent routes to the Service. HTTP/1.1
-//! end to end so WebSocket upgrades (chat-style apps, dashboards) work.
+//! Page of a Service gets a port on 127.0.0.1; the webview talks plain
+//! HTTP to it and every request is relayed over mutual TLS to the Node's
+//! agent with the X-Maitre-Service and X-Maitre-Page headers, which the
+//! agent routes to that Page of that Service (ADR 0010). HTTP/1.1 end to
+//! end so WebSocket upgrades (chat-style apps, dashboards) work.
 //!
 //! A Service's page is a document of its own, which the Console cannot
 //! read where it has gone, and so cannot move back and forward (decision
@@ -16,11 +17,11 @@
 //! Content-Security-Policy refuses the script works as before, without
 //! the history controls.
 //!
-//! A Service's port is the same from one launch to the next and whichever
+//! A Page's port is the same from one launch to the next and whichever
 //! way its Node is reached (decision 288): the webview's HTTP cache, cookies
 //! and local storage are per origin, and a port chosen afresh each launch
 //! left every image to be fetched again and every login to be done again.
-//! The port is picked from the Service's name the first time and kept in
+//! The port is picked from the Page's host name the first time and kept in
 //! the Console's saved state; a running proxy follows a change of Node
 //! address rather than opening a new origin.
 
@@ -44,6 +45,8 @@ struct Target {
     fingerprint: String,
     /// The Service a page proxy reaches; empty for a Node's file proxy.
     service: String,
+    /// Which Page of it (ADR 0010); empty is the Service's first.
+    page: String,
     /// A file proxy's secret first path segment (decision 183): without it,
     /// or for anything but GET/HEAD of file contents, the proxy refuses, so
     /// other programs on this computer cannot use the device's identity.
@@ -58,10 +61,10 @@ struct Live {
     upstream: Upstream,
 }
 
-/// Hears what a page's script reports: the Service, the event and the URL.
+/// Hears what a page's script reports: the view's key, the event and the URL.
 pub type Reporter = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 
-/// One proxy per Service, on a port kept across launches, and one file
+/// One proxy per Page, on a port kept across launches, and one file
 /// proxy per Node.
 #[derive(Default)]
 pub struct Proxies {
@@ -74,12 +77,12 @@ pub struct Proxies {
 const PORT_BASE: u16 = 41000;
 const PORT_SPAN: u16 = 9000;
 
-/// The ports to try for a Service, in order: the one it had, then ones
-/// from its name (FNV-1a, so the same on every launch and machine), so a
-/// Service lands on the same port even before the Console remembers it.
-pub fn port_candidates(service: &str, remembered: Option<u16>) -> Vec<u16> {
+/// The ports to try for a Page, in order: the one it had, then ones from
+/// its host name (FNV-1a, so the same on every launch and machine), so a
+/// Page lands on the same port even before the Console remembers it.
+pub fn port_candidates(view: &str, remembered: Option<u16>) -> Vec<u16> {
     let mut h: u64 = 0xcbf29ce484222325;
-    for b in service.bytes() {
+    for b in view.bytes() {
         h ^= b as u64;
         h = h.wrapping_mul(0x100000001b3);
     }
@@ -99,13 +102,14 @@ impl Proxies {
         *self.reporter.lock().unwrap() = Some(Arc::new(f));
     }
 
-    /// Returns the local URL for a Service and the port it is on, starting a
-    /// proxy if needed: on `remembered` when it is free, else on a port from
-    /// the Service's name. A proxy already running for the Service is
-    /// pointed at `addr` if it was reaching the Node another way.
-    pub async fn open(&self, id: Arc<Identity>, addr: String, fingerprint: String, service: String, remembered: Option<u16>) -> Result<(String, u16), String> {
-        let target = Target { addr, fingerprint, service: service.clone(), token: String::new() };
-        let live = self.ports.lock().unwrap().get(&service).map(|l| (l.port, l.upstream.clone()));
+    /// Returns the local URL for one Page of a Service and the port it is
+    /// on, starting a proxy if needed: on `remembered` when it is free,
+    /// else on a port from `view`, the Page's host name. A proxy already
+    /// running for that Page is pointed at `addr` if it was reaching the
+    /// Node another way.
+    pub async fn open(&self, id: Arc<Identity>, addr: String, fingerprint: String, view: String, service: String, page: String, remembered: Option<u16>) -> Result<(String, u16), String> {
+        let target = Target { addr, fingerprint, service, page, token: String::new() };
+        let live = self.ports.lock().unwrap().get(&view).map(|l| (l.port, l.upstream.clone()));
         if let Some((port, upstream)) = live {
             let same = {
                 let cur = upstream.read().unwrap();
@@ -117,8 +121,8 @@ impl Proxies {
             }
             return Ok((format!("http://127.0.0.1:{port}/"), port));
         }
-        let candidates = port_candidates(&service, remembered);
-        self.serve(id, service, target, &candidates).await
+        let candidates = port_candidates(&view, remembered);
+        self.serve(id, view, target, &candidates).await
     }
 
     /// Returns the local base URL (ending in the token, no slash) for a
@@ -129,7 +133,7 @@ impl Proxies {
             return Ok(base.clone());
         }
         let token = format!("{:032x}", rand::random::<u128>());
-        let target = Target { addr, fingerprint, service: String::new(), token: token.clone() };
+        let target = Target { addr, fingerprint, service: String::new(), page: String::new(), token: token.clone() };
         let (root, _) = self.serve(id, key.clone(), target, &[]).await?;
         let base = format!("{root}{token}");
         self.files.lock().unwrap().insert(key, base.clone());
@@ -194,8 +198,8 @@ async fn relay(
         let pq = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_default();
         *req.uri_mut() = pq[target.token.len() + 1..].parse().unwrap();
     }
-    let page = !target.service.is_empty();
-    if page && req.uri().path() == FRAME_SCRIPT_PATH {
+    let is_page = !target.service.is_empty();
+    if is_page && req.uri().path() == FRAME_SCRIPT_PATH {
         return Ok(Response::builder()
             .status(200)
             .header("content-type", "application/javascript; charset=utf-8")
@@ -203,11 +207,11 @@ async fn relay(
             .body(http_body_util::Full::new(Bytes::from_static(FRAME_SCRIPT.as_bytes())).map_err(|never| match never {}).boxed())
             .unwrap());
     }
-    if page && req.uri().path() == NAV_PATH {
+    if is_page && req.uri().path() == NAV_PATH {
         if req.method() == hyper::Method::POST {
             let body = req.into_body().collect().await.map(|b| b.to_bytes()).unwrap_or_default();
             if let (Some(report), Some((event, url))) = (reporter, parse_nav(&body)) {
-                report(&target.service, &event, &url);
+                report(&view_key(&target), &event, &url);
             }
         }
         return Ok(Response::builder()
@@ -217,7 +221,7 @@ async fn relay(
             .unwrap());
     }
     // A document is asked for uncompressed so the frame script can be added to it.
-    let document = page && wants_document(&req);
+    let document = is_page && wants_document(&req);
     if document {
         req.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
     }
@@ -225,11 +229,17 @@ async fn relay(
         Ok(mut sender) => {
             let client_upgrade = hyper::upgrade::on(&mut req);
             let wants_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
-            if page {
+            if is_page {
                 req.headers_mut().insert(
                     HeaderName::from_static("x-maitre-service"),
                     HeaderValue::from_str(&target.service).unwrap(),
                 );
+                if !target.page.is_empty() {
+                    req.headers_mut().insert(
+                        HeaderName::from_static("x-maitre-page"),
+                        HeaderValue::from_str(&target.page).unwrap(),
+                    );
+                }
             }
             // Origin-form URI; the agent routes by header, not host.
             let pq = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_else(|| "/".into());
@@ -280,6 +290,16 @@ async fn connect(
         let _ = conn.with_upgrades().await;
     });
     Ok(sender)
+}
+
+/// The key the Console knows this Page's view by: the Page's host name,
+/// the Service's own for its first Page (ADR 0010, services.PageHost).
+fn view_key(target: &Target) -> String {
+    if target.page.is_empty() {
+        target.service.clone()
+    } else {
+        format!("{}-{}", target.service, target.page)
+    }
 }
 
 fn text(status: u16, body: String) -> Response<BoxBody<Bytes, hyper::Error>> {
@@ -389,6 +409,13 @@ mod tests {
     }
 
     #[test]
+    fn a_pages_view_key_is_its_host_name() {
+        let t = |service: &str, page: &str| view_key(&Target { addr: String::new(), fingerprint: String::new(), service: service.into(), page: page.into(), token: String::new() });
+        assert_eq!(t("immich", ""), "immich");
+        assert_eq!(t("immich", "admin"), "immich-admin");
+    }
+
+    #[test]
     fn a_service_port_comes_from_its_name_and_the_remembered_one_leads() {
         let a = port_candidates("jellyfin", None);
         assert_eq!(a, port_candidates("jellyfin", None));
@@ -400,23 +427,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_service_keeps_its_port_and_origin_when_its_node_is_reached_another_way() {
+    async fn a_page_keeps_its_port_and_origin_when_its_node_is_reached_another_way() {
         let dir = std::env::temp_dir().join(format!("maitre-proxy-test-{:x}", rand::random::<u64>()));
         let id = Arc::new(Identity::load_or_generate(&dir.join("device")).unwrap());
         let fp = "ab".repeat(32);
         let proxies = Proxies::default();
-        let (url, port) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "jellyfin".into(), None).await.unwrap();
+        let (url, port) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "jellyfin".into(), "jellyfin".into(), String::new(), None).await.unwrap();
         assert_eq!(url, format!("http://127.0.0.1:{port}/"));
-        let (again, p2) = proxies.open(id.clone(), "100.64.0.9:7443".into(), fp.clone(), "jellyfin".into(), None).await.unwrap();
+        let (again, p2) = proxies.open(id.clone(), "100.64.0.9:7443".into(), fp.clone(), "jellyfin".into(), "jellyfin".into(), String::new(), None).await.unwrap();
         assert_eq!((again, p2), (url, port));
         let up = proxies.ports.lock().unwrap().get("jellyfin").unwrap().upstream.clone();
         assert_eq!(up.read().unwrap().0.addr, "100.64.0.9:7443");
         // A remembered port that is free is taken; one that is busy is not.
         let busy = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.unwrap();
         let taken = busy.local_addr().unwrap().port();
-        let (_, p3) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "memos".into(), Some(taken)).await.unwrap();
+        let (_, p3) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "memos".into(), "memos".into(), String::new(), Some(taken)).await.unwrap();
         assert_ne!(p3, taken);
         assert_eq!(p3, port_candidates("memos", None)[0]);
+        // A second Page of a Service is a proxy of its own, keyed by the
+        // Page's host name (ADR 0010).
+        let (_, admin) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "immich-admin".into(), "immich".into(), "admin".into(), None).await.unwrap();
+        assert_eq!(admin, port_candidates("immich-admin", None)[0]);
+        let up = proxies.ports.lock().unwrap().get("immich-admin").unwrap().upstream.clone();
+        assert_eq!((up.read().unwrap().0.service.clone(), up.read().unwrap().0.page.clone()), ("immich".to_string(), "admin".to_string()));
         let _ = std::fs::remove_dir_all(dir);
     }
 

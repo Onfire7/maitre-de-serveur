@@ -11,19 +11,23 @@ import { RouteProvider } from "./routes";
 import { Sidebar, type SidebarNode } from "./Sidebar";
 import { IDLE_MS, hideFrame, resetFrames, showFrame } from "./frames";
 
-const svc = (name: string, word: FleetService["word"] = "Online"): FleetService => ({ spec: create(ServiceSpecSchema, { name, catalogId: "jellyfin", nodeId: "a" }), word, nodeUnreachable: false });
+const svc = (name: string, word: FleetService["word"] = "Online", pages: { name: string; label?: string; port: number }[] = [{ name: "web", port: 8096 }]): FleetService => ({
+  spec: create(ServiceSpecSchema, { name, catalogId: "jellyfin", nodeId: "a", pages: pages.map((p) => ({ name: p.name, label: p.label ?? "", port: p.port, path: "/" })) }),
+  word,
+  nodeUnreachable: false,
+});
 const services = [svc("adguard"), svc("jellyfin"), svc("minecraft", "Attention")];
 const nodes: SidebarNode[] = [
   { nodeId: "a", name: "Alder", word: "Healthy" },
   { nodeId: "b", name: "Basalt", word: "Updating" },
 ];
 
-function renderSidebar(collapsed = false, route: "service" | "fleet" = "fleet") {
+function renderSidebar(collapsed = false, route: "service" | "fleet" = "fleet", list = services) {
   return render(
     <MotionConfig skipAnimations>
       <TooltipProvider>
-        <RouteProvider initial={route === "fleet" ? { name: "fleet", tab: "overview" } : { name: "service", service: "jellyfin" }}>
-          <Sidebar services={services} snap={undefined} nodes={nodes} fleetName="Home" badge={2} collapsed={collapsed} onToggle={() => {}} canAddService onFlyoutItem={() => {}} onPreferences={() => {}} />
+        <RouteProvider initial={route === "fleet" ? { name: "fleet", tab: "overview" } : { name: "page", service: "jellyfin", page: "" }}>
+          <Sidebar services={list} snap={undefined} nodes={nodes} fleetName="Home" badge={2} collapsed={collapsed} onToggle={() => {}} canAddService onFlyoutItem={() => {}} onPreferences={() => {}} />
         </RouteProvider>
       </TooltipProvider>
     </MotionConfig>,
@@ -133,5 +137,39 @@ describe("Sidebar", () => {
     fireEvent.keyDown(row("jellyfin").querySelector("button")!, { key: "ArrowRight" });
     expect(menu()).not.toBeNull();
     expect(screen.queryAllByText(/jellyfin · Online/).length).toBe(0);
+  });
+});
+
+describe("Sidebar Pages (ADR 0010)", () => {
+  it("lists a Service with one Page as one row, nests several, and leaves out a Service with none", () => {
+    const list = [
+      svc("jellyfin"),
+      svc("immich", "Online", [{ name: "web", label: "Library", port: 2283 }, { name: "admin", label: "Admin", port: 2284 }]),
+      svc("vpn", "Online", []),
+    ];
+    renderSidebar(false, "fleet", list);
+    expect(row("jellyfin")).toBeTruthy();
+    expect(row("immich")).toBeTruthy();
+    // A Service that offers no page is not in the sidebar at all.
+    expect(document.querySelector('[data-service="vpn"]')).toBeNull();
+    // Its Pages show only while one of them is the page shown.
+    expect(document.querySelector('[data-page="immich-admin"]')).toBeNull();
+  });
+
+  it("shows a Service's Pages beneath it while one of them is open", () => {
+    const list = [svc("immich", "Online", [{ name: "web", label: "Library", port: 2283 }, { name: "admin", label: "Admin", port: 2284 }])];
+    render(
+      <MotionConfig skipAnimations>
+        <TooltipProvider>
+          <RouteProvider initial={{ name: "page", service: "immich", page: "admin" }}>
+            <Sidebar services={list} snap={undefined} nodes={nodes} fleetName="Home" badge={0} collapsed={false} onToggle={() => {}} canAddService onFlyoutItem={() => {}} onPreferences={() => {}} />
+          </RouteProvider>
+        </TooltipProvider>
+      </MotionConfig>,
+    );
+    expect(document.querySelector('[data-page="immich"]')).toBeTruthy();
+    const admin = document.querySelector<HTMLElement>('[data-page="immich-admin"]')!;
+    expect(admin.textContent).toContain("Admin");
+    expect(admin.getAttribute("aria-current")).toBe("page");
   });
 });

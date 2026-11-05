@@ -1,7 +1,12 @@
-// Service pages kept open like browser tabs (decision 286). A Service's
-// frame stays open when another page is shown, so coming back finds it
+// Service Pages kept open like browser tabs (decision 286). A Page's
+// frame stays open when another Page is shown, so coming back finds it
 // where it was; a frame idle for an hour is dropped and only the path it
 // was on is remembered, so the next visit opens there.
+//
+// A frame is one Page of a Service (ADR 0010), keyed by the Page's host
+// name: the Service's own name for its first Page, <service>-<page> for
+// the others. That key is also the Page's proxy port and its view's
+// label, so one string names the Page everywhere.
 //
 // A frame is a native web view of its own (decision 294, ServiceViews),
 // which the Console cannot read, so it learns where the page is from the
@@ -19,7 +24,11 @@ const TICK_MS = 15_000;
 export const MAX_LIVE = 3;
 
 export interface Frame {
+  /** The Page's host name, which keys its proxy, its view and this frame. */
+  key: string;
+  /** The Service the Page belongs to, and the Page's own name. */
   service: string;
+  page: string;
   /** The page's own address (the proxy's root), where Home goes. */
   home: string;
   /** The address the view opened at; stable while the frame lives. */
@@ -44,9 +53,9 @@ export interface Frame {
 
 /** What drives the views: provided by the view layer, absent in tests. */
 export interface FrameHost {
-  navigate(service: string, url: string): void;
-  reload(service: string): void;
-  stop(service: string): void;
+  navigate(key: string, url: string): void;
+  reload(key: string): void;
+  stop(key: string): void;
 }
 
 type Listener = () => void;
@@ -65,9 +74,9 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-function update(service: string, f: (fr: Frame) => Frame) {
-  const cur = frames.get(service);
-  if (cur) frames.set(service, f(cur));
+function update(key: string, f: (fr: Frame) => Frame) {
+  const cur = frames.get(key);
+  if (cur) frames.set(key, f(cur));
   emit();
 }
 
@@ -84,13 +93,15 @@ export function setFrameHost(h: FrameHost | undefined) {
   host = h;
 }
 
-/** A Service's page is the one shown; open it (at the remembered path) if it is not live. */
-export function showFrame(service: string, home: string) {
-  const cur = frames.get(service);
+/** This Page is the one shown; open it (at the remembered path) if it is not live. */
+export function showFrame(key: string, home: string, service = key, page = "") {
+  const cur = frames.get(key);
   const path = cur?.path ?? "/";
   const live = cur?.live && cur.home === home;
-  frames.set(service, {
+  frames.set(key, {
+    key,
     service,
+    page,
     home,
     src: live ? cur.src : new URL(path, home).href,
     path,
@@ -102,36 +113,41 @@ export function showFrame(service: string, home: string) {
     crashed: live ? cur.crashed : false,
     idleSince: null,
   });
-  shown = service;
+  shown = key;
   // Over the cap: the idle frame unseen longest goes.
   for (;;) {
-    const idle = [...frames.values()].filter((f) => f.live && f.service !== service);
+    const idle = [...frames.values()].filter((f) => f.live && f.key !== key);
     if (idle.length < MAX_LIVE) break;
     const oldest = idle.reduce((a, b) => ((a.idleSince ?? 0) <= (b.idleSince ?? 0) ? a : b));
-    dropFrame(oldest.service);
+    dropFrame(oldest.key);
   }
   emit();
 }
 
-/** The page shown is no longer this Service's: its frame starts idling. */
-export function hideFrame(service: string) {
-  if (shown === service) shown = null;
-  update(service, (f) => (f.live && f.idleSince === null ? { ...f, idleSince: clock() } : f));
+/** The Page shown is no longer this one: its frame starts idling. */
+export function hideFrame(key: string) {
+  if (shown === key) shown = null;
+  update(key, (f) => (f.live && f.idleSince === null ? { ...f, idleSince: clock() } : f));
   tick();
 }
 
 /** Close the view, remembering only its path. */
-export function dropFrame(service: string) {
-  if (shown === service) shown = null;
-  pending.delete(service);
-  update(service, (f) => ({ ...f, live: false, reported: false, loading: false, crashed: false, entries: [], index: 0, idleSince: null }));
+export function dropFrame(key: string) {
+  if (shown === key) shown = null;
+  pending.delete(key);
+  update(key, (f) => ({ ...f, live: false, reported: false, loading: false, crashed: false, entries: [], index: 0, idleSince: null }));
 }
 
-/** A Service that is gone takes its frame and its memory with it. */
-export function forgetFrame(service: string) {
-  if (shown === service) shown = null;
-  pending.delete(service);
-  if (frames.delete(service)) emit();
+/** A Page that is gone takes its frame and its memory with it. */
+export function forgetFrame(key: string) {
+  if (shown === key) shown = null;
+  pending.delete(key);
+  if (frames.delete(key)) emit();
+}
+
+/** A Service that is gone takes every one of its Pages' frames with it. */
+export function forgetService(service: string) {
+  for (const f of [...frames.values()]) if (f.service === service) forgetFrame(f.key);
 }
 
 /** Frames idle for an hour are dropped; runs on a timer while any idles. */
@@ -139,7 +155,7 @@ export function tick(now = clock()) {
   let idle = false;
   for (const f of frames.values()) {
     if (f.live && f.idleSince !== null) {
-      if (now - f.idleSince >= IDLE_MS) dropFrame(f.service);
+      if (now - f.idleSince >= IDLE_MS) dropFrame(f.key);
       else idle = true;
     }
   }
@@ -165,13 +181,13 @@ export function canGo(f: Frame | undefined, cmd: "back" | "forward"): boolean {
 }
 
 function go(f: Frame, index: number, path: string) {
-  pending.set(f.service, { path, index });
-  host?.navigate(f.service, new URL(path, f.home).href);
-  update(f.service, (x) => ({ ...x, loading: true, crashed: false }));
+  pending.set(f.key, { path, index });
+  host?.navigate(f.key, new URL(path, f.home).href);
+  update(f.key, (x) => ({ ...x, loading: true, crashed: false }));
 }
 
-export function frameCommand(service: string, cmd: FrameCommand) {
-  const f = frames.get(service);
+export function frameCommand(key: string, cmd: FrameCommand) {
+  const f = frames.get(key);
   if (!f) return;
   switch (cmd) {
     case "back":
@@ -182,66 +198,66 @@ export function frameCommand(service: string, cmd: FrameCommand) {
       return;
     case "stop":
       if (!f.live) return;
-      host?.stop(service);
-      update(service, (x) => ({ ...x, loading: false }));
+      host?.stop(key);
+      update(key, (x) => ({ ...x, loading: false }));
       return;
     case "reload":
       if (!f.live) return;
-      host?.reload(service);
-      update(service, (x) => ({ ...x, loading: true, crashed: false }));
+      host?.reload(key);
+      update(key, (x) => ({ ...x, loading: true, crashed: false }));
       return;
     case "home":
       if (!f.live) {
-        update(service, (x) => ({ ...x, path: "/" }));
+        update(key, (x) => ({ ...x, path: "/" }));
         return;
       }
       if (f.reported) go(f, f.entries.length, "/");
       else {
-        host?.navigate(service, f.home);
-        update(service, (x) => ({ ...x, path: "/", loading: true, crashed: false }));
+        host?.navigate(key, f.home);
+        update(key, (x) => ({ ...x, path: "/", loading: true, crashed: false }));
       }
   }
 }
 
 /** The engine started loading a document in the view. */
-export function frameLoadStarted(service: string) {
-  update(service, (f) => (f.live && !f.loading ? { ...f, loading: true } : f));
+export function frameLoadStarted(key: string) {
+  update(key, (f) => (f.live && !f.loading ? { ...f, loading: true } : f));
 }
 
 /** The engine finished a load (it says nothing of where). */
-export function frameLoaded(service: string) {
-  update(service, (f) => (f.live && f.loading ? { ...f, loading: false } : f));
+export function frameLoaded(key: string) {
+  update(key, (f) => (f.live && f.loading ? { ...f, loading: false } : f));
 }
 
 /** The view could not be opened: the card says why. */
-export function frameFailed(service: string, why: string) {
-  update(service, (f) => (f.live ? { ...f, loading: false, failed: why } : f));
+export function frameFailed(key: string, why: string) {
+  update(key, (f) => (f.live ? { ...f, loading: false, failed: why } : f));
 }
 
 /** The page's web process died: the Console stays up, the page is gone until a reload. */
-export function frameCrashed(service: string) {
-  update(service, (f) => (f.live ? { ...f, loading: false, crashed: true } : f));
+export function frameCrashed(key: string) {
+  update(key, (f) => (f.live ? { ...f, loading: false, crashed: true } : f));
 }
 
 export type FrameEvent = "load" | "push" | "replace" | "pop" | "unload";
 
 /** What a page's script reported, through the proxy's beacon. */
-export function reportFrame(service: string, event: FrameEvent, url: string) {
-  const f = frames.get(service);
+export function reportFrame(key: string, event: FrameEvent, url: string) {
+  const f = frames.get(key);
   if (!f || !f.live) return;
   const path = pathOf(url, f.home);
   switch (event) {
     case "unload":
-      update(f.service, (x) => ({ ...x, loading: true }));
+      update(f.key, (x) => ({ ...x, loading: true }));
       return;
     case "replace":
       if (f.reported && f.path === path && f.entries[f.index] === path) return;
-      update(f.service, (x) => ({ ...x, reported: true, path, entries: x.entries.length ? x.entries.map((e, i) => (i === x.index ? path : e)) : [path] }));
+      update(f.key, (x) => ({ ...x, reported: true, path, entries: x.entries.length ? x.entries.map((e, i) => (i === x.index ? path : e)) : [path] }));
       return;
     case "load":
     case "push":
     case "pop": {
-      const p = pending.get(f.service);
+      const p = pending.get(f.key);
       let { entries, index } = f;
       if (entries.length === 0) {
         entries = [path];
@@ -261,10 +277,10 @@ export function reportFrame(service: string, event: FrameEvent, url: string) {
         entries = [...entries.slice(0, index + 1), path];
         index = entries.length - 1;
       }
-      pending.delete(f.service);
+      pending.delete(f.key);
       const loading = event === "load" ? f.loading : false;
       if (f.reported && f.path === path && f.index === index && f.entries === entries && f.loading === loading && !f.crashed) return;
-      update(f.service, (x) => ({ ...x, reported: true, path, entries, index, loading, crashed: false }));
+      update(f.key, (x) => ({ ...x, reported: true, path, entries, index, loading, crashed: false }));
     }
   }
 }
@@ -276,9 +292,9 @@ function subscribe(l: Listener) {
   };
 }
 
-export function useFrame(service: string): Frame | undefined {
+export function useFrame(key: string): Frame | undefined {
   useSyncExternalStore(subscribe, () => version);
-  return frames.get(service);
+  return frames.get(key);
 }
 
 export function useFrames(): Frame[] {
@@ -290,8 +306,8 @@ export function shownFrame(): string | null {
   return shown;
 }
 
-export function getFrame(service: string): Frame | undefined {
-  return frames.get(service);
+export function getFrame(key: string): Frame | undefined {
+  return frames.get(key);
 }
 
 /** Tests: start over, with their own clock. */

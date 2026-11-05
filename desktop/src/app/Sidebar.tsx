@@ -1,6 +1,12 @@
-// The Service-first sidebar (decisions 130-137, 142, 145-147): every Service
-// in the Fleet as one flat list, the Fleet entry always at the bottom with
-// the Node list beneath it when the Fleet page is open.
+// The Service-first sidebar (decisions 130-137, 142, 145-147): every
+// Service in the Fleet that offers a Page, the Fleet entry always at the
+// bottom with the Node list beneath it when the Fleet page is open.
+//
+// A Service is one row for its one Page (ADR 0010). A Service offering
+// several Pages opens its first and lists them beneath it while one of
+// them is the page shown, as the Fleet entry lists the Nodes. A Service
+// with no Page (a Tunnel, a database) is on the Fleet page's Services
+// tab, not here.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -19,6 +25,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
+import { pageViews, type PageView } from "@/fleet/pages";
 import { ServiceIcon, NodeMark, type NodeWord } from "./status";
 import { ServiceFlyout, type FlyoutItem } from "./ServiceFlyout";
 import { NodeFlyout } from "./NodeFlyout";
@@ -62,10 +69,15 @@ export function Sidebar({
   provisioning?: { name: string; percent: number };
 }) {
   const { route, go } = useRoute();
-  // Service pages kept open in the background (decision 286): a row's
-  // background drains over the hour before its frame is dropped.
+  // Service Pages kept open in the background (decision 286): a row's
+  // background drains over the hour before its frame is dropped. A
+  // Service's own row drains with whichever of its Pages idles longest.
   const frames = useFrames();
-  const idleOf = (name: string) => idleRemaining(frames.find((f) => f.service === name));
+  const idleOf = (host: string) => idleRemaining(frames.find((f) => f.key === host));
+  const idleOfAny = (hosts: string[]) => {
+    const left = hosts.map(idleOf).filter((x): x is number => x !== null);
+    return left.length ? Math.max(...left) : null;
+  };
   // The install this Console started: its Node's row says Provisioning
   // even when the anchor is too old to report installs itself.
   const mine = provisioning ? nodes.find((n) => n.name === provisioning.name) : undefined;
@@ -176,8 +188,14 @@ export function Sidebar({
 
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
   const fleetOpen = route.name === "fleet";
-  const selectedService = route.name === "service" ? route.service : undefined;
+  const selectedService = route.name === "page" || route.name === "setup" ? route.service : undefined;
+  const selectedPage = route.name === "page" ? route.page : undefined;
   const selectedNode = route.name === "fleet" ? route.nodeId : undefined;
+  // Only Services that offer a Page are listed here.
+  const listed = services.flatMap((s) => {
+    const pages = pageViews(s);
+    return pages.length ? [{ service: s, pages }] : [];
+  });
 
   return (
     <motion.div
@@ -237,7 +255,10 @@ export function Sidebar({
           onMouseEnter={keepOpen}
         >
           <ul className="px-1.5">
-            {services.map((s, i) => (
+            {listed.map(({ service: s, pages }, i) => {
+              const here = selectedService === s.spec.name;
+              const several = pages.length > 1;
+              return (
               <motion.li
                 key={s.spec.name}
                 initial={{ opacity: 0, x: -12 }}
@@ -247,9 +268,9 @@ export function Sidebar({
                 <ServiceRow
                   service={s}
                   collapsed={collapsed}
-                  selected={selectedService === s.spec.name}
-                  idle={selectedService === s.spec.name ? null : idleOf(s.spec.name)}
-                  onClick={() => go({ name: "service", service: s.spec.name })}
+                  selected={here && (!several || route.name === "setup")}
+                  idle={here ? null : idleOfAny(pages.map((p) => p.host))}
+                  onClick={() => go({ name: "page", service: s.spec.name, page: pages[0].page.name })}
                   onEnter={(el) => rowEnter(s, el)}
                   onChevron={(el) => {
                     clearTimers();
@@ -258,8 +279,21 @@ export function Sidebar({
                   onKeyOpen={(el) => openFor(s, el)}
                   flyOpen={anyFly}
                 />
+                {/* Its Pages, while one of them is the page shown. */}
+                <AnimatePresence initial={false}>
+                  {several && here && route.name === "page" && (
+                    <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="overflow-hidden">
+                      {pages.map((p) => (
+                        <li key={p.page.name}>
+                          <PageRow page={p} collapsed={collapsed} selected={selectedPage === p.page.name || (!selectedPage && p.first)} idle={idleOf(p.host)} onClick={() => go({ name: "page", service: s.spec.name, page: p.page.name })} onEnter={scheduleClose} />
+                        </li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
               </motion.li>
-            ))}
+              );
+            })}
             <li>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -506,6 +540,24 @@ function ServiceRow({
           : ""}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/** One Page of a Service that offers several: a nested row under its
+ * Service's, with the Page's label (ADR 0010). */
+function PageRow({ page, collapsed, selected, idle, onClick, onEnter }: { page: PageView; collapsed: boolean; selected: boolean; idle: number | null; onClick: () => void; onEnter: () => void }) {
+  return (
+    <button
+      data-page={page.host}
+      onClick={onClick}
+      onMouseEnter={onEnter}
+      aria-current={selected ? "page" : undefined}
+      className={cn("relative flex w-full items-center gap-2 overflow-hidden rounded-md py-1 pr-1.5 text-sm hover:bg-sidebar-accent", selected && "bg-sidebar-accent", collapsed ? "justify-center pl-1.5" : "pl-3")}
+    >
+      {idle !== null && !selected && <span aria-hidden data-idle={Math.round(idle * 100)} className="pointer-events-none absolute inset-y-0 left-0 bg-sidebar-accent/60 transition-[width] duration-1000 ease-linear" style={{ width: `${Math.round(idle * 1000) / 10}%` }} />}
+      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", selected ? "bg-foreground" : "bg-muted-foreground/50")} />
+      {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{page.label}</span>}
+    </button>
   );
 }
 

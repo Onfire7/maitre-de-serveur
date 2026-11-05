@@ -6,7 +6,7 @@
 import { volumeDir } from "@/files/layout";
 import { create, fromBinary, type DescMessage, type DescMethodUnary, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type Transport, type UnaryResponse } from "@connectrpc/connect";
-import { ControlServiceRequest_Action, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
+import { ControlServiceRequest_Action, ServiceSpecSchema, ServiceStatus_State, type ServiceSpec } from "@/gen/maitre/v1/service_pb";
 import { FleetDomainSchema, FleetSettingsSchema, GrantsNeededSchema, type EntryNode } from "@/gen/maitre/v1/fleet_pb";
 import { Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
 import { UpdateStatus_State } from "@/gen/maitre/v1/node_pb";
@@ -26,6 +26,97 @@ function needNode(node: DemoNode | undefined, addr: string): DemoNode {
 }
 
 /** FailedPrecondition with a GrantsNeeded detail, as a Node refuses an ungranted option (decision 189). */
+/** A Setup as the demo reads it off the wire. */
+interface DemoSetup {
+  networkKind?: string;
+  networkTarget?: string;
+  fleetReach?: boolean;
+  ports?: string[];
+  address?: string;
+  networkInternal?: boolean;
+  pages?: { name: string; label?: string; component?: string; port?: number; path?: string; exposure?: string; publicHost?: string; healthHttp?: string; hostPort?: number }[];
+  overrides?: { component?: string; key: string; value?: string; remove?: boolean }[];
+}
+
+/** The spec a Setup would leave, checked as the Node checks it (ADR 0010). */
+function withSetup(f: DemoFleet, cur: ServiceSpec, setup: DemoSetup): ServiceSpec {
+  const kind = setup.networkKind ?? "";
+  const target = setup.networkTarget ?? "";
+  if (cur.tunnel && kind !== "") throw fail(Code.InvalidArgument, `${cur.name} is a Tunnel; it stays on its own network`);
+  if (kind === "tunnel" || kind === "service") {
+    const t = f.services.find((x) => x.spec.name === target);
+    if (!t) throw fail(Code.InvalidArgument, `there is no Service named ${target}`);
+    if (t.spec.nodeId !== cur.nodeId) throw fail(Code.InvalidArgument, `${target} runs on another Node; a Service joins only a Service of its own Node`);
+    if (kind === "tunnel" && !t.spec.tunnel) throw fail(Code.InvalidArgument, `${target} is not a Tunnel`);
+    if (kind === "service" && t.spec.components.length === 0) throw fail(Code.InvalidArgument, `${target} has no network of its own: it is already reachable as ${target} on the shared network`);
+  } else if (target) throw fail(Code.InvalidArgument, "a Service on its own network names no other");
+  for (const p of setup.ports ?? []) if (!/^\d{1,5}\/(tcp|udp)$/.test(p)) throw fail(Code.InvalidArgument, `port "${p}": write it as 5432/tcp or 1194/udp`);
+  const addr = setup.address ?? "";
+  if (addr && !/^10\.90\.\d{1,3}\.\d{1,3}$/.test(addr)) throw fail(Code.InvalidArgument, `"${addr}" is not an address of the Fleet's network 10.90.0.0/16`);
+  if (addr && f.services.some((x) => x.spec.name !== cur.name && x.spec.address === addr)) throw fail(Code.InvalidArgument, `${f.services.find((x) => x.spec.name !== cur.name && x.spec.address === addr)!.spec.name} already has the address ${addr}`);
+  const seen = new Set<string>();
+  const had = new Map(cur.pages.map((p) => [p.name, p.hostPort]));
+  const pages = (setup.pages ?? []).map((p, i) => {
+    if (!/^[a-z0-9][a-z0-9-]{0,40}$/.test(p.name)) throw fail(Code.InvalidArgument, `page name "${p.name}": use lowercase letters, digits and dashes`);
+    if (seen.has(p.name)) throw fail(Code.InvalidArgument, `two pages named "${p.name}"`);
+    seen.add(p.name);
+    if (!p.port || p.port > 65535) throw fail(Code.InvalidArgument, `page ${p.name}: port ${p.port ?? 0} is out of range`);
+    return { ...p, hostPort: had.get(p.name) ?? 20090 + i, $typeName: "maitre.v1.ServicePage" as const };
+  });
+  for (const o of setup.overrides ?? []) if (!/^[A-Za-z][A-Za-z0-9]{0,40}$/.test(o.key)) throw fail(Code.InvalidArgument, `option "${o.key}": a [Container] key is letters and digits`);
+  return create(ServiceSpecSchema, {
+    ...cur,
+    $typeName: undefined,
+    networkKind: kind,
+    networkTarget: target,
+    fleetReach: !!setup.fleetReach,
+    ports: setup.ports ?? [],
+    address: addr || cur.address,
+    networkInternal: !!setup.networkInternal,
+    pages,
+    webPort: pages[0]?.port ?? 0,
+    webPath: pages[0]?.path ?? "",
+    webComponent: pages[0]?.component ?? "",
+    webHostPort: pages[0]?.hostPort ?? 0,
+    overrides: (setup.overrides ?? []).map((o) => ({ component: o.component ?? "", key: o.key, value: o.value ?? "", remove: !!o.remove })),
+  } as never);
+}
+
+/** The Services a Setup restarts: this one, the Tunnel it joins or
+ * leaves, and that Tunnel's other Services. */
+function restartsFor(f: DemoFleet, cur: ServiceSpec, next: ServiceSpec): string[] {
+  const out = new Set<string>([next.name]);
+  for (const t of [cur.networkTarget, next.networkTarget]) {
+    if (!t || !f.services.some((x) => x.spec.name === t && x.spec.tunnel)) continue;
+    out.add(t);
+    for (const d of f.services) if (d.spec.networkKind === "tunnel" && d.spec.networkTarget === t) out.add(d.spec.name);
+  }
+  if (next.tunnel) for (const d of f.services) if (d.spec.networkKind === "tunnel" && d.spec.networkTarget === next.name) out.add(d.spec.name);
+  const [first, ...rest] = [...out];
+  return [first, ...rest.sort()];
+}
+
+/** The protected options of a spec's rendered units, as the Node lists
+ * them: of the bundle's own lines and the person's overrides, never of
+ * the lines the agent adds itself, and never of the folders Maître
+ * mounts for the Service (decision 189, ADR 0010). */
+function protectedFor(f: DemoFleet, spec: ServiceSpec) {
+  const repo = (x: string) => x.replace(/@.*$/, "").replace(/:[^/:]*$/, "");
+  const parts = spec.components.length ? spec.components.map((c) => ({ name: c.name, image: c.image })) : [{ name: "", image: spec.image }];
+  const managed = `/var/mnt/pools/`;
+  return f.unitsOf(spec).flatMap((u) => {
+    const part = parts.find((p) => u.name === `${p.name ? `${spec.name}-${p.name}` : spec.name}.container`);
+    if (!part) return [];
+    const body = u.body
+      .split("\n")
+      .filter((l, i) => u.sources[i] !== "agent" || /^\[\w+\]$/.test(l.trim()))
+      .join("\n");
+    return protectedOptions(body)
+      .filter((o) => !o.startsWith(`Volume=${managed}`))
+      .map((option) => ({ component: part.name, imageRepository: repo(part.image), option }));
+  });
+}
+
 function needGrants(f: DemoFleet, spec: ServiceSpec, nodeId: string) {
   const need = f.grantsNeeded(spec, nodeId);
   if (need) throw new ConnectError(`${spec.name} needs ${need.options.length === 1 ? "a grant" : "grants"} for ${need.options.join(", ")}`, Code.FailedPrecondition, undefined, [{ desc: GrantsNeededSchema, value: need }]);
@@ -227,10 +318,42 @@ const handlers: Record<string, Handler> = {
     needNode(n, addr);
     const s = f.services.find((x) => x.spec.name === i.name);
     if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
-    s.spec.exposure = i.exposure as string;
-    s.spec.publicHost = (i.publicHost as string) ?? "";
+    // A Page named changes that Page's level; otherwise the Service's,
+    // which every Page without one of its own follows (ADR 0010).
+    const page = (i.page as string) ?? "";
+    if (page) {
+      const p = s.spec.pages.find((x) => x.name === page);
+      if (!p) throw fail(Code.NotFound, `${s.spec.name} has no Page "${page}"`);
+      p.exposure = i.exposure as string;
+      p.publicHost = (i.publicHost as string) ?? "";
+    } else {
+      s.spec.exposure = i.exposure as string;
+      s.spec.publicHost = (i.publicHost as string) ?? "";
+    }
     f.rebuildRecords();
     return { service: f.status(s) };
+  },
+  // ADR 0010: what the Node would write with a Setup, and applying one.
+  "ServiceService/PreviewSetup": (f, n, i, addr) => {
+    needNode(n, addr);
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
+    const setup = i.setup as DemoSetup | undefined;
+    const spec = setup ? withSetup(f, s.spec, setup) : s.spec;
+    return { units: f.unitsOf(spec), protected: protectedFor(f, spec), restarts: setup ? restartsFor(f, s.spec, spec) : [] };
+  },
+  "ServiceService/SetSetup": (f, n, i, addr) => {
+    needNode(n, addr);
+    const s = f.services.find((x) => x.spec.name === i.name);
+    if (!s) throw fail(Code.NotFound, `no Service ${i.name}`);
+    const setup = i.setup as DemoSetup | undefined;
+    if (!setup) throw fail(Code.InvalidArgument, "no setup");
+    const next = withSetup(f, s.spec, setup);
+    needGrants(f, next, s.spec.nodeId);
+    s.spec = next;
+    const running = s.state === ServiceStatus_State.RUNNING || s.state === ServiceStatus_State.STARTING;
+    f.rebuildRecords();
+    return { service: running ? f.control(s.spec.name, "restart") : f.status(s) };
   },
   "ServiceService/SetSettings": (f, n, i, addr) => {
     needNode(n, addr);

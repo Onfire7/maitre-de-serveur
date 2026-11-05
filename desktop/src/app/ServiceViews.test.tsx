@@ -29,22 +29,22 @@ describe("ServiceViews (294)", () => {
     render(<ServiceViews />);
     act(() => showFrame("jellyfin", HOME));
     await settle();
-    expect(calls()).toEqual([["view_open", { service: "jellyfin", url: HOME, bounds: { x: 240, y: 0, width: 800, height: 600 }, shown: true }]]);
+    expect(calls()).toEqual([["view_open", { view: "jellyfin", url: HOME, bounds: { x: 240, y: 0, width: 800, height: 600 }, shown: true }]]);
     invoke.mockClear();
     // A modal covers the page: the stand-in's colours come from the view, then it hides.
     invoke.mockImplementation((cmd: string) => Promise.resolve(cmd === "view_sample" ? [["#111111", "#222222", "#333333", "#444444"]] : undefined));
     await act(async () => modalOpened());
     await settle();
-    expect(calls()[0]).toEqual(["view_sample", { service: "jellyfin", cols: 4, rows: 3 }]);
-    expect(calls()).toContainEqual(["view_show", { service: "jellyfin", shown: false }]);
+    expect(calls()[0]).toEqual(["view_sample", { view: "jellyfin", cols: 4, rows: 3 }]);
+    expect(calls()).toContainEqual(["view_show", { view: "jellyfin", shown: false }]);
     invoke.mockClear();
     act(() => modalClosed());
     await settle();
-    expect(calls()).toEqual([["view_show", { service: "jellyfin", shown: true }]]);
+    expect(calls()).toEqual([["view_show", { view: "jellyfin", shown: true }]]);
     invoke.mockClear();
     act(() => dropFrame("jellyfin"));
     await settle();
-    expect(calls()).toEqual([["view_close", { service: "jellyfin" }]]);
+    expect(calls()).toEqual([["view_close", { view: "jellyfin" }]]);
   });
 
   it("a second frame opens hidden; a crash hides the view until it speaks again", async () => {
@@ -52,26 +52,26 @@ describe("ServiceViews (294)", () => {
     act(() => showFrame("jellyfin", HOME));
     act(() => showFrame("memos", "http://127.0.0.1:4200/"));
     await settle();
-    expect(calls()).toContainEqual(["view_open", { service: "memos", url: "http://127.0.0.1:4200/", bounds: { x: 240, y: 0, width: 800, height: 600 }, shown: true }]);
+    expect(calls()).toContainEqual(["view_open", { view: "memos", url: "http://127.0.0.1:4200/", bounds: { x: 240, y: 0, width: 800, height: 600 }, shown: true }]);
     // jellyfin is no longer the page shown.
-    expect(calls()).toContainEqual(["view_show", { service: "jellyfin", shown: false }]);
+    expect(calls()).toContainEqual(["view_show", { view: "jellyfin", shown: false }]);
     invoke.mockClear();
-    act(() => onViewReport({ service: "memos", event: "crashed", url: "Crashed" }));
+    act(() => onViewReport({ view: "memos", event: "crashed", url: "Crashed" }));
     await settle();
     expect(getFrame("memos")?.crashed).toBe(true);
-    expect(calls()).toEqual([["view_show", { service: "memos", shown: false }]]);
+    expect(calls()).toEqual([["view_show", { view: "memos", shown: false }]]);
     invoke.mockClear();
-    act(() => onViewReport({ service: "memos", event: "load", url: "http://127.0.0.1:4200/explore" }));
+    act(() => onViewReport({ view: "memos", event: "load", url: "http://127.0.0.1:4200/explore" }));
     await settle();
     expect(getFrame("memos")).toMatchObject({ crashed: false, path: "/explore" });
-    expect(calls()).toEqual([["view_show", { service: "memos", shown: true }]]);
+    expect(calls()).toEqual([["view_show", { view: "memos", shown: true }]]);
   });
 
   it("the engine's load events drive the loading state without a path", () => {
     showFrame("jellyfin", HOME);
-    onViewReport({ service: "jellyfin", event: "finished", url: HOME });
+    onViewReport({ view: "jellyfin", event: "finished", url: HOME });
     expect(getFrame("jellyfin")).toMatchObject({ loading: false, reported: false });
-    onViewReport({ service: "jellyfin", event: "started", url: `${HOME}web` });
+    onViewReport({ view: "jellyfin", event: "started", url: `${HOME}web` });
     expect(getFrame("jellyfin")?.loading).toBe(true);
   });
 
@@ -86,6 +86,6 @@ describe("ServiceViews (294)", () => {
       window.dispatchEvent(new Event("resize"));
     });
     await settle();
-    expect(calls()).toEqual([["view_place", { service: "jellyfin", bounds: { x: 480, y: 0, width: 800, height: 600 } }]]);
+    expect(calls()).toEqual([["view_place", { view: "jellyfin", bounds: { x: 480, y: 0, width: 800, height: 600 } }]]);
   });
 });

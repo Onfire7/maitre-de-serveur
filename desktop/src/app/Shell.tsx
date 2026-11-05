@@ -21,7 +21,7 @@ import { TrustedDeviceSchema } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor } from "@/transport";
 import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } from "@/state";
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
-import { controlService, installEntry, listDevices, needComponents, removeService, targetFor } from "@/fleet/actions";
+import { controlService, installEntry, listDevices, needComponents, removeService, targetFor, type ServiceAction } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
 import { declined } from "@/fleet/grants";
 import { useIntroduce } from "@/fleet/introduce";
@@ -34,7 +34,9 @@ import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
 import { ServiceViews } from "./ServiceViews";
 import { ToastRoom } from "./ToastRoom";
-import { forgetFrame } from "./frames";
+import { forgetService } from "./frames";
+import { pageViewOf } from "@/fleet/pages";
+import { SetupPage } from "./SetupPage";
 import { TOAST_GAP, TOAST_WIDTH } from "./layout";
 import { MoveServiceDialog } from "./MoveServiceDialog";
 import { CatalogPage } from "./CatalogPage";
@@ -158,12 +160,15 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   async function act(s: FleetService, item: FlyoutItem) {
     const t = target(s);
     switch (item) {
-      case "open":
+      case "open": {
         // window.open does nothing in the Tauri window; the opener plugin
         // hands the address to the system browser. A plain browser (the
-        // demo) has no plugin.
-        if (s.status?.url) openUrl(s.status.url).catch(() => window.open(s.status!.url, "_blank"));
+        // demo) has no plugin. The Page opened is the one shown, when it
+        // is this Service's, else its first (ADR 0010).
+        const page = pageViewOf(s, route.name === "page" && route.service === s.spec.name ? route.page : "");
+        if (page?.url) openUrl(page.url).catch(() => window.open(page.url, "_blank"));
         return;
+      }
       case "logs":
         // Service logs live on the Logs tab, at full width (187).
         go({ name: "fleet", tab: "logs", logs: { nodeId: s.spec.nodeId, source: `service:${s.spec.name}` } });
@@ -179,6 +184,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         // Changed in place, in the Service's open row (194).
         go({ name: "fleet", tab: "services", open: { service: s.spec.name, edit: item } });
         return;
+      case "setup":
+        // Its network, Pages, address and container options (ADR 0010).
+        go({ name: "setup", service: s.spec.name });
+        return;
       case "ports":
       case "grants":
         setSheet({ kind: item, service: s.spec.name });
@@ -186,7 +195,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       default:
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
         try {
-          await controlService(t, s.spec.name, item);
+          await controlService(t, s.spec.name, item as ServiceAction);
           toast.success(`${s.spec.name}: ${item === "update" ? "updating" : item === "rollback" ? "rolling back" : item === "restart" ? "restarting" : item === "stop" ? "stopped" : "starting"}`);
           fleet.refresh();
         } catch (e) {
@@ -202,7 +211,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     await installEntry(t, entry, spec);
     toast.success(`${spec.name} is installing`);
     await fleet.refresh();
-    go({ name: "service", service: spec.name });
+    go({ name: "page", service: spec.name, page: "" });
   }
 
   // User Catalogs' entries (plan C9), so a Service installed from one shows
@@ -212,7 +221,9 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
     for (const l of userCatalogs.data ?? []) registerEntries(l.entries);
   }, [userCatalogs.data]);
 
-  const current = route.name === "service" ? services.find((s) => s.spec.name === route.service) : undefined;
+  const current = route.name === "page" || route.name === "setup" ? services.find((s) => s.spec.name === route.service) : undefined;
+  // Which of its Pages is shown; its first when the route names none.
+  const currentPage = current && route.name === "page" ? pageViewOf(current, route.page) : undefined;
   const addFound = route.name === "add-node" ? (found.find((f) => f.kind === "installer" && (f.id === route.installerId || f.addresses[0] === route.addr)) ?? { kind: "installer" as const, id: route.installerId, name: "", machine: "", fleet_id: "", version: "", addresses: [route.addr], key_pem: "", recovery: false }) : undefined;
 
   return (
@@ -258,9 +269,15 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           <div className="relative min-h-0 flex-1 overflow-hidden">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={routeKey(route)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="absolute inset-0">
-              {route.name === "service" &&
+              {route.name === "page" &&
                 (current ? (
-                  <ServicePage service={current} target={target(current)} onAction={(a) => act(current, a)} />
+                  <ServicePage service={current} page={currentPage} target={target(current)} onAction={(a) => act(current, a)} />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
+                ))}
+              {route.name === "setup" &&
+                (current ? (
+                  <SetupPage service={current} services={services} target={target(current)} onDone={() => fleet.refresh()} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
@@ -352,8 +369,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 try {
                   await removeService(t, s.spec.name, deleteData);
                   toast(`${s.spec.name} was removed`);
-                  forgetFrame(s.spec.name);
-                  if (route.name === "service" && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
+                  forgetService(s.spec.name);
+                  if ((route.name === "page" || route.name === "setup") && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
                   fleet.refresh();
                 } catch (e) {
                   toast.error(String((e as Error).message ?? e));
@@ -374,8 +391,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
 
 function routeKey(r: ReturnType<typeof useRoute>["route"]) {
   switch (r.name) {
-    case "service":
+    case "page":
+      // One key for every Page of a Service: the page surface stays put
+      // while the native views swap, so moving between Pages does not
+      // fade the whole area (ADR 0010).
       return `service:${r.service}`;
+    case "setup":
+      return `setup:${r.service}`;
     case "fleet":
       return `fleet:${r.tab}`;
     default:

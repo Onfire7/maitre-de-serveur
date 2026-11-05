@@ -186,15 +186,17 @@ async fn peek_installer(state: State<'_, AppState>, addr: String) -> Result<Peek
     })
 }
 
-/// Start (or reuse) a loopback proxy for a Service's web page and return
-/// the local URL the built-in browser should open (decision 71).
+/// Start (or reuse) a loopback proxy for one Page of a Service and return
+/// the local URL the built-in browser should open (decision 71). `view` is
+/// the Page's host name, which keys its port, its view and its frame; the
+/// relay names the Service and the Page in its headers (ADR 0010).
 #[tauri::command]
-async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
-    let remembered = state.state.lock().unwrap().ports.get(&service).copied();
-    let (url, port) = state.proxies.open(state.identity.clone(), addr, fingerprint, service.clone(), remembered).await?;
+async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: String, view: String, service: String, page: String) -> Result<String, String> {
+    let remembered = state.state.lock().unwrap().ports.get(&view).copied();
+    let (url, port) = state.proxies.open(state.identity.clone(), addr, fingerprint, view.clone(), service, page, remembered).await?;
     if remembered != Some(port) {
         let mut st = state.state.lock().unwrap().clone();
-        st.ports.insert(service, port);
+        st.ports.insert(view, port);
         state.save(st)?;
     }
     Ok(url)
@@ -207,67 +209,67 @@ async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String
     state.proxies.open_files(state.identity.clone(), addr, fingerprint).await
 }
 
-/// A Service's page in a view of its own (decision 294, src/views.rs):
+/// A Service's Page in a view of its own (decision 294, src/views.rs):
 /// opened at `url` where the Console says, placed again as the Console's
 /// layout moves, shown or hidden, driven and asked for its colours.
 /// Opening and closing wait on the main thread, so they run off it: a
 /// sync command runs on the main thread and would wait for itself.
 #[tauri::command]
-async fn view_open(app: tauri::AppHandle, state: State<'_, AppState>, service: String, url: String, bounds: views::Bounds, shown: bool) -> Result<(), String> {
-    state.views.open(&app, &service, &url, bounds, shown)
+async fn view_open(app: tauri::AppHandle, state: State<'_, AppState>, view: String, url: String, bounds: views::Bounds, shown: bool) -> Result<(), String> {
+    state.views.open(&app, &view, &url, bounds, shown)
 }
 
 #[tauri::command]
-fn view_place(state: State<'_, AppState>, service: String, bounds: views::Bounds) -> Result<(), String> {
-    state.views.place(&service, bounds)
+fn view_place(state: State<'_, AppState>, view: String, bounds: views::Bounds) -> Result<(), String> {
+    state.views.place(&view, bounds)
 }
 
 #[tauri::command]
-fn view_show(state: State<'_, AppState>, service: String, shown: bool) -> Result<(), String> {
-    state.views.show(&service, shown)
+fn view_show(state: State<'_, AppState>, view: String, shown: bool) -> Result<(), String> {
+    state.views.show(&view, shown)
 }
 
 #[tauri::command]
-async fn view_close(state: State<'_, AppState>, service: String) -> Result<(), String> {
-    state.views.close(&service)
+async fn view_close(state: State<'_, AppState>, view: String) -> Result<(), String> {
+    state.views.close(&view)
 }
 
 #[tauri::command]
-fn view_navigate(state: State<'_, AppState>, service: String, url: String) -> Result<(), String> {
-    state.views.navigate(&service, &url)
+fn view_navigate(state: State<'_, AppState>, view: String, url: String) -> Result<(), String> {
+    state.views.navigate(&view, &url)
 }
 
 #[tauri::command]
-fn view_reload(state: State<'_, AppState>, service: String) -> Result<(), String> {
-    state.views.reload(&service)
+fn view_reload(state: State<'_, AppState>, view: String) -> Result<(), String> {
+    state.views.reload(&view)
 }
 
 #[tauri::command]
-fn view_stop(state: State<'_, AppState>, service: String) -> Result<(), String> {
-    state.views.stop(&service)
+fn view_stop(state: State<'_, AppState>, view: String) -> Result<(), String> {
+    state.views.stop(&view)
 }
 
-/// Dev tool: what a view (the main one for an empty `service`) shows, as a PNG.
+/// Dev tool: what a view (the main one for an empty `view`) shows, as a PNG.
 #[tauri::command]
-async fn view_snapshot(app: tauri::AppHandle, state: State<'_, AppState>, service: String, path: String) -> Result<(), String> {
-    views::snapshot_to(&app, &state.views, &service, path).await
+async fn view_snapshot(app: tauri::AppHandle, state: State<'_, AppState>, view: String, path: String) -> Result<(), String> {
+    views::snapshot_to(&app, &state.views, &view, path).await
 }
 
 /// Dev tool: a script's result in a view, as JSON.
 #[tauri::command]
-async fn view_eval(state: State<'_, AppState>, service: String, js: String) -> Result<String, String> {
-    views::eval_in(&state.views, &service, js).await
+async fn view_eval(state: State<'_, AppState>, view: String, js: String) -> Result<String, String> {
+    views::eval_in(&state.views, &view, js).await
 }
 
 /// Dev tool: end a view's web process, to see the Console take a crash.
 #[tauri::command]
-fn view_crash(state: State<'_, AppState>, service: String) -> Result<(), String> {
-    views::crash(&state.views, &service)
+fn view_crash(state: State<'_, AppState>, view: String) -> Result<(), String> {
+    views::crash(&state.views, &view)
 }
 
 #[tauri::command]
-async fn view_sample(state: State<'_, AppState>, service: String, cols: i32, rows: i32) -> Result<Vec<Vec<String>>, String> {
-    state.views.sample(&service, cols, rows).await
+async fn view_sample(state: State<'_, AppState>, view: String, cols: i32, rows: i32) -> Result<Vec<Vec<String>>, String> {
+    state.views.sample(&view, cols, rows).await
 }
 
 /// Save a file (or a folder as a zip) from a Node to `dest` on this computer.
@@ -549,7 +551,7 @@ pub fn run() {
             // reaches the Console as a view event.
             let handle = app.handle().clone();
             let proxies = proxy::Proxies::default();
-            proxies.set_reporter(move |service, event, url| views::report(&handle, service, event, url));
+            proxies.set_reporter(move |view, event, url| views::report(&handle, view, event, url));
             app.manage(AppState {
                 data_dir,
                 identity: Arc::new(identity),

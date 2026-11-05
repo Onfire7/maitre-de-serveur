@@ -21,6 +21,14 @@ export interface CatalogEntry {
   host_ports?: string[];
   port_forward?: boolean;
   web?: { port: number; path: string; component?: string };
+  /** Several web UIs (ADR 0010); given instead of web. The first is the
+   * Service's own at <service>.local, the others at <service>-<name>.local. */
+  pages?: { name: string; label?: string; port: number; path?: string; component?: string; health?: string }[];
+  /** Ports other Services may use beyond the pages' (a database, MQTT). */
+  ports?: string[];
+  /** The entry only carries other Services' traffic (a VPN client): other
+   * Services may join its network in their Setup (ADR 0010). */
+  tunnel?: boolean;
   volumes: { name: string; path: string; size?: string; shared?: boolean }[];
   /** device: a Node device the person picks (G5); format and bytes shape a generated secret (G7). */
   settings?: { key: string; label: string; type: string; default?: string; device?: string; format?: string; bytes?: number }[];
@@ -67,6 +75,14 @@ export function grantMatches(g: CatalogGrant, component: string, option: string)
 /** The entry's optional features, in the order declared. */
 export function features(e: Pick<CatalogEntry, "grants">): string[] {
   return [...new Set((e.grants ?? []).flatMap((g) => (g.optional ? [g.optional] : [])))];
+}
+
+/** The entry's Pages: `pages` as given, else `web` as one Page named "web"
+ * with the entry's health path. Mirrors the Go PagesOf. */
+export function entryPages(e: Pick<CatalogEntry, "pages" | "web" | "health">): { name: string; label?: string; port: number; path?: string; component?: string; health?: string }[] {
+  if (e.pages?.length) return e.pages;
+  if (!e.web) return [];
+  return [{ name: "web", port: e.web.port, path: e.web.path, component: e.web.component, health: e.health?.http }];
 }
 
 /** How a Service names the entry it came from: "jellyfin", or "<catalog>/<id>" for a user Catalog's. */
@@ -145,12 +161,16 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     quadlet: e.quadlet,
     infrastructure: e.infrastructure,
     hostPorts: e.host_ports ?? [],
-    webPort: e.web?.port ?? 0,
-    webPath: e.web?.path ?? "",
-    healthHttp: e.health?.http ?? "",
+    pages: entryPages(e).map((p) => ({ name: p.name, label: p.label ?? "", component: p.component ?? "", port: p.port, path: p.path ?? "", healthHttp: p.health ?? "" })),
+    // Mirrored for a Node from before Pages, which reads these.
+    webPort: entryPages(e)[0]?.port ?? 0,
+    webPath: entryPages(e)[0]?.path ?? "",
+    healthHttp: entryPages(e)[0]?.health ?? "",
+    ports: e.ports ?? [],
+    tunnel: !!e.tunnel,
     volumes: e.volumes.map((v) => ({ name: v.name, path: v.path, size: v.size ?? "", shared: !!v.shared })),
     components: (e.components ?? []).map((c) => ({ name: c.name, image: c.image, quadlet: c.quadlet, after: c.after ?? [], waitHealthy: !!c.wait_healthy, egress: !!c.egress })),
-    webComponent: e.web?.component ?? "",
+    webComponent: entryPages(e)[0]?.component ?? "",
     units: e.units ?? [],
     networkInternal: e.network === "internal",
     optionalGrants: Object.fromEntries(features(e).map((f) => [f, !without.includes(f)])),

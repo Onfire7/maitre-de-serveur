@@ -161,7 +161,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
           <ul className="flex flex-wrap gap-1.5">
             {mine.map((s) => (
               <li key={s.spec.name}>
-                <button onClick={() => open({ name: "service", service: s.spec.name })} className="flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent" title={`${s.spec.name} · ${s.word}`}>
+                <button onClick={() => open({ name: "page", service: s.spec.name, page: "" })} className="flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent" title={`${s.spec.name} · ${s.word}`}>
                   <ServiceIcon catalogId={s.spec.catalogId} word={s.word} size={18} />
                   {s.spec.name}
                 </button>
