@@ -61,6 +61,8 @@ const (
 	ServiceServicePreviewSetupProcedure = "/maitre.v1.ServiceService/PreviewSetup"
 	// ServiceServiceSetSetupProcedure is the procedure name of the ServiceService's SetSetup RPC.
 	ServiceServiceSetSetupProcedure = "/maitre.v1.ServiceService/SetSetup"
+	// ServiceServicePruneImagesProcedure is the procedure name of the ServiceService's PruneImages RPC.
+	ServiceServicePruneImagesProcedure = "/maitre.v1.ServiceService/PruneImages"
 )
 
 var (
@@ -169,6 +171,13 @@ var (
 			Procedure:  ServiceServiceSetSetupProcedure,
 		}
 	})
+	serviceServicePruneImagesSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("PruneImages"),
+			Procedure:  ServiceServicePruneImagesProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -230,6 +239,11 @@ type ServiceServiceClient interface {
 	// overrides. Saved, applied, and the Service restarted along with the
 	// Tunnel it joins or leaves and that Tunnel's other Services.
 	SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error)
+	// PruneImages deletes container images this Node's Services do not name
+	// (decision 316). Nothing has ever removed an image, so a Node holds every
+	// digest it has ever pulled, and a Node has no terminal: this is the only
+	// way the space comes back. Optional: older Nodes answer Unimplemented.
+	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -297,6 +311,11 @@ type ServiceServiceHandler interface {
 	// overrides. Saved, applied, and the Service restarted along with the
 	// Tunnel it joins or leaves and that Tunnel's other Services.
 	SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error)
+	// PruneImages deletes container images this Node's Services do not name
+	// (decision 316). Nothing has ever removed an image, so a Node holds every
+	// digest it has ever pulled, and a Node has no terminal: this is the only
+	// way the space comes back. Optional: older Nodes answer Unimplemented.
+	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -319,6 +338,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServiceListDevicesSpec(), Handler: adapter.listDevices},
 		connect.Method{Spec: serviceServicePreviewSetupSpec(), Handler: adapter.previewSetup},
 		connect.Method{Spec: serviceServiceSetSetupSpec(), Handler: adapter.setSetup},
+		connect.Method{Spec: serviceServicePruneImagesSpec(), Handler: adapter.pruneImages},
 	)
 }
 
@@ -383,6 +403,10 @@ func (UnimplementedServiceServiceHandler) PreviewSetup(context.Context, *v1.Prev
 
 func (UnimplementedServiceServiceHandler) SetSetup(context.Context, *v1.SetSetupRequest) (*v1.SetSetupResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.SetSetup is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.PruneImages is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -504,6 +528,14 @@ func (c *serviceServiceClient) PreviewSetup(ctx context.Context, req *v1.Preview
 func (c *serviceServiceClient) SetSetup(ctx context.Context, req *v1.SetSetupRequest) (*v1.SetSetupResponse, error) {
 	var res v1.SetSetupResponse
 	if err := c.client.CallUnary(ctx, serviceServiceSetSetupSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) PruneImages(ctx context.Context, req *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
+	var res v1.PruneImagesResponse
+	if err := c.client.CallUnary(ctx, serviceServicePruneImagesSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -685,6 +717,18 @@ func (h serviceServiceHandler) setSetup(ctx context.Context, _ connect.Spec, str
 		return err
 	}
 	res, err := h.svc.SetSetup(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) pruneImages(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.PruneImagesRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.PruneImages(ctx, &req)
 	if err != nil {
 		return err
 	}

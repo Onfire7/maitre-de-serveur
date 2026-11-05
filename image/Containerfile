@@ -54,6 +54,9 @@ COPY image/kargs.d/ /usr/lib/bootc/kargs.d/
 # Health-gated updates (Milestone 6): greenboot runs the check after every
 # boot and falls back to the previous image after repeated failures.
 COPY image/greenboot/10-maitre.sh /etc/greenboot/check/required.d/10-maitre.sh
+# Decision 324: a wanted check, so a full root is reported without greenboot
+# rolling the image back over it, which would free nothing.
+COPY image/greenboot/20-maitre-space.sh /etc/greenboot/check/wanted.d/20-maitre-space.sh
 COPY image/greenboot/red-maitre.sh /etc/greenboot/red.d/10-maitre.sh
 COPY image/logind.conf /usr/lib/systemd/logind.conf.d/10-maitre.conf
 COPY image/tlshd.conf /etc/tlshd/config

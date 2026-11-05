@@ -32,6 +32,19 @@ func newManager(t *testing.T) (*services.Manager, *store.Store, string, *fakeRun
 	return m, st, dir, run
 }
 
+// managerOver is newManager with a runner of the caller's own, for tests
+// that script podman's answers.
+func managerOver(t *testing.T, run services.Runner) (*services.Manager, *store.Store) {
+	t.Helper()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	t.Cleanup(func() { st.Close() })
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	_ = os.MkdirAll(filepath.Join(pools, "general"), 0o755)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	return m, st
+}
+
 func unitOf(t *testing.T, dir, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, "units", name))
@@ -280,5 +293,57 @@ func TestPages(t *testing.T) {
 	}
 	if st2.GetSpec().GetPages()[0].GetHostPort() != p[1].GetHostPort() || st2.GetSpec().GetPages()[1].GetHostPort() == 0 || st2.GetPages()[0].GetUrl() != "http://immich.local/admin" {
 		t.Errorf("after setup: %v %v", st2.GetSpec().GetPages(), st2.GetPages())
+	}
+}
+
+// Decisions 315-321: a Service that cannot start re-pulls its image on every
+// restart, and systemd's default burst of five over ten seconds never catches
+// a failing pull, which takes far longer than the window. Avalon looped ~1800
+// times that way.
+func TestAFailingServiceGivesUpInsteadOfPullingForever(t *testing.T) {
+	ctx := context.Background()
+	m, _, dir, _ := newManager(t)
+	if _, err := m.Install(ctx, single("jellyfin", 8096)); err != nil {
+		t.Fatal(err)
+	}
+	u := unitOf(t, dir, "jellyfin.container")
+	head, _, found := strings.Cut(u, "\n[Service]")
+	if !found {
+		t.Fatalf("no [Service] section in\n%s", u)
+	}
+	for _, want := range []string{"StartLimitIntervalSec=1h", "StartLimitBurst=5"} {
+		if !strings.Contains(head, want) {
+			t.Errorf("unit is missing %s before [Service]:\n%s", want, head)
+		}
+	}
+}
+
+// A unit held down by that limit refuses a plain start, so asking again
+// clears the counter first.
+func TestStartingAHeldDownServiceClearsItsLimit(t *testing.T) {
+	ctx := context.Background()
+	m, _, _, run := newManager(t)
+	if _, err := m.Install(ctx, single("jellyfin", 8096)); err != nil {
+		t.Fatal(err)
+	}
+
+	run.cmds = nil
+	if _, err := m.Control(ctx, &maitrev1.ControlServiceRequest{Name: "jellyfin", Action: maitrev1.ControlServiceRequest_ACTION_START}); err != nil {
+		t.Fatal(err)
+	}
+	var reset, start int
+	for i, c := range run.cmds {
+		if strings.HasPrefix(c, "systemctl reset-failed") {
+			reset = i + 1
+		}
+		if strings.HasPrefix(c, "systemctl start") {
+			start = i + 1
+		}
+	}
+	if reset == 0 {
+		t.Fatalf("Start did not clear the start limit: %v", run.cmds)
+	}
+	if start == 0 || reset > start {
+		t.Errorf("reset-failed must come before start: %v", run.cmds)
 	}
 }

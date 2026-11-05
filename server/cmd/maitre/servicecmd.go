@@ -89,13 +89,14 @@ func runService(args []string) error {
 	wait := fs.Duration("wait", 0, "install: wait up to this long for the Service to be running and healthy")
 	setFlags := fs.String("set", "", "install: settings as key=value,key=value")
 	deleteData := fs.Bool("delete-data", false, "remove: also delete the Service's volumes")
+	dropRollback := fs.Bool("drop-rollback", false, "prune: also delete each Service's previous_image, its Rollback target (decision 320)")
 	allow := fs.Bool("allow", false, "install: sign, as this device, the grants the entry needs (decision 189), as the Console's Allow does")
 	without := fs.String("without", "", "install: the entry's optional features to leave out, comma separated (docs/popularity-and-grants.md, G8)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
@@ -186,6 +187,23 @@ func runService(args []string) error {
 				}
 			}
 			return fmt.Errorf("service did not become healthy within %s", *wait)
+		}
+	case "prune":
+		// Decision 316: a Node has no terminal, so this is the only way to
+		// get the image store's space back.
+		res, err := c.PruneImages(ctx, &maitrev1.PruneImagesRequest{KeepRollback: !*dropRollback})
+		if err != nil {
+			return err
+		}
+		gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
+		fmt.Printf("store %s\n", res.GetStoreDir())
+		fmt.Printf("free  %.1f GiB before, %.1f GiB after: %.1f GiB back\n",
+			gib(res.GetFreeBeforeBytes()), gib(res.GetFreeAfterBytes()),
+			gib(res.GetFreeAfterBytes()-res.GetFreeBeforeBytes()))
+		fmt.Printf("kept  %d image(s) this Node's Services name\n", res.GetKept())
+		fmt.Printf("removed %d:\n", len(res.GetRemoved()))
+		for _, r := range res.GetRemoved() {
+			fmt.Printf("  %s\n", r)
 		}
 	case "list":
 		res, err := c.ListServices(ctx, &maitrev1.ListServicesRequest{})

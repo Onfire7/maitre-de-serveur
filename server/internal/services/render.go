@@ -103,6 +103,15 @@ func renderContainer(spec *maitrev1.ServiceSpec, c comp, vols map[string]string,
 	for _, w := range plan.wants {
 		add("Wants=" + w)
 	}
+	// A Service that cannot start pulls its image again on every restart, so
+	// a failure that never resolves costs bandwidth without end (decisions
+	// 315-321: Avalon spent about 3 TB over 20 hours that way). systemd's own
+	// default burst of five is measured over ten seconds, which a failing
+	// pull far outlasts — the window never holds five starts — so the limit
+	// is taken over an hour instead, where it bites. Control's Start clears
+	// it, since a unit stopped by the limit refuses a plain start.
+	add("StartLimitIntervalSec=1h")
+	add("StartLimitBurst=5")
 	add("")
 	out = append(out, container...)
 	if spec.GetTunnel() && !parsed.HasKey("Container", "ContainerName") {

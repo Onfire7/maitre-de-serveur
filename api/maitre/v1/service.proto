@@ -66,6 +66,32 @@ service ServiceService {
   // overrides. Saved, applied, and the Service restarted along with the
   // Tunnel it joins or leaves and that Tunnel's other Services.
   rpc SetSetup(SetSetupRequest) returns (SetSetupResponse) {}
+  // PruneImages deletes container images this Node's Services do not name
+  // (decision 316). Nothing has ever removed an image, so a Node holds every
+  // digest it has ever pulled, and a Node has no terminal: this is the only
+  // way the space comes back. Optional: older Nodes answer Unimplemented.
+  rpc PruneImages(PruneImagesRequest) returns (PruneImagesResponse) {}
+}
+
+message PruneImagesRequest {
+  // Keep each Service's previous_image, the target its Rollback needs
+  // (decision 320). False drops them: the space comes back and Rollback
+  // does not.
+  bool keep_rollback = 1;
+}
+
+message PruneImagesResponse {
+  // Free bytes on the image store's own filesystem, before and after. The
+  // difference is what came back, which is what a shared layer makes
+  // smaller than the images removed suggest.
+  uint64 free_before_bytes = 1;
+  uint64 free_after_bytes = 2;
+  // What was removed, newest name first, and how many images were kept
+  // because a Service names them.
+  repeated string removed = 3;
+  uint32 kept = 4;
+  // The store this reports on, e.g. /var/lib/containers/storage.
+  string store_dir = 5;
 }
 
 message PreviewSetupRequest {

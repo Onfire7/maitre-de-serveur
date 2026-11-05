@@ -114,7 +114,7 @@ func (m *Manager) validateNetwork(ctx context.Context, spec *maitrev1.ServiceSpe
 // dependants are the live Services that join name's network, Tunnel or
 // not, on this Node.
 func (m *Manager) dependants(ctx context.Context, name string) []*maitrev1.ServiceSpec {
-	specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	specs, _ := m.mine(ctx)
 	var out []*maitrev1.ServiceSpec
 	for _, s := range specs {
 		if s.GetNetworkTarget() == name && s.GetName() != name && (s.GetNetworkKind() == NetworkTunnel || s.GetNetworkKind() == NetworkService) {

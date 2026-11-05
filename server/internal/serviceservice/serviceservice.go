@@ -265,3 +265,12 @@ func mapErr(err error) error {
 	}
 	return connect.Errorf(connect.CodeInternal, "%v", err)
 }
+
+// PruneImages implements ServiceService.
+func (s *Service) PruneImages(ctx context.Context, req *maitrev1.PruneImagesRequest) (*maitrev1.PruneImagesResponse, error) {
+	res, err := s.mgr.PruneImages(ctx, req.GetKeepRollback())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return res, nil
+}

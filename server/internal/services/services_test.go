@@ -24,12 +24,17 @@ import (
 type fakeRunner struct {
 	cmds  []string
 	state string
+	load  string // systemd LoadState; "" means a unit this Node has
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string, error) {
 	f.cmds = append(f.cmds, name+" "+strings.Join(args, " "))
 	if name == "systemctl" && len(args) > 1 && args[0] == "show" {
-		return "ActiveState=" + f.state + "\nSubState=running\nNRestarts=2\nResult=success\nExecMainStartTimestamp=Fri 2026-10-24 10:00:00 UTC\n", nil
+		load := f.load
+		if load == "" {
+			load = "loaded"
+		}
+		return "LoadState=" + load + "\nActiveState=" + f.state + "\nSubState=running\nNRestarts=2\nResult=success\nExecMainStartTimestamp=Fri 2026-10-24 10:00:00 UTC\n", nil
 	}
 	if name == "podman" && len(args) > 1 && args[0] == "image" && args[1] == "inspect" {
 		return "sha256:" + strings.Repeat("c", 64) + "\n", nil
@@ -300,5 +305,132 @@ func TestInstallClaimsTombstoneOfAnotherNode(t *testing.T) {
 	spec.Name = "taken"
 	if _, err := m.Install(ctx, spec); !errors.Is(err, services.ErrExists) {
 		t.Fatalf("live record of another Node: %v", err)
+	}
+}
+
+// Decision 318: a Service Record is Fleet-wide, so every Node stores every
+// Node's Services. Boulder listed all sixteen of Avalon's as STOPPED, and
+// its daily auto-update pulled ~25 images for Services it has never run.
+func TestOnlyThisNodesServicesAreListedAndUpdated(t *testing.T) {
+	ctx := context.Background()
+	m, st, _, run := newManager(t)
+
+	mine := single("jellyfin", 8096)
+	mine.AutoUpdate = true
+	if _, err := m.Install(ctx, mine); err != nil {
+		t.Fatal(err)
+	}
+	theirs := single("memos", 5230)
+	theirs.NodeId, theirs.Address, theirs.AutoUpdate = "node-b", "10.90.0.50", true
+	if _, err := st.Put(ctx, services.KindService, theirs.GetName(), theirs, true); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := m.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, s := range list {
+		names = append(names, s.GetSpec().GetName())
+	}
+	if len(names) != 1 || names[0] != "jellyfin" {
+		t.Fatalf("List gave %v, want only this Node's jellyfin", names)
+	}
+
+	run.cmds = nil
+	m.AutoUpdate(ctx)
+	var pulls []string
+	for _, c := range run.cmds {
+		if strings.HasPrefix(c, "podman pull") {
+			pulls = append(pulls, c)
+		}
+	}
+	if len(pulls) == 0 {
+		t.Fatal("auto-update pulled nothing for this Node's jellyfin")
+	}
+	for _, p := range pulls {
+		if strings.Contains(p, "memos") {
+			t.Errorf("auto-update pulled for another Node's Service: %s", p)
+		}
+	}
+}
+
+// Decision 315: a Service that is not running is left until it is started,
+// so a daily check costs no bandwidth for what nothing waits on.
+func TestAutoUpdateLeavesAStoppedServiceAlone(t *testing.T) {
+	ctx := context.Background()
+	m, _, _, run := newManager(t)
+	spec := single("jellyfin", 8096)
+	spec.AutoUpdate = true
+	if _, err := m.Install(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+
+	run.state, run.cmds = "inactive", nil
+	m.AutoUpdate(ctx)
+	for _, c := range run.cmds {
+		if strings.HasPrefix(c, "podman pull") {
+			t.Errorf("auto-update pulled for a stopped Service: %s", c)
+		}
+	}
+}
+
+// Decision 318: systemd answers for a unit it does not have with
+// ActiveState=inactive, which read as a Service deliberately stopped.
+func TestAUnitThisNodeDoesNotHaveSaysSo(t *testing.T) {
+	ctx := context.Background()
+	m, _, _, run := newManager(t)
+	if _, err := m.Install(ctx, single("jellyfin", 8096)); err != nil {
+		t.Fatal(err)
+	}
+
+	run.state, run.load = "inactive", "not-found"
+	list, err := m.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("want one Service, got %d", len(list))
+	}
+	if got := list[0].GetState(); got != maitrev1.ServiceStatus_STATE_STOPPED {
+		t.Errorf("state %v, want STOPPED", got)
+	}
+	if msg := list[0].GetMessage(); !strings.Contains(msg, "not installed on this Node") {
+		t.Errorf("message %q, want it to say the unit is not installed here", msg)
+	}
+}
+
+// Decision 318: the refusal named a repair the user cannot make. Another
+// Node's Service is not unsigned; it is simply not this Node's.
+func TestRefusingAnotherNodesServiceNamesItsOwner(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := &fakeRunner{state: "active"}
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"),
+		PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000,
+		Authentic: func(*maitrev1.Record) bool { return false }}, st, run)
+
+	theirs := single("memos", 5230)
+	theirs.NodeId, theirs.Address = "node-bbbbbbbbbbbb", "10.90.0.50"
+	if _, err := st.Put(ctx, services.KindService, theirs.GetName(), theirs, true); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := m.Update(ctx, theirs)
+	if err == nil {
+		t.Fatal("updating another Node's Service was allowed")
+	}
+	if !strings.Contains(err.Error(), "belongs to another Node") || !strings.Contains(err.Error(), "node-bbb") {
+		t.Errorf("error %q, want it to name the owning Node", err)
+	}
+	if strings.Contains(err.Error(), "install it again") {
+		t.Errorf("error %q still advises a repair that is not the user's to make", err)
 	}
 }

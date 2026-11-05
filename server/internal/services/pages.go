@@ -9,7 +9,6 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/direct"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
 // DirectPages is a Service's Pages as the direct package wants them.
@@ -128,7 +127,9 @@ func validatePages(spec *maitrev1.ServiceSpec) error {
 // Pages, by port.
 func (m *Manager) usedHostPorts(ctx context.Context, except string) map[int]string {
 	used := map[int]string{}
-	specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	// A loopback port is this Node's own: another Node's Pages do not hold
+	// one here (decision 318).
+	specs, _ := m.mine(ctx)
 	for _, s := range specs {
 		if s.GetName() == except {
 			continue

@@ -356,6 +356,17 @@ func (m *Manager) owner(ctx context.Context, space string) uint32 {
 // unit already installed, if any, stays as it was.
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	if rec, err := m.store.Raw(ctx, KindService, spec.GetName()); err == nil && !rec.GetDeleted() && m.cfg.Authentic != nil && !m.cfg.Authentic(rec) {
+		// Decision 318: the common way here was another Node's Service,
+		// which this Node should never have been acting on; say whose it
+		// is rather than advise a repair that would not be the user's to
+		// make. A record of this Node that is genuinely unsigned (from
+		// before 189) still asks to be installed again.
+		if owner := spec.GetNodeId(); owner != "" && owner != m.store.NodeID() {
+			if len(owner) > 8 {
+				owner = owner[:8]
+			}
+			return fmt.Errorf("%s belongs to another Node (%s), which runs and updates it", spec.GetName(), owner)
+		}
 		return fmt.Errorf("%s: its record is not signed by this Node; remove and install it again", spec.GetName())
 	}
 	vols, extra, err := m.layout(ctx, spec)
@@ -879,6 +890,11 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 	unit := lifecycleUnit(&spec)
 	switch req.GetAction() {
 	case maitrev1.ControlServiceRequest_ACTION_START:
+		// A unit held down by its start limit (render.go) refuses a plain
+		// start with "start request repeated too quickly", which would make
+		// the Console's Start look broken. Asking again is the user saying
+		// to try now, so the counter is cleared first.
+		_, _ = m.run.Run(ctx, "systemctl", "reset-failed", unit)
 		_, err := m.run.Run(ctx, "systemctl", "start", "--no-block", unit)
 		if err != nil {
 			return nil, err
@@ -1013,14 +1029,20 @@ func (m *Manager) Update(ctx context.Context, spec *maitrev1.ServiceSpec) (bool,
 	return true, nil
 }
 
-// AutoUpdate runs Update on every Service that asked for it.
+// AutoUpdate runs Update on every Service of this Node that asked for it.
+// Decision 318: another Node's Services are not this Node's to pull for, and
+// decision 315: a Service that is not running is left until it is started,
+// so a daily check costs nothing for what nothing is waiting on.
 func (m *Manager) AutoUpdate(ctx context.Context) {
-	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	specs, err := m.mine(ctx)
 	if err != nil {
 		return
 	}
 	for _, sp := range specs {
 		if !sp.GetAutoUpdate() {
+			continue
+		}
+		if st, err := m.Status(ctx, sp); err != nil || st.GetState() != maitrev1.ServiceStatus_STATE_RUNNING {
 			continue
 		}
 		if changed, err := m.Update(ctx, sp); err != nil && m.cfg.Log != nil {
@@ -1291,8 +1313,28 @@ func (m *Manager) checkExposure(ctx context.Context, name string, spec *maitrev1
 }
 
 // List returns every Service on this Node with status.
-func (m *Manager) List(ctx context.Context) ([]*maitrev1.ServiceStatus, error) {
+// mine is the live Services this Node owns. Decision 318: a Service Record
+// is Fleet-wide, so every Node stores every Node's Services; anything that
+// acts on a Service, reports it, or spends bandwidth for it must take its
+// own. Checks that are Fleet-wide by nature — an address unique across every
+// Node, a name claim — keep using store.ListLive directly.
+func (m *Manager) mine(ctx context.Context) ([]*maitrev1.ServiceSpec, error) {
 	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	if err != nil {
+		return nil, err
+	}
+	self := m.store.NodeID()
+	out := make([]*maitrev1.ServiceSpec, 0, len(specs))
+	for _, s := range specs {
+		if s.GetNodeId() == self {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+func (m *Manager) List(ctx context.Context) ([]*maitrev1.ServiceStatus, error) {
+	specs, err := m.mine(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1387,11 +1429,18 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 // failure, a reason.
 func (m *Manager) showUnit(ctx context.Context, unit string) (state maitrev1.ServiceStatus_State, restarts uint32, startedUnixMs int64, message string, err error) {
 	out, err := m.run.Run(ctx, "systemctl", "show", unit,
-		"-p", "ActiveState", "-p", "SubState", "-p", "NRestarts", "-p", "Result", "-p", "ExecMainStartTimestamp")
+		"-p", "LoadState", "-p", "ActiveState", "-p", "SubState", "-p", "NRestarts", "-p", "Result", "-p", "ExecMainStartTimestamp")
 	if err != nil {
 		return 0, 0, 0, "", err
 	}
 	props := parseProps(out)
+	// Decision 318: systemd answers for a unit it does not have with
+	// ActiveState=inactive, which would read as a Service deliberately
+	// stopped. The Record is this Node's but nothing was ever written for
+	// it, so say so: Start cannot help, applying it again can.
+	if props["LoadState"] == "not-found" {
+		return maitrev1.ServiceStatus_STATE_STOPPED, 0, 0, "not installed on this Node", nil
+	}
 	switch props["ActiveState"] {
 	case "active":
 		state = maitrev1.ServiceStatus_STATE_RUNNING
