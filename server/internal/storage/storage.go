@@ -48,6 +48,11 @@ type Manager struct {
 	Mounts string
 	// OnChange runs after a Drive record changed (pool reassembly, sync).
 	OnChange func()
+	// DataPoolEligible says whether the OS disk's data partition may join
+	// a Pool, which is what the Installer's data_partition flag now means
+	// (decision 321). False tags it no-pool when it is adopted: it holds
+	// the container image store and nothing of the user's.
+	DataPoolEligible bool
 }
 
 // New builds a Manager. A nil Runner means real commands.
@@ -303,6 +308,13 @@ func (m *Manager) AdoptInternal(ctx context.Context) (bool, error) {
 		rec := &maitrev1.DriveRecord{
 			DriveId: d.GetDriveId(), NodeId: m.st.NodeID(), Name: name, Model: d.GetModel(), Serial: d.GetSerial(),
 			SizeBytes: d.GetSizeBytes(), Fstype: d.GetFstype(), AutoTags: d.GetAutoTags(), Origin: OriginInternal, AddedUnixMs: time.Now().UnixMilli(),
+		}
+		// Decision 321: this partition is always made, because decision 319
+		// puts the image store on it. Whether it may also hold the user's
+		// data in a Pool is what the Installer's flag said; without it the
+		// Drive is the Node's own and no Space takes it.
+		if !m.DataPoolEligible {
+			rec.Tags = append(rec.Tags, TagNoPool)
 		}
 		if err := m.Mount(ctx, rec); err != nil {
 			return false, err

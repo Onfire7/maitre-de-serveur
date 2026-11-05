@@ -71,8 +71,29 @@ service ServiceService {
   // digest it has ever pulled, and a Node has no terminal: this is the only
   // way the space comes back. Optional: older Nodes answer Unimplemented.
   rpc PruneImages(PruneImagesRequest) returns (PruneImagesResponse) {}
+  // Decision 319: move the image store off the root partition, onto the
+  // OS disk's data partition or the largest Drive of the default Pool.
+  // Asked for rather than done at boot: the copy is large, and removing
+  // the old store under a running container would break it, so this Node's
+  // Services are stopped for the move and started again after.
+  rpc MoveImageStore(MoveImageStoreRequest) returns (MoveImageStoreResponse) {}
 }
 
+message MoveImageStoreRequest {
+  // Where to put it; empty lets the Node choose, which is what the Console
+  // asks for.
+  string dir = 1;
+}
+message MoveImageStoreResponse {
+  string from = 1;
+  string to = 2;
+  uint64 moved_bytes = 3;
+  // The root filesystem before and after, which is the point of the move.
+  uint64 root_free_before_bytes = 4;
+  uint64 root_free_after_bytes = 5;
+  // Services stopped for the move and started again after.
+  repeated string services = 6;
+}
 message PruneImagesRequest {
   // Keep each Service's previous_image, the target its Rollback needs
   // (decision 320). False drops them: the space comes back and Rollback

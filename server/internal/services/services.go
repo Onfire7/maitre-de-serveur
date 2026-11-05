@@ -93,6 +93,11 @@ type Config struct {
 	// this Node. Nil accepts every Record (tests).
 	DeviceSigned func(ctx context.Context, rec *maitrev1.Record) bool
 	Authentic    func(rec *maitrev1.Record) bool
+	// ImageStore picks where podman's image store belongs (decision 319):
+	// the OS disk's data partition, or the largest Drive of the default
+	// Pool, and "" when this Node has no Drive at all. Nil means the Node
+	// cannot choose and the store stays where podman puts it.
+	ImageStore func(ctx context.Context) (string, error)
 	// FreeBytes is the free space of the filesystem holding a path, which
 	// the guards before a pull and the prune both measure. Nil asks the
 	// real filesystem; tests say what a store has left without one.

@@ -90,13 +90,14 @@ func runService(args []string) error {
 	setFlags := fs.String("set", "", "install: settings as key=value,key=value")
 	deleteData := fs.Bool("delete-data", false, "remove: also delete the Service's volumes")
 	dropRollback := fs.Bool("drop-rollback", false, "prune: also delete each Service's previous_image, its Rollback target (decision 320)")
+	storeDir := fs.String("store-dir", "", "move-image-store: where to put it; empty lets the Node choose (decision 319)")
 	allow := fs.Bool("allow", false, "install: sign, as this device, the grants the entry needs (decision 189), as the Console's Allow does")
 	without := fs.String("without", "", "install: the entry's optional features to leave out, comma separated (docs/popularity-and-grants.md, G8)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune|move-image-store>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
@@ -204,6 +205,22 @@ func runService(args []string) error {
 		fmt.Printf("removed %d:\n", len(res.GetRemoved()))
 		for _, r := range res.GetRemoved() {
 			fmt.Printf("  %s\n", r)
+		}
+	case "move-image-store":
+		// Decision 319: off the root partition, which was never sized for
+		// it. The Services of this Node stop for the copy and start again.
+		res, err := c.MoveImageStore(ctx, &maitrev1.MoveImageStoreRequest{Dir: *storeDir})
+		if err != nil {
+			return err
+		}
+		gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
+		fmt.Printf("store %s -> %s\n", res.GetFrom(), res.GetTo())
+		fmt.Printf("moved %.1f GiB\n", gib(res.GetMovedBytes()))
+		fmt.Printf("root  %.1f GiB free before, %.1f GiB after: %.1f GiB back\n",
+			gib(res.GetRootFreeBeforeBytes()), gib(res.GetRootFreeAfterBytes()),
+			gib(res.GetRootFreeAfterBytes()-res.GetRootFreeBeforeBytes()))
+		if len(res.GetServices()) > 0 {
+			fmt.Printf("restarted %d: %s\n", len(res.GetServices()), strings.Join(res.GetServices(), ", "))
 		}
 	case "list":
 		res, err := c.ListServices(ctx, &maitrev1.ListServicesRequest{})

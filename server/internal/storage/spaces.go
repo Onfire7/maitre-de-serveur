@@ -84,7 +84,13 @@ func Copies(b *maitrev1.Space) int {
 
 // Drive roles (DriveRecord.role, ADR 0009).
 const (
-	RoleData     = "data"
+	RoleData = "data"
+	// TagNoPool marks a Drive that exists for the Node's own use and is
+	// not the user's storage: decision 321 always makes the OS disk's data
+	// partition, because decision 319 puts the container image store on
+	// it, and the Installer's flag now says only whether it may also join
+	// a Pool. Without the flag it carries this tag and no Space takes it.
+	TagNoPool    = "no-pool"
 	RoleParity   = "parity"
 	RoleMirrored = "mirrored"
 )
@@ -136,6 +142,9 @@ func matches(b *maitrev1.Space, d *maitrev1.DriveRecord) bool {
 	}
 	for _, t := range d.GetTags() {
 		have[t] = true
+	}
+	if have[TagNoPool] {
+		return false
 	}
 	for _, need := range b.GetRequireTags() {
 		if !have[need] {

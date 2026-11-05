@@ -45,6 +45,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/imagestore"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mdns"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/metrics"
@@ -337,6 +338,40 @@ func runAgent(args []string) error {
 		}
 		return out
 	}
+	// Decision 319: where the image store belongs on this Node — the OS
+	// disk's data partition when the Installer made one, otherwise the
+	// largest Drive of the default Pool, and nowhere at all until the Node
+	// has a Drive, which is also when it can run no Service.
+	imageStoreDir := func(ctx context.Context) (string, error) {
+		recs, err := store.ListLive(ctx, st, storage.KindDrive, func() *maitrev1.DriveRecord { return &maitrev1.DriveRecord{} })
+		if err != nil {
+			return "", err
+		}
+		spaces, _ := storage.Spaces(ctx, st)
+		def := defaultSpace(ctx)
+		var cands []imagestore.Candidate
+		for _, d := range recs {
+			if d.GetNodeId() != id.Fingerprint() || storage.RoleOf(d) == storage.RoleParity {
+				continue // parity Drives hold parity and nothing else
+			}
+			dir := filepath.Join(pool.DrivesDir, d.GetDriveId())
+			if !isMountpoint(dir) {
+				continue
+			}
+			inDefault := false
+			for _, sp := range storage.SpacesOf(d, spaces) {
+				if sp == def {
+					inDefault = true
+				}
+			}
+			cands = append(cands, imagestore.Candidate{
+				Mount: dir, SizeBytes: d.GetSizeBytes(),
+				Internal:      d.GetOrigin() == storage.OriginInternal,
+				InDefaultPool: inDefault,
+			})
+		}
+		return imagestore.Choose(cands), nil
+	}
 	// Decision 317: the filesystem the images are on, which decision 319
 	// moves off root. Resolved by the Manager and cached there.
 	collector.ImageStoreDir = func() string {
@@ -477,7 +512,7 @@ func runAgent(args []string) error {
 		}
 		return 0
 	}
-	mgr = services.New(services.Config{UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
+	mgr = services.New(services.Config{ImageStore: imageStoreDir, UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
 		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf, ValidateUnits: true,
 		LocalPool: func(ctx context.Context, space string) (string, bool) {
 			spaces, _ := storage.Spaces(ctx, st)
@@ -548,6 +583,11 @@ func runAgent(args []string) error {
 	stor := storage.New(st, nil)
 	// The Installer's data partition is the Node's built-in Drive: recorded
 	// once, then treated like any other (name, tags, Tier rules).
+	// Decision 321: what the Installer's flag recorded, which decides
+	// whether the data partition may join a Pool or is the Node's own.
+	if _, err := os.Stat(filepath.Join(*state, installer.DataPoolFile)); err == nil {
+		stor.DataPoolEligible = true
+	}
 	if wrote, err := stor.AdoptInternal(ctx); err != nil {
 		log.Warn("built-in drive", "err", err)
 	} else if wrote {
@@ -1032,6 +1072,12 @@ func runAgent(args []string) error {
 		withPublicApplied()
 		publish()
 	}
+	// Decision 319: the image store belongs off the root partition, which
+	// was never sized for it. Before Migrate, so a Service whose unit is
+	// written again does not pull into the old place; configuration only,
+	// since moving a store that already holds images is MoveImageStore's
+	// job and not a thing to do silently at boot.
+	mgr.EnsureImageStore(ctx)
 	// ADR 0010: the shared network takes the Fleet's subnet, every Service
 	// of this Node its address, and units from before are written again.
 	mgr.Migrate(ctx)

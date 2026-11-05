@@ -63,8 +63,27 @@ type Runner interface {
 const (
 	ConfigLabel = "maitre-config"
 	DataLabel   = "maitre-data"
-	// RootSize leaves room for the config and data partitions after the OS;
-	// a disk too small for it gets what it can spare (decision 269).
+	// RootFactor sizes the root partition at a multiple of the OS image
+	// (decision 321), which is what actually has to fit there: two
+	// deployments of it (ostree hardlinks what they share, so the second
+	// costs well under one), the ~110% an update stages (decision 324),
+	// a rescue boot of the same image at no extra cost (decision 325),
+	// the journal systemd caps at a tenth of the filesystem, and /var.
+	// The flat 32 GiB it replaces took half of a 64 GiB disk and still
+	// had no room for the container image store, which decision 319 moves
+	// off root entirely.
+	RootFactor = 6
+	// DefaultImageSize stands in when the image cannot be measured: about
+	// 2 GB installed, which is what MinRoot was reasoned from.
+	DefaultImageSize = 2 << 30
+	// DataPoolFile, in the state directory, means the OS disk's data
+	// partition may join a Pool (decision 321). Absent, it is the Node's
+	// own storage: it holds the image store and no Space takes it.
+	DataPoolFile = "data-pool"
+	// MaxRoot is the cap: no Node needs more root than this, however big
+	// its disk or its image. RootSize is the same number as bootc wants
+	// it, used when the disk cannot be measured at all.
+	MaxRoot  = 32 << 30
 	RootSize = "32G"
 	// MinRoot is the least the OS partition may be: the image is about 2 GB
 	// installed, and updates keep a second copy.
@@ -416,9 +435,9 @@ func (r *BootcRunner) releaseDisk(ctx context.Context, disk string) {
 	_ = r.exec(ctx, io.Discard, "udevadm", "settle")
 }
 
-// rootSize is bootc's --root-size for the target: RootSize when the disk
-// has room for it and the partitions added after, less on a small disk
-// (a 29 GiB USB stick), and an error when even MinRoot does not fit.
+// rootSize is bootc's --root-size for the target: six times the OS image
+// (decision 321), capped at RootSize, less on a small disk (a 29 GiB USB
+// stick), and an error when even MinRoot does not fit.
 func (r *BootcRunner) rootSize(ctx context.Context, plan Plan) (string, error) {
 	var out strings.Builder
 	if err := r.exec(ctx, &out, "lsblk", "-bdno", "SIZE", plan.TargetDisk); err != nil {
@@ -428,25 +447,65 @@ func (r *BootcRunner) rootSize(ctx context.Context, plan Plan) (string, error) {
 	if err != nil || size <= 0 {
 		return RootSize, nil
 	}
-	return rootSizeFor(size, plan.DataPartition)
+	return rootSizeFor(size, r.imageSize(ctx, plan))
+}
+
+// imageSize is how much of a filesystem the OS image takes once installed,
+// which is what root has to hold several of. The media path has it for
+// free, since `podman pull` of the image runs before this; the netboot
+// path has not fetched anything yet, so skopeo's layer sizes stand in, and
+// a documented constant stands in for that.
+func (r *BootcRunner) imageSize(ctx context.Context, plan Plan) int64 {
+	if plan.ImageRef == "" {
+		return DefaultImageSize
+	}
+	var out strings.Builder
+	if err := r.exec(ctx, &out, "podman", "image", "inspect", "--format", "{{.Size}}", plan.ImageRef); err == nil {
+		if n, err := strconv.ParseInt(strings.TrimSpace(out.String()), 10, 64); err == nil && n > 0 {
+			return n
+		}
+	}
+	// Not in the local store: ask the registry for the manifest and add
+	// up its layers. Compressed, so it understates, which is why the
+	// factor is generous and the result is floored at the constant.
+	out.Reset()
+	if err := r.exec(ctx, &out, "skopeo", "inspect", "--format", "{{range .LayersData}}{{.Size}}\n{{end}}", "docker://"+plan.ImageRef); err == nil {
+		var total int64
+		for _, line := range strings.Fields(out.String()) {
+			if n, err := strconv.ParseInt(line, 10, 64); err == nil {
+				total += n
+			}
+		}
+		if total > DefaultImageSize {
+			return total
+		}
+	}
+	return DefaultImageSize
 }
 
 // rootSizeFor is rootSize's arithmetic. bootc puts 1 MiB of BIOS boot and
 // a 512 MiB ESP before the root; the config partition follows it, then the
-// data partition if wanted, which is given at least 2 GiB to be worth having.
-func rootSizeFor(disk int64, data bool) (string, error) {
-	reserve := int64(1<<30) + 512<<20
-	if data {
-		reserve += 2 << 30
+// data partition, which decision 319 always makes (it is where the image
+// store lives) and which is given at least 2 GiB to be worth having.
+func rootSizeFor(disk, image int64) (string, error) {
+	if image <= 0 {
+		image = DefaultImageSize
 	}
-	root := disk - reserve
-	if root >= 32<<30 {
-		return RootSize, nil
+	reserve := int64(1<<30) + 512<<20 + 2<<30
+	want := image * RootFactor
+	if want > MaxRoot {
+		want = MaxRoot
 	}
-	if root < MinRoot {
-		return "", fmt.Errorf("the disk is too small: %.1f GiB; Maître needs at least %d GiB%s", float64(disk)/(1<<30), (MinRoot+reserve)>>30, map[bool]string{true: " with a data partition", false: ""}[data])
+	if want < MinRoot {
+		want = MinRoot
 	}
-	return fmt.Sprintf("%dM", root>>20), nil
+	if room := disk - reserve; want > room {
+		want = room
+	}
+	if want < MinRoot {
+		return "", fmt.Errorf("the disk is too small: %.1f GiB; Maître needs at least %d GiB", float64(disk)/(1<<30), (MinRoot+reserve)>>30)
+	}
+	return fmt.Sprintf("%dM", want>>20), nil
 }
 
 // consoleKargs passes the Installer's own console= arguments on to the
@@ -475,10 +534,12 @@ func (r *BootcRunner) configure(ctx context.Context, plan Plan, progress Progres
 	progress(maitrev1.Provisioning_PHASE_CONFIGURING, 80, "creating the config partition")
 	// Append a config partition and, if wanted, a data partition taking the
 	// rest. sfdisk's append mode leaves the bootc partitions untouched.
+	// Decision 321: the data partition is always made, because decision
+	// 319 puts the container image store on it — the Installer's flag now
+	// decides only whether it may join a Pool, which is a different
+	// question from whether it exists.
 	script := fmt.Sprintf("size=%s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=%s\n", ConfigSize, ConfigLabel)
-	if plan.DataPartition {
-		script += fmt.Sprintf("type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=%s\n", DataLabel)
-	}
+	script += fmt.Sprintf("type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=%s\n", DataLabel)
 	if err := r.sfdiskAppend(ctx, plan.TargetDisk, script); err != nil {
 		return err
 	}
@@ -501,12 +562,10 @@ func (r *BootcRunner) configure(ctx context.Context, plan Plan, progress Progres
 	if err := r.exec(ctx, io.Discard, "mkfs.ext4", "-q", "-F", "-L", ConfigLabel, cfgDev); err != nil {
 		return fmt.Errorf("format config partition: %w", err)
 	}
-	if plan.DataPartition {
-		if dataDev, ok := parts[DataLabel]; ok {
-			progress(maitrev1.Provisioning_PHASE_CONFIGURING, 85, "formatting the data partition")
-			if err := r.exec(ctx, io.Discard, "mkfs.ext4", "-q", "-F", "-L", DataLabel, dataDev); err != nil {
-				return fmt.Errorf("format data partition: %w", err)
-			}
+	if dataDev, ok := parts[DataLabel]; ok {
+		progress(maitrev1.Provisioning_PHASE_CONFIGURING, 85, "formatting the data partition")
+		if err := r.exec(ctx, io.Discard, "mkfs.ext4", "-q", "-F", "-L", DataLabel, dataDev); err != nil {
+			return fmt.Errorf("format data partition: %w", err)
 		}
 	}
 
@@ -594,6 +653,14 @@ func (r *BootcRunner) partitionsByName(ctx context.Context, disk string) (map[st
 func SeedConfig(ctx context.Context, dir string, plan Plan) error {
 	if err := plan.NodeIdentity.Save(filepath.Join(dir, "node")); err != nil {
 		return fmt.Errorf("save node identity: %w", err)
+	}
+	// Decision 321: the data partition is always made, so what the
+	// Installer's flag decides is whether it may join a Pool. The agent
+	// adopts that partition as a Drive on first boot and needs to know.
+	if plan.DataPartition {
+		if err := os.WriteFile(filepath.Join(dir, DataPoolFile), []byte("yes\n"), 0o600); err != nil {
+			return fmt.Errorf("record the data partition's Pool eligibility: %w", err)
+		}
 	}
 	st, err := store.Open(filepath.Join(dir, "fleet.db"), plan.NodeIdentity.Fingerprint())
 	if err != nil {

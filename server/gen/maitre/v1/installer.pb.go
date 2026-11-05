@@ -850,7 +850,12 @@ type ProvisionRequest struct {
 	// comes back with its key, name and Fleet database. fleet, node_name and
 	// trusted_devices are ignored then.
 	RestoreNodeId string `protobuf:"bytes,7,opt,name=restore_node_id,json=restoreNodeId,proto3" json:"restore_node_id,omitempty"`
-	// Create a data partition from the remaining space. Default off on USB.
+	// Whether the OS disk's data partition may join a Pool and hold the
+	// user's data (decision 321). The partition itself is always made now,
+	// because decision 319 puts the container image store on it, so this no
+	// longer decides whether it exists — only whether a Space may take it.
+	// Default off on USB, where writing the user's data to the flash the OS
+	// boots from is the wear the Installer avoids.
 	DataPartition bool `protobuf:"varint,5,opt,name=data_partition,json=dataPartition,proto3" json:"data_partition,omitempty"`
 	// Decision 189: signed records the new Node stores as they are: the
 	// Fleet's Trusted Devices and other Device-signed records copied from a

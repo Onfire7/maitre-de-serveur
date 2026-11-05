@@ -43,31 +43,37 @@ func TestTailWriterPicksTheErrorLineOverADump(t *testing.T) {
 	}
 }
 
-// A small disk gets a smaller root so the config (and data) partition still
-// fits after it; a disk with no room for even MinRoot is refused (decision 269).
+// Decision 321: root is six times the OS image rather than a flat 32 GiB,
+// which on a 64 GiB disk took half of it and still had no room for the
+// container image store. Capped, floored at MinRoot, and limited by what
+// the disk has left after the ESP and the config and data partitions; a
+// disk with no room for even MinRoot is refused (decision 269).
 func TestRootSizeFor(t *testing.T) {
+	const gib = int64(1) << 30
 	for _, c := range []struct {
-		disk int64
-		data bool
-		want string
+		disk, image int64
+		want        string
 	}{
-		{1 << 40, true, "32G"},
-		{40 << 30, false, "32G"},
-		{31042043904, false, "28068M"}, // the 28.9 GiB stick, less 1.5 GiB
-		{31042043904, true, "26020M"},
-		{16 << 30, false, "14848M"},
-		{8 << 30, false, ""},
-		{10 << 30, true, ""},
+		{1 << 40, 2 * gib, "12288M"},     // six times a 2 GiB image
+		{40 * gib, 2 * gib, "12288M"},    // not half the disk any more
+		{1 << 40, 8 * gib, "32768M"},     // a huge image still stops at the cap
+		{1 << 40, 1 * gib, "8192M"},      // a tiny one still gets MinRoot
+		{31042043904, 2 * gib, "12288M"}, // the 28.9 GiB stick has room now
+		{16 * gib, 2 * gib, "12288M"},
+		{14 * gib, 2 * gib, "10752M"}, // less than six times: what is left
+		{10 * gib, 2 * gib, ""},       // under MinRoot after the reserve
+		{8 * gib, 2 * gib, ""},
+		{1 << 40, 0, "12288M"}, // unmeasurable image: the constant
 	} {
-		got, err := rootSizeFor(c.disk, c.data)
+		got, err := rootSizeFor(c.disk, c.image)
 		if c.want == "" {
 			if err == nil || !strings.Contains(err.Error(), "too small") {
-				t.Errorf("%d data=%v: want too small, got %q %v", c.disk, c.data, got, err)
+				t.Errorf("disk=%d image=%d: want too small, got %q %v", c.disk, c.image, got, err)
 			}
 			continue
 		}
 		if err != nil || got != c.want {
-			t.Errorf("%d data=%v: got %q %v, want %q", c.disk, c.data, got, err, c.want)
+			t.Errorf("disk=%d image=%d: got %q %v, want %q", c.disk, c.image, got, err, c.want)
 		}
 	}
 }

@@ -510,7 +510,12 @@ export type ProvisionRequest = Message<"maitre.v1.ProvisionRequest"> & {
   restoreNodeId: string;
 
   /**
-   * Create a data partition from the remaining space. Default off on USB.
+   * Whether the OS disk's data partition may join a Pool and hold the
+   * user's data (decision 321). The partition itself is always made now,
+   * because decision 319 puts the container image store on it, so this no
+   * longer decides whether it exists — only whether a Space may take it.
+   * Default off on USB, where writing the user's data to the flash the OS
+   * boots from is the wear the Installer avoids.
    *
    * @generated from field: bool data_partition = 5;
    */

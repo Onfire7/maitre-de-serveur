@@ -274,3 +274,8 @@ func (s *Service) PruneImages(ctx context.Context, req *maitrev1.PruneImagesRequ
 	}
 	return res, nil
 }
+
+// MoveImageStore implements ServiceService (decision 319).
+func (s *Service) MoveImageStore(ctx context.Context, req *maitrev1.MoveImageStoreRequest) (*maitrev1.MoveImageStoreResponse, error) {
+	return s.mgr.MoveImageStore(ctx, req.GetDir())
+}

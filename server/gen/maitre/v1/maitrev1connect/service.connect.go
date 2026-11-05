@@ -63,6 +63,9 @@ const (
 	ServiceServiceSetSetupProcedure = "/maitre.v1.ServiceService/SetSetup"
 	// ServiceServicePruneImagesProcedure is the procedure name of the ServiceService's PruneImages RPC.
 	ServiceServicePruneImagesProcedure = "/maitre.v1.ServiceService/PruneImages"
+	// ServiceServiceMoveImageStoreProcedure is the procedure name of the ServiceService's
+	// MoveImageStore RPC.
+	ServiceServiceMoveImageStoreProcedure = "/maitre.v1.ServiceService/MoveImageStore"
 )
 
 var (
@@ -178,6 +181,13 @@ var (
 			Procedure:  ServiceServicePruneImagesProcedure,
 		}
 	})
+	serviceServiceMoveImageStoreSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_maitre_v1_service_proto.Services().ByName("ServiceService").Methods().ByName("MoveImageStore"),
+			Procedure:  ServiceServiceMoveImageStoreProcedure,
+		}
+	})
 )
 
 // ServiceServiceClient is a client for the maitre.v1.ServiceService service.
@@ -244,6 +254,12 @@ type ServiceServiceClient interface {
 	// digest it has ever pulled, and a Node has no terminal: this is the only
 	// way the space comes back. Optional: older Nodes answer Unimplemented.
 	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
+	// Decision 319: move the image store off the root partition, onto the
+	// OS disk's data partition or the largest Drive of the default Pool.
+	// Asked for rather than done at boot: the copy is large, and removing
+	// the old store under a running container would break it, so this Node's
+	// Services are stopped for the move and started again after.
+	MoveImageStore(context.Context, *v1.MoveImageStoreRequest) (*v1.MoveImageStoreResponse, error)
 }
 
 // NewServiceServiceClient constructs a client for the maitre.v1.ServiceService service. Multiple
@@ -316,6 +332,12 @@ type ServiceServiceHandler interface {
 	// digest it has ever pulled, and a Node has no terminal: this is the only
 	// way the space comes back. Optional: older Nodes answer Unimplemented.
 	PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error)
+	// Decision 319: move the image store off the root partition, onto the
+	// OS disk's data partition or the largest Drive of the default Pool.
+	// Asked for rather than done at boot: the copy is large, and removing
+	// the old store under a running container would break it, so this Node's
+	// Services are stopped for the move and started again after.
+	MoveImageStore(context.Context, *v1.MoveImageStoreRequest) (*v1.MoveImageStoreResponse, error)
 }
 
 // RegisterServiceServiceHandler registers svc as the maitre.v1.ServiceService implementation on
@@ -339,6 +361,7 @@ func RegisterServiceServiceHandler(server *connect.Server, svc ServiceServiceHan
 		connect.Method{Spec: serviceServicePreviewSetupSpec(), Handler: adapter.previewSetup},
 		connect.Method{Spec: serviceServiceSetSetupSpec(), Handler: adapter.setSetup},
 		connect.Method{Spec: serviceServicePruneImagesSpec(), Handler: adapter.pruneImages},
+		connect.Method{Spec: serviceServiceMoveImageStoreSpec(), Handler: adapter.moveImageStore},
 	)
 }
 
@@ -407,6 +430,10 @@ func (UnimplementedServiceServiceHandler) SetSetup(context.Context, *v1.SetSetup
 
 func (UnimplementedServiceServiceHandler) PruneImages(context.Context, *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.PruneImages is not implemented")
+}
+
+func (UnimplementedServiceServiceHandler) MoveImageStore(context.Context, *v1.MoveImageStoreRequest) (*v1.MoveImageStoreResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "maitre.v1.ServiceService.MoveImageStore is not implemented")
 }
 
 type serviceServiceClient struct {
@@ -536,6 +563,14 @@ func (c *serviceServiceClient) SetSetup(ctx context.Context, req *v1.SetSetupReq
 func (c *serviceServiceClient) PruneImages(ctx context.Context, req *v1.PruneImagesRequest) (*v1.PruneImagesResponse, error) {
 	var res v1.PruneImagesResponse
 	if err := c.client.CallUnary(ctx, serviceServicePruneImagesSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *serviceServiceClient) MoveImageStore(ctx context.Context, req *v1.MoveImageStoreRequest) (*v1.MoveImageStoreResponse, error) {
+	var res v1.MoveImageStoreResponse
+	if err := c.client.CallUnary(ctx, serviceServiceMoveImageStoreSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -729,6 +764,18 @@ func (h serviceServiceHandler) pruneImages(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.PruneImages(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h serviceServiceHandler) moveImageStore(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.MoveImageStoreRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.MoveImageStore(ctx, &req)
 	if err != nil {
 		return err
 	}
