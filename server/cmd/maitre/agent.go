@@ -95,6 +95,23 @@ func runAgent(args []string) error {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
+	// Decisions 101 and 325: whether this boot is a rescue boot is the
+	// first thing read and acted on, before the store is opened and the
+	// records are re-signed. The Services are their own units
+	// (WantedBy=multi-user.target), so systemd starts them in parallel
+	// with the agent whatever the agent does; taking the network away
+	// immediately is what makes that harmless, since a pull with no route
+	// transfers nothing and so fills nothing. Requested also clears the
+	// request, so a crash loop cannot hold a Node in rescue.
+	rescueBoot := recoverymode.Requested(*state)
+	if rescueBoot {
+		if out, err := exec.Command("nmcli", "networking", "off").CombinedOutput(); err != nil {
+			log.Warn("rescue: networking off failed", "err", err, "out", strings.TrimSpace(string(out)))
+		} else {
+			log.Info("rescue boot: networking is off")
+		}
+	}
+
 	id, err := identity.Load(filepath.Join(*state, "node"))
 	if err != nil {
 		return fmt.Errorf("this machine has not been provisioned (no identity in %s): %w", *state, err)
@@ -147,10 +164,13 @@ func runAgent(args []string) error {
 	}
 	log.Info("maitre agent", "node_id", id.Fingerprint(), "name", self.GetName(), "fleet", fleet.GetName(), "trusted_devices", list.Len())
 
-	// Decision 101: a reboot into recovery (chosen at the keyboard) runs
-	// with networking off, shows a one-time code, and restarts.
-	if recoverymode.Requested(*state) {
-		return runRecoveryScreen(ctx, log, *state, self.GetName(), fleet.GetName())
+	// Decisions 101, 325 and 326: a rescue boot runs with networking off,
+	// shows a one-time code, and offers the repairs a Node that cannot be
+	// reached any other way needs. The screen is drawn here, after the
+	// store is open, because it names the Node and the Fleet; the network
+	// went away at the top of this function.
+	if rescueBoot {
+		return runRecoveryScreen(ctx, log, *state, self.GetName(), fleet.GetName(), rescueRepairs(ctx, log, st))
 	}
 
 	ensureHostname(log, hostLabel(self.GetName()))
@@ -420,6 +440,10 @@ func runAgent(args []string) error {
 		go recordHistory(ctx, log, hist, sampler)
 	}
 	svc.Updates = update.New(nil, log)
+	// Decision 324: hold room for the next update now, while there is room
+	// to hold. An image that has just booted is the best measure of what
+	// the next one will want.
+	go update.EnsureReserve(log, bootedImageSize(ctx, log))
 	// Milestone 6: record what this Node runs, for the staged rollout, and
 	// let the rollout runner act on the Fleet's policy every hour.
 	current := func() (string, string) {

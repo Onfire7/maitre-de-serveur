@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -19,7 +21,11 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // agentSource feeds the Node's screen from the running agent.
@@ -69,8 +75,25 @@ func (a *agentSource) RebootRecovery() error {
 }
 
 // runRecoveryScreen is the recovery session: networking off, one code on
-// the screen, Enter restarts. Plain text: the keyboard is the only input.
-func runRecoveryScreen(ctx context.Context, log *slog.Logger, stateDir, node, fleet string) error {
+// the screen, and the repairs a wedged Node needs (decisions 101, 325,
+// 326). Plain text: the keyboard is the only input, and that is the point.
+//
+// Decision 326 settled what belongs here rather than on the network. A
+// rescue boot has no networking, deliberately, so that nothing can drive
+// it — which is exactly what earns it a shell: this menu is reachable only
+// by someone standing at the machine with the network down. The dangerous
+// remote half (diagnostics over the wire, command execution) lives in a
+// debug build instead, and the regular server keeps the basic diagnostics
+// that are not a security surface.
+//
+// The curated actions matter more than the shell. Each one that exists is
+// a repair nobody has to improvise at a keyboard in a closet, and "reclaim
+// image space" is the one that would have ended the incident of
+// 2026-11-04 in two minutes.
+func runRecoveryScreen(ctx context.Context, log *slog.Logger, stateDir, node, fleet string, rescue *rescueOps) error {
+	// Networking is already off (the agent turns it off before anything
+	// else, so a Service that systemd started cannot be pulling while
+	// someone works here); this is belt and braces for a direct call.
 	if out, err := exec.Command("nmcli", "networking", "off").CombinedOutput(); err != nil {
 		log.Warn("networking off failed", "err", err, "out", strings.TrimSpace(string(out)))
 	}
@@ -79,27 +102,87 @@ func runRecoveryScreen(ctx context.Context, log *slog.Logger, stateDir, node, fl
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\033[H\033[2J\n%s\n\n  Recovery mode  ·  Node %s in Fleet %q  ·  networking is off\n\n", ascii.Banner(), node, fleet)
-	fmt.Println("  This one-time code lets a new Maître Desktop join the Fleet.")
-	fmt.Println("  It works for 15 minutes after this machine restarts normally.")
-	fmt.Println()
-	fmt.Print(ascii.Digits(code[:4]+" "+code[4:], "      "))
-	fmt.Printf("\n\n      %s %s\n\n", code[:4], code[4:])
-	fmt.Println("  In Maître Desktop choose \"Join with a code from a Node\" and enter it.")
-	fmt.Println("  Press Enter to restart this machine now.")
-	log.Info("recovery: code issued; waiting for Enter")
-	done := make(chan struct{})
-	go func() {
-		var line string
-		fmt.Scanln(&line)
-		close(done)
-	}()
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-done:
+	draw := func(message string) {
+		fmt.Printf("\033[H\033[2J\n%s\n\n  Rescue mode  ·  Node %s in Fleet %q  ·  networking is off\n\n", ascii.Banner(), node, fleet)
+		fmt.Println("  This one-time code lets a new Maître Desktop join the Fleet.")
+		fmt.Println("  It works for 15 minutes after this machine restarts normally.")
+		fmt.Println()
+		fmt.Print(ascii.Digits(code[:4]+" "+code[4:], "      "))
+		fmt.Printf("\n\n      %s %s\n\n", code[:4], code[4:])
+		fmt.Println("  In Maître Desktop choose \"Join with a code from a Node\" and enter it.")
+		fmt.Println()
+		fmt.Println("  Repairs, for a Node that cannot be reached any other way:")
+		fmt.Println("    1  how much room the disks have left")
+		fmt.Println("    2  reclaim image space (delete images no Service names)")
+		fmt.Println("    3  what the health checks say")
+		fmt.Println("    4  roll back to the previous image")
+		fmt.Println("    5  a shell (nothing on the network can reach this)")
+		fmt.Println("    r  restart this machine normally")
+		if message != "" {
+			fmt.Printf("\n%s\n", message)
+		}
+		fmt.Print("\n  Choose, or press Enter to restart: ")
 	}
-	return exec.Command("systemctl", "reboot").Run()
+	log.Info("rescue: code issued; menu up")
+	message := ""
+	for {
+		draw(message)
+		choice := make(chan string, 1)
+		go func() {
+			var line string
+			fmt.Scanln(&line)
+			choice <- strings.ToLower(strings.TrimSpace(line))
+		}()
+		var in string
+		select {
+		case <-ctx.Done():
+			return nil
+		case in = <-choice:
+		}
+		switch in {
+		case "":
+			return exec.Command("systemctl", "reboot").Run()
+		case "r":
+			return exec.Command("systemctl", "reboot").Run()
+		case "1":
+			message = rescue.Space()
+		case "2":
+			message = rescue.Prune()
+		case "3":
+			message = rescue.Health()
+		case "4":
+			message = rescue.Rollback()
+		case "5":
+			// Decision 326: a shell, because physical presence with the
+			// network down is the one place it costs nothing. Physical
+			// access to an unencrypted disk is root anyway, so this takes
+			// nothing that was not already there.
+			log.Warn("rescue: dropping to a shell")
+			sh := exec.Command("/bin/bash", "-l")
+			sh.Stdin, sh.Stdout, sh.Stderr = os.Stdin, os.Stdout, os.Stderr
+			_ = sh.Run()
+			message = "  back from the shell."
+		default:
+			message = "  " + in + "? Choose 1-5, r, or Enter."
+		}
+		if message != "" {
+			message += "\n  Press Enter to go on."
+			var line string
+			fmt.Print("\n  Press Enter to go on. ")
+			fmt.Scanln(&line)
+			message = ""
+		}
+	}
+}
+
+// rescueOps are the repairs the rescue menu offers, each as the one line
+// it prints. The agent supplies them; a nil field is a repair this build
+// cannot do, which answers with so.
+type rescueOps struct {
+	Space    func() string
+	Prune    func() string
+	Health   func() string
+	Rollback func() string
 }
 
 // plainStatusPage is the screen without a keyboard (stdout is not a
@@ -269,3 +352,105 @@ func (demoSource) Logs(_ context.Context, unit string, _ int) ([]string, error) 
 }
 func (demoSource) Reboot() error         { return tui.ErrQuit }
 func (demoSource) RebootRecovery() error { return tui.ErrQuit }
+
+// rescueRepairs builds the rescue menu's actions (decisions 325, 326).
+// Each answers in one line, and each is deliberately something a Node with
+// no network and no terminal could not otherwise be made to do.
+//
+// The Manager here is a minimal one: a rescue boot has not reached the
+// agent's own setup, and none of these repairs needs more than this Node's
+// own Service records, podman and the filesystem.
+func rescueRepairs(ctx context.Context, log *slog.Logger, st *store.Store) *rescueOps {
+	mgr := services.New(services.Config{Log: log}, st, nil)
+	gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
+	return &rescueOps{
+		Space: func() string {
+			dir := mgr.ImageStoreDir(ctx)
+			return fmt.Sprintf("  root: %.1f GiB free. image store (%s): %.1f GiB free.",
+				gib(storage.FreeBytes("/")), dir, gib(storage.FreeBytes(dir)))
+		},
+		Prune: func() string {
+			// Decision 316, and the repair the incident of 2026-11-04
+			// actually needed. Rollback targets are kept: decision 320
+			// wants them, and this is not the place to decide otherwise.
+			res, err := mgr.PruneImages(ctx, true)
+			if err != nil {
+				return "  could not prune: " + err.Error()
+			}
+			return fmt.Sprintf("  removed %d image(s), kept %d; %.1f GiB back in %s.",
+				len(res.GetRemoved()), res.GetKept(),
+				gib(res.GetFreeAfterBytes()-res.GetFreeBeforeBytes()), res.GetStoreDir())
+		},
+		Health: func() string {
+			// The checks greenboot runs, run now and reported here: a full
+			// root passes the required one, which is how this got so far.
+			var out []string
+			for _, check := range []string{
+				"/etc/greenboot/check/required.d/10-maitre.sh",
+				"/etc/greenboot/check/wanted.d/20-maitre-space.sh",
+			} {
+				b, err := exec.Command(check).CombinedOutput()
+				line := strings.TrimSpace(string(b))
+				if err != nil {
+					line += " [failed: " + err.Error() + "]"
+				}
+				if line != "" {
+					out = append(out, "  "+line)
+				}
+			}
+			if len(out) == 0 {
+				return "  the health checks said nothing."
+			}
+			return strings.Join(out, "\n")
+		},
+		Rollback: func() string {
+			// The previous deployment, which ostree still has: the way back
+			// from an image that boots badly.
+			if err := update.New(nil, log).Rollback(ctx, false); err != nil {
+				return "  could not queue a rollback: " + err.Error()
+			}
+			return "  the previous image will boot next; restart when ready."
+		},
+	}
+}
+
+// bootedImageSize is how much of the filesystem the running OS image
+// takes, which decision 324 reserves 110% of for the next one. bootc
+// knows which image is booted; podman knows how big it is. Zero when
+// neither can say, and the reserve falls back to its constant.
+func bootedImageSize(ctx context.Context, log *slog.Logger) int64 {
+	out, err := exec.CommandContext(ctx, "bootc", "status", "--format", "json").Output()
+	if err != nil {
+		return 0
+	}
+	var status struct {
+		Status struct {
+			Booted struct {
+				Image struct {
+					Image struct {
+						Image string `json:"image"`
+					} `json:"image"`
+				} `json:"image"`
+			} `json:"booted"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(out, &status); err != nil {
+		return 0
+	}
+	ref := status.Status.Booted.Image.Image.Image
+	if ref == "" {
+		return 0
+	}
+	b, err := exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Size}}", ref).Output()
+	if err != nil {
+		// The booted image is in ostree's repository, not podman's store,
+		// which is the usual case: the constant stands in.
+		return 0
+	}
+	var n int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &n); err != nil {
+		return 0
+	}
+	log.Debug("booted image size", "image", ref, "bytes", n)
+	return n
+}

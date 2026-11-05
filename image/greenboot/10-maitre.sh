@@ -25,3 +25,6 @@ if [ -f /var/lib/maitre/running-services ]; then
   done < /var/lib/maitre/running-services
 fi
 echo "maitre health: ok"
+
+# Decision 325: this boot passed, so the tally of failed ones starts over.
+rm -f /var/lib/maitre/red-boots || true

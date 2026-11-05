@@ -28,7 +28,10 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # ipxe-bootimgs-x86: undionly.kpxe, how a Depot netboots BIOS machines
 # (decision 223); noarch, no dependencies.
 # snapraid: parity per Space on Parity Drives (ADR 0009); Fedora packages 15.0.
-RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils ipxe-bootimgs-x86 snapraid && dnf clean all
+# zram-generator: swap in compressed RAM rather than on a disk (decision
+# 322), so a memory spike stops being terminal on a Node with no swap at
+# all and no good place to put a swap file.
+RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils ipxe-bootimgs-x86 snapraid zram-generator && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).
@@ -59,6 +62,8 @@ COPY image/greenboot/10-maitre.sh /etc/greenboot/check/required.d/10-maitre.sh
 COPY image/greenboot/20-maitre-space.sh /etc/greenboot/check/wanted.d/20-maitre-space.sh
 COPY image/greenboot/red-maitre.sh /etc/greenboot/red.d/10-maitre.sh
 COPY image/logind.conf /usr/lib/systemd/logind.conf.d/10-maitre.conf
+# Decision 322: a quarter of RAM as compressed swap, never more than 4 GiB.
+COPY image/zram-generator.conf /usr/lib/systemd/zram-generator.conf
 COPY image/tlshd.conf /etc/tlshd/config
 # Nothing should ever suspend a Node, lid or no lid.
 RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target

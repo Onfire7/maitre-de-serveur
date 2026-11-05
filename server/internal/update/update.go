@@ -188,6 +188,11 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 		}
 		m.set(maitrev1.UpdateStatus_STATE_UPDATING, msg, frac)
 	}
+	// Decision 324: the room held for exactly this is handed back now,
+	// since bootc stages into ostree's repository under /sysroot and root
+	// is sysroot. Made again once the update has been applied, on the
+	// next boot.
+	DropReserve(m.log)
 	var err error
 	if same {
 		err = m.run.Upgrade(ctx, onProgress)
