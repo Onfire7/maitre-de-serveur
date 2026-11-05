@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
-	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
 
 // PruneImages deletes container images this Node's Services do not name
@@ -54,7 +53,7 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	}
 
 	res := &maitrev1.PruneImagesResponse{StoreDir: m.storeDir(ctx), Kept: uint32(len(keep))}
-	res.FreeBeforeBytes = storage.FreeBytes(res.GetStoreDir())
+	res.FreeBeforeBytes = m.freeBytes(res.GetStoreDir())
 
 	out, err := m.run.Run(ctx, "podman", "images", "--all", "--format", "{{.Id}}\t{{.Repository}}:{{.Tag}}")
 	if err != nil {
@@ -85,7 +84,7 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	if _, err := m.run.Run(ctx, "podman", "image", "prune", "-f"); err != nil && m.cfg.Log != nil {
 		m.cfg.Log.Warn("prune dangling layers", "err", err)
 	}
-	res.FreeAfterBytes = storage.FreeBytes(res.GetStoreDir())
+	res.FreeAfterBytes = m.freeBytes(res.GetStoreDir())
 	return res, nil
 }
 

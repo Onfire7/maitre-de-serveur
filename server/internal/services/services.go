@@ -92,6 +92,10 @@ type Config struct {
 	// this Node. Nil accepts every Record (tests).
 	DeviceSigned func(ctx context.Context, rec *maitrev1.Record) bool
 	Authentic    func(rec *maitrev1.Record) bool
+	// FreeBytes is the free space of the filesystem holding a path, which
+	// the guards before a pull and the prune both measure. Nil asks the
+	// real filesystem; tests say what a store has left without one.
+	FreeBytes func(dir string) uint64
 	// LocalPool says whether a Space spans Nodes and, if so, where this
 	// Node's own Drives of it are pooled ("" when it has none). A
 	// Service's own folders in such a Space live there (decision 208), on
@@ -260,6 +264,12 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if err := m.assignHostPorts(ctx, spec); err != nil {
 		return nil, err
 	}
+	// Install writes no image; the unit pulls at its first start. Saying so
+	// here is still the only chance to say it before the download rather
+	// than as ENOSPC thirty-five seconds into it.
+	if err := m.ensureRoomToPull(ctx); err != nil {
+		return nil, err
+	}
 	if err := m.apply(ctx, spec); err != nil {
 		return nil, err
 	}
@@ -356,18 +366,9 @@ func (m *Manager) owner(ctx context.Context, space string) uint32 {
 // unit already installed, if any, stays as it was.
 func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	if rec, err := m.store.Raw(ctx, KindService, spec.GetName()); err == nil && !rec.GetDeleted() && m.cfg.Authentic != nil && !m.cfg.Authentic(rec) {
-		// Decision 318: the common way here was another Node's Service,
-		// which this Node should never have been acting on; say whose it
-		// is rather than advise a repair that would not be the user's to
-		// make. A record of this Node that is genuinely unsigned (from
-		// before 189) still asks to be installed again.
-		if owner := spec.GetNodeId(); owner != "" && owner != m.store.NodeID() {
-			if len(owner) > 8 {
-				owner = owner[:8]
-			}
-			return fmt.Errorf("%s belongs to another Node (%s), which runs and updates it", spec.GetName(), owner)
-		}
-		return fmt.Errorf("%s: its record is not signed by this Node; remove and install it again", spec.GetName())
+		// notOurs carries the message, so the guards that run before a pull
+		// (pull.go) and this one cannot drift apart.
+		return m.notOurs(spec)
 	}
 	vols, extra, err := m.layout(ctx, spec)
 	if err != nil {
@@ -992,11 +993,24 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 // and restarted, with the old digest kept for Rollback. Returns whether
 // anything changed.
 func (m *Manager) Update(ctx context.Context, spec *maitrev1.ServiceSpec) (bool, error) {
+	// Before the network: a Service this Node would refuse to apply is not
+	// one to spend a download on (decision 315).
+	if err := m.applicable(ctx, spec); err != nil {
+		return false, err
+	}
 	changed := false
 	for _, h := range imageHolders(spec) {
 		tagRef, _, _ := strings.Cut(*h.image, "@")
 		if tagRef == "" {
 			continue
+		}
+		// Ask the registry what the tag names rather than download to find
+		// out. Nothing moves when the answer is the digest already pinned.
+		if m.pinnedIsCurrent(ctx, *h.image) {
+			continue
+		}
+		if err := m.ensureRoomToPull(ctx); err != nil {
+			return false, err
 		}
 		if _, err := m.run.Run(ctx, "podman", "pull", "-q", tagRef); err != nil {
 			return false, fmt.Errorf("pull %s: %w", tagRef, err)
@@ -1211,8 +1225,14 @@ func (m *Manager) SetImage(ctx context.Context, name, image, component string) (
 	default:
 		targets = holders
 	}
+	if err := m.applicable(ctx, &spec); err != nil {
+		return nil, err
+	}
 	pinned := image
 	if !strings.Contains(image, "@") {
+		if err := m.ensureRoomToPull(ctx); err != nil {
+			return nil, err
+		}
 		if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
 			return nil, fmt.Errorf("pull %s: %w", image, err)
 		}
@@ -1225,8 +1245,13 @@ func (m *Manager) SetImage(ctx context.Context, name, image, component string) (
 			return nil, fmt.Errorf("%s has no digest after pulling", image)
 		}
 		pinned = image + "@" + digest
-	} else if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
-		return nil, fmt.Errorf("pull %s: %w", image, err)
+	} else if !m.pinnedIsCurrent(ctx, image) {
+		if err := m.ensureRoomToPull(ctx); err != nil {
+			return nil, err
+		}
+		if _, err := m.run.Run(ctx, "podman", "pull", "-q", image); err != nil {
+			return nil, fmt.Errorf("pull %s: %w", image, err)
+		}
 	}
 	changed := false
 	for _, h := range targets {
