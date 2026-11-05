@@ -1442,6 +1442,102 @@
       "stars": 58826
     },
     {
+      "id": "gluetun",
+      "name": "Gluetun",
+      "summary": "A VPN client other Services send their traffic through.",
+      "description": "Gluetun connects to your VPN provider and carries the traffic of every\nService you put on it. Such a Service reaches the internet only through\nthe VPN: when the connection drops its traffic stops rather than going out\nin the open, and its own pages stay where they were in the Console.\n\nIt has no page of its own. Give it your provider and its keys; until they\nare right it keeps restarting, and its logs say what is missing. Put a\nService on it from that Service's Setup, under Network.\n\nGluetun resolves names itself, over the VPN, so a Service on it does not\nsee the Fleet's own names (\u003cservice\u003e.local) unless you turn that on below,\nwhich sends its name lookups through your home network instead of the VPN.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNzAuNDEzIiBoZWlnaHQ9IjE2Ni42ODgiIHZpZXdCb3g9IjAgMCA0NS4wODggNDQuMTAzIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImYiIGNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cmVjdCB3aWR0aD0iNDUuMDg4IiBoZWlnaHQ9IjQ0LjkwMSIgeD0iODAuMjYxIiB5PSI3Ny40MjUiIHJ5PSIuMDU1IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6I2Y1ZmYwMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjI2NzY1NTE7cGFpbnQtb3JkZXI6bWFya2VycyBmaWxsIHN0cm9rZSIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSJlIiBjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHJlY3Qgd2lkdGg9IjQ1LjA4OCIgaGVpZ2h0PSI0NC45MDEiIHg9IjExNi45ODgiIHk9Ijg0Ljg4MiIgcnk9Ii4wNTUiIHN0eWxlPSJvcGFjaXR5OjE7ZmlsbDojZjVmZjAwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDouMjY3NjU1MTtwYWludC1vcmRlcjptYXJrZXJzIGZpbGwgc3Ryb2tlIi8+PC9jbGlwUGF0aD48Y2xpcFBhdGggaWQ9ImQiIGNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cmVjdCB3aWR0aD0iNDUuMDg4IiBoZWlnaHQ9IjQ0LjkwMSIgeD0iODAuMzI4IiB5PSI3OC43NDgiIHJ5PSIuMDU1IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6I2Y1ZmYwMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjI2NzY1NTE7cGFpbnQtb3JkZXI6bWFya2VycyBmaWxsIHN0cm9rZSIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSJjIiBjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHJlY3Qgd2lkdGg9IjQ1LjA4OCIgaGVpZ2h0PSI0NC45MDEiIHg9IjgwLjMyOCIgeT0iNzguNzQ4IiByeT0iLjA1NSIgc3R5bGU9Im9wYWNpdHk6MTtmaWxsOiNmNWZmMDA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmU7c3Ryb2tlLXdpZHRoOi4yNjc2NTUxO3BhaW50LW9yZGVyOm1hcmtlcnMgZmlsbCBzdHJva2UiLz48L2NsaXBQYXRoPjxjbGlwUGF0aCBpZD0iYiIgY2xpcFBhdGhVbml0cz0idXNlclNwYWNlT25Vc2UiPjxyZWN0IHdpZHRoPSI0NS4wODgiIGhlaWdodD0iNDQuOTAxIiB4PSIxMTYuOTg4IiB5PSI4NC44ODIiIHJ5PSIuMDU1IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6I2Y1ZmYwMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjI2NzY1NTE7cGFpbnQtb3JkZXI6bWFya2VycyBmaWxsIHN0cm9rZSIvPjwvY2xpcFBhdGg+PGNsaXBQYXRoIGlkPSJhIiBjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHJlY3Qgd2lkdGg9IjQ1LjA4OCIgaGVpZ2h0PSI0NC45MDEiIHg9IjU2LjM3MSIgeT0iODQuMzIiIHJ5PSIuMDU1IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6I2Y1ZmYwMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjI2NzY1NTE7cGFpbnQtb3JkZXI6bWFya2VycyBmaWxsIHN0cm9rZSIvPjwvY2xpcFBhdGg+PGZpbHRlciBpZD0iZyIgd2lkdGg9IjEuMDQ1IiBoZWlnaHQ9IjEuMjA4IiB4PSItLjAyMyIgeT0iLS4xMDQiIHN0eWxlPSJjb2xvci1pbnRlcnBvbGF0aW9uLWZpbHRlcnM6c1JHQiI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iLjE1NyIvPjwvZmlsdGVyPjwvZGVmcz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtODAuMzIyIC04MC4yNCkiPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjMuOTUgLTQuODgpIj48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNy4yOSAxMS4wMTMpIj48ZWxsaXBzZSBjeD0iODQuOTI0IiBjeT0iMTEyLjM1NiIgcng9IjEwLjc1NSIgcnk9IjMuOTM3IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6IzJjYTAyYztzdHJva2U6IzAwMDtzdHJva2Utd2lkdGg6LjE0MDg2ODYzO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjEiLz48cGF0aCBkPSJNNzQuMTcgOTcuODAyaDIxLjUxMnYxNC41NTJINzQuMTd6IiBzdHlsZT0iZmlsbDojMmNhMDJjO3N0cm9rZTojMDAwO3N0cm9rZS13aWR0aDouMTQxO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjEiLz48L2c+PHBhdGggZD0iTTc0LjI0NiAxMTIuMTAzSDk1LjYxdi40NTZINzQuMjQ2eiIgc3R5bGU9ImZpbGw6IzJjYTAyYztzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjAzNTIxNjc0O3N0cm9rZS1vcGFjaXR5OjEiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC03LjI5IDExLjAxMykiLz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNy4yOSAxMS4wMTMpIj48ZWxsaXBzZSBjeD0iODQuOTU0IiBjeT0iOTUuNDU2IiByeD0iMTMuMDg5IiByeT0iMy45MyIgc3R5bGU9Im9wYWNpdHk6MTtmaWxsOiMyY2EwMmM7c3Ryb2tlOiMwMDA7c3Ryb2tlLXdpZHRoOi4xNDA5NjA3MTtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIi8+PHBhdGggZD0iTTcxLjg2NiA4OC4xNGgyNi4xNzd2Ny4yNTZINzEuODY2eiIgc3R5bGU9ImZpbGw6IzJjYTAyYztzdHJva2U6IzAwMDtzdHJva2Utd2lkdGg6LjE0MTtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIi8+PHBhdGggZD0iTTcxLjkzNiA5My43NjJoMjYuMDM3djEuODU5SDcxLjkzNnoiIHN0eWxlPSJmaWxsOiMyY2EwMmM7c3Ryb2tlOm5vbmU7c3Ryb2tlLXdpZHRoOi4wNzg0ODk3NDtzdHJva2Utb3BhY2l0eToxIi8+PC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKC03LjI5IDExLjAxMykiPjxlbGxpcHNlIGN4PSI4NC45NTQiIGN5PSI4OC4wODgiIHJ4PSIxMy4wOTYiIHJ5PSIzLjkzIiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6IzJjYTAyYztzdHJva2U6IzAwMDtzdHJva2Utd2lkdGg6LjE0MTtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIi8+PGVsbGlwc2UgY3g9Ijg0Ljg2NSIgY3k9Ijg3Ljk3OSIgcng9IjExLjExMyIgcnk9IjIuMzczIiBzdHlsZT0iZmlsbDojMDAwO3N0cm9rZTojMDAwO3N0cm9rZS13aWR0aDouMjQ0MjA1MzY7c3Ryb2tlLW9wYWNpdHk6MSIvPjwvZz48L2c+PGcgY2xpcC1wYXRoPSJ1cmwoI2IpIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMzYuNjY2IC01LjQ0KSI+PHBhdGggZD0iTTEyOC43MiAxMDAuOTQ0Yy43ODgtLjg4OCAxLjgyNC0xLjU5MiAyLjk1My0xLjg1Ni43Ni0uMTc4IDEuNDgyLS40ODQgMi4yNzItLjU1OS45MDctLjA4NSAxLjgxMi0uMjE4IDIuNzM1LS4yLjgzLjAxNyAxLjY2Ny4wNzIgMi40NzQuMjQzIDEuMjQzLjI2NCAyLjUwNi4zNzYgMy42NzYgMS4wNC42NzkuMzg0IDEuMzYyLjYyNCAyLjExNy44ODguNDAzLjE0IDEuNjYgMS4wMTcuNTA2Ljk4OC0xLjA1Mi0uMDI2LTIuMDctLjQxMi0zLjExNi0uNDAyLTEuMDk5LjAxLTIuMTUtLjM0LTMuMjUzLS4zNjYtMS4wODctLjAyNy0yLjE3Mi0uMTQ1LTMuMjU4LS4wODMtLjk4Ny4wNTUtMS45NjIuMTc0LTIuOTU0LjE4NS0xLjI4NS4wMTUtMi41ODYtLjEyNy0zLjg1NC4xMDhsLS4xMTkuMDA4LS4xOC4wMDZ6IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6IzA2ZjtmaWxsLW9wYWNpdHk6MTtzdHJva2U6IzFmMjk4MDtzdHJva2Utd2lkdGg6LjYwMDAwMDAyO3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOnJvdW5kO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5Oi4yMzIwNDQyMyIvPjwvZz48cGF0aCBkPSJNOTIuMDYgOTQuODFjMi42ODIuNzMxIDIuODM0LjcwMyAyLjg0NC42OTUgMS4yNjUuMTEzIDIuNDY4LjMwMiAzLjgwMy4zMy45MTkuMDcgMS44NDQuMTA4IDIuNzc4LjEgMS41MjIuMDI1IDMtLjAyOCA0LjQ1Ni0uMjA1bDEuNTk3LS4xOCAxLjQ3NC0uMjItLjA5LS4yNTMtNi42NzYtMS4xMjYtNy43MDYuMDMzeiIgY2xpcC1wYXRoPSJ1cmwoI2MpIiBzdHlsZT0iZmlsbDojMDZmO2ZpbGwtb3BhY2l0eToxO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDouMjY0NTgzMzJweDtzdHJva2UtbGluZWNhcDpidXR0O3N0cm9rZS1saW5lam9pbjptaXRlcjtzdHJva2Utb3BhY2l0eToxIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtLjAwNiAuNjkzKSIvPjxlbGxpcHNlIGN4PSI5OS44NzkiIGN5PSI5My4xMDIiIGNsaXAtcGF0aD0idXJsKCNkKSIgcng9Ii44NzciIHJ5PSIuMjQ2IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6IzAwMDAyZDtmaWxsLW9wYWNpdHk6MTtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6LjYwMDAwMDAyO3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOnJvdW5kO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5Oi4yMzIwNDQyMyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLS4wMDYgLjY5MykiLz48ZyBjbGlwLXBhdGg9InVybCgjZSkiIHN0eWxlPSJmaWxsOiMxM2M5ZmU7ZmlsbC1vcGFjaXR5Oi42NTgyOTE0NTtzdHJva2U6IzAwNTZlMztzdHJva2Utd2lkdGg6LjI7c3Ryb2tlLW1pdGVybGltaXQ6NDtzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlLW9wYWNpdHk6MSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM2LjY2NiAtNS40NCkiPjxwYXRoIGQ9Ik0xMzUuOTc0IDk5LjM5NWMuMTc4LTEuMDY0LjI4Ny0yLjExNy4zNTMtMy4yMS4wMTQtLjI0NiAwLS44NTcuMDIxLS45Ni4xNC0uNjkuMDItMi4yNzQuMTUyLTMuMy4xMzctMS4wNjYtLjk3NC0yLjctMS43NTQtMi4wNTktLjg4Ny43My0xLjE4MiAxLjkyLTEuOTQ2IDIuNzE5LS43My43NjQtMS41MzUgMi43NjMtMi40MSAyLjEwMy0uOTQ2LS43MTQuNjA4LTIuMTUyLjk2NS0zLjAwNi4yNjgtLjY0IDEuODEtMi41NDQgMS4xMjMtMi4yMDQtMS4zNDQuNjY1LTIuNjk3IDEuMzUxLTMuOTI3IDIuMjMtLjc5Mi41NjUtMy4wMDMuNTU3LTIuMTQ1LS44OTYuNzEyLTEuMjA2IDEuODg1LTEuOTYgMy4wNDEtMi42MzQgMS4yNi0uNzM1IDIuNTg3LTEuNTQ1IDQuMDMyLTEuNjc4IDEuNDk0LS4xMzcgMi45MDYtLjY1NyA0LjQzLS43MTcgMS40NjgtLjA1OCAyLjc4Mi43NCA0LjIxOC45NTMgMS4yODguMTkgMi4wNSAxLjMwMyAyLjkwNCAyLjE2My43MzguNzQzIDEuMDA4IDEuNzQgMS40OTIgMi42NTguMzU3LjY3NiAxLjE3IDEuOTczLS4zMzUgMS42ODYtLjkyOS0uMTc3LTEuNTExLTEuMjAyLTIuMjc0LTEuNzQ3LS42OTItLjQ5NC0zLjM0Mi0xLjk2LTIuNzM0LS45NS42NTYgMS4wODggMS45MiAxLjUxIDIuNDA0IDIuODkuNTA0IDEuNDMzLTEuMzE0IDEuMTI0LTEuOTI1LjQ1My0uNjcyLS43MzgtMS40MzMtMS4xNjgtMi4xNDItMi4wMDUtLjU4OS0uNjk1LTEuMjQzLS41MzUtMS4zNzYuNDUtLjE0IDEuMDQtLjUzMSAyLjAyOC0uNjY2IDMuMDQyYTQ5IDQ5IDAgMCAwLS4zOCAzLjk4bTExLjY2Ny01LjgyMWMuMjM2LjA3Ny40LjI4Mi41LjQ5OC4wNy4xNTMuMjA3LjI1Ny4yNTcuNDIyLjExLjM2Mi4xOS43NDguMTQxIDEuMTI0LS4wMTYuMTI3LS4wMTYuMzI4LS4xNTguMzU3LS4xMzUuMDI4LS4yNTMtLjA3My0uMzYtLjE0LS4yNzItLjE2OC0uNjI5LS4zMi0uNzIyLS42MjMtLjA1MS0uMTY2LjA2NS0uMzM3LS4wMTYtLjUwNS0uMTE2LS4yNC0uMTE1LS41Ni4wODUtLjc2YS42LjYgMCAwIDEgLjQwNS0uMTc0bS0yNC4wNzcuODZjLjE5Ni0uMjUxLjU0OC0uNDExLjg2NC0uMjg5LjE3MS4wNjcuMjUyLjI2MS4yMTMuNDM2LS4wODcuMzg1LS4zNDYuNzEtLjYzLjk3LS4yNjguMjQ2LS41NzguNDgtLjk0Ni41NWEuNDA1LjQwNSAwIDAgMS0uNDQ0LS4yNWMtLjExLS4yNzQuMDU0LS41NTguMjItLjc3LjM0LS40MzUuODM2LS43MjcgMS4xNTktMS4xNzQuMDY3LS4wOTMuMTQ4LS4yMTYuMDkzLS4zMzMiIHN0eWxlPSJvcGFjaXR5OjE7ZmlsbDojMTNjOWZlO2ZpbGwtb3BhY2l0eTouNjU4MjkxNDU7c3Ryb2tlOiMwMDU2ZTM7c3Ryb2tlLXdpZHRoOi4yO3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOnJvdW5kO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjEiLz48cGF0aCBkPSJNMTQ1LjA1OCA5NC4zM2MuMjg4LjE4Ny41NDMuNDM1LjY5OC43NDQuMTUyLjMwMi4zNDIuNTkyLjQyNy45MjIuMDI3LjEwNi4wNTIuMjgyLS4wODcuMzEzYTEgMSAwIDAgMS0uNjE3LS4wNTFjLS40MjYtLjE5OC0uNzc0LS42MjMtLjc4Ni0xLjEwNi0uMDA4LS4zMTMuMTQ1LS42MDguMzY1LS44MjN6bS0xMi41NjggMS44NTFjLjE3Mi0uMzU3LjMyLS43NC42MjEtMS4wMTYuMjY1LS4yNDMuNTQ2LS40OTUuODk2LS42MS4xNTgtLjA1Mi4zNDQuMDI1LjM5OC4xODcuMTA1LjMxNC4wMy42NTUtLjA3OC45NTYtLjE1Ny40MzctLjQwNC44NjYtLjc5NiAxLjEzMy0uMjQzLjE2NC0uNTg5LjIwNC0uODI5LjAzLS4xMi0uMDg3LS4zMS0uMTY3LS4zMDYtLjMzOC4wMDYtLjI3LjA4NS0uNTM0LjA5NC0uODA1IiBzdHlsZT0ib3BhY2l0eToxO2ZpbGw6IzEzYzlmZTtmaWxsLW9wYWNpdHk6LjY1ODI5MTQ1O3N0cm9rZTojMDA1NmUzO3N0cm9rZS13aWR0aDouMjtzdHJva2UtbGluZWNhcDpidXR0O3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIi8+PC9nPjxwYXRoIGQ9Ik03Ny42NTIgMTE5LjQ2NWM1LjQ0LTQuMjM0IDYuMjE3LTYuNjE1IDEwLjI5Ny02LjIxOHM3Ljc3MiA1LjQyNCAxMy45ODkgNC4xYzYuMjE3LTEuMzIyIDUuMjQ1LTUuNTU1IDEyLjgyMi00LjIzMiA3LjU3OCAxLjMyMyA3Ljg0OCA0LjIyNyAxMy45MyA0LjgyNSA2LjA4Mi41OTkgNi42NjUtMS4zODYgMTAuMTYyLTIuNzA5czguNzQyLjM5NyA5LjcxNCAxLjU4OGMuOTcxIDEuMTkgNi4yMTcgNy40MDggNi4yMTcgNy40MDhsLTgwLjQzMy4zOTd6IiBjbGlwLXBhdGg9InVybCgjZikiIHN0eWxlPSJmaWxsOiMwMDgxZmY7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlOm5vbmU7c3Ryb2tlLXdpZHRoOi4zMjA2MzczMnB4O3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOm1pdGVyO3N0cm9rZS1vcGFjaXR5OjEiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC4wNiAyLjAxNikiLz48dGV4dCB4bWw6c3BhY2U9InByZXNlcnZlIiB4PSI5OC4xMzYiIHk9IjEwOC44MzkiIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0OjQwMDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtc2l6ZTo0LjgzMjQ2NjEzcHg7bGluZS1oZWlnaHQ6MS4yNTtmb250LWZhbWlseTomcXVvdDtUcmVidWNoZXQgTVMmcXVvdDs7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjomcXVvdDtUcmVidWNoZXQgTVMmcXVvdDs7bGV0dGVyLXNwYWNpbmc6MDt3b3JkLXNwYWNpbmc6MDtvcGFjaXR5Oi43MTQ5OTk5OTtmaWxsOiNhMGNhZmM7ZmlsbC1vcGFjaXR5Oi43NjE2ODIyNTtzdHJva2U6IzI5N2ZjZDtzdHJva2Utd2lkdGg6LjEyMDgxMTY2O3N0cm9rZS1vcGFjaXR5OjE7ZmlsdGVyOnVybCgjZykiIHRyYW5zZm9ybT0ibWF0cml4KDEuMDI1MjIgMCAwIDEuMDkyNzUgLTguMTIyIC02LjYxNykiPjx0c3BhbiB4PSI5OC4xMzYiIHk9IjEwOC44MzkiIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0OjQwMDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtZmFtaWx5OiZxdW90O1RyZWJ1Y2hldCBNUyZxdW90OzstaW5rc2NhcGUtZm9udC1zcGVjaWZpY2F0aW9uOiZxdW90O1RyZWJ1Y2hldCBNUyZxdW90OztmaWxsOiNhMGNhZmM7ZmlsbC1vcGFjaXR5Oi43NjE2ODIyNTtzdHJva2U6IzI5N2ZjZDtzdHJva2Utd2lkdGg6LjEyMDgxMTY2O3N0cm9rZS1vcGFjaXR5OjEiPkdsdWV0dW48L3RzcGFuPjwvdGV4dD48L2c+PC9zdmc+",
+      "category": "network",
+      "image": "docker.io/qmcgaw/gluetun:v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027",
+      "version": "3.41.3",
+      "exposure": "private",
+      "own_login": false,
+      "infrastructure": false,
+      "tunnel": true,
+      "volumes": [
+        {
+          "name": "config",
+          "path": "/gluetun"
+        }
+      ],
+      "settings": [
+        {
+          "key": "VPN_SERVICE_PROVIDER",
+          "label": "Your VPN provider, as Gluetun names it: mullvad, protonvpn, nordvpn, surfshark, airvpn, ivpn, windscribe, private internet access, and others its wiki lists",
+          "type": "text"
+        },
+        {
+          "key": "VPN_TYPE",
+          "label": "wireguard or openvpn, whichever your provider gave you",
+          "type": "text",
+          "default": "wireguard"
+        },
+        {
+          "key": "WIREGUARD_PRIVATE_KEY",
+          "label": "WireGuard private key, from your provider",
+          "type": "password"
+        },
+        {
+          "key": "WIREGUARD_ADDRESSES",
+          "label": "The address your provider gave that key, such as 10.64.0.2/32",
+          "type": "text"
+        },
+        {
+          "key": "OPENVPN_USER",
+          "label": "OpenVPN user name, if you chose openvpn",
+          "type": "text"
+        },
+        {
+          "key": "OPENVPN_PASSWORD",
+          "label": "OpenVPN password, if you chose openvpn",
+          "type": "password"
+        },
+        {
+          "key": "SERVER_COUNTRIES",
+          "label": "Countries to pick a server in, comma separated; empty means any",
+          "type": "text"
+        },
+        {
+          "key": "FIREWALL_OUTBOUND_SUBNETS",
+          "label": "Your home network, such as 192.168.1.0/24, if you reach a Service on this Tunnel from another machine on it; leave empty otherwise",
+          "type": "text"
+        },
+        {
+          "key": "DNS_KEEP_NAMESERVER",
+          "label": "Let a Service on this Tunnel use the Fleet's names (\u003cservice\u003e.local). Its name lookups then go through your home network, not the VPN.",
+          "type": "bool",
+          "default": "false"
+        },
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nAddDevice=/dev/net/tun\nAddCapability=NET_ADMIN\nEnvironment=\"VPN_SERVICE_PROVIDER={{ .Settings.VPN_SERVICE_PROVIDER }}\"\nEnvironment=\"VPN_TYPE={{ .Settings.VPN_TYPE }}\"\nEnvironment=\"WIREGUARD_PRIVATE_KEY={{ .Settings.WIREGUARD_PRIVATE_KEY }}\"\nEnvironment=\"WIREGUARD_ADDRESSES={{ .Settings.WIREGUARD_ADDRESSES }}\"\nEnvironment=\"OPENVPN_USER={{ .Settings.OPENVPN_USER }}\"\nEnvironment=\"OPENVPN_PASSWORD={{ .Settings.OPENVPN_PASSWORD }}\"\nEnvironment=\"SERVER_COUNTRIES={{ .Settings.SERVER_COUNTRIES }}\"\nEnvironment=\"FIREWALL_OUTBOUND_SUBNETS={{ .Settings.FIREWALL_OUTBOUND_SUBNETS }}\"\nEnvironment=\"DNS_KEEP_NAMESERVER={{ .Settings.DNS_KEEP_NAMESERVER }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/gluetun:Z\n",
+      "source": {
+        "from": "hand",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/38631ad11695467d7a9e432d5fdec7a39a31e75f/svg/gluetun.svg"
+        }
+      },
+      "grants": [
+        {
+          "option": "AddDevice=/dev/net/tun",
+          "why": "Makes the network device the encrypted tunnel runs over. Without it there is nothing to carry the traffic, so every VPN client needs it."
+        },
+        {
+          "option": "AddCapability=NET_ADMIN",
+          "why": "Sets the routes and the firewall inside its own container, which is what keeps a Service on the Tunnel from reaching the internet any other way."
+        }
+      ],
+      "project": "https://github.com/passteque/gluetun",
+      "stars": 15985
+    },
+    {
       "id": "gotify",
       "name": "Gotify",
       "summary": "Send push notifications to your phone from your own server.",

@@ -342,7 +342,7 @@ function tunnel(nodeId: string, t: number): ServiceSpec {
   return create(ServiceSpecSchema, {
     name: "vpn",
     catalogId: "gluetun",
-    image: "docker.io/qmcgaw/gluetun:v3.40.0@sha256:" + "7a".repeat(32),
+    image: "docker.io/qmcgaw/gluetun:v3.41.3@sha256:" + "7a".repeat(32),
     nodeId,
     exposure: "private",
     createdUnixMs: BigInt(t - 30 * 86400_000),

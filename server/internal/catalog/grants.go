@@ -109,12 +109,16 @@ func Support(option string) (ok bool, needs string) {
 		}
 		if host == "/dev/net/tun" {
 			// What every Tunnel needs (ADR 0010): a VPN client makes its
-			// own interface. container-selinux may already allow
-			// tun_tap_device_t to container_t, which would make this a
-			// one-line table change; until someone has run a container
-			// with the device on a Node and watched the audit log,
-			// Maître does not promise to run it.
-			return false, "a check on a Node that SELinux lets a container use /dev/net/tun (run a container with the device and watch for an AVC denial of tun_tap_device_t); if it is denied, a rule in the Node image. Every Tunnel needs this"
+			// own interface. Promised untried, which the user decided: a
+			// Node has no terminal, so nobody can run a container with the
+			// device and read the audit log, and the only way to learn
+			// whether SELinux allows it is to install a Tunnel and watch.
+			// If container-selinux does not already allow tun_tap_device_t
+			// to container_t, the Tunnel fails to start and says so in its
+			// logs, and the answer is a rule in the Node image; the device
+			// carries only the Tunnel's own traffic, so nothing else is
+			// riskier in the meantime.
+			return true, ""
 		}
 		return false, "SELinux letting a container use the device (container-selinux's container_use_devices boolean, off on Fedora, or a narrower rule) set in the Node image, checked on a Node with the device plugged in"
 	case "AddCapability", "Sysctl", "UserNS", "NoNewPrivileges":
