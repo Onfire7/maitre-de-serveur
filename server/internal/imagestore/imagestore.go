@@ -323,7 +323,20 @@ func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	// <none>, and a round trip lost both — so the copy has to preserve
 	// hard links, ACLs and every xattr. rsync is in the image for the
 	// Pool's own copies.
-	if out, err := run.Run(ctx, "rsync", "-aHAX", "--delete", filepath.Join(from)+"/", to+"/"); err != nil {
+	// libpod's database is left behind. It records the static dir it was
+	// made with, and podman refuses to open one whose recorded path is not
+	// the configured one — "database static dir ... does not match our
+	// static dir ...: database configuration mismatch" — so a copied
+	// database makes the new store unopenable. What it holds is
+	// containers, pods and named volumes, and Maître keeps none of its
+	// own state there: a Service is a Quadlet unit recreated on start, and
+	// its volumes are bind mounts from a Space. podman builds a fresh one
+	// at the new path. An excluded path is not deleted by --delete, so a
+	// copy left by an earlier attempt goes explicitly.
+	if err := os.RemoveAll(filepath.Join(to, "libpod")); err != nil {
+		return 0, fmt.Errorf("clear %s: %w", filepath.Join(to, "libpod"), err)
+	}
+	if out, err := run.Run(ctx, "rsync", "-aHAX", "--delete", "--exclude", "/libpod/", filepath.Join(from)+"/", to+"/"); err != nil {
 		return 0, fmt.Errorf("copy the image store to %s: %w (%s)", to, err, strings.TrimSpace(out))
 	}
 	if _, err := Ensure(ctx, run, to); err != nil {

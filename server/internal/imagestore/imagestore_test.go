@@ -254,3 +254,30 @@ func TestFcontextSpecFollowsThePolicysEquivalencies(t *testing.T) {
 		}
 	}
 }
+
+// libpod's database must not travel with the store: it records the static
+// dir it was made with and podman will not open it anywhere else.
+func TestMoveLeavesLibpodBehind(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "old"), filepath.Join(dir, "new")
+	if err := os.MkdirAll(filepath.Join(from, "libpod"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	oldStorage, oldDropIn, oldVendored := StorageConfig, ContainersDropIn, VendoredConfig
+	StorageConfig = filepath.Join(dir, "storage.conf")
+	ContainersDropIn = filepath.Join(dir, "containers.conf")
+	VendoredConfig = filepath.Join(dir, "vendored.conf")
+	defer func() { StorageConfig, ContainersDropIn, VendoredConfig = oldStorage, oldDropIn, oldVendored }()
+	if err := os.WriteFile(VendoredConfig, []byte("[storage]\ngraphroot = \""+DefaultRoot+"\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &moveRunner{before: "aaa\n", after: "aaa\n"}
+
+	if _, err := Move(ctx, r, from, to); err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	if !r.ran("rsync -aHAX --delete --exclude /libpod/") {
+		t.Errorf("libpod was not excluded from the copy; ran %v", r.cmds)
+	}
+}
