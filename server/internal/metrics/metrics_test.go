@@ -17,6 +17,12 @@ func TestReadsSomething(t *testing.T) {
 	if m.GetMemoryTotalBytes() == 0 || m.GetPoolTotalBytes() == 0 || m.GetPoolFallback() {
 		t.Fatalf("unexpected reading %+v", m)
 	}
+	// The gauge the Node never had, and the one that says whether an
+	// update can be staged: it must report a real filesystem wherever
+	// this runs, which on a bootc Node is not the one mounted at /.
+	if m.GetSystemDiskTotalBytes() == 0 || m.GetSystemDiskUsedBytes() > m.GetSystemDiskTotalBytes() {
+		t.Errorf("system disk %d/%d", m.GetSystemDiskUsedBytes(), m.GetSystemDiskTotalBytes())
+	}
 	if m.GetCpuPercent() < 0 || m.GetCpuPercent() > 100 {
 		t.Fatalf("cpu %v", m.GetCpuPercent())
 	}

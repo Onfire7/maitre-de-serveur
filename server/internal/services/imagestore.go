@@ -6,6 +6,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/imagestore"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/metrics"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/storage"
 )
 
@@ -36,7 +37,11 @@ func (m *Manager) MoveImageStore(ctx context.Context, dir string) (*maitrev1.Mov
 	if from == to {
 		return res, nil
 	}
-	res.RootFreeBeforeBytes = m.freeBytes("/")
+	// Not freeBytes("/"): on a booted bootc Node that is the deployment's
+	// composefs image, a few megabytes, and the numbers that are the whole
+	// point of this move would both read zero (metrics.SystemDiskDir).
+	root := metrics.SystemDiskDir()
+	res.RootFreeBeforeBytes = m.freeBytes(root)
 
 	// Stop what is running, remembering it.
 	specs, err := m.mine(ctx)
@@ -70,7 +75,7 @@ func (m *Manager) MoveImageStore(ctx context.Context, dir string) (*maitrev1.Mov
 	m.storeMu.Lock()
 	m.store_ = ""
 	m.storeMu.Unlock()
-	res.RootFreeAfterBytes = m.freeBytes("/")
+	res.RootFreeAfterBytes = m.freeBytes(root)
 	if err != nil {
 		return res, err
 	}

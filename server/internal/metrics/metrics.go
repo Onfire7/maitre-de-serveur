@@ -43,6 +43,34 @@ func New(poolDir func() string) *Collector {
 }
 
 // Read takes a reading.
+// SystemDiskDir is the path whose filesystem holds the OS, which is not
+// always the one mounted at /.
+//
+// On a booted bootc Node / is a composefs image: the deployment's
+// metadata, a few megabytes, and full by construction because nothing is
+// ever written to it. Measured on Boulder, statfs("/") answered 8 MiB at
+// 100% used while the partition underneath had 32 GiB — so the gauge meant
+// to show a root filling up showed a permanent false alarm instead, and so
+// did the greenboot check beside it. The partition is /sysroot, where
+// ostree keeps its repo and /var.
+//
+// Which one to read is decided by asking rather than by detecting bootc:
+// the larger of the two is the one with the space, which is also right on
+// a plain Linux box, where /sysroot does not exist and answers zero.
+//
+// Exported because the Service manager reports the same filesystem when it
+// moves the image store off it, and two copies of this rule would drift.
+func SystemDiskDir() string { return systemDiskDir(disk) }
+
+func systemDiskDir(stat func(string) (total, used uint64)) string {
+	sysroot, _ := stat("/sysroot")
+	root, _ := stat("/")
+	if sysroot > root {
+		return "/sysroot"
+	}
+	return "/"
+}
+
 func (c *Collector) Read() *maitrev1.NodeMetrics {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -70,7 +98,7 @@ func (c *Collector) Read() *maitrev1.NodeMetrics {
 	}
 	// The root filesystem: the gauge the Node never had, and the one that
 	// says whether an update can still be staged.
-	m.SystemDiskTotalBytes, m.SystemDiskUsedBytes = disk("/")
+	m.SystemDiskTotalBytes, m.SystemDiskUsedBytes = disk(systemDiskDir(disk))
 	if c.ImageStoreDir != nil {
 		if dir := c.ImageStoreDir(); dir != "" {
 			m.ImageStoreDir = dir
