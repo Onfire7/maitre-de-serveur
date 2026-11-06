@@ -20,6 +20,8 @@ const Usage = `usage: maitre debug [flags first] [command]
 
 With no command: the Debug Console, a screen for one Node.
 
+  nodes                  the Nodes saved on this computer, and which is the default
+  forget <node>          drop one of them
   status                 who this Node is, what image it runs, how much room is left
   space                  the image store: how full, and which Service names each image
   services               every Service: state, health, restarts, network and image
@@ -31,8 +33,13 @@ With no command: the Debug Console, a screen for one Node.
   prune                  delete images no Service of this Node names
   move-store             move the image store off the root partition (Services restart)
 
-Flags come first, before the command: -addr, -identity, -trust, -lines,
--json, -drop-rollback, -store-dir, -demo.
+A connection is given once and remembered, as Maitre Desktop remembers one:
+-addr HOST:7443 -trust DIR (or -fingerprint NODE_ID) the first time, then
+nothing at all, and -node <name> for another Node of the same Fleet, whose
+peers were saved along with it.
+
+Flags come first, before the command: -node, -addr, -identity, -trust,
+-fingerprint, -lines, -json, -drop-rollback, -store-dir, -demo.
 -json prints each Node's answer as the protobuf JSON of the response, so a
 script can read a field without parsing a table.`
 

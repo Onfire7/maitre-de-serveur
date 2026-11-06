@@ -290,13 +290,22 @@ getting it there is an update. It buys future diagnosis, not the recovery of a
 wedged Node, which is 324 and 325.
 
 To use it: `make build`, then `./server/bin/maitre debug --demo` to read every
-page without a Node, or `--addr HOST:7443` against a real one, which needs a
-Trusted Device identity (`maitre keygen`) that the Node trusts and the Node's
-own `identity.pub` in the caller's trust directory. The basic tier works against
-any image. The debug tier needs one built for it, which is `make image-debug`:
-it sets `GOTAGS=maitredebug` and names the image `:<version>-debug`, because
-323's risk is a debug image running in production unnoticed, and a version that
-says so is the cheapest guard against it.
+page without a Node. Against a real one the connection is given once and
+remembered, as Maître Desktop remembers one — `-addr HOST:7443 -trust DIR`, or
+`-fingerprint NODE_ID` instead of a directory — and after that `maitre debug`
+needs nothing. A Node's id is its key's fingerprint, so the saved id *is* the
+pin; `internal/nodeconn` keeps it with the Node's name and the ways that reached
+it, in `~/.maitre/nodes.json`. One `GetNodeInfo` also lists the Fleet's peers
+with the address each was last reached at, so one connection to one Node saves
+them all and `-node boulder` works without ever being given its key. The ways
+that failed are kept behind the one that answered (decision 284), and when no
+identity is given, this computer's Maître Desktop device key is used and said
+out loud, since the Console is usually already a Trusted Device.
+
+The basic tier works against any image. The debug tier needs one built for it,
+which is `make image-debug`: it sets `GOTAGS=maitredebug` and names the image
+`:<version>-debug`, because 323's risk is a debug image running in production
+unnoticed, and a version that says so is the cheapest guard against it.
 
 ## Still open
 
@@ -317,7 +326,7 @@ says so is the cheapest guard against it.
 
 ## How each of these is proven
 
-Five rungs, cheapest first. Nothing goes to a Node carrying real Services until
+Six rungs, cheapest first. Nothing goes to a Node carrying real Services until
 the rung below it has passed.
 
 0. **`maitre debug --demo`.** The Console against a made-up Node in the state
@@ -346,6 +355,15 @@ the rung below it has passed.
    obviously wrong, and where 321's partitioning can be read off a fresh
    install. `make vm` boots CI's installer media for the same purpose without a
    local image build.
+3.5 **A real Node, read-only.** `maitre debug status` and `space` against a
+   Node that already runs the work. This cost nothing and found what three
+   rungs of tests could not: `statfs("/")` on a booted bootc Node answers with
+   the deployment's composefs image — 8 MiB, 100% used — not the partition, so
+   the root gauge read permanently full and the greenboot check failed on every
+   boot. `/sysroot` is the partition, and `metrics.SystemDiskDir` now picks
+   whichever of the two is larger. Nothing above this rung could have caught
+   it: a dev box has no composefs and the image build is a container, where
+   `/` is an ordinary overlay.
 4. **The LAN test Nodes**, booted from the dev box's Depot, with
    `make image publish TAG=dev` and `maitre update`. Real hardware, no real
    Services.
