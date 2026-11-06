@@ -224,9 +224,17 @@ func runService(args []string) error {
 		}
 		gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
 		fmt.Printf("store %s\n", res.GetStoreDir())
-		fmt.Printf("free  %.1f GiB before, %.1f GiB after: %.1f GiB back\n",
-			gib(res.GetFreeBeforeBytes()), gib(res.GetFreeAfterBytes()),
-			gib(res.GetFreeAfterBytes()-res.GetFreeBeforeBytes()))
+		// Signed, for the same reason move-image-store is: a prune that
+		// frees nothing while something else writes a few megabytes reads
+		// as a negative difference, and unsigned that printed as
+		// "17179869184.0 GiB back" on Avalon.
+		delta := gib(res.GetFreeAfterBytes()) - gib(res.GetFreeBeforeBytes())
+		gained := "back"
+		if delta < 0 {
+			delta, gained = -delta, "given up"
+		}
+		fmt.Printf("free  %.1f GiB before, %.1f GiB after: %.1f GiB %s\n",
+			gib(res.GetFreeBeforeBytes()), gib(res.GetFreeAfterBytes()), delta, gained)
 		fmt.Printf("kept  %d image(s) this Node's Services name\n", res.GetKept())
 		fmt.Printf("removed %d:\n", len(res.GetRemoved()))
 		for _, r := range res.GetRemoved() {

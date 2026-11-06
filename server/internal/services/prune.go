@@ -59,49 +59,58 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}
-	// `podman images` prints a line per *tag*, so an image carrying two of
-	// them appears twice. That matters for more than counting: podman
-	// refuses to delete such an image by ID at all --
+	// Removed by name, not by ID, because podman refuses an ID that has
+	// more than one name:
 	//
 	//	Error: unable to delete image "98c6ca8..." by ID with more than
-	//	one tag ([docker.io/library/redis:7.4.12-alpine ...]); please
-	//	force removal
+	//	one tag ([docker.io/library/redis:7.4.12-alpine
+	//	docker.io/library/redis@sha256:8da19c73...]); please force removal
 	//
-	// -- and on Avalon that was every single unreferenced image, so the
-	// prune reported "removed 0" while naming three images it had meant to
-	// take. Not force: --force also deletes the containers holding an
-	// image, and an image a container holds is exactly the one to leave
-	// alone. Removing each tag by name does it, and the image goes with
-	// the last of them.
-	order := make([]string, 0, 32)
-	tags := map[string][]string{}
+	// A pulled image has a tag *and* a digest reference, so that is almost
+	// every image there is, and on Avalon it was all of them: the prune
+	// answered "removed 0" and freed nothing while the agent logged all
+	// three refusals. Not --force, which also deletes the containers
+	// holding an image, and an image a container holds is exactly the one
+	// to leave alone. Each name goes, and the image goes with the last of
+	// them.
+	//
+	// Note what the names are not: `podman images --format {{.Tag}}`
+	// prints tags only, so the digest reference that makes up the second
+	// name is invisible there. They have to come from podman's own record
+	// of the image.
+	seen := map[string]bool{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		id, name, _ := strings.Cut(strings.TrimSpace(line), "\t")
-		if id == "" || keep[id] {
+		id, shown, _ := strings.Cut(strings.TrimSpace(line), "\t")
+		if id == "" || keep[id] || seen[id] {
 			continue
 		}
-		if _, ok := tags[id]; !ok {
-			order = append(order, id)
-			tags[id] = nil
+		seen[id] = true
+		args := []string{"rmi"}
+		names := m.imageNames(ctx, id)
+		if len(names) == 0 {
+			// Dangling: no name to remove it by, and no second name to
+			// make the ID ambiguous either.
+			args = append(args, id)
+		} else {
+			args = append(args, names...)
 		}
-		// A dangling image has no reference to remove it by, so its tags
-		// stay empty and it goes by ID, which podman accepts.
-		if name != "" && !strings.Contains(name, "<none>") {
-			tags[id] = append(tags[id], name)
+		if shown == "" || strings.Contains(shown, "<none>") {
+			shown = id
+			if len(names) > 0 {
+				shown = names[0]
+			}
 		}
-	}
-	for _, id := range order {
-		// By ID wherever podman accepts it: a tag can be re-pointed
-		// between listing the store and removing from it, an ID cannot.
-		args, shown := []string{"rmi", id}, id
-		if names := tags[id]; len(names) > 1 {
-			args, shown = append([]string{"rmi"}, names...), names[0]
-		}
-		// A removal that fails is reported and the rest go on: an image a
-		// container still holds is not worth refusing the whole prune for.
-		if _, err := m.run.Run(ctx, "podman", args...); err != nil {
+		rmErr := firstErr(m.run.Run(ctx, "podman", args...))
+		// Whether the image is gone is the question, and podman answers it
+		// directly. rmi's own exit status cannot: removing a tag can take
+		// the image with it, and the next name in the same call is then an
+		// image that is "not known" -- a failure that means it worked.
+		if _, err := m.run.Run(ctx, "podman", "image", "exists", id); err == nil {
+			// Still there. A removal that fails is reported and the rest
+			// go on: an image a container still holds is not worth
+			// refusing the whole prune for.
 			if m.cfg.Log != nil {
-				m.cfg.Log.Warn("prune image", "image", shown, "err", err)
+				m.cfg.Log.Warn("prune image", "image", shown, "err", rmErr)
 			}
 			continue
 		}
@@ -115,6 +124,26 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	res.FreeAfterBytes = m.freeBytes(res.GetStoreDir())
 	return res, nil
 }
+
+// imageNames is every name podman knows an image by: its tags and its
+// digest references, which together are what `podman rmi` counts when it
+// decides an ID is ambiguous.
+func (m *Manager) imageNames(ctx context.Context, id string) []string {
+	out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format",
+		"{{range .RepoTags}}{{println .}}{{end}}{{range .RepoDigests}}{{println .}}{{end}}", id)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(out, "\n") {
+		if n := strings.TrimSpace(line); n != "" && !strings.Contains(n, "<none>") {
+			names = append(names, n)
+		}
+	}
+	return names
+}
+
+func firstErr(_ string, err error) error { return err }
 
 // ImageStoreDir is storeDir for other packages: the metrics collector
 // gauges the filesystem the images are on (decision 317), and after

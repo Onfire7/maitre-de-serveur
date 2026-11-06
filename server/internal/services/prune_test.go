@@ -14,11 +14,50 @@ import (
 type pruneRunner struct {
 	cmds []string
 	ids  map[string]string // reference -> image ID podman resolves it to
+	gone map[string]bool   // image ID -> removed by this prune
+}
+
+// names is what podman knows each image by. A pulled image has a tag and
+// a digest reference both, which is why `podman rmi <id>` refuses almost
+// every image in a real store.
+var pruneNames = map[string][]string{
+	"id-live":   {"docker.io/jellyfin/jellyfin:10.10.7", "docker.io/jellyfin/jellyfin@sha256:live"},
+	"id-prev":   {"docker.io/jellyfin/jellyfin@sha256:prev"},
+	"id-old1":   {"docker.io/jellyfin/jellyfin:10.10.6", "docker.io/jellyfin/jellyfin@sha256:old1"},
+	"id-old2":   {"docker.io/jellyfin/jellyfin:10.10.5", "docker.io/jellyfin/jellyfin@sha256:old2"},
+	"id-gone":   {"docker.io/docmost/docmost:0.9.1", "docker.io/docmost/docmost@sha256:gone"},
+	"id-dangle": nil, // no name at all, so it goes by ID
 }
 
 func (p *pruneRunner) Run(_ context.Context, name string, args ...string) (string, error) {
 	p.cmds = append(p.cmds, name+" "+strings.Join(args, " "))
 	switch {
+	case name == "podman" && len(args) > 2 && args[0] == "image" && args[1] == "exists":
+		if p.gone[args[len(args)-1]] {
+			return "", errNoSuchImage
+		}
+		return "", nil
+	case name == "podman" && len(args) > 0 && args[0] == "rmi":
+		// podman refuses an ID that has more than one name, which is what
+		// the prune has to avoid asking for.
+		for id, names := range pruneNames {
+			if len(names) > 1 && slicesContains(args[1:], id) {
+				return "", errAmbiguousID
+			}
+		}
+		for id, names := range pruneNames {
+			for _, n := range names {
+				if slicesContains(args[1:], n) {
+					p.gone[id] = true
+				}
+			}
+		}
+		if slicesContains(args[1:], "id-dangle") {
+			p.gone["id-dangle"] = true
+		}
+		return "", nil
+	case name == "podman" && len(args) > 3 && args[0] == "image" && args[1] == "inspect" && args[2] == "--format" && strings.Contains(args[3], "RepoTags"):
+		return strings.Join(pruneNames[args[len(args)-1]], "\n") + "\n", nil
 	case name == "podman" && len(args) > 2 && args[0] == "image" && args[1] == "inspect":
 		if id, ok := p.ids[args[len(args)-1]]; ok {
 			return id + "\n", nil
@@ -31,10 +70,6 @@ func (p *pruneRunner) Run(_ context.Context, name string, args ...string) (strin
 			"id-old1\tdocker.io/jellyfin/jellyfin:10.10.6",
 			"id-old2\tdocker.io/jellyfin/jellyfin:10.10.5",
 			"id-gone\tdocker.io/docmost/docmost:0.9.1",
-			// One image, two tags, which podman prints as two lines and
-			// refuses to delete by ID at all.
-			"id-twotags\tdocker.io/library/redis:7.4.12-alpine",
-			"id-twotags\tdocker.io/library/redis:7",
 			"id-dangle\t<none>:<none>",
 		}, "\n"), nil
 	case name == "podman" && len(args) > 1 && args[0] == "info":
@@ -45,11 +80,37 @@ func (p *pruneRunner) Run(_ context.Context, name string, args ...string) (strin
 	return "", nil
 }
 
-var errNoSuchImage = &noSuchImage{}
+var (
+	errNoSuchImage = &podmanErr{"no such image"}
+	errAmbiguousID = &podmanErr{"unable to delete image by ID with more than one tag; please force removal"}
+)
 
-type noSuchImage struct{}
+type podmanErr struct{ msg string }
 
-func (*noSuchImage) Error() string { return "no such image" }
+func (e *podmanErr) Error() string { return e.msg }
+
+// removedIDs is which images the prune took, whatever names it used to
+// take them by -- the question most of these tests are asking. removed()
+// is for the one test that is asking about the names themselves.
+func (p *pruneRunner) removedIDs() []string {
+	var out []string
+	for _, c := range p.removed() {
+		args := strings.Fields(c)
+		for id, names := range pruneNames {
+			for _, n := range names {
+				if slicesContains(args, n) && !slicesContains(out, id) {
+					out = append(out, id)
+				}
+			}
+		}
+		for _, a := range args {
+			if strings.HasPrefix(a, "id-") && !slicesContains(out, a) {
+				out = append(out, a)
+			}
+		}
+	}
+	return out
+}
 
 func (p *pruneRunner) removed() []string {
 	var out []string
@@ -66,7 +127,7 @@ func (p *pruneRunner) removed() []string {
 // its own Services name and nothing else.
 func TestPruneKeepsWhatThisNodesServicesName(t *testing.T) {
 	ctx := context.Background()
-	run := &pruneRunner{ids: map[string]string{}}
+	run := &pruneRunner{ids: map[string]string{}, gone: map[string]bool{}}
 	spec := single("jellyfin", 8096)
 	spec.NodeId = "node-a"
 	spec.Image = "docker.io/jellyfin/jellyfin:10.10.7@sha256:live"
@@ -83,7 +144,7 @@ func TestPruneKeepsWhatThisNodesServicesName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := run.removed()
+	got := run.removedIDs()
 	for _, keep := range []string{"id-live", "id-prev"} {
 		if slicesContains(got, keep) {
 			t.Errorf("prune removed %s, which a Service names", keep)
@@ -102,17 +163,18 @@ func TestPruneKeepsWhatThisNodesServicesName(t *testing.T) {
 	}
 }
 
-// An image with more than one tag cannot be deleted by ID: podman refuses
-// outright ("unable to delete image ... by ID with more than one tag ...;
-// please force removal"). On Avalon that was every unreferenced image, so
-// the prune reported "removed 0" while naming three images it meant to
-// take, and 1.15 GiB stayed on a root at 96%. Each tag goes by name
-// instead, and the image goes with the last of them -- not --force, which
-// would delete the containers holding an image, and an image a container
-// holds is exactly the one to leave alone.
-func TestPruneRemovesAnImageWithMoreThanOneTag(t *testing.T) {
+// An image with more than one name cannot be deleted by ID: podman
+// refuses outright ("unable to delete image ... by ID with more than one
+// tag ([docker.io/library/redis:7.4.12-alpine
+// docker.io/library/redis@sha256:8da19c73...]); please force removal").
+// A pulled image has a tag and a digest reference both, so that is almost
+// every image there is -- on Avalon it was all of them, and the prune
+// answered "removed 0" and freed nothing on a root at 96%. The names also
+// cannot come from `podman images`, which prints tags and never the
+// digest reference that makes the ID ambiguous.
+func TestPruneRemovesByEveryNamePodmanKnows(t *testing.T) {
 	ctx := context.Background()
-	run := &pruneRunner{ids: map[string]string{}}
+	run := &pruneRunner{ids: map[string]string{}, gone: map[string]bool{}}
 	spec := single("jellyfin", 8096)
 	spec.NodeId = "node-a"
 	spec.Image = "docker.io/jellyfin/jellyfin:10.10.7@sha256:live"
@@ -127,34 +189,44 @@ func TestPruneRemovesAnImageWithMoreThanOneTag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := run.removed()
-	// Both tags in one call, so the image goes rather than being untagged
-	// down to one and left behind.
-	if !slicesContains(got, "docker.io/library/redis:7.4.12-alpine docker.io/library/redis:7") {
-		t.Errorf("the two-tag image was not removed by its tags: %v", got)
+	// Tag and digest reference in one call, so the image goes rather than
+	// being untagged down to one name and left behind.
+	if !slicesContains(run.removed(), "docker.io/jellyfin/jellyfin:10.10.6 docker.io/jellyfin/jellyfin@sha256:old1") {
+		t.Errorf("id-old1 was not removed by both its names: %v", run.removed())
 	}
 	for _, c := range run.cmds {
-		if strings.Contains(c, "rmi") && strings.Contains(c, "id-twotags") {
-			t.Errorf("removed by ID, which podman refuses for a multi-tagged image: %q", c)
+		if !strings.HasPrefix(c, "podman rmi ") {
+			continue
 		}
-		if strings.Contains(c, "--force") || strings.Contains(c, " -f ") && strings.Contains(c, "rmi") {
+		for _, id := range []string{"id-old1", "id-old2", "id-gone"} {
+			if strings.Contains(c, id) {
+				t.Errorf("removed by ID, which podman refuses for a multi-named image: %q", c)
+			}
+		}
+		if strings.Contains(c, "--force") || strings.Contains(c, "rmi -f") {
 			t.Errorf("forced the removal, which would delete the containers holding the image: %q", c)
 		}
 	}
-	// And it is reported, under a name someone can recognise.
-	if !slicesContains(res.GetRemoved(), "docker.io/library/redis:7.4.12-alpine") {
-		t.Errorf("the removal was not reported: %v", res.GetRemoved())
+	// Reported under a name someone can recognise, not a hex ID.
+	if !slicesContains(res.GetRemoved(), "docker.io/docmost/docmost:0.9.1") {
+		t.Errorf("the removal was not reported by name: %v", res.GetRemoved())
 	}
-	// A dangling image has no tag to name it by and still goes by ID.
-	if !slicesContains(got, "id-dangle") {
-		t.Errorf("the dangling image was not removed: %v", got)
+	// A dangling image has no name to remove it by and still goes by ID.
+	if !slicesContains(run.removed(), "id-dangle") {
+		t.Errorf("the dangling image was not removed: %v", run.removed())
+	}
+	// An image a Service names is never touched, by any of its names.
+	for _, c := range run.removed() {
+		if strings.Contains(c, "10.10.7") || strings.Contains(c, "sha256:live") {
+			t.Errorf("prune removed an image a Service names: %q", c)
+		}
 	}
 }
 
 // Decision 320 is the default; dropping it is what gets the space back now.
 func TestPruneCanDropRollbackTargets(t *testing.T) {
 	ctx := context.Background()
-	run := &pruneRunner{ids: map[string]string{}}
+	run := &pruneRunner{ids: map[string]string{}, gone: map[string]bool{}}
 	spec := single("jellyfin", 8096)
 	spec.NodeId = "node-a"
 	spec.Image = "docker.io/jellyfin/jellyfin:10.10.7@sha256:live"
@@ -170,7 +242,7 @@ func TestPruneCanDropRollbackTargets(t *testing.T) {
 	if _, err := mgr.PruneImages(ctx, false); err != nil {
 		t.Fatal(err)
 	}
-	got := run.removed()
+	got := run.removedIDs()
 	if !slicesContains(got, "id-prev") {
 		t.Errorf("previous_image was kept with keepRollback off: %v", got)
 	}
@@ -183,7 +255,7 @@ func TestPruneCanDropRollbackTargets(t *testing.T) {
 // so none of what it holds is its to keep.
 func TestPruneOnANodeThatOwnsNoServicesKeepsNothing(t *testing.T) {
 	ctx := context.Background()
-	run := &pruneRunner{ids: map[string]string{}}
+	run := &pruneRunner{ids: map[string]string{}, gone: map[string]bool{}}
 	mgr, store2 := managerOver(t, run)
 	theirs := single("jellyfin", 8096)
 	theirs.NodeId, theirs.Address = "node-b", "10.90.0.50"
@@ -200,7 +272,7 @@ func TestPruneOnANodeThatOwnsNoServicesKeepsNothing(t *testing.T) {
 	if res.GetKept() != 0 {
 		t.Errorf("kept %d images for Services this Node does not run", res.GetKept())
 	}
-	if !slicesContains(run.removed(), "id-live") {
+	if !slicesContains(run.removedIDs(), "id-live") {
 		t.Error("another Node's image was kept")
 	}
 }
