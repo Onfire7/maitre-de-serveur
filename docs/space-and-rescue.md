@@ -289,6 +289,15 @@ What it does not do is reach a Node already running a shipped image, since
 getting it there is an update. It buys future diagnosis, not the recovery of a
 wedged Node, which is 324 and 325.
 
+To use it: `make build`, then `./server/bin/maitre debug --demo` to read every
+page without a Node, or `--addr HOST:7443` against a real one, which needs a
+Trusted Device identity (`maitre keygen`) that the Node trusts and the Node's
+own `identity.pub` in the caller's trust directory. The basic tier works against
+any image. The debug tier needs one built for it, which is `make image-debug`:
+it sets `GOTAGS=maitredebug` and names the image `:<version>-debug`, because
+323's risk is a debug image running in production unnoticed, and a version that
+says so is the cheapest guard against it.
+
 ## Still open
 
 - A Service with no volumes skips both storage guards, since the default-Space

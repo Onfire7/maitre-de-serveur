@@ -10,7 +10,14 @@ COPY server/third_party/ ./third_party/
 RUN go mod download
 COPY server/ ./
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /maitre ./cmd/maitre
+# GOTAGS is how an image asks for the debug console's remote surface
+# (decision 323): `maitredebug` compiles in DebugReadFile and DebugExec,
+# and empty — the default, and every published image — leaves the
+# procedures out of the binary altogether rather than guarded inside it.
+# `make image-debug` sets it and names the image :<version>-debug, because
+# the risk 323 names is a debug image running in production unnoticed.
+ARG GOTAGS=
+RUN CGO_ENABLED=0 go build -tags "${GOTAGS}" -ldflags "-X main.version=${VERSION}" -o /maitre ./cmd/maitre
 # The Catalog index baked into the image; the agent refreshes it from the
 # network later. Validates every entry as a side effect.
 COPY catalog/ /catalog/

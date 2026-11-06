@@ -80,6 +80,13 @@ m1-check: build ## End-to-end: pair and provision a (fake-install) Installer, th
 image: build ## Build the Maître Server bootc image (needs podman)
 	podman build --retry 6 --retry-delay 30s --build-arg VERSION=$(VERSION) -t localhost/maitre-server:$(VERSION) -f image/Containerfile .
 
+image-debug: build ## Build the image with the debug console's remote surface (decision 323); the Console and the Desktop both say so loudly
+	podman build --retry 6 --retry-delay 30s --build-arg VERSION=$(VERSION)-debug --build-arg GOTAGS=maitredebug -t localhost/maitre-server:$(VERSION)-debug -f image/Containerfile .
+	@echo
+	@echo 'Built localhost/maitre-server:$(VERSION)-debug. This image answers "maitre debug read"'
+	@echo 'and "maitre debug run" over the network, and the Console and the Desktop both say so in'
+	@echo 'amber. Install a normal image once the diagnosis is done.'
+
 publish: build ## Publish the local image build into the Depot as maitre-server:$(TAG) (TAG=dev; NETBOOT=1 also builds netboot files; they are rebuilt anyway when the Depot already has some)
 	./server/bin/maitre depot publish localhost/maitre-server:$(VERSION) --tag $(TAG) $(if $(NETBOOT),--netboot)
 
