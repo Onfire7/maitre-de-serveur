@@ -31,6 +31,11 @@ const (
 	FleetDNS = "10.90.0.2"
 	// firstAddress is the first address given to a Service.
 	firstAddress = "10.90.0.10"
+	// FleetIface is the dummy interface fleetnet holds FleetDNS, and the
+	// address of every Service this Node does not run, on. Named here
+	// because ensureNetwork has to clear it before Podman will create a
+	// network over the same subnet, and fleetnet imports this package.
+	FleetIface = "maitre0"
 )
 
 // NetworkUnitBody is the maitre.network file the Node writes
@@ -330,47 +335,89 @@ func (m *Manager) unitsStale(ctx context.Context, spec *maitrev1.ServiceSpec) bo
 	return false
 }
 
-// ensureNetwork writes maitre.network with the Fleet's subnet. A network
-// Podman already made with another subnet cannot change under its
-// containers: the Node's Services stop, the network goes, and they start
-// again on the new one. Once per Node.
+// ensureNetwork makes Podman's maitre network the Fleet's subnet, creating
+// it when it is not there. What it reconciles against is Podman's live
+// network, never the unit file: image/Containerfile ships
+// /etc/containers/systemd/maitre.network with exactly the bytes
+// NetworkUnitBody writes, so a file comparison always matches and every
+// repair below it would be dead code on a shipped image.
+//
+// The order matters and is the whole fix. fleetnet holds FleetDNS, and
+// every Service this Node does not run, as /32s on its dummy interface,
+// and those addresses are inside FleetSubnet by design — a Service keeps
+// one address across the Fleet. Podman refuses to create a network whose
+// subnet is already on the host ("subnet ... is already used on the host
+// or by another config"), and FleetDNS alone is enough to trigger it, so
+// the bridge could never be created on any real Node. Podman only checks
+// at create time, so the addresses come off first and fleetnet puts them
+// back on its next Reconcile; a /32 beside the bridge's /16 then routes
+// to the agent, which is what ADR 0010 wants.
+//
+// A network Podman already made with another subnet cannot change under
+// its containers: the Node's Services stop, the network goes, and they
+// start again on the new one.
 func (m *Manager) ensureNetwork(ctx context.Context) error {
 	path := filepath.Join(m.cfg.UnitsDir, Network)
 	want := NetworkUnitBody()
-	if cur, err := os.ReadFile(path); err == nil && string(cur) == want {
-		return nil
+	writeUnit := func() error {
+		if cur, err := os.ReadFile(path); err == nil && string(cur) == want {
+			return nil
+		}
+		if err := os.MkdirAll(m.cfg.UnitsDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte(want), 0o644); err != nil {
+			return err
+		}
+		_, err := m.run.Run(ctx, "systemctl", "daemon-reload")
+		return err
 	}
+
 	out, err := m.run.Run(ctx, "podman", "network", "inspect", "maitre", "--format", "{{range .Subnets}}{{.Subnet}} {{end}}")
+	if err == nil && strings.Contains(out, FleetSubnet) {
+		// Already the Fleet's; keep the unit file in step and leave the
+		// running containers alone.
+		return writeUnit()
+	}
 	exists := err == nil && strings.TrimSpace(out) != ""
-	if exists && !strings.Contains(out, FleetSubnet) {
-		specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
-		var mine []*maitrev1.ServiceSpec
-		for _, s := range specs {
-			if s.GetNodeId() == m.store.NodeID() {
-				mine = append(mine, s)
-			}
+
+	var mine []*maitrev1.ServiceSpec
+	specs, _ := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
+	for _, s := range specs {
+		if s.GetNodeId() == m.store.NodeID() {
+			mine = append(mine, s)
 		}
+	}
+	if exists {
 		m.logf("the shared network moves to %s; this Node's %d Services restart", FleetSubnet, len(mine))
+	} else {
+		m.logf("the shared network %s is not there; creating it, and this Node's %d Services restart", FleetSubnet, len(mine))
+	}
+	for _, s := range mine {
+		_, _ = m.run.Run(ctx, "systemctl", "stop", lifecycleUnit(s))
+	}
+	defer func() {
 		for _, s := range mine {
-			_, _ = m.run.Run(ctx, "systemctl", "stop", lifecycleUnit(s))
+			_, _ = m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(s))
 		}
+	}()
+	if exists {
 		if _, err := m.run.Run(ctx, "podman", "network", "rm", "-f", "maitre"); err != nil {
 			return fmt.Errorf("remove the old network: %w", err)
 		}
-		defer func() {
-			for _, s := range mine {
-				_, _ = m.run.Run(ctx, "systemctl", "start", "--no-block", lifecycleUnit(s))
-			}
-		}()
 	}
-	if err := os.MkdirAll(m.cfg.UnitsDir, 0o755); err != nil {
+	// The addresses fleetnet holds inside FleetSubnet are what Podman
+	// objects to. Taking the interface down drops all of them at once;
+	// fleetnet's next Reconcile puts back the ones it still wants.
+	_, _ = m.run.Run(ctx, "ip", "link", "del", FleetIface)
+	if err := writeUnit(); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, []byte(want), 0o644); err != nil {
-		return err
-	}
-	if _, err := m.run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
-		return err
+	// Create it here rather than leaving it to the first Service that
+	// wants it: a failure belongs in this Node's log next to the reason,
+	// not in fourteen Services reporting "Dependency failed".
+	if _, err := m.run.Run(ctx, "systemctl", "start", "maitre-network.service"); err != nil {
+		return fmt.Errorf("create the shared network %s: %w", FleetSubnet, err)
 	}
 	return nil
 }

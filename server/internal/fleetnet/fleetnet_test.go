@@ -178,3 +178,42 @@ func TestFleetReach(t *testing.T) {
 		t.Errorf("after the move: %v", l)
 	}
 }
+
+// ipRunner records the ip commands fleetnet runs.
+type ipRunner struct{ cmds []string }
+
+func (r *ipRunner) Run(_ context.Context, name string, args ...string) (string, error) {
+	r.cmds = append(r.cmds, name+" "+strings.Join(args, " "))
+	return "", nil
+}
+
+// The addresses are re-claimed on every Reconcile, not only the first.
+// services.ensureNetwork deletes the dummy interface to free FleetSubnet
+// before Podman will create the shared network over the same range, and a
+// Manager that trusted its own cache would never put them back — the
+// Fleet would stay unreachable until the agent restarted.
+func TestReconcileReclaimsAfterTheInterfaceGoes(t *testing.T) {
+	ctx := context.Background()
+	spec := &maitrev1.ServiceSpec{Name: "memos", NodeId: "B", Address: "10.90.0.14"}
+	r := &ipRunner{}
+	m := fleetnet.New(fleetnet.Config{
+		Self:     "A",
+		Run:      r,
+		Services: func(context.Context) []*maitrev1.ServiceSpec { return []*maitrev1.ServiceSpec{spec} },
+	})
+	defer m.Close()
+
+	want := "ip addr replace 10.90.0.14/32 dev " + fleetnet.Iface
+	m.Reconcile(ctx)
+	m.Reconcile(ctx)
+
+	n := 0
+	for _, c := range r.cmds {
+		if c == want {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("%q ran %d times, want 2; ran %v", want, n, r.cmds)
+	}
+}

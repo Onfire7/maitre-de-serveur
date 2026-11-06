@@ -38,8 +38,10 @@ import (
 const RelayPath = "/maitre/relay"
 
 // Iface is the dummy interface the agent holds other Nodes' Service
-// addresses on.
-const Iface = "maitre0"
+// addresses on. Defined with the subnet it sits inside, since
+// services.ensureNetwork has to clear it before Podman will create the
+// shared network.
+const Iface = services.FleetIface
 
 // Config wires the manager to the Node.
 type Config struct {
@@ -163,9 +165,14 @@ func (m *Manager) Reconcile(ctx context.Context) {
 		}
 	}
 	for addr := range wantAddr {
-		if !m.claimed[addr] {
-			m.claim(ctx, addr)
-		}
+		// Claimed every time, not only when this Manager has not claimed
+		// it before: the interface can go without the Manager knowing —
+		// services.ensureNetwork deletes it to free FleetSubnet before
+		// Podman will create the shared network over the same range — and
+		// a cache that says otherwise would leave the Fleet unreachable
+		// until the agent restarted. `ip addr replace` is idempotent, so
+		// repeating it is cheap and the state converges.
+		m.claim(ctx, addr)
 	}
 	for key, t := range wantListen {
 		if _, ok := m.listeners[key]; ok {
@@ -233,10 +240,12 @@ func (m *Manager) claim(ctx context.Context, addr string) {
 		m.claimed[addr] = true
 		return
 	}
-	if len(m.claimed) == 0 {
-		if _, err := m.cfg.Run.Run(ctx, "ip", "link", "add", Iface, "type", "dummy"); err != nil && !strings.Contains(err.Error(), "exists") {
-			m.cfg.Log.Warn("fleet interface", "err", err)
-		}
+	// The interface is ensured on every claim for the same reason: it may
+	// have been deleted under us. "exists" is the ordinary answer.
+	if _, err := m.cfg.Run.Run(ctx, "ip", "link", "add", Iface, "type", "dummy"); err != nil && !strings.Contains(err.Error(), "exists") {
+		m.cfg.Log.Warn("fleet interface", "err", err)
+	}
+	if !m.claimed[addr] {
 		_, _ = m.cfg.Run.Run(ctx, "ip", "link", "set", Iface, "up")
 	}
 	if _, err := m.cfg.Run.Run(ctx, "ip", "addr", "replace", addr+"/32", "dev", Iface); err != nil {
