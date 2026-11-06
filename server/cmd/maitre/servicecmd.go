@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/connect/v2/connectproto"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -93,11 +94,12 @@ func runService(args []string) error {
 	storeDir := fs.String("store-dir", "", "move-image-store: where to put it; empty lets the Node choose (decision 319)")
 	allow := fs.Bool("allow", false, "install: sign, as this device, the grants the entry needs (decision 189), as the Console's Allow does")
 	without := fs.String("without", "", "install: the entry's optional features to leave out, comma separated (docs/popularity-and-grants.md, G8)")
+	specFile := fs.String("spec-file", "", "install: take the whole ServiceSpec from this protobuf-JSON file instead of building it from a Catalog entry (decision 78)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune|images|move-image-store>")
+		return fmt.Errorf("usage: maitre service [flags first] <catalog|install <entry> [name]|install -spec-file <file>|list|logs <name>|set-image <name> <image> [component]|start|stop|restart|remove <name>|prune|images|move-image-store>")
 	}
 	id, err := identity.Load(*idDir)
 	if err != nil {
@@ -127,34 +129,49 @@ func runService(args []string) error {
 			fmt.Printf("  %-14s %-16s %s\n", e.ID, e.Version, e.Summary)
 		}
 	case "install":
-		if fs.NArg() < 2 {
-			return fmt.Errorf("install needs a catalog entry id")
-		}
-		// Decision 78: the caller builds the spec; the CLI uses the index the
-		// Node still carries for its own convenience.
-		cres, err := c.GetCatalog(ctx, &maitrev1.GetCatalogRequest{})
-		if err != nil {
-			return err
-		}
-		idx, err := catalog.ParseIndex(cres.GetIndexJson())
-		if err != nil {
-			return err
-		}
-		entry := idx.Find(fs.Arg(1))
-		if entry == nil {
-			return fmt.Errorf("catalog entry %q not found", fs.Arg(1))
-		}
-		settings := map[string]string{}
-		for _, kv := range strings.Split(*setFlags, ",") {
-			if k, v, ok := strings.Cut(kv, "="); ok {
-				settings[k] = v
+		// Decision 78: the caller builds the spec. The Catalog is only its
+		// usual source, and -spec-file is the other one: a body written by
+		// hand, for a container no entry carries. Nothing is relaxed by it,
+		// since the Node finds the protected options in the body it is about
+		// to install and refuses until each one is granted (decision 189) —
+		// it adds a shape the CLI could not send, not a privilege.
+		var spec *maitrev1.ServiceSpec
+		if *specFile != "" {
+			loaded, err := specFromFile(*specFile)
+			if err != nil {
+				return err
 			}
+			spec = loaded
+		} else {
+			if fs.NArg() < 2 {
+				return fmt.Errorf("install needs a catalog entry id, or -spec-file")
+			}
+			// The CLI uses the index the Node still carries for its own
+			// convenience.
+			cres, err := c.GetCatalog(ctx, &maitrev1.GetCatalogRequest{})
+			if err != nil {
+				return err
+			}
+			idx, err := catalog.ParseIndex(cres.GetIndexJson())
+			if err != nil {
+				return err
+			}
+			entry := idx.Find(fs.Arg(1))
+			if entry == nil {
+				return fmt.Errorf("catalog entry %q not found", fs.Arg(1))
+			}
+			settings := map[string]string{}
+			for _, kv := range strings.Split(*setFlags, ",") {
+				if k, v, ok := strings.Cut(kv, "="); ok {
+					settings[k] = v
+				}
+			}
+			var off []string
+			if *without != "" {
+				off = strings.Split(*without, ",")
+			}
+			spec = catalog.SpecWithout(entry, fs.Arg(2), settings, "", off)
 		}
-		var off []string
-		if *without != "" {
-			off = strings.Split(*without, ",")
-		}
-		spec := catalog.SpecWithout(entry, fs.Arg(2), settings, "", off)
 		res, err := c.InstallService(ctx, &maitrev1.InstallServiceRequest{Spec: spec})
 		if need := grantsNeeded(err); need != nil && *allow {
 			nodes := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
@@ -300,6 +317,26 @@ func printStatus(s *maitrev1.ServiceStatus) {
 }
 
 // grantsNeeded is the GrantsNeeded detail of a refused Service call.
+// specFromFile reads a whole ServiceSpec as protobuf JSON: the field names
+// of api/maitre/v1/service.proto, with quadlet carrying the [Container]
+// body as a Go template, exactly as a Catalog entry's .container file does.
+// Unknown fields are refused rather than dropped, so a mistyped key is an
+// error and not a line that silently does nothing.
+func specFromFile(path string) (*maitrev1.ServiceSpec, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	spec := &maitrev1.ServiceSpec{}
+	if err := protojson.Unmarshal(b, spec); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if spec.GetName() == "" {
+		return nil, fmt.Errorf("%s: the spec has no name", path)
+	}
+	return spec, nil
+}
+
 func grantsNeeded(err error) *maitrev1.GrantsNeeded {
 	var ce *connect.Error
 	if !errors.As(err, &ce) || ce.Code() != connect.CodeFailedPrecondition {

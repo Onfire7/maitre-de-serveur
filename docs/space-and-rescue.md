@@ -249,11 +249,19 @@ agent did not start.
 - *Rescue mode*, with networking off: a shell, on the Node's own screen, reached
   only by someone standing at the machine.
 
-What this preserves is worth stating precisely, because it is stronger than the
-rule it replaces: "a Node has no terminal" becomes a property of the *network*
-rather than of the image. Nothing reachable over a network can run a command on
-a Node unless the image was built for it, and a shell exists only where physical
-presence is already assumed. It is also honest — physical access to an
+What this preserves is worth stating precisely, and the first attempt at it
+overstated the case. It is tempting to say that "a Node has no terminal" becomes
+a property of the *network* rather than of the image — that nothing reachable
+over a network can run a command on a Node unless the image was built for it.
+That is not true, and decision 189 is why. A Trusted Device can install a
+Service whose container definition mounts a host path and sets its own `Exec=`,
+and `Exec`, `Entrypoint` and `User` are all safe keys (`protect.go`), so the
+mount is the only protected option in it. One Allow and a Service is a root
+command on the Node, over the network, on a shipped image. So the debug build
+gates *convenience* — diagnostics as an app, asked of four Nodes at once,
+installing nothing — rather than capability. What the three tiers do preserve is
+that every such command went through a grant a person had to give, and that the
+rescue shell, which needs no grant, needs physical presence instead. It is also honest — physical access to an
 unencrypted disk is root anyway, so the rescue shell takes nothing that was not
 already there. It would become the hole to think about if disk encryption or
 measured boot ever arrive.
@@ -383,6 +391,35 @@ stops. That answers the one genuinely unknown question — can a Node with a ful
 root stage a ~2 GB update at all? — with no downtime and no reboot on either
 Node. If staging fails, nothing has been lost and we know before touching
 anything. Pair it with `-wait` to see the outcome.
+
+**Answered, 2026-11-05: it cannot.** `bootc upgrade` refuses before it fetches —
+`layers already present: 66; layers needed: 15 (97.2 MB)`, then `Insufficient
+free space ... (available: 0 bytes required: 97.2 MB)`. Nothing was lost, as
+planned, but the sequence now needs a step before its first one, and that step
+cannot be delivered over the network, because the repair ships *in* the update.
+Three things that look like levers are not. A rollback is not: `/var` belongs to
+the stateroot and both deployments share it, so `bootc rollback` reverts `/usr`
+and leaves every byte of `/var/tmp` where it was — and `update.go:226` is
+`bootc rollback` plus a reboot, which undeploys nothing and reclaims nothing.
+Removing a Service is not: `ACTION_REMOVE` stops the unit, deletes its unit
+files and optionally its volumes on the Pool, and never calls `podman rmi`. The
+staging reserve of item 12 is not, since it is allocated at install, and both
+real Nodes were installed without one.
+
+What is left is 97.2 MB of genuinely orphaned scratch on root, and on an image
+without `PruneImages` the only way to reach it is a Service that mounts it:
+`maitre service install -spec-file` sends a hand-written spec, the Node grant-
+checks it as it does any other (`TestProtectedRepairService` pins which two
+options that is), and `Pull=never` on an image already in the store downloads
+nothing. Measure read-only first — `Volume=/var:/hostvar:ro` with
+`SecurityLabelDisable=true`, which is one Allow and no relabel. Note that `:z`
+or `:Z` on a host path relabels it recursively and `shareVolumes` rewrites only
+the folders Maître itself placed, so a host mount carries exactly the options
+that were typed: on `/var/tmp` a relabel is survivable, on `/` or `/var` it
+would not be. The image store is not a safe target by hand — `podman rmi`
+rewrites layer metadata before it frees blobs, and at zero bytes free that write
+is what fails — and it does not need to be, since 97.2 MB buys the update that
+brings the prune that does it properly.
 
 **Boulder before Avalon.** Boulder owns zero Services, so a reboot costs
 nothing, and it exhibits the auto-update sweep directly. It is also the better

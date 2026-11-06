@@ -145,7 +145,15 @@ func (m *Manager) pinnedIsCurrent(ctx context.Context, ref string) bool {
 // ordinary case. Rollback targets are kept even here, since decision 320
 // wants them indefinitely and `maitre service prune -drop-rollback` is the
 // deliberate way to give them up.
-func (m *Manager) ensureRoomToPull(ctx context.Context) error {
+// refs, when given, are the images the caller is about to need. Every one
+// of them already in the store means nothing will be downloaded, so the
+// floor does not apply — a Node this full is exactly where a Service whose
+// image is already here has to stay installable, which is what a repair
+// Service on a Node with no terminal depends on.
+func (m *Manager) ensureRoomToPull(ctx context.Context, refs ...string) error {
+	if len(refs) > 0 && m.allInStore(ctx, refs) {
+		return nil
+	}
 	dir := m.storeDir(ctx)
 	free := m.freeBytes(dir)
 	if free == 0 || free >= PullFloor {
@@ -166,6 +174,22 @@ func (m *Manager) ensureRoomToPull(ctx context.Context) error {
 	return fmt.Errorf("%s has %s free and a pull needs about %s; pruning gave back %s, so there is nothing left to reclaim automatically: "+
 		"remove a Service, add a Drive, or give up the Rollback images with `maitre service prune -drop-rollback`",
 		dir, iec(free), iec(PullFloor), iec(res.GetFreeAfterBytes()-res.GetFreeBeforeBytes()))
+}
+
+// allInStore reports whether every reference is already in this Node's
+// image store. A local lookup only: no registry is contacted, so a Node
+// with no route still answers.
+func (m *Manager) allInStore(ctx context.Context, refs []string) bool {
+	for _, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		out, err := m.run.Run(ctx, "podman", "image", "inspect", "--format", "{{.Id}}", ref)
+		if err != nil || strings.TrimSpace(out) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // freeBytes measures through the Manager so a test can say what a

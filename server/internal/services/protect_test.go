@@ -239,3 +239,38 @@ func TestInstallRefusesLineBreaks(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// A repair Service, the shape a hand-written spec takes on a Node whose
+// agent is too old to prune its own image store (decisions 189, 316): it
+// reuses an image already in the store, reads the host filesystem through
+// one bind mount, and runs a command of its own. Only the two options that
+// reach past the container need a grant — the mount, and turning off the
+// SELinux relabel that would otherwise rewrite the host's labels. Pull,
+// Entrypoint, Exec and a network of none are the container's own business,
+// which is what makes one Allow enough to run a repair.
+func TestProtectedRepairService(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		mount string
+		want  []string
+	}{
+		{"measure", "Volume=/var:/hostvar:ro", []string{"SecurityLabelDisable=true", "Volume=/var"}},
+		{"delete", "Volume=/var/tmp:/hosttmp:rw\nVolume=/var/lib/systemd/coredump:/hostcore:rw",
+			[]string{"SecurityLabelDisable=true", "Volume=/var/lib/systemd/coredump", "Volume=/var/tmp"}},
+	} {
+		body := strings.Join([]string{
+			"[Container]",
+			"Image=example.invalid/app@sha256:abc",
+			"ContainerName=cleanup",
+			"Pull=never",
+			"Network=none",
+			"SecurityLabelDisable=true",
+			"Entrypoint=/bin/sh",
+			tc.mount,
+			`Exec=-c "df -h /hostvar; sleep 3600"`,
+		}, "\n")
+		if got := services.Protected(body, nil); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: Protected = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

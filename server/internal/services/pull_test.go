@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/catalog"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
@@ -306,5 +307,35 @@ func TestAServiceOnATunnelSaysWhoseNetworkItShares(t *testing.T) {
 	}
 	if status.GetNetworkSharedWith() != "" {
 		t.Fatalf("want no sharing, got %q", status.GetNetworkSharedWith())
+	}
+}
+
+// A Node below the pull floor can still install a Service whose image is
+// already in its store, because nothing will be downloaded. This is the
+// case a repair Service depends on: the Node has no terminal, and the one
+// way in is a container built on an image that is already there.
+func TestInstallBelowThePullFloorWhenTheImageIsHere(t *testing.T) {
+	ctx := context.Background()
+	idx, err := catalog.LoadDir("../../../catalog/entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	dir := t.TempDir()
+	pools := filepath.Join(dir, "pools")
+	os.MkdirAll(filepath.Join(pools, "general"), 0o755)
+	m := services.New(services.Config{
+		UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools,
+		DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000,
+		// Far below the floor, and not zero, which would read as "statfs
+		// could not answer" and be waved through for another reason.
+		FreeBytes: func(string) uint64 { return 64 << 20 },
+	}, st, &fakeRunner{state: "active"})
+
+	// fakeRunner answers `podman image inspect` with a digest, so every
+	// image this spec names is already in the store.
+	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("uptime-kuma"), "", nil, "")); err != nil {
+		t.Fatalf("Install refused a Service whose image is already here: %v", err)
 	}
 }

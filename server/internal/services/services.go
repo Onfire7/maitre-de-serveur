@@ -280,7 +280,11 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	// Install writes no image; the unit pulls at its first start. Saying so
 	// here is still the only chance to say it before the download rather
 	// than as ENOSPC thirty-five seconds into it.
-	if err := m.ensureRoomToPull(ctx); err != nil {
+	var want []string
+	for _, c := range components(spec) {
+		want = append(want, c.Image)
+	}
+	if err := m.ensureRoomToPull(ctx, want...); err != nil {
 		return nil, err
 	}
 	if err := m.apply(ctx, spec); err != nil {
