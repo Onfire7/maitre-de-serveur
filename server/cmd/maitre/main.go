@@ -32,6 +32,7 @@ import (
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/debugsurface"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
@@ -151,6 +152,11 @@ func runDev(args []string) error {
 		Name:    *name,
 		Version: version,
 		DevMode: true,
+		// Decision 323: a build with the debug tag says so, here as much
+		// as in the agent. Without this a dev Node built with the tag
+		// answers the debug procedures while telling every caller it
+		// cannot, which is the one thing that tier must never do.
+		DebugBuild: debugsurface.Enabled,
 	}, nil))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
