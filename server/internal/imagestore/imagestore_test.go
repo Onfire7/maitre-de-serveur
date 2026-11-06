@@ -129,3 +129,109 @@ func TestWithoutAVendoredConfig(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 }
+
+// moveRunner scripts the three commands Move leans on: what the store
+// holds before and after, whether semanage is there, and rsync.
+type moveRunner struct {
+	cmds       []string
+	before     string // `podman images` while the old store is configured
+	after      string // and once the new one is
+	switched   bool   // Ensure has pointed podman at the new store
+	noSemanage bool   // the image has no policycoreutils-python-utils
+}
+
+func (r *moveRunner) Run(_ context.Context, name string, args ...string) (string, error) {
+	r.cmds = append(r.cmds, name+" "+strings.Join(args, " "))
+	switch {
+	case name == "semanage" && r.noSemanage:
+		return "", errString("executable file not found in $PATH")
+	case name == "podman" && len(args) > 0 && args[0] == "images":
+		if r.switched {
+			return r.after, nil
+		}
+		return r.before, nil
+	case name == "du":
+		return "1024\t/x\n", nil
+	case name == "restorecon":
+		// Ensure has rewritten storage.conf by the time it labels, so
+		// podman reads the new store from here on.
+		r.switched = true
+	}
+	return "", nil
+}
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
+
+func (r *moveRunner) ran(prefix string) bool {
+	for _, c := range r.cmds {
+		if strings.HasPrefix(c, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// The old store is never deleted on the strength of an unchecked copy.
+// `cp -a` silently lost images — two became one with its tag reduced to
+// <none> — and the old store was removed on top of that, which on a Node
+// with a 23 GiB store would have left every Service unable to start and
+// nothing to recover from.
+func TestMoveKeepsTheOldStoreWhenAnImageDoesNotSurvive(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "old"), filepath.Join(dir, "new")
+	if err := os.MkdirAll(from, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Two images before, one after: the copy is not a replacement.
+	r := &moveRunner{before: "aaa\nbbb\n", after: "aaa\n"}
+	t.Cleanup(func() { r.switched = false })
+	// Ensure switches podman over; the fake follows it.
+	oldStorage, oldDropIn, oldVendored := StorageConfig, ContainersDropIn, VendoredConfig
+	StorageConfig = filepath.Join(dir, "storage.conf")
+	ContainersDropIn = filepath.Join(dir, "containers.conf")
+	VendoredConfig = filepath.Join(dir, "vendored.conf")
+	defer func() { StorageConfig, ContainersDropIn, VendoredConfig = oldStorage, oldDropIn, oldVendored }()
+	if err := os.WriteFile(VendoredConfig, []byte("[storage]\ndriver = \"overlay\"\ngraphroot = \""+DefaultRoot+"\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Move(ctx, r, from, to)
+	if err == nil {
+		t.Fatal("Move reported success although an image did not survive the copy")
+	}
+	if !strings.Contains(err.Error(), "bbb") {
+		t.Errorf("the error does not name the lost image: %v", err)
+	}
+	if _, statErr := os.Stat(from); statErr != nil {
+		t.Errorf("the old store was removed even though the copy was short: %v", statErr)
+	}
+}
+
+// A labelling that did not happen has to be loud: semanage lives in
+// policycoreutils-python-utils, and while it was missing the store was
+// relabelled with whatever context its new home carried, so every
+// container on it died with "RELRO protection failed".
+func TestLabellingFailsLoudlyWithoutSemanage(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	oldStorage, oldDropIn, oldVendored := StorageConfig, ContainersDropIn, VendoredConfig
+	StorageConfig = filepath.Join(dir, "storage.conf")
+	ContainersDropIn = filepath.Join(dir, "containers.conf")
+	VendoredConfig = filepath.Join(dir, "vendored.conf")
+	defer func() { StorageConfig, ContainersDropIn, VendoredConfig = oldStorage, oldDropIn, oldVendored }()
+	if err := os.WriteFile(VendoredConfig, []byte("[storage]\ndriver = \"overlay\"\ngraphroot = \""+DefaultRoot+"\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &moveRunner{noSemanage: true}
+
+	_, err := Ensure(ctx, r, filepath.Join(dir, "store"))
+	if err == nil {
+		t.Fatal("Ensure reported success although the store could not be labelled")
+	}
+	if !strings.Contains(err.Error(), "policycoreutils-python-utils") {
+		t.Errorf("the error does not say where semanage comes from: %v", err)
+	}
+}

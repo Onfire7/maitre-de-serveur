@@ -38,7 +38,7 @@ FROM registry.fedoraproject.org/fedora-bootc:42
 # zram-generator: swap in compressed RAM rather than on a disk (decision
 # 322), so a memory spike stops being terminal on a Node with no swap at
 # all and no good place to put a swap file.
-RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils ipxe-bootimgs-x86 snapraid zram-generator && dnf clean all
+RUN dnf -y install nss-mdns e2fsprogs caddy skopeo dracut-live greenboot rsync acl ktls-utils ipxe-bootimgs-x86 snapraid zram-generator policycoreutils-python-utils && dnf clean all
 
 # mergerfs is not packaged in Fedora. Install the upstream release RPM,
 # pinned by version and checked against its published sha256 (ADR 0004).

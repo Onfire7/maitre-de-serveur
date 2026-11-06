@@ -254,9 +254,15 @@ func runService(args []string) error {
 		gib := func(b uint64) float64 { return float64(b) / (1 << 30) }
 		fmt.Printf("store %s -> %s\n", res.GetFrom(), res.GetTo())
 		fmt.Printf("moved %.1f GiB\n", gib(res.GetMovedBytes()))
-		fmt.Printf("root  %.1f GiB free before, %.1f GiB after: %.1f GiB back\n",
-			gib(res.GetRootFreeBeforeBytes()), gib(res.GetRootFreeAfterBytes()),
-			gib(res.GetRootFreeAfterBytes()-res.GetRootFreeBeforeBytes()))
+		// Signed: moving the store back onto root costs root space, and
+		// an unsigned subtraction reported that as 17179869183.3 GiB.
+		delta := float64(res.GetRootFreeAfterBytes())/(1<<30) - float64(res.GetRootFreeBeforeBytes())/(1<<30)
+		gained := "back"
+		if delta < 0 {
+			delta, gained = -delta, "given up"
+		}
+		fmt.Printf("root  %.1f GiB free before, %.1f GiB after: %.1f GiB %s\n",
+			gib(res.GetRootFreeBeforeBytes()), gib(res.GetRootFreeAfterBytes()), delta, gained)
 		if len(res.GetServices()) > 0 {
 			fmt.Printf("restarted %d: %s\n", len(res.GetServices()), strings.Join(res.GetServices(), ", "))
 		}

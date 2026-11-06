@@ -167,7 +167,9 @@ func Ensure(ctx context.Context, run Runner, dir string) (bool, error) {
 	}
 	changed = changed || wrote
 	if changed && run != nil {
-		label(ctx, run, dir)
+		if err := label(ctx, run, dir); err != nil {
+			return changed, err
+		}
 	}
 	return changed, nil
 }
@@ -198,10 +200,42 @@ func withGraphroot(body, dir string) string {
 // Both are logged rather than fatal: a Node with SELinux permissive works
 // without them, and nobody can run the commands by hand to find out
 // (a Node has no terminal).
-func label(ctx context.Context, run Runner, dir string) {
-	// Already-defined equivalences are an error worth ignoring.
-	_, _ = run.Run(ctx, "semanage", "fcontext", "-a", "-e", DefaultRoot, dir)
-	_, _ = run.Run(ctx, "restorecon", "-R", dir)
+func label(ctx context.Context, run Runner, dir string) error {
+	// The equivalence makes the policy give dir the same per-path contexts
+	// the default graphroot has, which `restorecon -R` then applies. An
+	// equivalence that is already there is the one error worth ignoring.
+	//
+	// These used to be discarded, and that is how a store nothing could
+	// run got built and the old one deleted on top of it: `semanage` lives
+	// in policycoreutils-python-utils, which the image did not install, so
+	// the rule was never added, restorecon applied whatever context
+	// /var/mnt/drives/... carries, and every container on the moved store
+	// died with "RELRO protection failed" as its loader was refused the
+	// mapping. A labelling that did not happen has to be loud.
+	if out, err := run.Run(ctx, "semanage", "fcontext", "-a", "-e", DefaultRoot, dir); err != nil && !strings.Contains(out, "already defined") {
+		return fmt.Errorf("label %s like %s: %w (%s); semanage comes from policycoreutils-python-utils", dir, DefaultRoot, err, strings.TrimSpace(out))
+	}
+	if out, err := run.Run(ctx, "restorecon", "-R", dir); err != nil {
+		return fmt.Errorf("apply the labels to %s: %w (%s)", dir, err, strings.TrimSpace(out))
+	}
+	return nil
+}
+
+// storeImageIDs is every image the store podman is configured for holds.
+// Used either side of a move: an image that does not survive the copy is
+// the signal to keep the old store rather than delete it.
+func storeImageIDs(ctx context.Context, run Runner) (map[string]bool, error) {
+	out, err := run.Run(ctx, "podman", "images", "--all", "--format", "{{.Id}}")
+	if err != nil {
+		return nil, fmt.Errorf("list the images in the store: %w", err)
+	}
+	ids := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		if id := strings.TrimSpace(line); id != "" {
+			ids[id] = true
+		}
+	}
+	return ids, nil
 }
 
 func writeIfDifferent(path, body string) (bool, error) {
@@ -246,15 +280,55 @@ func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if err := os.MkdirAll(to, 0o700); err != nil {
 		return 0, err
 	}
-	// -a keeps ownership, modes and the hard links layers share; the
-	// trailing /. copies the contents rather than nesting the directory.
-	if out, err := run.Run(ctx, "cp", "-a", filepath.Join(from, "."), to); err != nil {
+	// What the store holds now, to compare with afterwards. Taken before
+	// anything is touched, while podman is still configured for `from`.
+	was, err := storeImageIDs(ctx, run)
+	if err != nil {
+		return 0, err
+	}
+	// -aHAX, not -a: the graphroot's layers carry xattrs, including ones
+	// in the trusted namespace, and its metadata is a database. `cp -a`
+	// lost images outright — two became one with its tag reduced to
+	// <none>, and a round trip lost both — so the copy has to preserve
+	// hard links, ACLs and every xattr. rsync is in the image for the
+	// Pool's own copies.
+	if out, err := run.Run(ctx, "rsync", "-aHAX", "--delete", filepath.Join(from)+"/", to+"/"); err != nil {
 		return 0, fmt.Errorf("copy the image store to %s: %w (%s)", to, err, strings.TrimSpace(out))
 	}
 	if _, err := Ensure(ctx, run, to); err != nil {
+		// Labelling or configuration failed, so `to` is not a store
+		// anything can run from. Put podman back on the old one, which is
+		// untouched, and keep it.
+		if _, rerr := Ensure(ctx, run, from); rerr != nil {
+			return 0, fmt.Errorf("%w; and %s could not be configured again: %v", err, from, rerr)
+		}
 		return 0, err
 	}
 	moved := dirBytes(ctx, run, to)
+	// Never delete the old store on the strength of a copy that was not
+	// checked. podman now reads `to`, so this asks the new store what it
+	// holds; anything the old one had and this one does not means the
+	// copy is not a replacement, whatever the exit codes said.
+	now, err := storeImageIDs(ctx, run)
+	if err == nil {
+		var lost []string
+		for id := range was {
+			if !now[id] {
+				lost = append(lost, id)
+			}
+		}
+		if len(lost) > 0 {
+			sort.Strings(lost)
+			err = fmt.Errorf("the copy at %s is missing %d of the %d images %s holds (%s), so it is not a replacement",
+				to, len(lost), len(was), from, strings.Join(lost, " "))
+		}
+	}
+	if err != nil {
+		if _, rerr := Ensure(ctx, run, from); rerr != nil {
+			return moved, fmt.Errorf("%w; and %s could not be configured again: %v", err, from, rerr)
+		}
+		return moved, fmt.Errorf("%w; %s is kept and still in use", err, from)
+	}
 	if err := os.RemoveAll(from); err != nil {
 		// The new store is live and correct; the old copy is only waste.
 		return moved, fmt.Errorf("the store now lives at %s, but the old one at %s could not be removed: %w", to, from, err)
