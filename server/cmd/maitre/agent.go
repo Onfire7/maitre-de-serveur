@@ -1044,18 +1044,22 @@ func runAgent(args []string) error {
 		if !*noMDNS {
 			if hostAd != nil {
 				hostAd.Close()
+				hostAd = nil
 			}
+			// mDNS answers on the LAN, so a tailnet address is no way to
+			// a name there.
 			var v4 []string
 			for _, a := range installer.Addresses() {
-				if !strings.Contains(a, ":") {
+				if !strings.Contains(a, ":") && !tailnet.IsTailnetAddr(a) {
 					v4 = append(v4, a)
 				}
 			}
 			ad, err := mdns.PublishHosts(names, v4)
+			if ad != nil {
+				hostAd = ad
+			}
 			if err != nil {
 				log.Warn("mDNS names not published", "err", err)
-			} else {
-				hostAd = ad
 			}
 		}
 	}

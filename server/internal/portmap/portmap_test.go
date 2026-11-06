@@ -32,9 +32,12 @@ func (f *fakeRouter) Add(_ context.Context, m Mapping, ip string, _ time.Duratio
 	f.mapped[m.String()] = ip
 	return nil
 }
-func (f *fakeRouter) Delete(_ context.Context, m Mapping) error {
+func (f *fakeRouter) Delete(_ context.Context, m Mapping, ip string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if got, ok := f.mapped[m.String()]; ok && got != ip {
+		return ErrNotOurs
+	}
 	f.deletes++
 	delete(f.mapped, m.String())
 	return nil
@@ -160,5 +163,36 @@ func TestDiscoveryBacksOffAfterAnHour(t *testing.T) {
 	}
 	if calls != 4 {
 		t.Fatalf("after an hour: %d looks in 5 minute-passes, want 1", calls-3)
+	}
+}
+
+// Avalon took the web entry's 80 and 443 and Boulder, letting go of them a
+// second later, deleted Avalon's new forwards: a router keys mappings by
+// external port alone. The Node letting go must leave a forward to another
+// machine in place.
+func TestLettingGoLeavesAnotherNodesForward(t *testing.T) {
+	f := &fakeRouter{}
+	boulder := New(slog.Default(), func() string { return "192.168.4.74" })
+	boulder.Discover = func(context.Context) (Router, error) { return f, nil }
+	avalon := New(slog.Default(), func() string { return "192.168.4.4" })
+	avalon.Discover = func(context.Context) (Router, error) { return f, nil }
+	web := []Mapping{{80, "tcp", "https"}, {443, "tcp", "https"}}
+	boulder.Reconcile(web)
+	boulder.tick(context.Background())
+	avalon.Reconcile(web)
+	avalon.tick(context.Background())
+	boulder.Reconcile(nil)
+	boulder.tick(context.Background())
+	for _, p := range []string{"80/tcp", "443/tcp"} {
+		if got := f.mapped[p]; got != "192.168.4.4" {
+			t.Fatalf("%s forwarded to %q after Boulder let go, want Avalon", p, got)
+		}
+	}
+	if len(boulder.state) != 0 {
+		t.Fatalf("Boulder still tracks %v", boulder.state)
+	}
+	boulder.release()
+	if len(f.mapped) != 2 {
+		t.Fatalf("Boulder's shutdown removed Avalon's forwards: %v", f.mapped)
 	}
 }

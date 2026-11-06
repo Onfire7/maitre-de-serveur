@@ -13,11 +13,17 @@
 // are dropped (Tandoor, Paperless, Docmost, Home Assistant and PhotoPrism
 // told the WebView not to be framed, and their pages stayed white), and a
 // redirect to the app's own host is made relative (Grocy sent the frame to
-// http://grocy.local/stockoverview, which nothing resolves).
+// http://grocy.local/stockoverview, which nothing resolves). So is every
+// URL at the app's own host in a page, script, stylesheet or JSON answer
+// (decision 328): Stash builds every image and video address from Host,
+// and the Console's view asked http://stash.local for them.
 package svcproxy
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -78,6 +84,10 @@ func Handler(st *store.Store, next http.Handler) http.Handler {
 			// The Console is the client, not a proxy the app should know
 			// about, so it sees none.
 			req.Header["X-Forwarded-For"] = nil
+			// The body may need its own-host URLs rewritten, so it must
+			// come uncompressed. With no Accept-Encoding of the client's,
+			// the transport asks for gzip itself and undoes it.
+			req.Header.Del("Accept-Encoding")
 		}
 		rp.ModifyResponse = func(res *http.Response) error {
 			// The Console frames the page; the app's refusal to be framed
@@ -99,7 +109,7 @@ func Handler(st *store.Store, next http.Handler) http.Handler {
 			if loc := res.Header.Get("Location"); loc != "" {
 				res.Header.Set("Location", relativeTo(loc, host))
 			}
-			return nil
+			return rewriteBody(res, host)
 		}
 		rp.ServeHTTP(w, r)
 	})
@@ -128,6 +138,91 @@ func relativeTo(raw, host string) string {
 		u.Path = "/"
 	}
 	return u.String()
+}
+
+// rewriteBody makes the URLs at host in a text response root-relative.
+// Media, downloads and streams pass untouched: only the types a page is
+// built from are read, and nothing still encoded.
+func rewriteBody(res *http.Response, host string) error {
+	if res.Body == nil || res.Header.Get("Content-Encoding") != "" || !rewritable(res.Header.Get("Content-Type")) {
+		return nil
+	}
+	b, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		return err
+	}
+	b = relativeURLs(b, host)
+	res.Body = io.NopCloser(bytes.NewReader(b))
+	res.ContentLength = int64(len(b))
+	res.Header.Set("Content-Length", strconv.Itoa(len(b)))
+	return nil
+}
+
+// rewritable reports the content types a page is built from.
+func rewritable(ct string) bool {
+	t, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return false
+	}
+	switch t {
+	case "text/html", "application/xhtml+xml", "text/css", "text/javascript", "application/javascript", "application/x-javascript", "application/json", "text/xml", "application/xml":
+		return true
+	}
+	return strings.HasSuffix(t, "+json")
+}
+
+// relativeURLs replaces http://host, https://host and //host, also with
+// their slashes escaped as JSON may write them, by the root they name.
+// Only host itself: host:port, a longer name and host in any other text
+// are left.
+func relativeURLs(b []byte, host string) []byte {
+	if !bytes.Contains(bytes.ToLower(b), []byte(strings.ToLower(host))) {
+		return b
+	}
+	var prefixes []urlPrefix
+	for _, slash := range []string{"/", `\/`} {
+		for _, scheme := range []string{"http:", "https:", ""} {
+			prefixes = append(prefixes, urlPrefix{[]byte(scheme + slash + slash + host), []byte(slash)})
+		}
+	}
+	out := make([]byte, 0, len(b))
+	for i := 0; i < len(b); {
+		if c := b[i]; c == 'h' || c == 'H' || c == '/' || c == '\\' {
+			if p, ok := ownURL(b[i:], prefixes); ok {
+				i += len(p.p)
+				// A path follows, or the root alone, which written as
+				// nothing would be the current page instead.
+				if !bytes.HasPrefix(b[i:], p.root) {
+					out = append(out, p.root...)
+				}
+				continue
+			}
+		}
+		out = append(out, b[i])
+		i++
+	}
+	return out
+}
+
+// urlPrefix is a scheme and host to replace and the root it becomes, its
+// slash escaped or not.
+type urlPrefix struct{ p, root []byte }
+
+// ownURL is the prefix b starts with, if b goes on to no longer host name
+// and no port.
+func ownURL(b []byte, prefixes []urlPrefix) (urlPrefix, bool) {
+	for _, x := range prefixes {
+		if len(b) >= len(x.p) && bytes.EqualFold(b[:len(x.p)], x.p) && (len(b) == len(x.p) || !hostByte(b[len(x.p)])) {
+			return x, true
+		}
+	}
+	return urlPrefix{}, false
+}
+
+// hostByte reports a byte that would continue a host name or add a port.
+func hostByte(c byte) bool {
+	return c == '.' || c == '-' || c == ':' || c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
 // withoutFrameAncestors drops the frame-ancestors directive from a CSP

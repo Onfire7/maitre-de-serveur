@@ -163,10 +163,13 @@ func ScanBackups(ctx context.Context) []*maitrev1.Backup {
 }
 
 // virtualInterface reports interfaces that only exist inside this machine:
-// container and VM networks (podman, netavark, CNI, Docker, libvirt) and
-// the veth ends of containers.
+// container and VM networks (podman, netavark, CNI, Docker, libvirt), the
+// veth ends of containers, and maitre0, where ADR 0010 puts the Fleet DNS
+// and an address for every Service this Node does not run. Announced over
+// mDNS, maitre0's addresses multiplied every Service name past Avahi's 32
+// entries per group, and no name was published at all.
 func virtualInterface(name string) bool {
-	for _, p := range []string{"podman", "veth", "cni", "docker", "br-", "virbr", "vnet", "flannel"} {
+	for _, p := range []string{"podman", "veth", "cni", "docker", "br-", "virbr", "vnet", "flannel", "maitre0"} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

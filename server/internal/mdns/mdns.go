@@ -6,6 +6,7 @@ package mdns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,7 +25,7 @@ const (
 type Advertisement struct {
 	conn   *dbus.Conn
 	server *avahi.Server
-	group  *avahi.EntryGroup
+	groups []*avahi.EntryGroup
 }
 
 // connect opens a private connection to the system bus and an Avahi client
@@ -77,7 +78,7 @@ func Publish(name, serviceType string, port uint16, txt map[string]string) (*Adv
 		closeAll(conn, server)
 		return nil, fmt.Errorf("mdns: commit: %w", err)
 	}
-	return &Advertisement{conn: conn, server: server, group: group}, nil
+	return &Advertisement{conn: conn, server: server, groups: []*avahi.EntryGroup{group}}, nil
 }
 
 // Close withdraws the advertisement and releases its Avahi client.
@@ -85,7 +86,9 @@ func (a *Advertisement) Close() error {
 	if a == nil {
 		return nil
 	}
-	_ = a.group.Reset()
+	for _, g := range a.groups {
+		_ = g.Reset()
+	}
 	return closeAll(a.conn, a.server)
 }
 
@@ -102,33 +105,46 @@ func InstanceName(label, fingerprint string) string {
 // PublishHosts publishes address records so <name> resolves to this
 // machine's IPv4 addresses on the local network, e.g. "jellyfin.local".
 // No reverse (PTR) records: the machine's own hostname owns those, and
-// Avahi reports a local name collision otherwise. Returns a closer that
-// withdraws them.
+// Avahi reports a local name collision otherwise. Each name has an entry
+// group of its own: Avahi allows 32 entries per group, which one group of
+// every Service name would outgrow, and a name that fails (taken by
+// another machine) then costs only itself. A name that fails is in the
+// error; the Advertisement holds the rest and is returned with it, nil
+// only when Avahi could not be reached. Close withdraws them.
 func PublishHosts(names []string, addrs []string) (*Advertisement, error) {
 	conn, server, err := connect()
 	if err != nil {
 		return nil, err
 	}
+	ad := &Advertisement{conn: conn, server: server}
+	var errs []error
+	for _, n := range names {
+		group, err := publishHost(server, n, addrs)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		ad.groups = append(ad.groups, group)
+	}
+	return ad, errors.Join(errs...)
+}
+
+func publishHost(server *avahi.Server, name string, addrs []string) (*avahi.EntryGroup, error) {
 	group, err := server.EntryGroupNew()
 	if err != nil {
-		closeAll(conn, server)
-		return nil, fmt.Errorf("mdns: entry group: %w", err)
+		return nil, fmt.Errorf("mdns: entry group for %s: %w", name, err)
 	}
-	for _, n := range names {
-		for _, a := range addrs {
-			if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, avahi.PublishNoReverse, n, a); err != nil {
-				closeAll(conn, server)
-				return nil, fmt.Errorf("mdns: add address %s: %w", n, err)
-			}
+	for _, a := range addrs {
+		if err := group.AddAddress(avahi.InterfaceUnspec, avahi.ProtoUnspec, avahi.PublishNoReverse, name, a); err != nil {
+			server.EntryGroupFree(group)
+			return nil, fmt.Errorf("mdns: add address %s: %w", name, err)
 		}
 	}
-	if len(names) > 0 {
-		if err := group.Commit(); err != nil {
-			closeAll(conn, server)
-			return nil, fmt.Errorf("mdns: commit: %w", err)
-		}
+	if err := group.Commit(); err != nil {
+		server.EntryGroupFree(group)
+		return nil, fmt.Errorf("mdns: commit %s: %w", name, err)
 	}
-	return &Advertisement{conn: conn, server: server, group: group}, nil
+	return group, nil
 }
 
 // SetHostName tells Avahi to announce under name (without ".local") from

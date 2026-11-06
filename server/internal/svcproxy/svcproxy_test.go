@@ -1,6 +1,7 @@
 package svcproxy_test
 
 import (
+	"compress/gzip"
 	"context"
 	"io"
 	"net"
@@ -134,5 +135,73 @@ func TestForwardsByHeader(t *testing.T) {
 	}
 	if code, _ := get("nope", "/"); code != 404 {
 		t.Fatalf("unknown: %d", code)
+	}
+}
+
+// Stash builds every image and video address from Host, and the view asked
+// http://stash.local for them (decision 328). Own-host URLs in what a page
+// is built from become root-relative, whether gzipped by the app or with
+// their slashes escaped as PHP writes JSON; another host, another port, a
+// longer name and media are left as they were.
+func TestOwnHostURLsInBodies(t *testing.T) {
+	ctx := context.Background()
+	media := "http://stash.local/image/1/image"
+	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body, ct string
+		switch r.URL.Path {
+		case "/graphql":
+			ct = "application/json"
+			body = `{"thumbnail":"http://stash.local/image/1/thumbnail?t=ca","image":"HTTPS://Stash.Local/image/1/image","home":"http://stash.local","php":"http:\/\/stash.local\/api\/x","phproot":"http:\/\/stash.local","other":"http://stash.localhost/a","port":"http://stash.local:9999/a","far":"https://example.com/x","proto":"//stash.local/s.js"}`
+		case "/page":
+			ct = "text/html; charset=utf-8"
+			body = `<link href="http://stash.local/app.css"><a href="http://stash.local?x=1">stash.local</a>`
+		case "/video":
+			ct = "video/mp4"
+			body = media
+		case "/gz":
+			if r.Header.Get("Accept-Encoding") == "" {
+				t.Errorf("no gzip asked for")
+			}
+			w.Header().Set("Content-Type", "text/css")
+			w.Header().Set("Content-Encoding", "gzip")
+			zw := gzip.NewWriter(w)
+			io.WriteString(zw, `body{background:url(http://stash.local/bg.png)}`)
+			zw.Close()
+			return
+		}
+		w.Header().Set("Content-Type", ct)
+		io.WriteString(w, body)
+	}))
+	defer app.Close()
+	_, portStr, _ := net.SplitHostPort(app.Listener.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+	st, _ := store.Open(filepath.Join(t.TempDir(), "f.db"), "n")
+	defer st.Close()
+	st.Put(ctx, services.KindService, "stash", &maitrev1.ServiceSpec{Name: "stash", WebHostPort: uint32(port)}, false)
+	srv := httptest.NewServer(svcproxy.Handler(st, http.NotFoundHandler()))
+	defer srv.Close()
+	for path, want := range map[string]string{
+		"/graphql": `{"thumbnail":"/image/1/thumbnail?t=ca","image":"/image/1/image","home":"/","php":"\/api\/x","phproot":"\/","other":"http://stash.localhost/a","port":"http://stash.local:9999/a","far":"https://example.com/x","proto":"/s.js"}`,
+		"/page":    `<link href="/app.css"><a href="/?x=1">stash.local</a>`,
+		"/video":   media,
+		"/gz":      `body{background:url(/bg.png)}`,
+	} {
+		req, _ := http.NewRequest("GET", srv.URL+path, nil)
+		req.Header.Set(svcproxy.Header, "stash")
+		req.Header.Set("Accept-Encoding", "gzip, br")
+		// A transport of its own, so nothing undoes an encoding the
+		// Console would have had to.
+		res, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if string(b) != want || res.Header.Get("Content-Encoding") != "" {
+			t.Errorf("%s: %q (encoding %q)\nwant %q", path, b, res.Header.Get("Content-Encoding"), want)
+		}
+		if cl := res.Header.Get("Content-Length"); cl != "" && cl != strconv.Itoa(len(b)) {
+			t.Errorf("%s: Content-Length %s for %d bytes", path, cl, len(b))
+		}
 	}
 }

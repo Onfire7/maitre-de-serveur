@@ -1,6 +1,7 @@
 package mdns
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"testing"
@@ -50,7 +51,7 @@ func TestCloseIsQuietAndIsolated(t *testing.T) {
 		t.Fatalf("goroutines %d before Close, %d after: the client's loop did not exit", before, after)
 	}
 	// b still has a live connection: re-committing its group must work.
-	if err := b.group.Reset(); err != nil {
+	if err := b.groups[0].Reset(); err != nil {
 		t.Fatalf("second advertisement broken by the first Close: %v", err)
 	}
 	if err := b.Close(); err != nil {
@@ -80,5 +81,24 @@ func TestDispatchLoopEndsWhenBusCloses(t *testing.T) {
 	}
 	if after := runtime.NumGoroutine(); after >= before {
 		t.Fatalf("goroutines %d before, %d after: dispatch loop did not exit", before, after)
+	}
+}
+
+// More names than Avalon had Services publish together: one entry group for
+// all of them passed Avahi's 32 entries per group ("Too many entries") and
+// published none.
+func TestManyHostsPublish(t *testing.T) {
+	requireAvahi(t)
+	var names []string
+	for i := range 40 {
+		names = append(names, fmt.Sprintf("maitre-test-%d.local", i))
+	}
+	ad, err := PublishHosts(names, []string{"192.0.2.10", "192.0.2.11"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ad.Close()
+	if len(ad.groups) != len(names) {
+		t.Fatalf("%d groups for %d names", len(ad.groups), len(names))
 	}
 }

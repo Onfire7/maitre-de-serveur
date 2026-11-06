@@ -7,6 +7,7 @@ package portmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/huin/goupnp/dcps/internetgateway2"
+	"github.com/huin/goupnp/soap"
 )
 
 // Mapping is one port the router should forward to this Node. Owner is the
@@ -47,8 +49,17 @@ func Parse(s string) (Mapping, bool) {
 type Router interface {
 	Name() string
 	Add(ctx context.Context, m Mapping, internalIP string, lease time.Duration) error
-	Delete(ctx context.Context, m Mapping) error
+	// Delete removes the mapping only while it still forwards to
+	// internalIP, and answers ErrNotOurs when it forwards elsewhere. A
+	// router keys mappings by external port alone, so a Node letting go of
+	// 443 just after another Node took it over (the web entry moving,
+	// decision 218) would otherwise delete the new holder's forward.
+	Delete(ctx context.Context, m Mapping, internalIP string) error
 }
+
+// ErrNotOurs is Delete's answer for a mapping another machine now holds;
+// it was left in place.
+var ErrNotOurs = errors.New("now forwarded to another machine; left in place")
 
 // Lease is how long each mapping is asked for; renewals come at half that.
 const Lease = time.Hour
@@ -60,6 +71,7 @@ type key struct {
 
 type live struct {
 	m       Mapping
+	ip      string // the address it was forwarded to
 	mapped  bool
 	err     string
 	renewed time.Time
@@ -238,7 +250,8 @@ func (m *Manager) tick(ctx context.Context) {
 	ip := m.LocalIP()
 	now := time.Now()
 	m.mu.Lock()
-	var add, del []Mapping
+	var add []Mapping
+	var del []live
 	for k, w := range wants {
 		l := m.state[k]
 		if l == nil || !l.mapped || now.Sub(l.renewed) > Lease/2 {
@@ -247,20 +260,27 @@ func (m *Manager) tick(ctx context.Context) {
 	}
 	for k, l := range m.state {
 		if _, ok := wants[k]; !ok {
-			del = append(del, l.m)
+			del = append(del, *l)
 		}
 	}
 	m.mu.Unlock()
-	for _, w := range del {
-		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		err := router.Delete(cctx, w)
-		cancel()
+	for _, l := range del {
+		w := l.m
 		m.mu.Lock()
 		delete(m.state, key{w.Port, w.Proto})
 		m.mu.Unlock()
-		if err != nil {
+		if !l.mapped {
+			continue
+		}
+		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := router.Delete(cctx, w, l.ip)
+		cancel()
+		switch {
+		case errors.Is(err, ErrNotOurs):
+			m.log.Info("port mapping: let go", "port", w.String(), "owner", w.Owner, "note", err)
+		case err != nil:
 			m.log.Warn("port mapping: delete", "port", w.String(), "err", err)
-		} else {
+		default:
 			m.log.Info("port mapping: removed", "port", w.String(), "owner", w.Owner)
 		}
 	}
@@ -280,7 +300,7 @@ func (m *Manager) tick(ctx context.Context) {
 		m.mu.Lock()
 		l := m.state[key{w.Port, w.Proto}]
 		fresh := l == nil || !l.mapped
-		m.state[key{w.Port, w.Proto}] = &live{m: w, mapped: true, renewed: now}
+		m.state[key{w.Port, w.Proto}] = &live{m: w, ip: ip, mapped: true, renewed: now}
 		m.mu.Unlock()
 		if fresh {
 			m.log.Info("port mapping: forwarded", "port", w.String(), "owner", w.Owner, "to", ip)
@@ -299,10 +319,10 @@ func (m *Manager) setErr(w Mapping, msg string) {
 func (m *Manager) release() {
 	m.mu.Lock()
 	router := m.router
-	var del []Mapping
+	var del []live
 	for _, l := range m.state {
 		if l.mapped {
-			del = append(del, l.m)
+			del = append(del, *l)
 		}
 	}
 	m.state = map[key]*live{}
@@ -310,9 +330,9 @@ func (m *Manager) release() {
 	if router == nil {
 		return
 	}
-	for _, w := range del {
+	for _, l := range del {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = router.Delete(ctx, w)
+		_ = router.Delete(ctx, l.m, l.ip)
 		cancel()
 	}
 }
@@ -331,6 +351,7 @@ type upnpRouter struct {
 	name string
 	add  func(ctx context.Context, remote string, ext uint16, proto string, in uint16, client string, enabled bool, desc string, lease uint32) error
 	del  func(ctx context.Context, remote string, ext uint16, proto string) error
+	get  func(ctx context.Context, remote string, ext uint16, proto string) (in uint16, client string, enabled bool, desc string, lease uint32, err error)
 }
 
 func (r *upnpRouter) Name() string { return r.name }
@@ -348,22 +369,41 @@ func (r *upnpRouter) Add(ctx context.Context, m Mapping, ip string, lease time.D
 	return err
 }
 
-func (r *upnpRouter) Delete(ctx context.Context, m Mapping) error {
-	return r.del(ctx, "", m.Port, strings.ToUpper(m.Proto))
+func (r *upnpRouter) Delete(ctx context.Context, m Mapping, ip string) error {
+	proto := strings.ToUpper(m.Proto)
+	_, client, _, _, _, err := r.get(ctx, "", m.Port, proto)
+	switch {
+	case upnpCode(err) == 714: // NoSuchEntryInArray: already gone
+		return nil
+	case err == nil && client != ip:
+		return fmt.Errorf("%w (%s)", ErrNotOurs, client)
+	}
+	// A router that cannot say who holds the port is answered as before:
+	// the mapping is deleted.
+	return r.del(ctx, "", m.Port, proto)
+}
+
+// upnpCode is the UPnP error code in a SOAP fault, 0 for anything else.
+func upnpCode(err error) int {
+	var f *soap.SOAPFaultError
+	if errors.As(err, &f) {
+		return f.Detail.UPnPError.Errorcode
+	}
+	return 0
 }
 
 func discoverUPnP(ctx context.Context) (Router, error) {
 	if cs, _, err := internetgateway2.NewWANIPConnection2ClientsCtx(ctx); err == nil && len(cs) > 0 {
 		c := cs[0]
-		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx}, nil
+		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx, get: c.GetSpecificPortMappingEntryCtx}, nil
 	}
 	if cs, _, err := internetgateway2.NewWANIPConnection1ClientsCtx(ctx); err == nil && len(cs) > 0 {
 		c := cs[0]
-		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx}, nil
+		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx, get: c.GetSpecificPortMappingEntryCtx}, nil
 	}
 	if cs, _, err := internetgateway2.NewWANPPPConnection1ClientsCtx(ctx); err == nil && len(cs) > 0 {
 		c := cs[0]
-		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx}, nil
+		return &upnpRouter{name: friendly(c.RootDevice.Device.FriendlyName), add: c.AddPortMappingCtx, del: c.DeletePortMappingCtx, get: c.GetSpecificPortMappingEntryCtx}, nil
 	}
 	return nil, fmt.Errorf("no UPnP gateway answered")
 }
