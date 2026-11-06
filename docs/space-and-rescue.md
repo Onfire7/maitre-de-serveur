@@ -112,8 +112,33 @@ dishonestly or hidden.
 ## Stage 3 — move the store off root (319) and resize root (321)
 
 This is the only stage that must be verified on a real Node rather than in
-tests, for two reasons: SELinux labelling of a non-default graphroot, and the
-boot ordering of a store that lives on a Pool Drive.
+tests, and hardware then rewrote its design. Six faults turned up there, all
+traceable to one choice — moving the store by *writing* its new path into
+`storage.conf` and `containers.conf.d`. The sixth was the one that mattered:
+`/etc/containers/containers.conf.d` is global and **bootc reads it**, so
+Boulder could not stage an update at all, and not only while its store was off
+root. Had the move been run on Avalon as planned, Avalon would have become
+un-updatable, which is also the foundation items 12-15 stand on.
+
+So the store moves by **mounting**, not by configuring (`internal/imagestore`).
+`/var/lib/containers/storage` stays podman's graphroot and the only path the
+store is ever reached by; the Drive's directory is bind-mounted onto it. Three
+of the problems below then stop existing rather than being solved: nothing
+records a path that can disagree, the files are labelled for the path the
+SELinux policy already knows — no `semanage fcontext -e`, no relabelling of the
+destination, no `policycoreutils-python-utils` dependency — and libpod's
+database travels with the store, because the graphroot and static dir it
+records are the same paths before and after. `ListImages` reports the Drive's
+free space with no extra work, since it statfs's the graphroot.
+
+What hardware still has to answer is boot ordering, and the answer is two mount
+units wanted by `local-fs.target`: the backing Drive by filesystem UUID,
+because the agent mounts Drives from user space and does not run until long
+after systemd has started the Quadlet units that need the store, and the bind
+mount on top of it. Service units carry
+`RequiresMountsFor=/var/lib/containers/storage`, so a Node whose store did not
+mount starts no Service rather than starting them all against an empty store
+and pulling every image again — item 5's failure, repeated.
 
 **7. Where the store goes.** The OS disk's `maitre-data` partition when there is
 one; otherwise `.maitre/imagestore` on the largest Drive of the default Pool.
@@ -124,12 +149,23 @@ volumes render as `Volume=<host>:<path>:z` bind mounts straight from the Pool an
 never pass through the graphroot, and overlayfs's lower and upper layers are both
 inside the graphroot by construction.
 
-**8. Two settings move together.** `storage.conf`'s `graphroot` and
-`containers.conf`'s `image_copy_tmp_dir`. Treat it as an invariant: blob staging
-is what hit ENOSPC, and leaving it on a root that 321 then shrinks would make
-the failure likelier, not rarer. Open: whether the podman in `fedora-bootc:42`
-honours a `storage.conf.d` drop-in or wants the file written whole;
-`containers.conf.d` is certain.
+**8. One setting is written, and it names no Drive.** `containers.conf`'s
+`image_copy_tmp_dir`, pointed at `/var/lib/containers/storage/tmp`. Blob
+staging is what hit ENOSPC, and leaving it on a root that 321 then shrinks
+would make the failure likelier, not rarer — but under the bind mount that
+path is on the Drive without naming it, so the value means the same thing
+wherever the store is and never has to be rewritten. That matters because the
+file is global: every value here that depended on where the store was is what
+broke `bootc upgrade`, and `[engine] static_dir` especially must stay unset,
+since bootc inherits it.
+
+`storage.conf` is now only ever *read and deleted*: a Node that the first
+design moved is repaired at startup by `imagestore.Migrate`, which mounts the
+directory it already has at podman's own graphroot and removes the
+configuration naming it. Not one byte is copied — only the path changes — and
+libpod's database goes, since it records the graphroot it was made with. Such a
+Node cannot stage an update at all, so that repair does not wait to be asked
+for.
 
 **9. Resolved lazily, after the Drive check.** The store is resolved inside
 `apply`, after the Space and volume checks and before the unit is written, so a
