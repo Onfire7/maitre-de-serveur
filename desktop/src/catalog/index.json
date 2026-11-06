@@ -4714,6 +4714,78 @@
       "stars": 6053
     },
     {
+      "id": "stash",
+      "name": "Stash",
+      "summary": "Organize, tag and browse a private video and image collection, including adult content.",
+      "description": "Stash scans a collection of videos and images, fills in titles, performers,\nstudios and tags from community metadata sources, and makes thumbnails,\npreviews and transcodes so it plays in any browser.\n\nFor its collection, pick the shared folder that holds your videos and\nimages, so you can add files from Files. On first open, setup asks where\nthings go: choose /data for the collection, and keep /generated, /metadata,\n/cache and /blobs for the rest. Stash has no login until you set one under Settings, Security.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAwIDY3Ny40MSI+PHBhdGggZmlsbD0iIzY0NGQzZiIgZD0iTTUwMC41MzIgMCA4MC40OTIgMTIyLjIxNiAwIDIyNC4wMzZsMzY1LjU2IDEyNy41MTIgMTA2LjAyNC0xMjguNiAyNy44NjggMTEuODMyIDI3Ljg2OC0xMS44MzIgMTEwLjM4NCAxMzEuODY4IDM2Mi4yOTItMTI4LjZMOTE1LjMgMTE1LjgzMnptMCAzMy4zMTYgMjkzLjc4OCA4Ni43Mi0yOTMuNzg4IDgyLjUxNi0yOTYuOS04NS43ODR6bTIzLjA0NCAyNTUuMDItMS4wODggMzg3Ljk4IDM5MC4xNi0xNTkuNzQgMS4wODgtMjE3LjUtMjkyLjU0NCA5Ni4zNzItODUuNzg0LTEwNy4xMTZ6bS01Ni4yMDQgMS4wODgtODUuNzg0IDEwNy4xMi0yOTIuNTQ0LTk2LjM3MiAxLjA4OCAyMTcuNSAzOTAuMTYgMTU5Ljc0LTEuMDg4LTM4Ny45OHoiLz48L3N2Zz4=",
+      "category": "media",
+      "image": "docker.io/stashapp/stash:v0.32.0@sha256:1099ffd7cc53f165916a07644874448011308a46eadbcd4edd328786e59b5eb9",
+      "version": "0.32.0",
+      "exposure": "private",
+      "own_login": false,
+      "infrastructure": false,
+      "web": {
+        "port": 9999,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "blobs",
+          "path": "/blobs",
+          "size": "medium"
+        },
+        {
+          "name": "cache",
+          "path": "/cache"
+        },
+        {
+          "name": "config",
+          "path": "/root/.stash"
+        },
+        {
+          "name": "collection",
+          "path": "/data",
+          "size": "large",
+          "shared": true
+        },
+        {
+          "name": "generated",
+          "path": "/generated",
+          "size": "large"
+        },
+        {
+          "name": "metadata",
+          "path": "/metadata"
+        }
+      ],
+      "settings": [
+        {
+          "key": "TZ",
+          "label": "Time zone",
+          "type": "timezone",
+          "default": "auto"
+        }
+      ],
+      "health": {
+        "http": "/"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nLogDriver=json-file\nLogOpt=max-file=10\nLogOpt=max-size=2m\nEnvironment=STASH_CACHE=/cache/\nEnvironment=STASH_GENERATED=/generated/\nEnvironment=STASH_METADATA=/metadata/\nEnvironment=STASH_PORT=9999\nEnvironment=STASH_STASH=/data/\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/root/.stash:Z\nVolume={{ .Volumes.collection }}:/data:z\nVolume={{ .Volumes.metadata }}:/metadata:Z\nVolume={{ .Volumes.cache }}:/cache:Z\nVolume={{ .Volumes.blobs }}:/blobs:Z\nVolume={{ .Volumes.generated }}:/generated:Z\n",
+      "source": {
+        "from": "compose",
+        "url": "https://raw.githubusercontent.com/stashapp/stash/v0.32.0/docker/production/docker-compose.yml",
+        "licence": "AGPL-3.0",
+        "converted": "2026-11-06",
+        "icon": {
+          "pack": "dashboard-icons",
+          "licence": "Apache-2.0",
+          "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/59f1e9a4108f4f510f41e9588f078631de1e1405/svg/stash.svg"
+        }
+      },
+      "project": "https://github.com/stashapp/stash",
+      "stars": 13362
+    },
+    {
       "id": "stirling-pdf",
       "name": "Stirling-PDF",
       "summary": "Merge, split, convert, compress and sign PDFs on your own server.",
