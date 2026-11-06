@@ -1670,7 +1670,7 @@
       "health": {
         "http": "/"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.config }}:/config:Z\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"PGID={{ .Settings.PGID }}\"\nEnvironment=\"PUID={{ .Settings.PUID }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nEnvironment=\"GROCY_BASE_URL=//\"\nVolume={{ .Volumes.config }}:/config:Z\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/bigbeartechworld/big-bear-casaos/blob/05e3501e90017f2eb74d29f5d5bef13c3615a0af/Apps/grocy/docker-compose.yml",
