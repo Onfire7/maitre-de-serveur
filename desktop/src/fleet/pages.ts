@@ -8,6 +8,7 @@
 // them the same way for a Console talking to a Node mid-update.
 import type { PageStatus, ServicePage, ServiceSpec, ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import type { FleetService } from "./useFleet";
+import { domainLinks } from "./domain";
 
 /** A Service's Pages, with one made from the web fields for a spec that has none. */
 export function pagesOf(spec: ServiceSpec | undefined): ServicePage[] {
@@ -48,7 +49,17 @@ export function pageStatusOf(status: ServiceStatus | undefined, page: ServicePag
   const found = status.pages.find((p) => p.name === page.name);
   if (found) return found;
   if (!first) return undefined;
-  return { $typeName: "maitre.v1.PageStatus", name: page.name, url: status.url, remoteUrl: status.remoteUrl, remoteState: status.remoteState, healthy: status.healthy };
+  return { $typeName: "maitre.v1.PageStatus", name: page.name, url: status.url, remoteUrl: status.remoteUrl, remoteState: status.remoteState, healthy: status.healthy, homeState: "" };
+}
+
+/** The address a Page is shown and opened at (decision 329): its address
+ * at the user's domain when the Fleet asks for those and it answers from
+ * home as well as away, so one link works everywhere; else its .local
+ * one. A Page that is not at the domain has only the .local one. */
+export function pageLink(spec: ServiceSpec, page: ServicePage, st: PageStatus | undefined, preferDomain = domainLinks()): string {
+  if (!st) return "";
+  const atDomain = pageExposure(spec, page).exposure === "direct" && st.remoteState === "up" && st.homeState === "up" && !!st.remoteUrl;
+  return preferDomain && atDomain ? st.remoteUrl : st.url;
 }
 
 /** A Page as the Console shows it: the Service it belongs to, the Page, its
@@ -58,8 +69,11 @@ export interface PageView {
   page: ServicePage;
   /** Its host name, which keys its proxy, its view and its frame. */
   host: string;
-  /** The address the Console opens: http://<host>.local<path>. */
+  /** Its address on the home network: http://<host>.local<path>. */
   url: string;
+  /** The address shown and opened in a browser: url, or its address at
+   * the user's domain (decision 329). */
+  link: string;
   remoteUrl: string;
   label: string;
   first: boolean;
@@ -75,6 +89,7 @@ export function pageViews(service: FleetService): PageView[] {
       page,
       host: pageHost(service.spec, page),
       url: st?.url ?? "",
+      link: pageLink(service.spec, page, st),
       remoteUrl: st?.remoteUrl ?? "",
       label: pageLabel(page),
       first: i === 0,
@@ -92,4 +107,29 @@ export function pageViewOf(service: FleetService, name: string): PageView | unde
  * its first when it has several. Undefined for a Service with none. */
 export function mainPage(service: FleetService): PageView | undefined {
   return pageViews(service)[0];
+}
+
+/** Where the Pages at the user's domain stand from home (decision 329):
+ * those whose domain address answers there, those it does not with why,
+ * and those not checked yet (not up from the internet, or a Node from
+ * before the check). */
+export interface DomainLinkCheck {
+  home: string[];
+  away: { host: string; why: string }[];
+  unchecked: string[];
+}
+
+export function domainLinkCheck(services: FleetService[]): DomainLinkCheck {
+  const out: DomainLinkCheck = { home: [], away: [], unchecked: [] };
+  for (const s of services) {
+    pagesOf(s.spec).forEach((page, i) => {
+      if (pageExposure(s.spec, page).exposure !== "direct") return;
+      const host = pageHost(s.spec, page);
+      const st = pageStatusOf(s.status, page, i === 0);
+      if (st?.remoteState !== "up" || !st.homeState) out.unchecked.push(host);
+      else if (st.homeState === "up") out.home.push(host);
+      else out.away.push({ host, why: st.homeState });
+    });
+  }
+  return out;
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
 import { ServiceSpecSchema, ServiceStatusSchema } from "@/gen/maitre/v1/service_pb";
-import { mainPage, pageByName, pageExposure, pageHost, pageViewOf, pageViews, pagesOf } from "./pages";
+import { domainLinkCheck, mainPage, pageByName, pageExposure, pageHost, pageLink, pageViewOf, pageViews, pagesOf } from "./pages";
 import type { FleetService } from "./useFleet";
 
 const svc = (init: Parameters<typeof create<typeof ServiceSpecSchema>>[1], status?: Parameters<typeof create<typeof ServiceStatusSchema>>[1]): FleetService => ({
@@ -50,5 +50,33 @@ describe("Pages (ADR 0010)", () => {
     expect(pageViews(old)).toMatchObject([{ host: "jellyfin", url: "http://jellyfin.local/" }]);
     expect(pageViewOf(old, "web")?.url).toBe("http://jellyfin.local/");
     expect(pageViewOf(several, "admin")?.host).toBe("immich-admin");
+  });
+});
+
+describe("links at the domain (decision 329)", () => {
+  const stash = (homeState: string, remoteState = "up") =>
+    svc(
+      { name: "stash", exposure: "direct", publicHost: "stash.weyland.cc", pages: [{ name: "web", port: 9999 }] },
+      { url: "http://stash.local", pages: [{ name: "web", url: "http://stash.local", remoteUrl: "https://stash.weyland.cc", remoteState, homeState }] },
+    );
+  const link = (s: FleetService, prefer: boolean) => pageLink(s.spec, s.spec.pages[0], s.status!.pages[0], prefer);
+
+  it("opens the domain address only when asked and it answers from home", () => {
+    expect(link(stash("up"), true)).toBe("https://stash.weyland.cc");
+    expect(link(stash("up"), false)).toBe("http://stash.local");
+    expect(link(stash("not from home: the router does not send 203.0.113.7 back in"), true)).toBe("http://stash.local");
+    expect(link(stash(""), true)).toBe("http://stash.local");
+    expect(link(stash("up", "waiting for DNS"), true)).toBe("http://stash.local");
+  });
+
+  it("leaves a Page that is not at the domain at .local", () => {
+    const s = svc({ name: "kuma", exposure: "remote", pages: [{ name: "web", port: 1 }] }, { pages: [{ name: "web", url: "http://kuma.local", remoteUrl: "https://kuma.tail.ts.net", remoteState: "up", homeState: "up" }] });
+    expect(link(s, true)).toBe("http://kuma.local");
+  });
+
+  it("sorts the Pages at the domain by how they answer from home", () => {
+    const kuma = svc({ name: "kuma", exposure: "private", pages: [{ name: "web", port: 1 }] }, { pages: [{ name: "web", url: "http://kuma.local" }] });
+    const away = { ...stash("not from home: x"), spec: create(ServiceSpecSchema, { name: "immich", exposure: "direct", pages: [{ name: "web", port: 1 }] }) };
+    expect(domainLinkCheck([stash("up"), away, stash(""), kuma])).toEqual({ home: ["stash"], away: [{ host: "immich", why: "not from home: x" }], unchecked: ["stash"] });
   });
 });

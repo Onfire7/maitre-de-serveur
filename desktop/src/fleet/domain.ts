@@ -15,6 +15,7 @@ export type Role = "app" | "web";
 const DOMAIN_KEY = "maitre.fleet.domain";
 const HOLDER_KEY = "maitre.fleet.appHolder";
 const NAME_KEY = "maitre.fleet.domainName";
+const LINKS_KEY = "maitre.fleet.domainLinks";
 
 /** The Fleet's one email for Let's Encrypt (decision 114), kept in public_settings. */
 export function acmeEmail(records: Rec[] | undefined): string {
@@ -45,6 +46,8 @@ export function rememberDomain(snap: FleetSnapshot) {
     else localStorage.removeItem(DOMAIN_KEY);
     if (d?.domain) localStorage.setItem(NAME_KEY, d.domain);
     else localStorage.removeItem(NAME_KEY);
+    if (d?.domain && d.domainLinks) localStorage.setItem(LINKS_KEY, "1");
+    else localStorage.removeItem(LINKS_KEY);
     const h = holderOf(snap, "app");
     if (h) localStorage.setItem(HOLDER_KEY, h.nodeId);
   } catch {
@@ -79,6 +82,16 @@ const hostRE = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 export function validDomain(h: string): boolean {
   if ([".local", ".localhost", ".home.arpa", ".internal", ".lan"].some((s) => h.endsWith(s))) return false;
   return h.length <= 253 && hostRE.test(h);
+}
+
+/** Whether Service links use their address at the domain, at home too
+ * (decision 329), as last read. */
+export function domainLinks(): boolean {
+  try {
+    return localStorage.getItem(LINKS_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 /** The Fleet's domain as last read, "" for none: Services publish under it. */

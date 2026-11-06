@@ -137,6 +137,11 @@ message FleetDomain {
   // The router forwards 80 and 443 to one Node, whose Caddy answers every
   // Service published at the user's domain, wherever it runs.
   EntryNode web = 3;
+  // The Console shows and opens a Service's address at the domain rather
+  // than its .local one, at home too, so one link works everywhere
+  // (decision 329). Per Page, only while its domain address answers from
+  // the home network (PageStatus.home_state).
+  bool domain_links = 4;
 }
 
 // EntryNode is which Node the router forwards a role's ports to.

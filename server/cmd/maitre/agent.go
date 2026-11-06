@@ -547,7 +547,7 @@ func runAgent(args []string) error {
 		}
 		return 0
 	}
-	mgr = services.New(services.Config{ImageStore: imageStoreDir, UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
+	mgr = services.New(services.Config{ImageStore: imageStoreDir, UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, AtHome: dir.HomeStatus, Forward: pmap.State,
 		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf, ValidateUnits: true,
 		// Decision 327: where a Service given an address of its own on
 		// the home network sits. Read each time rather than once at

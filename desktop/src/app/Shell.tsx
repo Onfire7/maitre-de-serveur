@@ -166,7 +166,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         // demo) has no plugin. The Page opened is the one shown, when it
         // is this Service's, else its first (ADR 0010).
         const page = pageViewOf(s, route.name === "page" && route.service === s.spec.name ? route.page : "");
-        if (page?.url) openUrl(page.url).catch(() => window.open(page.url, "_blank"));
+        if (page?.link) openUrl(page.link).catch(() => window.open(page.link, "_blank"));
         return;
       }
       case "logs":

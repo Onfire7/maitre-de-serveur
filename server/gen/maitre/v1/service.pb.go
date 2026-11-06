@@ -2804,12 +2804,18 @@ func (x *ServiceStatus) GetNetworkSharedWith() string {
 
 // PageStatus is where one Page answers and whether it does.
 type PageStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	RemoteUrl     string                 `protobuf:"bytes,3,opt,name=remote_url,json=remoteUrl,proto3" json:"remote_url,omitempty"`
-	RemoteState   string                 `protobuf:"bytes,4,opt,name=remote_state,json=remoteState,proto3" json:"remote_state,omitempty"`
-	Healthy       bool                   `protobuf:"varint,5,opt,name=healthy,proto3" json:"healthy,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Url         string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	RemoteUrl   string                 `protobuf:"bytes,3,opt,name=remote_url,json=remoteUrl,proto3" json:"remote_url,omitempty"`
+	RemoteState string                 `protobuf:"bytes,4,opt,name=remote_state,json=remoteState,proto3" json:"remote_state,omitempty"`
+	Healthy     bool                   `protobuf:"varint,5,opt,name=healthy,proto3" json:"healthy,omitempty"`
+	// For a Page at the user's domain whose remote_url is up: "up" when that
+	// address also works from the home network, which needs the router to
+	// send its own public address back in; else why not. "" when not
+	// checked. The Console opens remote_url at home only when "up"
+	// (decision 329).
+	HomeState     string `protobuf:"bytes,6,opt,name=home_state,json=homeState,proto3" json:"home_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2877,6 +2883,13 @@ func (x *PageStatus) GetHealthy() bool {
 		return x.Healthy
 	}
 	return false
+}
+
+func (x *PageStatus) GetHomeState() string {
+	if x != nil {
+		return x.HomeState
+	}
+	return ""
 }
 
 // ComponentStatus is one container's state within a multi-container Service.
@@ -4078,7 +4091,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x0eSTATE_STARTING\x10\x02\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x03\x12\x10\n" +
 	"\fSTATE_FAILED\x10\x04\x12\x12\n" +
-	"\x0eSTATE_REMOVING\x10\x05\"\x8e\x01\n" +
+	"\x0eSTATE_REMOVING\x10\x05\"\xad\x01\n" +
 	"\n" +
 	"PageStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
@@ -4086,7 +4099,9 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\n" +
 	"remote_url\x18\x03 \x01(\tR\tremoteUrl\x12!\n" +
 	"\fremote_state\x18\x04 \x01(\tR\vremoteState\x12\x18\n" +
-	"\ahealthy\x18\x05 \x01(\bR\ahealthy\"\xab\x01\n" +
+	"\ahealthy\x18\x05 \x01(\bR\ahealthy\x12\x1d\n" +
+	"\n" +
+	"home_state\x18\x06 \x01(\tR\thomeState\"\xab\x01\n" +
 	"\x0fComponentStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1e.maitre.v1.ServiceStatus.StateR\x05state\x12\x18\n" +

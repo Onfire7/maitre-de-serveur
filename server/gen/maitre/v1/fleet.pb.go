@@ -640,7 +640,12 @@ type FleetDomain struct {
 	App *EntryNode `protobuf:"bytes,2,opt,name=app,proto3" json:"app,omitempty"`
 	// The router forwards 80 and 443 to one Node, whose Caddy answers every
 	// Service published at the user's domain, wherever it runs.
-	Web           *EntryNode `protobuf:"bytes,3,opt,name=web,proto3" json:"web,omitempty"`
+	Web *EntryNode `protobuf:"bytes,3,opt,name=web,proto3" json:"web,omitempty"`
+	// The Console shows and opens a Service's address at the domain rather
+	// than its .local one, at home too, so one link works everywhere
+	// (decision 329). Per Page, only while its domain address answers from
+	// the home network (PageStatus.home_state).
+	DomainLinks   bool `protobuf:"varint,4,opt,name=domain_links,json=domainLinks,proto3" json:"domain_links,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -694,6 +699,13 @@ func (x *FleetDomain) GetWeb() *EntryNode {
 		return x.Web
 	}
 	return nil
+}
+
+func (x *FleetDomain) GetDomainLinks() bool {
+	if x != nil {
+		return x.DomainLinks
+	}
+	return false
 }
 
 // EntryNode is which Node the router forwards a role's ports to.
@@ -1324,11 +1336,12 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\x0fOUTCOME_UPDATED\x10\x01\x12\x17\n" +
 	"\x13OUTCOME_ROLLED_BACK\x10\x02\x12\x12\n" +
 	"\x0eOUTCOME_FAILED\x10\x03\x12\x12\n" +
-	"\x0eOUTCOME_STAGED\x10\x04\"u\n" +
+	"\x0eOUTCOME_STAGED\x10\x04\"\x98\x01\n" +
 	"\vFleetDomain\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12&\n" +
 	"\x03app\x18\x02 \x01(\v2\x14.maitre.v1.EntryNodeR\x03app\x12&\n" +
-	"\x03web\x18\x03 \x01(\v2\x14.maitre.v1.EntryNodeR\x03web\">\n" +
+	"\x03web\x18\x03 \x01(\v2\x14.maitre.v1.EntryNodeR\x03web\x12!\n" +
+	"\fdomain_links\x18\x04 \x01(\bR\vdomainLinks\">\n" +
 	"\tEntryNode\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\"\xb9\x01\n" +

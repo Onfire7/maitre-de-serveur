@@ -71,6 +71,9 @@ type Config struct {
 	// Remote reports a Service's tailnet URL and state (Milestone 5); nil
 	// when the Node has no remote exposure.
 	Remote func(name string) (url, state string)
+	// AtHome says whether a Page's domain address works from the home
+	// network too (decision 329); nil reports nothing.
+	AtHome func(name string) string
 	// Forward reports the router port forwarding a Service depends on
 	// (decision 115); nil when the Node does no port mapping.
 	Forward func(name string) string
@@ -1509,6 +1512,9 @@ func (m *Manager) Status(ctx context.Context, spec *maitrev1.ServiceSpec) (*mait
 				}
 				ps.RemoteUrl, ps.RemoteState = u, state
 			}
+		}
+		if m.cfg.AtHome != nil {
+			ps.HomeState = m.cfg.AtHome(host)
 		}
 		if st.State == maitrev1.ServiceStatus_STATE_RUNNING && p.GetHostPort() != 0 {
 			ps.Healthy = m.probe(ctx, p)

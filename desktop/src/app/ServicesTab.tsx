@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatUptime } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord } from "@/fleet/useFleet";
+import { mainPage } from "@/fleet/pages";
 import { controlService, targetFor } from "@/fleet/actions";
 import { declined } from "@/fleet/grants";
 import type { ConsoleState } from "@/state";
@@ -209,6 +210,8 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
 
 function ServiceRow({ service: s, snap, open, edit, onToggle, picked, onPick, onAct, onOpenPage, showNode, spaces, now }: { service: FleetService; snap: FleetSnapshot | undefined; open: boolean; edit?: ServiceEdit; onToggle: () => void; picked: boolean; onPick: (on: boolean) => void; onAct: (it: FlyoutItem) => void; onOpenPage: () => void; showNode: boolean; spaces: string[]; now: number }) {
   const st = s.status;
+  // Its main Page's address, at the domain when the Fleet asks (329).
+  const shown = mainPage(s)?.link || st?.url || "";
   const running = st?.state === 3 || st?.state === 2;
   const items = flyoutItems(s);
   const up = running && st?.startedUnixMs ? Math.max(0, Math.floor((now - Number(st.startedUnixMs)) / 1000)) : 0;
@@ -234,10 +237,10 @@ function ServiceRow({ service: s, snap, open, edit, onToggle, picked, onPick, on
             <div className="truncate text-foreground/80" title={st.message}>
               {st.message}
             </div>
-          ) : st?.url ? (
-            <div className="truncate" title={st.url}>
-              {st.url}
-              {st.remoteUrl && ` · ${st.remoteUrl}`}
+          ) : shown ? (
+            <div className="truncate" title={shown}>
+              {shown}
+              {st?.remoteUrl && st.remoteUrl !== shown && ` · ${st.remoteUrl}`}
             </div>
           ) : (
             <div>No web page</div>

@@ -109,7 +109,7 @@ export function ServiceFlyout({
 
 /** The address of the page the frame is on, said in the Page's own address (not the proxy's). */
 export function pageAddress(page: PageView | undefined, path: string | undefined): string | undefined {
-  const base = page?.url;
+  const base = page?.link;
   if (!base) return undefined;
   try {
     return new URL(path ?? "/", base).href;

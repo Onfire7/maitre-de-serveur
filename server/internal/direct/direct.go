@@ -49,6 +49,7 @@ type watched struct {
 	host  string
 	state string
 	url   string
+	home  string // see HomeStatus
 }
 
 // Manager tracks the public address and every direct host.
@@ -63,11 +64,26 @@ type Manager struct {
 	publicIP string
 	hosts    map[string]*watched // by Service name
 	wake     chan struct{}
+
+	// dial opens TLS to addr for host, certificate checked; a field so
+	// tests can stand in for the router.
+	dial func(ctx context.Context, addr, host string) error
 }
 
 // New builds a Manager.
 func New(log *slog.Logger) *Manager {
-	return &Manager{log: log, client: &http.Client{Timeout: 10 * time.Second}, TLSAddr: "127.0.0.1:443", hosts: map[string]*watched{}, wake: make(chan struct{}, 1)}
+	return &Manager{log: log, client: &http.Client{Timeout: 10 * time.Second}, TLSAddr: "127.0.0.1:443", hosts: map[string]*watched{}, wake: make(chan struct{}, 1), dial: dialTLS}
+}
+
+func dialTLS(ctx context.Context, addr, host string) error {
+	d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}}
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	conn, err := d.DialContext(cctx, "tcp", addr)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 // SetTLSAddr probes certificates at addr from now on: the Node whose Caddy
@@ -140,6 +156,20 @@ func (m *Manager) Status(name string) (url, state string) {
 	return w.url, w.state
 }
 
+// HomeStatus says whether a direct Service's address works from the home
+// network too (decision 329): "up", or why not; "" when it is not one or
+// is not up from the internet yet. A router that does not loop its own
+// public address back in (NAT loopback) leaves the address working only
+// away from home, so a Console there keeps the .local one.
+func (m *Manager) HomeStatus(name string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if w, ok := m.hosts[name]; ok {
+		return w.home
+	}
+	return ""
+}
+
 // Run learns the public address hourly and checks every host every
 // half-minute until ctx ends.
 func (m *Manager) Run(ctx context.Context) {
@@ -210,12 +240,19 @@ func (m *Manager) checkAll(ctx context.Context) {
 	m.mu.Unlock()
 	for name, host := range todo {
 		state, url := m.check(ctx, host, ip)
+		home := ""
+		if state == "up" {
+			home = m.checkHome(ctx, host, ip)
+		}
 		m.mu.Lock()
 		if w, ok := m.hosts[name]; ok && w.host == host {
 			if w.state != state {
 				m.log.Info("direct host", "service", name, "host", host, "state", state)
 			}
-			w.state, w.url = state, url
+			if w.home != home && home != "" {
+				m.log.Info("direct host from home", "service", name, "host", host, "state", home)
+			}
+			w.state, w.url, w.home = state, url, home
 		}
 		m.mu.Unlock()
 	}
@@ -244,16 +281,23 @@ func (m *Manager) check(ctx context.Context, host, publicIP string) (state, url 
 	}
 	// A certificate Caddy obtained proves the internet reached ports 80 or
 	// 443 here; that is the whole chain working.
-	d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}}
-	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	m.mu.Lock()
 	addr := m.TLSAddr
 	m.mu.Unlock()
-	conn, err := d.DialContext(cctx, "tcp", addr)
-	cancel()
-	if err != nil {
+	if err := m.dial(ctx, addr, host); err != nil {
 		return "waiting for a certificate; ports 80 and 443 must reach this Node", ""
 	}
-	conn.Close()
 	return "up", "https://" + host
+}
+
+// checkHome goes the way a browser at home does: to the public address,
+// which the router must send back in to the web entry Node.
+func (m *Manager) checkHome(ctx context.Context, host, publicIP string) string {
+	if publicIP == "" {
+		return ""
+	}
+	if err := m.dial(ctx, net.JoinHostPort(publicIP, "443"), host); err != nil {
+		return "not from home: the router does not send " + publicIP + " back in"
+	}
+	return "up"
 }

@@ -544,6 +544,12 @@ message PageStatus {
   string remote_url = 3;
   string remote_state = 4;
   bool healthy = 5;
+  // For a Page at the user's domain whose remote_url is up: "up" when that
+  // address also works from the home network, which needs the router to
+  // send its own public address back in; else why not. "" when not
+  // checked. The Console opens remote_url at home only when "up"
+  // (decision 329).
+  string home_state = 6;
 }
 
 // ComponentStatus is one container's state within a multi-container Service.

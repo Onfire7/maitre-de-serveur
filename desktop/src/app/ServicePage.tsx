@@ -168,7 +168,7 @@ function DemoFrame({ service, page }: { service: FleetService; page: PageView | 
           {entry?.name ?? service.spec.name}
           {page && !page.first && <span className="ml-2 text-sm font-normal text-muted-foreground">{page.label}</span>}
         </div>
-        <div className="ml-auto font-mono text-xs text-muted-foreground">{page?.url}</div>
+        <div className="ml-auto font-mono text-xs text-muted-foreground">{page?.link}</div>
       </div>
       <div className="grid flex-1 grid-cols-[200px_1fr]">
         <div className="space-y-2 border-r p-4">

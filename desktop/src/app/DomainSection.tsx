@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@connectrpc/connect";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { toast } from "sonner";
-import { Copy, MonitorSmartphone, Globe } from "lucide-react";
+import { Copy, MonitorSmartphone, Globe, Link2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,8 @@ import { EntryNodeSchema, FleetDomainSchema, type EntryNode, type FleetDomain } 
 import { NodeService } from "@/gen/maitre/v1/node_pb";
 import { transportFor } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
-import { nodeWord } from "@/fleet/useFleet";
+import { nodeWord, useFleetServices } from "@/fleet/useFleet";
+import { domainLinkCheck } from "@/fleet/pages";
 import { currentRecord, putSigned } from "@/fleet/sign";
 import { APP_PORT, DOMAIN_KIND, acmeEmail, fleetDomain, holderOf, validDomain, type Role } from "@/fleet/domain";
 import { NodeMark } from "./status";
@@ -122,6 +123,7 @@ export function DomainSection({ snap }: { snap: FleetSnapshot | undefined }) {
         disabled={!stored.domain}
         onChange={(e) => setEntry("web", e)}
       />
+      {stored.domain && stored.web?.enabled && <DomainLinks snap={snap} domain={stored.domain} on={stored.domainLinks} onChange={(v) => void save(create(FleetDomainSchema, { ...stored, domainLinks: v }))} />}
     </section>
   );
 }
@@ -173,6 +175,41 @@ function EntryCard({ role, icon, title, detail, snap, entry, disabled, onChange 
             <p className="text-xs text-muted-foreground">No Node has taken it yet. It takes a few seconds, and Nodes need a Maître Server from this version on.</p>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/** Service links at the domain, at home too (decision 329). It can be
+ * turned on once a Page's domain address is seen to answer from home: a
+ * router that does not send its own public address back in leaves those
+ * addresses working only away, and a link that fails at home is worse
+ * than a .local one. A Page that does not answer from home keeps its
+ * .local link either way. */
+function DomainLinks({ snap, domain, on, onChange }: { snap: FleetSnapshot | undefined; domain: string; on: boolean; onChange: (v: boolean) => void }) {
+  const check = domainLinkCheck(useFleetServices(snap));
+  const usable = check.home.length > 0;
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-4">
+      <label className="flex items-start justify-between gap-4">
+        <span>
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Link2 className="size-4" /> The same links at home and away
+          </span>
+          <span className="block text-xs text-muted-foreground">Services published at your domain are shown and opened at https://name.{domain} instead of name.local, so a link you save or share works anywhere. Services that are not published keep their .local address.</span>
+        </span>
+        <Switch checked={on && usable} disabled={!usable} onCheckedChange={onChange} aria-label="The same links at home and away" />
+      </label>
+      {check.away.length > 0 && (
+        <p className="flex items-start gap-2 rounded-md bg-status-attention/10 px-2 py-1.5 text-xs">
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-status-attention" />
+          <span>
+            {check.away.length === 1 ? "This address does" : "These addresses do"} not answer from your home network: {check.away.map((a) => `${a.host}.${domain}`).join(", ")}. Your router does not send your home's own address back in (sometimes called NAT loopback or hairpinning), so {check.away.length === 1 ? "it works" : "they work"} only away from home. {usable ? "Those keep their .local link." : "Links stay at .local until one answers from home."}
+          </span>
+        </p>
+      )}
+      {check.home.length === 0 && check.away.length === 0 && (
+        <p className="text-xs text-muted-foreground">{check.unchecked.length > 0 ? "Checking whether your domain's addresses answer from home. It takes a minute once a Service is up at your domain, and Nodes need a Maître Server from this version on." : "No Service is published at your domain yet. Publish one, and this can be turned on once its address answers from home."}</p>
       )}
     </div>
   );

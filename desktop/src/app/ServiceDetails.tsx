@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ago, formatUptime } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
+import { mainPage } from "@/fleet/pages";
 import { declined, grantsOf, optionNote } from "@/fleet/grants";
 import { setImage, setSettings, targetFor } from "@/fleet/actions";
 import { canRollBack, componentsOf, componentStatus, isMulti, logSource } from "@/fleet/components";
@@ -33,6 +34,7 @@ const SECRET = /pass|secret|token|key|credential/i;
 export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service: FleetService; snap: FleetSnapshot | undefined; onAct: (it: FlyoutItem) => void; now: number; edit?: ServiceEdit }) {
   const spec = s.spec;
   const st = s.status;
+  const link = mainPage(s)?.link || st?.url || "";
   const entry = catalogById.get(spec.catalogId);
   const grants = grantsOf(snap?.records, spec.name).filter((g) => !g.grant.nodeId || g.grant.nodeId === spec.nodeId);
   const running = st?.state === 3 || st?.state === 2;
@@ -159,7 +161,7 @@ export function ServiceDetails({ service: s, snap, onAct, now, edit }: { service
       body: spec.webPort ? (
         <Rows
           rows={[
-            ["At home", st?.url ? <Link url={st.url} /> : "Not yet"],
+            ["At home", link ? <Link url={link} /> : "Not yet"],
             ["From anywhere", st?.remoteUrl ? <Link url={st.remoteUrl} /> : undefined],
             ["Tailscale", st?.remoteState || undefined],
             ["Container port", `${spec.webPort}${spec.webPath && spec.webPath !== "/" ? `, at ${spec.webPath}` : ""}`],

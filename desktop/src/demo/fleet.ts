@@ -681,6 +681,12 @@ export class DemoFleet {
     // The first Page is the Service's own name, the others <service>-<page>
     // (ADR 0010).
     const host = (i: number) => (i === 0 ? s.spec.name : `${s.spec.name}-${pages[i].name}`);
+    // At the user's domain for a direct Page, else its tailnet name.
+    const remoteOf = (p: (typeof pages)[number], i: number) => {
+      const exposure = p.exposure || s.spec.exposure;
+      if (exposure === "direct") return `https://${s.spec.publicHost || host(i)}`;
+      return exposure !== "private" ? `https://${host(i)}.home-fleet.ts.net` : "";
+    };
     return {
       spec: s.spec,
       state: s.state,
@@ -689,13 +695,15 @@ export class DemoFleet {
       message: s.message,
       url: web ? `http://${s.spec.name}.local${pages[0].path === "/" ? "" : (pages[0].path ?? "")}` : "",
       startedUnixMs: BigInt(s.startedUnixMs),
-      remoteUrl: web && s.spec.exposure !== "private" ? `https://${s.spec.name}.home-fleet.ts.net` : "",
+      remoteUrl: web ? remoteOf(pages[0], 0) : "",
       remoteState: s.spec.exposure !== "private" ? "up" : "",
       pages: pages.map((p, i) => ({
         name: p.name,
         url: `http://${host(i)}.local${p.path === "/" ? "" : (p.path ?? "")}`,
-        remoteUrl: (p.exposure || s.spec.exposure) !== "private" ? `https://${host(i)}.home-fleet.ts.net` : "",
+        remoteUrl: remoteOf(p, i),
         remoteState: (p.exposure || s.spec.exposure) !== "private" ? "up" : "",
+        // The demo's router loops its own address back in (decision 329).
+        homeState: (p.exposure || s.spec.exposure) === "direct" ? "up" : "",
         healthy: s.healthy,
       })),
       forwardState: s.forwardState || (s.spec.forwardPorts && node ? `${s.spec.hostPorts.join(", ")} forwarded by ${node.portMapping.replace("router: ", "")}` : ""),
