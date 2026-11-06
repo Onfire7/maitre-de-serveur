@@ -45,7 +45,7 @@
       "id": "adguard-home",
       "name": "AdGuard Home",
       "summary": "Block ads and trackers for every device on your network.",
-      "description": "A network-wide ad and tracker blocker that works as your home DNS server.\nBecause other devices depend on it, this Node keeps a fixed address and\nstarts AdGuard Home before anything else.\n",
+      "description": "A network-wide ad and tracker blocker that works as your home DNS server.\nIt takes an address of its own on your home network, which is the address\nyou give your devices as their DNS server, and starts before anything\nelse on its Node.\n",
       "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBkPSJNMjQ0LTEyQzE2NS45LTEyIDcxLjggNi40LTUuOCA0Ni44YzAgODcuMi0xIDMwNC42IDI0OS44IDQ1My4yQzQ5NC44IDM1MS40IDQ5My44IDEzNCA0OTMuOCA0Ni44IDQxNi4yIDYuNCAzMjIuMS0xMiAyNDQtMTIiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiM2OGJjNzEiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEyIDEyKSIvPjxwYXRoIGQ9Ik0yNDMuNyA0OTkuOEMtNi44IDM1MS4zLTUuOCAxMzQtNS44IDQ2LjggNzEuNyA2LjQgMTY1LjctMTIgMjQzLjctMTJ6IiBzdHlsZT0iZmlsbC1ydWxlOmV2ZW5vZGQ7Y2xpcC1ydWxlOmV2ZW5vZGQ7ZmlsbDojNjdiMjc5IiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMiAxMikiLz48cGF0aCBkPSJtMjM0LjkgMzI5LjYgMTUxLTIwMy42Yy0xMS4xLTguOS0yMC44LTIuNi0yNi4xIDIuMmgtLjJsLTEyNS45IDEzMS00Ny40LTU3LjFjLTIyLjYtMjYuMi01My40LTYuMi02MC42LS45eiIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO2ZpbGw6I2ZmZiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTIgMTIpIi8+PC9zdmc+",
       "category": "network",
       "image": "docker.io/adguard/adguardhome:v0.107.59@sha256:5d5e3aef39a8c8906a324f0c2da0a6123929e459b57c1e3f05e401dca5c7bf02",
@@ -53,10 +53,7 @@
       "exposure": "private",
       "own_login": true,
       "infrastructure": true,
-      "host_ports": [
-        "53/tcp",
-        "53/udp"
-      ],
+      "lan": true,
       "web": {
         "port": 3000,
         "path": "/"
@@ -71,10 +68,17 @@
           "path": "/opt/adguardhome/conf"
         }
       ],
+      "settings": [
+        {
+          "key": "lan_address",
+          "label": "Address on your home network",
+          "type": "address"
+        }
+      ],
       "health": {
         "http": "/"
       },
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nVolume={{ .Volumes.work }}:/opt/adguardhome/work:Z\nVolume={{ .Volumes.conf }}:/opt/adguardhome/conf:Z\nNetwork={{ .Network }}\nPublishPort=53:53/tcp\nPublishPort=53:53/udp\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nVolume={{ .Volumes.work }}:/opt/adguardhome/work:Z\nVolume={{ .Volumes.conf }}:/opt/adguardhome/conf:Z\nNetwork={{ .Network }}\n",
       "source": {
         "from": "hand",
         "icon": {
@@ -83,6 +87,12 @@
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/adguard-home.svg"
         }
       },
+      "grants": [
+        {
+          "option": "Network=lan",
+          "why": "Takes an address of its own on your home network, which is the address you give your devices as their DNS server. Every device in your home can reach it there, on every port it answers on."
+        }
+      ],
       "project": "https://github.com/AdguardTeam/AdGuardHome",
       "stars": 38077
     },
@@ -3939,10 +3949,7 @@
       "exposure": "private",
       "own_login": true,
       "infrastructure": true,
-      "host_ports": [
-        "53/tcp",
-        "53/udp"
-      ],
+      "lan": true,
       "web": {
         "port": 80,
         "path": "/admin"
@@ -3954,6 +3961,11 @@
         }
       ],
       "settings": [
+        {
+          "key": "lan_address",
+          "label": "Address on your home network",
+          "type": "address"
+        },
         {
           "key": "TZ",
           "label": "Time zone",
@@ -3967,7 +3979,7 @@
           "default": "generate"
         }
       ],
-      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=FTLCONF_dns_listeningMode=all\nEnvironment=\"FTLCONF_webserver_api_password={{ .Settings.WEB_PASSWORD }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.pihole }}:/etc/pihole:Z\nPublishPort=53:53\nPublishPort=53:53/udp\n",
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=FTLCONF_dns_listeningMode=all\nEnvironment=\"FTLCONF_webserver_api_password={{ .Settings.WEB_PASSWORD }}\"\nEnvironment=\"TZ={{ .Settings.TZ }}\"\nVolume={{ .Volumes.pihole }}:/etc/pihole:Z\n",
       "source": {
         "from": "casaos",
         "url": "https://github.com/IceWhaleTech/CasaOS-AppStore/blob/9619b7090994557756e9b4f6f439d0c3deda4e2e/Apps/Pihole/docker-compose.yml",
@@ -3979,6 +3991,12 @@
           "url": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/83f32e08257b66fbd971ac8d7645f5b38d52e85d/svg/pi-hole.svg"
         }
       },
+      "grants": [
+        {
+          "option": "Network=lan",
+          "why": "Takes an address of its own on your home network, which is the address you give your devices as their DNS server. Every device in your home can reach it there, on every port it answers on."
+        }
+      ],
       "project": "https://github.com/pi-hole/pi-hole",
       "stars": 61642
     },

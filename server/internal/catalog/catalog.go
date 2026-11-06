@@ -33,6 +33,14 @@ type Manifest struct {
 	OwnLogin       bool     `yaml:"own_login,omitempty" json:"own_login"`
 	Infrastructure bool     `yaml:"infrastructure,omitempty" json:"infrastructure"`
 	HostPorts      []string `yaml:"host_ports,omitempty" json:"host_ports,omitempty"`
+	// Lan: the Service needs an address of its own on the home network,
+	// beside the Node's (decision 327, services/lan.go). A DNS Service
+	// does, since port 53 of the Node is held by the Fleet DNS its
+	// containers resolve through and can never be published. The address
+	// is the entry's lan_address setting, which the person fills in at
+	// install; nothing is allocated, because the devices of the home are
+	// pointed at it and it has to be outside the router's DHCP pool.
+	Lan bool `yaml:"lan,omitempty" json:"lan,omitempty"`
 	// PortForward (decision 115): the app is meant to be reached from the
 	// internet at its host_ports (a game server), so the Console offers to
 	// have the router forward them. Still off until the user turns it on.
@@ -186,6 +194,23 @@ type Health struct {
 	Cmd  string `yaml:"cmd,omitempty" json:"cmd,omitempty"`
 }
 
+// hasLANAddressSetting reports whether the entry asks for its address on
+// the home network the one way the Console and the agent both know.
+func (m *Manifest) hasLANAddressSetting() bool {
+	for _, s := range m.Settings {
+		if s.Key == LANAddressSetting && s.Type == "address" {
+			return true
+		}
+	}
+	return false
+}
+
+// LANAddressSetting is the key an entry marked lan: true asks for its
+// address on the home network under. One fixed key, so the Console's
+// settings form asks for it with no special case, a later edit there
+// reaches the same field, and the agent knows where to look.
+const LANAddressSetting = "lan_address"
+
 // Index is the generated index.json.
 type Index struct {
 	Format  int        `json:"format"`
@@ -330,12 +355,18 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("exposure must be private or remote, got %q", m.Exposure)
 	case m.Network != "" && m.Network != "internal":
 		return fmt.Errorf("network must be internal or left out, got %q", m.Network)
-	case m.Infrastructure && len(m.HostPorts) == 0:
-		return fmt.Errorf("an infrastructure entry must declare host_ports")
+	case m.Infrastructure && len(m.HostPorts) == 0 && !m.Lan:
+		return fmt.Errorf("an infrastructure entry must declare host_ports, or lan: true for an address of its own")
 	case m.PortForward && len(m.HostPorts) == 0:
 		return fmt.Errorf("port_forward needs host_ports")
 	case m.PortForward && m.Infrastructure:
 		return fmt.Errorf("network infrastructure cannot be port forwarded")
+	case m.Lan && len(m.HostPorts) > 0:
+		return fmt.Errorf("lan: true holds every port on the Service's own address, so it declares no host_ports")
+	case m.Lan && len(m.Components) > 0:
+		return fmt.Errorf("lan: true gives one container the address, so an entry of several components cannot ask for it")
+	case m.Lan && !m.hasLANAddressSetting():
+		return fmt.Errorf("lan: true needs a setting %q of type address, which is where the person says which address to use", LANAddressSetting)
 	}
 	for _, p := range m.HostPorts {
 		if !portRe.MatchString(p) {
@@ -358,7 +389,7 @@ func (m *Manifest) Validate() error {
 	}
 	for _, s := range m.Settings {
 		switch s.Type {
-		case "text", "number", "password", "timezone", "bool":
+		case "text", "number", "password", "timezone", "bool", "address":
 			if s.Device != "" {
 				return fmt.Errorf("setting %q: device: is for a setting of type device", s.Key)
 			}
@@ -744,6 +775,12 @@ func SpecWithout(e *Manifest, name string, settings map[string]string, exposure 
 	}
 	spec.Ports = append([]string(nil), e.Ports...)
 	spec.Tunnel = e.Tunnel
+	if e.Lan {
+		// services.NetworkLAN, written out: the Catalog is read by the
+		// Console too and must not drag the agent's packages in.
+		spec.NetworkKind = "lan"
+		spec.LanAddress = strings.TrimSpace(merged[LANAddressSetting])
+	}
 	for _, v := range e.Volumes {
 		spec.Volumes = append(spec.Volumes, &maitrev1.ServiceVolume{Name: v.Name, Path: v.Path, Size: v.Size, Shared: v.Shared})
 	}

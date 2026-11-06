@@ -100,6 +100,15 @@ func protectedContainer(unit *parser.UnitFile, managed []string) []string {
 				if v == "host" || strings.HasPrefix(v, "container:") || strings.HasPrefix(v, "ns:") {
 					out = append(out, "Network="+v)
 				}
+				// An address of its own on the home network (decision
+				// 327) puts the container beside every device there,
+				// reachable by all of them on every port, which is as
+				// much as Network=host gives away on the LAN. Named
+				// without the address, so the grant outlives a change
+				// of address.
+				if v == LANNetwork || strings.HasPrefix(v, LANNetwork+":") {
+					out = append(out, "Network=lan")
+				}
 			}
 		case "UserNS":
 			for _, v := range unit.LookupAll(g, key) {

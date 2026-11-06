@@ -467,7 +467,8 @@ message ServiceSpec {
   // container's network namespace and starts, stops and moves with it),
   // "service" its own plus the network of the Service of components
   // named by network_target, "host" the Node's own (the Network=host
-  // grant).
+  // grant), "lan" its own plus an address of its own on the home network
+  // (decision 327), which is lan_address.
   string network_kind = 30;
   string network_target = 31;
   // Reachable by Services on the Fleet's other Nodes at <name>.local on
@@ -484,6 +485,15 @@ message ServiceSpec {
   // The entry is a Tunnel: a Service whose only job is to carry other
   // Services' traffic (a VPN client). Other Services may join it.
   bool tunnel = 36;
+  // The Service's own address on the home network, for network_kind
+  // "lan" (decision 327): the container joins a macvlan over the Node's
+  // LAN interface and holds this address, with a MAC of its own, so it
+  // owns every port on it. A DNS Service needs that, since port 53 of
+  // the Node is held by the Fleet DNS the containers resolve through and
+  // can never be published. Chosen by the person, not allocated: it must
+  // be outside the router's DHCP pool, and the devices of the home are
+  // pointed at it.
+  string lan_address = 37;
 }
 
 message ServiceStatus {

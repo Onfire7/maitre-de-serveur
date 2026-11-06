@@ -44,6 +44,12 @@ const Network = "maitre.network"
 // name, so the generator needs a unit of that name present to resolve it.
 const maitreNetworkStub = "[Network]\nNetworkName=maitre\nOptions=isolate=true\n"
 
+// lanNetworkStub does the same for the home network (decision 327), which
+// the Node writes from its own interface and subnet and so cannot be a
+// fixed file in the image. The check only needs a unit of the name to
+// resolve against; what it would really contain does not matter here.
+const lanNetworkStub = "[Network]\nNetworkName=" + LANNetworkName + "\nDriver=macvlan\n"
+
 // Runner executes systemd and podman commands; swapped for a fake in tests.
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) (string, error)
@@ -111,6 +117,12 @@ type Config struct {
 	// before writing it (plan C6). The agent sets it true; tests leave it
 	// off so they do not depend on a generator being installed.
 	ValidateUnits bool
+	// LAN reports the Node's own place on the home network for a Service
+	// given an address of its own there (decision 327, lan.go): the
+	// interface the Node reaches the LAN through, its address, that
+	// network in CIDR form, and its gateway. Nil means this Node cannot
+	// offer such an address, and asking for one is refused with that.
+	LAN func() (iface, address, subnet, gateway string, err error)
 }
 
 // DefaultSuffix is the domain Services are reachable under on the LAN:
@@ -254,6 +266,7 @@ func (m *Manager) Install(ctx context.Context, in *maitrev1.ServiceSpec) (*maitr
 	if err := checkMounts(spec.GetVolumes(), spec.GetMounts()); err != nil {
 		return nil, err
 	}
+	liftLANAddress(spec)
 	if err := m.validateNetwork(ctx, spec); err != nil {
 		return nil, err
 	}
@@ -393,6 +406,15 @@ func (m *Manager) apply(ctx context.Context, spec *maitrev1.ServiceSpec) error {
 	}
 	if err := m.checkGrants(ctx, spec, vols, extra, managedDirs(vols, extra)); err != nil {
 		return err
+	}
+	// The home network before the Service that joins it, for the reason
+	// ensureNetwork gives about the shared one: a Node that cannot make
+	// it says so here, once, instead of leaving the Service reporting
+	// "Dependency failed" with the cause nowhere.
+	if spec.GetNetworkKind() == NetworkLAN {
+		if err := m.ensureLANNetwork(ctx); err != nil {
+			return err
+		}
 	}
 	share := func(space, dir string) error {
 		return owner.Share(ctx, dir, m.owner(ctx, space), func(err error) {
@@ -539,7 +561,7 @@ func (m *Manager) renderAnnotated(ctx context.Context, spec *maitrev1.ServiceSpe
 // the Node). The shared maitre.network is a real file on the Node; a stub
 // lets the generator resolve the reference during the check.
 func validateUnits(ctx context.Context, name string, set map[string]string) error {
-	check := map[string]string{Network: maitreNetworkStub}
+	check := map[string]string{Network: maitreNetworkStub, LANNetwork: lanNetworkStub}
 	for k, v := range set {
 		check[k] = v
 	}

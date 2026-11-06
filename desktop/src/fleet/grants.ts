@@ -25,7 +25,12 @@ export function optionNote(option: string): string {
     case "AddDevice":
       return `Direct access to the Node's hardware${value ? ` at ${value}` : ""}, bypassing the operating system's checks.`;
     case "Network":
-      return value === "host" ? "Uses the Node's own network: it can see and answer on every network connection of the Node, and its page is open to your home network at the Node's address, whatever Reachable says." : `Joins the network "${value}" instead of the Service's own.`;
+      if (value === "host") return "Uses the Node's own network: it can see and answer on every network connection of the Node, and its page is open to your home network at the Node's address, whatever Reachable says.";
+      // Decision 327: an address of its own on the home network. The
+      // container is then a device of the home like any other, reachable
+      // by all of them on every port it listens on.
+      if (value === "lan") return "Takes an address of its own on your home network, beside the Node's: every device in your home can reach it there, on every port it answers on, whatever Reachable says.";
+      return `Joins the network "${value}" instead of the Service's own.`;
     case "Volume":
       return `Reads and writes ${value ? value.split(":")[0] : "a folder"} on the Node, outside its Storage Spaces.`;
     case "PodmanArgs":

@@ -22,13 +22,25 @@ func single(name string, port uint32) *maitrev1.ServiceSpec {
 
 func newManager(t *testing.T) (*services.Manager, *store.Store, string, *fakeRunner) {
 	t.Helper()
+	return newManagerLAN(t, fakeLAN)
+}
+
+// newManagerWithout is newManager on a Node that cannot give a Service an
+// address of its own on the home network (decision 327).
+func newManagerWithout(t *testing.T) (*services.Manager, *store.Store, string, *fakeRunner) {
+	t.Helper()
+	return newManagerLAN(t, nil)
+}
+
+func newManagerLAN(t *testing.T, lan func() (string, string, string, string, error)) (*services.Manager, *store.Store, string, *fakeRunner) {
+	t.Helper()
 	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
 	t.Cleanup(func() { st.Close() })
 	dir := t.TempDir()
 	pools := filepath.Join(dir, "pools")
 	_ = os.MkdirAll(filepath.Join(pools, "general"), 0o755)
 	run := &fakeRunner{state: "active"}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LAN: lan}, st, run)
 	return m, st, dir, run
 }
 

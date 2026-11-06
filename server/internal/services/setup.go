@@ -79,6 +79,7 @@ func (m *Manager) checkSetup(ctx context.Context, spec *maitrev1.ServiceSpec) er
 	if err := validateOverrides(spec); err != nil {
 		return err
 	}
+	liftLANAddress(spec)
 	if err := m.validateNetwork(ctx, spec); err != nil {
 		return err
 	}

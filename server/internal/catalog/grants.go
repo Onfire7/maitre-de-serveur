@@ -98,6 +98,13 @@ func Support(option string) (ok bool, needs string) {
 		if value == "host" {
 			return true, ""
 		}
+		// Decision 327: an address of its own on the home network, which
+		// the Node gives the Service by putting its container on a
+		// macvlan over the Node's LAN interface. Named "lan" and not by
+		// the unit it joins, so the grant outlives a change of address.
+		if value == "lan" {
+			return true, ""
+		}
 		return false, "Maître to manage the other container's lifecycle with this one (Network=" + value + ")"
 	case "AddDevice":
 		// container-selinux lets containers use GPUs (container_use_dri_devices,

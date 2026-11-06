@@ -53,6 +53,9 @@ describe("grants (decision 189)", () => {
     expect(optionNote("AddCapability=NET_ADMIN")).toMatch(/Linux capability NET_ADMIN/);
     expect(optionNote("AddDevice=/dev/dri")).toMatch(/hardware/);
     expect(optionNote("Network=host")).toMatch(/Node's own network/);
+    // Decision 327: not "joins the network lan", which is what the
+    // fall-through said before it was worded.
+    expect(optionNote("Network=lan")).toMatch(/address of its own on your home network/);
     expect(optionNote("Volume=/etc:/host-etc")).toMatch(/\/etc on the Node, outside its Storage Spaces/);
     expect(optionNote("PodmanArgs=--privileged")).toMatch(/Raw Podman arguments/);
     expect(optionNote("SecurityLabelDisable=true")).toMatch(/SELinux/);

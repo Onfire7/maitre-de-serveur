@@ -380,7 +380,7 @@ const handlers: Record<string, Handler> = {
     if (parts.some((p) => !p.quadlet.includes("[Container]"))) throw fail(Code.InvalidArgument, `${spec.name}: Quadlet rejected the unit: no [Container] group`);
     return {
       units: Object.fromEntries(parts.map((p) => [`${p.name ? `${spec.name}-${p.name}` : spec.name}.container`, p.quadlet])),
-      protected: parts.flatMap((p) => protectedOptions(renderDemo(p.quadlet, spec)).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
+      protected: parts.flatMap((p) => protectedOptions(renderDemo(p.quadlet, spec), spec.networkKind).map((option) => ({ component: p.name, imageRepository: p.image.replace(/@.*$/, "").replace(/:[^/:]*$/, ""), option }))),
     };
   },
   // G5: Node A has a Zigbee stick and a GPU plugged in; the others nothing.

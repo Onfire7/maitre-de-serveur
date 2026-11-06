@@ -42,8 +42,24 @@ const (
 // (image/maitre.network before ADR 0010): isolate keeps other networks'
 // containers off it; the subnet is the Fleet's; the Node answers names.
 func NetworkUnitBody() string {
-	return "# Written by Maître. Do not edit.\n[Network]\nNetworkName=maitre\nOptions=isolate=true\nSubnet=" + FleetSubnet + "\nGateway=" + FleetGateway + "\nDNS=" + FleetDNS + "\n"
+	return "# Written by Maître. Do not edit.\n" + networkUnitPreamble +
+		"[Network]\nNetworkName=maitre\nOptions=isolate=true\nSubnet=" + FleetSubnet + "\nGateway=" + FleetGateway + "\nDNS=" + FleetDNS + "\n"
 }
+
+// networkUnitPreamble is what both of the Node's own network units carry
+// above their [Network] section. Quadlet gives every unit it generates
+// Wants=/After=network-online.target, and a Service ordered before that
+// target cannot be after a network that waits for it (see the
+// infrastructure branch of renderUnit). Creating a Podman network needs
+// the interfaces to exist, not the network to be online, so the
+// dependency was never real, and [Quadlet] DefaultDependencies=false is
+// the only thing that removes it: an empty After= does not reset an
+// ordering list, whatever it does for Wants=.
+const networkUnitPreamble = `[Quadlet]
+DefaultDependencies=false
+[Unit]
+Before=network-online.target
+`
 
 // Network choices (ADR 0010), ServiceSpec.network_kind.
 const (
@@ -56,6 +72,12 @@ const (
 	NetworkService = "service"
 	// NetworkHost: the Node's own network (the Network=host grant).
 	NetworkHost = "host"
+	// NetworkLAN: its own plus an address of its own on the home network
+	// (decision 327, lan.go), which is what a Service owning port 53 on
+	// the LAN needs. Protected, like NetworkHost: a container reachable
+	// by every device in the home is not something an entry gets to ask
+	// for unasked.
+	NetworkLAN = "lan"
 )
 
 var portSpecRe = regexp.MustCompile(`^[0-9]{1,5}/(tcp|udp)$`)
@@ -79,6 +101,14 @@ func (m *Manager) validateNetwork(ctx context.Context, spec *maitrev1.ServiceSpe
 			return fmt.Errorf("%s runs several containers, which cannot share the Node's network", spec.GetName())
 		}
 		return nil
+	case NetworkLAN:
+		if spec.GetNetworkTarget() != "" {
+			return fmt.Errorf("a Service with an address of its own on the home network names no other")
+		}
+		if isMulti(spec) {
+			return fmt.Errorf("%s runs several containers; an address on the home network goes to one container, so there is no saying which", spec.GetName())
+		}
+		return m.checkLANAddress(ctx, spec)
 	case NetworkTunnel, NetworkService:
 	default:
 		return fmt.Errorf("network must be the Service's own, a Tunnel's, another Service's or the Node's")
@@ -278,6 +308,20 @@ func (m *Manager) Migrate(ctx context.Context) {
 	specs, err := store.ListLive(ctx, m.store, KindService, func() *maitrev1.ServiceSpec { return &maitrev1.ServiceSpec{} })
 	if err != nil {
 		return
+	}
+	// The home network alongside the shared one (decision 327), and for
+	// the same reason: its unit is written from the Node and from this
+	// agent's idea of what a network unit says, so a Node whose unit was
+	// written by an older agent is brought up to date here rather than at
+	// the next install. Only when a Service of this Node is on it, since
+	// a Node with none has no business holding a macvlan.
+	for _, spec := range specs {
+		if spec.GetNodeId() == m.store.NodeID() && spec.GetNetworkKind() == NetworkLAN {
+			if err := m.ensureLANNetwork(ctx); err != nil {
+				m.logf("home network: %v", err)
+			}
+			break
+		}
 	}
 	for _, spec := range specs {
 		if spec.GetNodeId() != m.store.NodeID() {

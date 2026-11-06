@@ -45,6 +45,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/fleetnet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/history"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/hostnet"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/imagestore"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/installer"
@@ -539,6 +540,14 @@ func runAgent(args []string) error {
 	}
 	mgr = services.New(services.Config{ImageStore: imageStoreDir, UnitsDir: *unitsDir, PoolsDir: *poolsDir, DefaultSpace: defaultSpace, SpaceOwner: spaceOwner, Log: log, Remote: exposureStatus, Forward: pmap.State,
 		DeviceSigned: policy.SignedByDevice, Authentic: policy.SignedBySelf, ValidateUnits: true,
+		// Decision 327: where a Service given an address of its own on
+		// the home network sits. Read each time rather than once at
+		// start, since a Node's own address and interface can change
+		// under it and the macvlan is created from them.
+		LAN: func() (string, string, string, string, error) {
+			lan, err := hostnet.Read()
+			return lan.Iface, lan.Address, lan.Subnet, lan.Gateway, err
+		},
 		LocalPool: func(ctx context.Context, space string) (string, bool) {
 			spaces, _ := storage.Spaces(ctx, st)
 			for _, b := range spaces {

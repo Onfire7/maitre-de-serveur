@@ -2325,7 +2325,8 @@ type ServiceSpec struct {
 	// container's network namespace and starts, stops and moves with it),
 	// "service" its own plus the network of the Service of components
 	// named by network_target, "host" the Node's own (the Network=host
-	// grant).
+	// grant), "lan" its own plus an address of its own on the home network
+	// (decision 327), which is lan_address.
 	NetworkKind   string `protobuf:"bytes,30,opt,name=network_kind,json=networkKind,proto3" json:"network_kind,omitempty"`
 	NetworkTarget string `protobuf:"bytes,31,opt,name=network_target,json=networkTarget,proto3" json:"network_target,omitempty"`
 	// Reachable by Services on the Fleet's other Nodes at <name>.local on
@@ -2341,7 +2342,16 @@ type ServiceSpec struct {
 	Overrides []*UnitOverride `protobuf:"bytes,35,rep,name=overrides,proto3" json:"overrides,omitempty"`
 	// The entry is a Tunnel: a Service whose only job is to carry other
 	// Services' traffic (a VPN client). Other Services may join it.
-	Tunnel        bool `protobuf:"varint,36,opt,name=tunnel,proto3" json:"tunnel,omitempty"`
+	Tunnel bool `protobuf:"varint,36,opt,name=tunnel,proto3" json:"tunnel,omitempty"`
+	// The Service's own address on the home network, for network_kind
+	// "lan" (decision 327): the container joins a macvlan over the Node's
+	// LAN interface and holds this address, with a MAC of its own, so it
+	// owns every port on it. A DNS Service needs that, since port 53 of
+	// the Node is held by the Fleet DNS the containers resolve through and
+	// can never be published. Chosen by the person, not allocated: it must
+	// be outside the router's DHCP pool, and the devices of the home are
+	// pointed at it.
+	LanAddress    string `protobuf:"bytes,37,opt,name=lan_address,json=lanAddress,proto3" json:"lan_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2626,6 +2636,13 @@ func (x *ServiceSpec) GetTunnel() bool {
 		return x.Tunnel
 	}
 	return false
+}
+
+func (x *ServiceSpec) GetLanAddress() string {
+	if x != nil {
+		return x.LanAddress
+	}
+	return ""
 }
 
 type ServiceStatus struct {
@@ -3976,7 +3993,7 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\bspace_id\x18\x01 \x01(\tR\aspaceId\x12\x16\n" +
 	"\x06folder\x18\x02 \x01(\tR\x06folder\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1b\n" +
-	"\tread_only\x18\x04 \x01(\bR\breadOnly\"\xb5\r\n" +
+	"\tread_only\x18\x04 \x01(\bR\breadOnly\"\xd6\r\n" +
 	"\vServiceSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -4022,7 +4039,9 @@ const file_maitre_v1_service_proto_rawDesc = "" +
 	"\x05ports\x18! \x03(\tR\x05ports\x12\x18\n" +
 	"\aaddress\x18\" \x01(\tR\aaddress\x125\n" +
 	"\toverrides\x18# \x03(\v2\x17.maitre.v1.UnitOverrideR\toverrides\x12\x16\n" +
-	"\x06tunnel\x18$ \x01(\bR\x06tunnel\x1a;\n" +
+	"\x06tunnel\x18$ \x01(\bR\x06tunnel\x12\x1f\n" +
+	"\vlan_address\x18% \x01(\tR\n" +
+	"lanAddress\x1a;\n" +
 	"\rSettingsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +

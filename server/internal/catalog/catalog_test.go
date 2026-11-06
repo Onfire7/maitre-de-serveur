@@ -25,9 +25,18 @@ func TestRepoCatalogLoadsAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Decision 327: AdGuard holds no port of the Node. It takes an
+	// address of its own on the home network instead, and asks for it
+	// under the one key the Console and the agent both know.
 	ag := back.Find("adguard-home")
-	if ag == nil || !ag.Infrastructure || len(ag.HostPorts) != 2 || ag.Web.Port != 3000 {
+	if ag == nil || !ag.Infrastructure || !ag.Lan || len(ag.HostPorts) != 0 || ag.Web.Port != 3000 {
 		t.Fatalf("adguard entry wrong: %+v", ag)
+	}
+	if len(ag.Settings) != 1 || ag.Settings[0].Key != catalog.LANAddressSetting || ag.Settings[0].Type != "address" {
+		t.Fatalf("adguard asks for its address wrongly: %+v", ag.Settings)
+	}
+	if strings.Contains(ag.Quadlet, "PublishPort") {
+		t.Fatalf("adguard still publishes a port of the Node:\n%s", ag.Quadlet)
 	}
 	if jf := back.Find("jellyfin"); jf == nil || jf.Settings[0].Type != "timezone" || jf.Volumes[2].Size != "large" {
 		t.Fatalf("jellyfin entry wrong: %+v", jf)
@@ -169,5 +178,50 @@ func TestLoadDirLenient(t *testing.T) {
 	}
 	if len(idx.Entries) != 1 || idx.Entries[0].ID != "good" || len(problems) != 1 || problems[0].Entry != "bad" || !strings.Contains(problems[0].Error, "digest") {
 		t.Fatalf("entries %v problems %v", idx.Entries, problems)
+	}
+}
+
+// Decision 327: an entry that wants an address of its own on the home
+// network holds no port of the Node, gives that address to one container,
+// and asks for it under one fixed key.
+func TestLanEntriesValidate(t *testing.T) {
+	pin := "@sha256:" + repeat("a", 64)
+	good := func() catalog.Manifest {
+		return catalog.Manifest{ID: "dns", Name: "D", Summary: "s", Exposure: "private",
+			Image: "docker.io/x/dns:1" + pin, Quadlet: "[Container]\nImage={{ .Image }}\n",
+			Infrastructure: true, Lan: true,
+			Settings: []catalog.Setting{{Key: catalog.LANAddressSetting, Label: "Address", Type: "address"}},
+		}
+	}
+	if m := good(); m.Validate() != nil {
+		t.Fatal(m.Validate())
+	}
+	// Infrastructure is satisfied by an address of its own, where before
+	// it could only be satisfied by host_ports.
+	for name, break_ := range map[string]func(*catalog.Manifest){
+		"host ports as well":   func(m *catalog.Manifest) { m.HostPorts = []string{"53/udp"} },
+		"no address setting":   func(m *catalog.Manifest) { m.Settings = nil },
+		"the setting mistyped": func(m *catalog.Manifest) { m.Settings[0].Type = "text" },
+		"the setting misnamed": func(m *catalog.Manifest) { m.Settings[0].Key = "address" },
+		"infrastructure alone": func(m *catalog.Manifest) { m.Lan = false; m.Settings = nil },
+		"several components": func(m *catalog.Manifest) {
+			m.Image, m.Quadlet = "", ""
+			m.Components = []catalog.Component{
+				{Name: "app", Image: "docker.io/x/app:1" + pin, Quadlet: "[Container]\n"},
+				{Name: "db", Image: "docker.io/x/db:1" + pin, Quadlet: "[Container]\n"},
+			}
+		},
+	} {
+		m := good()
+		break_(&m)
+		if m.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	// The address reaches the spec, and the network choice with it.
+	m := good()
+	spec := catalog.SpecFor(&m, "", map[string]string{catalog.LANAddressSetting: "192.168.4.81"}, "")
+	if spec.GetNetworkKind() != "lan" || spec.GetLanAddress() != "192.168.4.81" {
+		t.Errorf("spec: kind %q address %q", spec.GetNetworkKind(), spec.GetLanAddress())
 	}
 }

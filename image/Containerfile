@@ -72,6 +72,9 @@ COPY image/logind.conf /usr/lib/systemd/logind.conf.d/10-maitre.conf
 # Decision 322: a quarter of RAM as compressed swap, never more than 4 GiB.
 COPY image/zram-generator.conf /usr/lib/systemd/zram-generator.conf
 COPY image/tlshd.conf /etc/tlshd/config
+# Decision 327: a port bound on an address the Node has not been given
+# yet. The file says why.
+COPY image/sysctl.d/10-maitre.conf /usr/lib/sysctl.d/10-maitre.conf
 # A panic's own words, kept in the memory region kargs.d reserves and put
 # into the journal on the next boot, because a Node has no terminal to
 # print them to and nobody is watching the one it has.

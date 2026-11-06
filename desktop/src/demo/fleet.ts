@@ -42,7 +42,7 @@ export const grantId = (nodeId: string, service: string, option: string, compone
 
 const repository = (image: string) => image.replace(/@.*$/, "").replace(/:[^/:]*$/, "");
 
-const PROTECTED = /^(AddCapability|AddDevice|PodmanArgs|GlobalArgs|SecurityLabelDisable|SeccompProfile|Sysctl|Privileged|Pid|Ipc|UserNS)=|^Network=host$|^Volume=\//;
+const PROTECTED = /^(AddCapability|AddDevice|PodmanArgs|GlobalArgs|SecurityLabelDisable|SeccompProfile|Sysctl|Privileged|Pid|Ipc|UserNS)=|^Network=(host|lan)$|^Volume=\//;
 
 /**
  * The protected options of a Quadlet (decision 189), worded as the Node
@@ -126,6 +126,14 @@ export function demoUnits(spec: ServiceSpec, tunnelFor: ServiceSpec[] = []): { n
       }
       if (spec.networkKind === "host") add("Network=host");
     }
+    // Decision 327: an address of its own on the home network, beside the
+    // shared network it keeps. Nothing of it is published on the Node.
+    if (spec.networkKind === "lan") {
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (rows[i][1] === "template" && rows[i][0].split("=")[0]?.trim() === "PublishPort") rows.splice(i, 1);
+      }
+      add(`Network=maitre-lan.network:ip=${spec.lanAddress}`);
+    }
     const mine = spec.overrides.filter((o) => o.component === part.name);
     for (const o of mine) {
       if (o.remove) {
@@ -179,8 +187,11 @@ function lines(rows: [string, string][], name: string) {
   return { name, body: rows.map((r) => r[0]).join("\n") + "\n", sources: rows.map((r) => r[1]) };
 }
 
-export function protectedOptions(quadlet: string): string[] {
+export function protectedOptions(quadlet: string, networkKind = ""): string[] {
   const out: string[] = [];
+  // Decision 327: the Node names this grant itself, from the network it
+  // writes onto the unit, so it is in no template to be found below.
+  if (networkKind === "lan") out.push("Network=lan");
   let section = "";
   for (const raw of quadlet.split("\n")) {
     const line = raw.trim();
@@ -564,11 +575,11 @@ export class DemoFleet {
     const live = new Set(this.records.filter((r) => r.kind === "grant" && !r.deleted).map((r) => r.id));
     if (spec.components.length) {
       // Per component, for its own image (plan C4), as the Node asks.
-      const need = spec.components.flatMap((c) => protectedOptions(renderDemo(c.quadlet, spec)).map((option) => ({ c, option, id: grantId(nodeId, spec.name, option, c.name) }))).filter((x) => !live.has(x.id));
+      const need = spec.components.flatMap((c) => protectedOptions(renderDemo(c.quadlet, spec), spec.networkKind).map((option) => ({ c, option, id: grantId(nodeId, spec.name, option, c.name) }))).filter((x) => !live.has(x.id));
       if (need.length === 0) return undefined;
       return create(GrantsNeededSchema, { nodeId, service: spec.name, options: need.map((x) => x.option), grantIds: need.map((x) => x.id), components: need.map((x) => x.c.name), imageRepositories: need.map((x) => repository(x.c.image)) });
     }
-    const options = protectedOptions(renderDemo(spec.quadlet, spec)).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
+    const options = protectedOptions(renderDemo(spec.quadlet, spec), spec.networkKind).filter((o) => !live.has(grantId(nodeId, spec.name, o)));
     if (options.length === 0) return undefined;
     return create(GrantsNeededSchema, { nodeId, service: spec.name, imageRepository: repository(spec.image), options, grantIds: options.map((o) => grantId(nodeId, spec.name, o)) });
   }

@@ -1,4 +1,8 @@
 # Written by Maître. Do not edit.
+[Quadlet]
+DefaultDependencies=false
+[Unit]
+Before=network-online.target
 [Network]
 NetworkName=maitre
 Options=isolate=true

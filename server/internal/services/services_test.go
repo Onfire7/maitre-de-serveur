@@ -74,7 +74,7 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LAN: fakeLAN},
 		st, run)
 
 	s, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", map[string]string{"TZ": "Europe/Paris"}, ""))
@@ -114,9 +114,43 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err == nil {
 		t.Fatal("duplicate accepted")
 	}
-	ag, err := m.Install(ctx, catalog.SpecFor(idx.Find("adguard-home"), "", nil, ""))
+	// Decision 327: it holds no port of the Node, so it needs an address
+	// of its own on the home network; the person enters it as a setting
+	// and the Node lifts it onto the record.
+	agSpec := catalog.SpecFor(idx.Find("adguard-home"), "", map[string]string{catalog.LANAddressSetting: "192.168.4.81"}, "")
+	// An address of its own on the home network is a granted option.
+	allowLAN(t, st, agSpec.GetName(), services.ImageRepository(agSpec.GetImage()))
+	ag, err := m.Install(ctx, agSpec)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if ag.GetSpec().GetLanAddress() != "192.168.4.81" {
+		t.Errorf("address on the home network: %q", ag.GetSpec().GetLanAddress())
+	}
+	agUnit, err := os.ReadFile(filepath.Join(dir, "units", "adguard-home.container"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Beside the shared network, so Caddy still serves its page; and
+	// nothing of it published on the Node, which is the bind that could
+	// never succeed.
+	for _, want := range []string{"Network=maitre.network:ip=", "Network=maitre-lan.network:ip=192.168.4.81", "PublishPort=127.0.0.1:"} {
+		if !strings.Contains(string(agUnit), want) {
+			t.Errorf("adguard unit missing %q:\n%s", want, agUnit)
+		}
+	}
+	if strings.Contains(string(agUnit), "PublishPort=53") {
+		t.Errorf("adguard still publishes port 53 of the Node:\n%s", agUnit)
+	}
+	// The home network's own unit, written from the Node's interface.
+	lanUnit, err := os.ReadFile(filepath.Join(dir, "units", "maitre-lan.network"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Driver=macvlan", "Options=parent=eth0", "Subnet=192.168.4.0/22", "Gateway=192.168.4.1"} {
+		if !strings.Contains(string(lanUnit), want) {
+			t.Errorf("home network unit missing %q:\n%s", want, lanUnit)
+		}
 	}
 	// An Infrastructure Service pins the Node's address (Milestone 3).
 	pinned := false
@@ -128,7 +162,6 @@ func TestInstallRenderStatusRemove(t *testing.T) {
 	if !pinned {
 		t.Errorf("address not pinned; nmcli calls: %v", run.cmds)
 	}
-	agUnit, _ := os.ReadFile(filepath.Join(dir, "units", "adguard-home.container"))
 	if !strings.Contains(string(agUnit), "Before=network-online.target") || ag.GetSpec().GetWebHostPort() == s.GetSpec().GetWebHostPort() {
 		t.Fatalf("adguard unit:\n%s", agUnit)
 	}
@@ -215,7 +248,7 @@ func TestAutoTimezoneFollowsTheFleet(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000}, st, run)
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LAN: fakeLAN}, st, run)
 	unit := func() string {
 		b, err := os.ReadFile(filepath.Join(dir, "units", "jellyfin.container"))
 		if err != nil {
@@ -285,7 +318,7 @@ func TestInstallClaimsTombstoneOfAnotherNode(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pools, "general"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000},
+	m := services.New(services.Config{UnitsDir: filepath.Join(dir, "units"), SystemdDir: filepath.Join(dir, "systemd"), PoolsDir: pools, DefaultSpace: func(context.Context) string { return "general" }, HostPortBase: 20000, LAN: fakeLAN},
 		st, &fakeRunner{state: "active"})
 	if _, err := m.Install(ctx, catalog.SpecFor(idx.Find("jellyfin"), "", nil, "")); err != nil {
 		t.Fatalf("install over another Node's tombstone: %v", err)

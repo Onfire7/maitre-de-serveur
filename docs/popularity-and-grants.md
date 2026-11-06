@@ -91,6 +91,7 @@ Supported:
 | Option | Why it is supported |
 |---|---|
 | `Network=host` | The Node serves the app's web port as it is (G4). |
+| `Network=lan` | An address of its own on the home network (G10, decision 327). |
 | `AddDevice=/dev/dri...` | GPUs: container-selinux lets containers use them (`container_use_dri_devices`, on by default). A fixed path, or a device setting (G5). |
 | `AddCapability=<cap>` | Podman applies it; the warning names the capability. |
 | `Sysctl=<key>` | Podman applies it inside the container's namespaces. |
@@ -119,6 +120,19 @@ A Service whose web container uses `Network=host` listens on the Node's own addr
 - writes no `PublishPort=` (Podman discards it under host networking) and no `HostName=` (already the case).
 
 The app is then also reachable on the home network at the Node's address and that port, outside Maître's private and remote exposure. The grant's `why` must say so, and the Console's note for `Network=host` says it too.
+
+### G10. An address of its own on the home network
+
+A Service marked `lan: true` in the Catalog takes an address on the home network beside the Node's, so it owns every port on it. Port 53 is why: the agent answers `<name>.local` for the Node's containers on `10.90.0.2:53` (ADR 0010) and Podman's `DNS=` takes no port, so a listening socket sits there for good — and a listening socket on one address blocks a wildcard bind on the same port, which is every way of publishing 53 there is. The amendment to ADR 0010 has the reasoning.
+
+The container joins `maitre-lan.network`, a macvlan the Node writes over its own LAN interface with the home's subnet and gateway, and keeps its place on the shared `maitre` network as well, so Caddy still serves its Pages at `<name>.local` and the Fleet still reaches it. At install and on every re-render, the Node:
+
+- refuses the address if it is off the home network, the Node's own, the router's, the network or broadcast address, or one another Service holds;
+- refuses an entry of several containers, since the address goes to one container;
+- drops the template's `PublishPort=` lines, so a Service installed before this is repaired by the next render rather than a reinstall;
+- refuses outright on a Node whose LAN interface is wireless or a bridge, which cannot be a macvlan's parent.
+
+The address is the entry's `lan_address` setting, of type `address`, and it is chosen rather than allocated: it has to be outside the router's DHCP pool, and it is the address the person gives their devices as their DNS server. The grant is worded `Network=lan`, without the address, so changing the address later does not ask again. The grant's `why` must say that every device in the home can reach the Service there, and the Console's note for `Network=lan` says it too.
 
 ### G5. A device setting
 
@@ -172,7 +186,7 @@ Each ends with the Go and Console tests, `make lint`, and `catalog-check` over t
 
 1. **Popularity** (P1-P5): `project:` in the format, `catalog popularity`, `stars` in the index, the Console's sort, `project:` for the 22 entries, and the weekly job.
 2. **Declared grants and the support table** (G1-G3, G9): the format, `catalog-check`'s two renders, `optional_grants` and `.Grants` on the Node.
-3. **Host networking** (G4) on the Node.
+3. **Host networking** (G4) on the Node, and an address of its own on the home network (G10).
 4. **Device settings** (G5): the `device` type, `ListDevices`, the Console's picker.
 5. **Generated secret shapes** (G7). Bluetooth (G6) waits for a Node to check SELinux on.
 6. **The Console's question** (G8), on the demo Fleet first.

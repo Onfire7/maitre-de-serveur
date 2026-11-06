@@ -53,6 +53,27 @@ func containerBody(spec *maitrev1.ServiceSpec, c comp, vols map[string]string, e
 			k, _, ok := keyValue(l.text)
 			return !ok || (k != "Network" && k != "PublishPort" && k != "HostName")
 		})
+	case NetworkLAN:
+		// The Service holds every port on its own address of the home
+		// network, so it has nothing to publish on the Node's — and
+		// publishing 53 there is the bind that can never succeed, which
+		// is the whole reason this kind exists (lan.go). Dropped here
+		// rather than left out of the Catalog entry, because a Service
+		// installed before this carries the old template on its record
+		// and is repaired by the next render instead of a reinstall.
+		u = u.filterContainer(func(l line) bool {
+			k, _, ok := keyValue(l.text)
+			return !ok || k != "PublishPort"
+		})
+		// Beside the shared network, never instead of it: Caddy still
+		// serves the Service's Pages at <name>.local on the Node, the
+		// Fleet still reaches it, and its containers still resolve
+		// through the Node. The extra address is all that is new, and it
+		// is where the devices of the home find the Service. Added here
+		// rather than among the agent's other lines in renderContainer
+		// because this is the body the grant check reads, and a container
+		// put among the home's own devices is a granted thing (protect.go).
+		u = u.appendContainer(agentLine("Network=" + LANNetwork + ":ip=" + spec.GetLanAddress()))
 	}
 	return u, nil
 }
@@ -90,6 +111,17 @@ func renderContainer(spec *maitrev1.ServiceSpec, c comp, vols map[string]string,
 		if spec.GetInfrastructure() {
 			// Infrastructure Services (DNS, DHCP) must be up before anything
 			// that waits for the network.
+			//
+			// Being before that target is only possible with the [Quadlet]
+			// section added below: Quadlet gives every unit it generates
+			// Wants=/After=network-online.target, so without it this unit
+			// is before and after one target at once, and systemd breaks
+			// the cycle by deleting this unit's own start job -- "Job
+			// <name>.service/start deleted to break ordering cycle starting
+			// with network-online.target/start". That is why no
+			// infrastructure Service had ever come up at boot on any Node;
+			// AdGuard Home on Avalon only ever ran because something
+			// started it afterwards.
 			add("Before=network-online.target")
 			add("DefaultDependencies=no")
 			add("After=basic.target maitre-pool.service")
@@ -122,6 +154,17 @@ func renderContainer(spec *maitrev1.ServiceSpec, c comp, vols map[string]string,
 	// whose store is an ordinary directory nothing: systemd adds a
 	// dependency only on mount units that exist.
 	add("RequiresMountsFor=" + imagestore.DefaultRoot)
+	if spec.GetInfrastructure() {
+		// Quadlet's own key, and the only thing that drops the
+		// network-online.target ordering it adds: the key is not
+		// understood in [Container], and an empty After= in [Unit] is no
+		// reset -- systemd ignored one on Boulder through three reboots.
+		// It is no part of the container body, so it needs no grant: it
+		// says nothing about what the container may do.
+		add("")
+		add("[Quadlet]")
+		add("DefaultDependencies=false")
+	}
 	add("")
 	out = append(out, container...)
 	if spec.GetTunnel() && !parsed.HasKey("Container", "ContainerName") {
