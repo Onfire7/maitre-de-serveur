@@ -235,3 +235,22 @@ func TestLabellingFailsLoudlyWithoutSemanage(t *testing.T) {
 		t.Errorf("the error does not say where semanage comes from: %v", err)
 	}
 }
+
+// The policy equates /var/mnt with /mnt, and semanage refuses a file spec
+// under the left side of an equivalency it already has. Drives live under
+// /var/mnt, so the rule has to be written the other way round or no store
+// off the root partition can be labelled at all.
+func TestFcontextSpecFollowsThePolicysEquivalencies(t *testing.T) {
+	for in, want := range map[string]string{
+		"/var/mnt/drives/abc/.maitre/imagestore": "/mnt/drives/abc/.maitre/imagestore",
+		"/var/mnt":                               "/mnt",
+		"/var/home/someone/store":                "/home/someone/store",
+		"/var/roothome/store":                    "/root/store",
+		"/var/lib/containers/storage":            "/var/lib/containers/storage",
+		"/var/mnttypo/store":                     "/var/mnttypo/store",
+	} {
+		if got := fcontextSpec(in); got != want {
+			t.Errorf("fcontextSpec(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

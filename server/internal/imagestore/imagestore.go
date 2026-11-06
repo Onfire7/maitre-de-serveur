@@ -212,13 +212,34 @@ func label(ctx context.Context, run Runner, dir string) error {
 	// /var/mnt/drives/... carries, and every container on the moved store
 	// died with "RELRO protection failed" as its loader was refused the
 	// mapping. A labelling that did not happen has to be loud.
-	if out, err := run.Run(ctx, "semanage", "fcontext", "-a", "-e", DefaultRoot, dir); err != nil && !strings.Contains(out, "already defined") {
+	if out, err := run.Run(ctx, "semanage", "fcontext", "-a", "-e", DefaultRoot, fcontextSpec(dir)); err != nil && !strings.Contains(out, "already defined") {
 		return fmt.Errorf("label %s like %s: %w (%s); semanage comes from policycoreutils-python-utils", dir, DefaultRoot, err, strings.TrimSpace(out))
 	}
 	if out, err := run.Run(ctx, "restorecon", "-R", dir); err != nil {
 		return fmt.Errorf("apply the labels to %s: %w (%s)", dir, err, strings.TrimSpace(out))
 	}
 	return nil
+}
+
+// fcontextSpec is dir written the way semanage will accept it. The policy
+// already equates /var/mnt with /mnt (and /var/home with /home,
+// /var/roothome with /root), and semanage refuses a file spec that sits
+// under the left side of an existing equivalency — "File spec
+// /var/mnt/drives/... conflicts with equivalency rule '/var/mnt /mnt'" —
+// naming the form to use instead. Drives are mounted under /var/mnt, so
+// every image store off the root partition meets this. restorecon still
+// takes the real path; only the rule is written the other way.
+func fcontextSpec(dir string) string {
+	for _, eq := range []struct{ from, to string }{
+		{"/var/mnt", "/mnt"},
+		{"/var/home", "/home"},
+		{"/var/roothome", "/root"},
+	} {
+		if dir == eq.from || strings.HasPrefix(dir, eq.from+"/") {
+			return eq.to + strings.TrimPrefix(dir, eq.from)
+		}
+	}
+	return dir
 }
 
 // storeImageIDs is every image the store podman is configured for holds.
