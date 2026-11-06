@@ -72,11 +72,16 @@ COPY image/logind.conf /usr/lib/systemd/logind.conf.d/10-maitre.conf
 # Decision 322: a quarter of RAM as compressed swap, never more than 4 GiB.
 COPY image/zram-generator.conf /usr/lib/systemd/zram-generator.conf
 COPY image/tlshd.conf /etc/tlshd/config
+# A panic's own words, kept in the memory region kargs.d reserves and put
+# into the journal on the next boot, because a Node has no terminal to
+# print them to and nobody is watching the one it has.
+COPY image/ramoops.conf /usr/lib/modules-load.d/ramoops.conf
+COPY image/maitre-panic.sh /usr/libexec/maitre-panic.sh
 # Nothing should ever suspend a Node, lid or no lid.
 RUN systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
-COPY image/maitre-agent.service image/maitre-installer.service image/maitre-pool.service image/var-lib-maitre.mount /usr/lib/systemd/system/
+COPY image/maitre-agent.service image/maitre-installer.service image/maitre-pool.service image/maitre-panic.service image/var-lib-maitre.mount /usr/lib/systemd/system/
 # Caddy starts with its stock config; the agent replaces it over the admin API.
-RUN systemctl enable maitre-agent.service maitre-installer.service maitre-pool.service var-lib-maitre.mount avahi-daemon.service podman.socket caddy.service greenboot-healthcheck.service tlshd.service \
+RUN systemctl enable maitre-agent.service maitre-installer.service maitre-pool.service maitre-panic.service var-lib-maitre.mount avahi-daemon.service podman.socket caddy.service greenboot-healthcheck.service tlshd.service systemd-pstore.service \
     && mkdir -p /etc/exports.d
 
 # bootc lint catches image-layout mistakes at build time.

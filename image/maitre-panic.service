@@ -1,0 +1,19 @@
+[Unit]
+Description=Put the last kernel panic into the journal
+Documentation=file:///usr/libexec/maitre-panic.sh
+# Nothing to do without the ramoops buffer, which only exists once the
+# module has claimed the reserved region.
+ConditionPathIsMountPoint=/sys/fs/pstore
+# systemd-pstore empties the buffer, so this has to read it first.
+Before=systemd-pstore.service
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/maitre-panic.sh
+# The point of the unit: the Console reads this journal, not the screen.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

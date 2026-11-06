@@ -3,4 +3,36 @@
 # (decision 72) is readable instead of buried in audit and driver chatter.
 # systemd.show_status=false: unit start/stop lines stay out of the screen
 # too; the journal has everything.
-kargs = ["loglevel=4", "systemd.show_status=false"]
+#
+# panic=30: a panicked kernel waits for a human by default, and a Node has
+# no human and no terminal (decision 72). Avalon panicked at 03:49 on
+# 2026-11-06 and sat dead for two hours and nineteen minutes until someone
+# walked over and power-cycled it; nothing was wrong with it that a reboot
+# did not fix, and it came back with all fourteen Services. Thirty seconds
+# is long enough for the trace to be photographed off the screen if anyone
+# happens to be standing there, and short enough that the outage is a blip.
+# greenboot is what catches a Node that panics its way into a loop.
+#
+# panic_on_oops is deliberately left at 0. An oops that panics would also
+# be caught by this reboot, but a Node that oopses once an hour on some
+# driver path would then reboot once an hour forever, and greenboot cannot
+# see it because every boot succeeds before the oops happens. A limping
+# Node can be looked at; a looping one cannot.
+#
+# reserve_mem/ramoops: the panic above left nothing behind. /sys/fs/pstore
+# was empty, this firmware's GHES source is disabled ("Poll interval is 0
+# for generic hardware error source: 1"), and the journal simply stops
+# mid-line, because a panicking kernel never gets to flush it. A named
+# memory region survives a warm reboot, so the next panic's own words are
+# there to be read; maitre-panic.service puts them in the journal, where a
+# Console can ask for them without anyone touching the machine.
+kargs = [
+  "loglevel=4",
+  "systemd.show_status=false",
+  "panic=30",
+  "reserve_mem=4M:4096:oops",
+  "ramoops.mem_name=oops",
+  "ramoops.record_size=131072",
+  "ramoops.console_size=131072",
+  "ramoops.ecc=1",
+]
