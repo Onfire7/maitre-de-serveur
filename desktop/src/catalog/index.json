@@ -4834,6 +4834,57 @@
       "stars": 90019
     },
     {
+      "id": "t3-code",
+      "name": "T3 Code",
+      "summary": "A headless T3 Code server where coding agents work in a sandbox on your Node.",
+      "description": "Runs T3 Code as a Remote Environment: pair the desktop app, app.t3.codes or\na browser with it, and Claude Code and Codex work inside this Service with\nRust, Go, Node, Python and a headless browser, never touching the Node.\n\nFirst start installs T3 Code, which then keeps itself updated on the chosen\nchannel. To pair your first device, open this Service's Logs and copy the\npairing link, replacing its 10.90.x.x address with this Service's address\nand keeping everything from /pair on. Then, in T3 Code's terminal, log in to the agents with\n`claude` (then /login) and `codex login --device-auth`. To reach it through\nyour T3 account, run `t3 connect --headless` there and restart the Service.\n\nProjects live in the Workspace folder you pick, so you can copy files in and\nout from Files.\n",
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBkPSJNMCA0MEMwIDE3LjkgMTcuOSAwIDQwIDBoNDMyYzIyLjEgMCA0MCAxNy45IDQwIDQwdjQzMmMwIDIyLjEtMTcuOSA0MC00MCA0MEg0MGMtMjIuMSAwLTQwLTE3LjktNDAtNDB6Ii8+PHBhdGggZD0iTTYyLjEgMTQ4aDE5NS4ydjQyLjJoLTcxLjdWMzcyaC01MS44VjE5MC4ySDYyLjF6bTM1Ni41IDEwNy44Yy05LjktOC43LTIzLTE0LjMtMzkuNS0xNi45bDUwLjQtNTcuNFYxNDhIMjcyLjd2NDEuNkgzNjhsLTQ2IDUyLjJWMjc2aDIzLjdjMTQuNyAwIDI1LjQgMi41IDMyIDcuNHM5LjkgMTEuNiA5LjkgMjAuMmMwIDktMy43IDE2LTExLjIgMjEuMXMtMTcuNyA3LjctMzAuNyA3LjdxLTE3LjI1IDAtMzQuMi01LjRjLTExLjMtMy42LTIxLjItOC41LTI5LjgtMTQuN0wyNjEuNSAzNTJjMTAuNyA3LjcgMjMuNyAxMy43IDM5IDE3LjkgMTUuNCA0LjEgMzAuOCA2LjEgNDYuNCA2LjFxMzEuOTUgMCA1Mi41LTEwLjJjMTMuNy02LjggMjMuOC0xNS43IDMwLjQtMjYuNiA2LjYtMTEuMSA5LjktMjIuOSA5LjktMzUuNSAwLTE5LjYtNy0zNS41LTIxLjEtNDcuOSIgc3R5bGU9ImZpbGw6I2ZmZiIvPjwvc3ZnPg==",
+      "category": "tools",
+      "image": "ghcr.io/onfire7/t3-code-os:1.0.0@sha256:788d49780e6fe099cf746c26275abef7383caff4304ee39c9c85a49b2c20e39b",
+      "version": "1.0.0",
+      "exposure": "remote",
+      "own_login": true,
+      "infrastructure": false,
+      "web": {
+        "port": 3773,
+        "path": "/"
+      },
+      "volumes": [
+        {
+          "name": "home",
+          "path": "/home/dev"
+        },
+        {
+          "name": "workspace",
+          "path": "/workspace",
+          "size": "large",
+          "shared": true
+        }
+      ],
+      "settings": [
+        {
+          "key": "T3CODE_CHANNEL",
+          "label": "T3 Code release channel (stable or nightly)",
+          "type": "text",
+          "default": "stable"
+        }
+      ],
+      "health": {
+        "http": "/.well-known/t3/environment"
+      },
+      "quadlet": "[Container]\nImage={{ .Image }}\nContainerName={{ .Name }}\nNetwork={{ .Network }}\nEnvironment=\"T3CODE_CHANNEL={{ .Settings.T3CODE_CHANNEL }}\"\nVolume={{ .Volumes.home }}:/home/dev:Z,U\nVolume={{ .Volumes.workspace }}:/workspace:z\nShmSize=1g\n",
+      "source": {
+        "from": "hand",
+        "icon": {
+          "pack": "selfh.st/icons",
+          "licence": "CC-BY-4.0",
+          "url": "https://raw.githubusercontent.com/selfhst/icons/87a5dfd901a341e271eb453ffebce6c5a88c308e/svg/t3-code.svg"
+        }
+      },
+      "project": "https://github.com/pingdotgg/t3code",
+      "stars": 49229
+    },
+    {
       "id": "tandoor",
       "name": "Tandoor Recipes",
       "summary": "Collect your recipes, plan meals and shop for them.",
