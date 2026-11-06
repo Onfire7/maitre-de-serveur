@@ -281,3 +281,36 @@ func TestMoveLeavesLibpodBehind(t *testing.T) {
 		t.Errorf("libpod was not excluded from the copy; ran %v", r.cmds)
 	}
 }
+
+// libpod's static dir is pinned to the default root wherever the store
+// goes. libpod records the path its database was made with and refuses to
+// open it anywhere else, so a static dir that followed graphroot made the
+// moved store unopenable by the first podman command to touch it.
+func TestStaticDirDoesNotFollowTheStore(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	oldStorage, oldDropIn, oldVendored := StorageConfig, ContainersDropIn, VendoredConfig
+	StorageConfig = filepath.Join(dir, "storage.conf")
+	ContainersDropIn = filepath.Join(dir, "containers.conf")
+	VendoredConfig = filepath.Join(dir, "vendored.conf")
+	defer func() { StorageConfig, ContainersDropIn, VendoredConfig = oldStorage, oldDropIn, oldVendored }()
+	if err := os.WriteFile(VendoredConfig, []byte("[storage]\ngraphroot = \""+DefaultRoot+"\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := filepath.Join(dir, "mnt", "drives", "abc", ".maitre", "imagestore")
+
+	if _, err := Ensure(ctx, &runner{}, store); err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := os.ReadFile(ContainersDropIn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "static_dir = \"" + filepath.Join(DefaultRoot, "libpod") + "\""; !strings.Contains(string(b), want) {
+		t.Errorf("the drop-in does not pin %s:\n%s", want, b)
+	}
+	if strings.Contains(string(b), "static_dir = \""+filepath.Join(store, "libpod")) {
+		t.Error("static_dir followed the store to its new home")
+	}
+}
