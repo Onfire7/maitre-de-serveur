@@ -136,6 +136,20 @@ func (m *Manager) Reconcile(ctx context.Context) {
 			continue
 		}
 		wantAddr[addr] = true
+		// A host-networked Service shares this Node's network namespace,
+		// and the Fleet address lives on maitre0, which is one of this
+		// Node's interfaces: the container's own wildcard bind already
+		// answers there, with nothing in between. Listening here would
+		// not forward to it, it would take the port away from it --
+		// Home Assistant died with "[Errno 98] error while attempting to
+		// bind on address ('0.0.0.0', 8123): address in use" while this
+		// listener on the same port forwarded to 127.0.0.1:8123, the
+		// address it was itself keeping empty. A Tunnel is different and
+		// still needs the listener: its container is in the Tunnel's
+		// namespace, where maitre0 cannot be reached.
+		if local && services.HostNetworked(s) {
+			continue
+		}
 		for _, port := range declaredPorts(s) {
 			key := net.JoinHostPort(addr, strconv.Itoa(port))
 			if local {

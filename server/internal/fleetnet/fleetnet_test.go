@@ -68,7 +68,8 @@ func (b *binder) bind(addr string, p int) string {
 // Two Nodes: a Service of B reachable from the Fleet. Node A holds its
 // address, listens on its port and carries the connection to B's agent,
 // which connects to the container. A Service of A on the Node's own
-// network is reached at the Node itself. DNS gives each name its address.
+// network holds its own Fleet address and is not listened for here. DNS
+// gives each name its address either way.
 func TestFleetReach(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -76,7 +77,7 @@ func TestFleetReach(t *testing.T) {
 	ha := echo(t, "ha:")
 	specs := []*maitrev1.ServiceSpec{
 		{Name: "postgres", NodeId: "B", Address: "10.90.0.10", FleetReach: true, Ports: []string{strconv.Itoa(port(db.Addr().String())) + "/tcp"}},
-		{Name: "ha", NodeId: "A", Address: "10.90.0.11", NetworkKind: services.NetworkHost, Pages: []*maitrev1.ServicePage{{Name: "web", Port: uint32(port(ha.Addr().String()))}}},
+		{Name: "ha", NodeId: "A", Address: "10.90.0.11", NetworkKind: services.NetworkHost, FleetReach: true, Pages: []*maitrev1.ServicePage{{Name: "web", Port: uint32(port(ha.Addr().String()))}}},
 		{Name: "private", NodeId: "B", Address: "10.90.0.12", Pages: []*maitrev1.ServicePage{{Name: "web", Port: 80}}},
 	}
 	list := func(context.Context) []*maitrev1.ServiceSpec { return specs }
@@ -94,7 +95,7 @@ func TestFleetReach(t *testing.T) {
 	defer nodeA.Close()
 	nodeA.Reconcile(ctx)
 	listening := nodeA.Listening()
-	if len(listening) != 2 || listening[0] != "10.90.0.10:"+strconv.Itoa(port(db.Addr().String())) || listening[1] != "10.90.0.11:"+strconv.Itoa(port(ha.Addr().String())) {
+	if len(listening) != 1 || listening[0] != "10.90.0.10:"+strconv.Itoa(port(db.Addr().String())) {
 		t.Fatalf("listening %v", listening)
 	}
 	ask := func(addr, msg string) string {
@@ -111,8 +112,29 @@ func TestFleetReach(t *testing.T) {
 	if got := ask(bind.bind("10.90.0.10", port(db.Addr().String())), "hello"); got != "db:hello" {
 		t.Errorf("through the peer: %q", got)
 	}
-	if got := ask(bind.bind("10.90.0.11", port(ha.Addr().String())), "hi"); got != "ha:hi" {
-		t.Errorf("on the Node's own network: %q", got)
+	// ha is on this Node's own network, so its container shares the
+	// namespace maitre0 lives in and answers on the Fleet address itself.
+	// A listener here would take the port from it rather than reach it.
+	if _, err := net.DialTimeout("tcp", bind.bind("10.90.0.11", port(ha.Addr().String())), 200*time.Millisecond); err == nil {
+		t.Error("fleetnet listened on a host-networked Service's own port")
+	}
+	// A peer still reaches it, which is what the listener was for: B asks
+	// A's agent, and A connects to the container at the Node itself.
+	srvA := httptest.NewUnstartedServer(nodeA.Handler())
+	srvA.EnableHTTP2 = true
+	srvA.StartTLS()
+	defer srvA.Close()
+	// The status is the assertion: A accepted the relay and connected to
+	// the container at 127.0.0.1. Exchanging bytes over it needs the
+	// streaming body a real peer sends, which is dialPeer's job, not this
+	// test's -- a plain POST would be refused 403 if the path were gone.
+	if res, err := srvA.Client().Post(srvA.URL+fleetnet.RelayPath+"?service=ha&port="+strconv.Itoa(port(ha.Addr().String())), "", nil); err != nil {
+		t.Fatal(err)
+	} else {
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("through A's agent: %d", res.StatusCode)
+		}
 	}
 	// A Service not reachable from the Fleet: its address is held, its
 	// port refused.
@@ -171,10 +193,10 @@ func TestFleetReach(t *testing.T) {
 		t.Errorf("AAAA = %q %v", ip, rc)
 	}
 	// The Service moves to A: its address is given up here (a container
-	// will hold it) and the listener goes.
+	// will hold it) and the listener goes, leaving none.
 	specs[0].NodeId = "A"
 	nodeA.Reconcile(ctx)
-	if l := nodeA.Listening(); len(l) != 1 {
+	if l := nodeA.Listening(); len(l) != 0 {
 		t.Errorf("after the move: %v", l)
 	}
 }
