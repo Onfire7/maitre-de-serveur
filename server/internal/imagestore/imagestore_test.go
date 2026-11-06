@@ -282,11 +282,13 @@ func TestMoveLeavesLibpodBehind(t *testing.T) {
 	}
 }
 
-// libpod's static dir is pinned to the default root wherever the store
-// goes. libpod records the path its database was made with and refuses to
-// open it anywhere else, so a static dir that followed graphroot made the
-// moved store unopenable by the first podman command to touch it.
-func TestStaticDirDoesNotFollowTheStore(t *testing.T) {
+// The drop-in says nothing about libpod's static dir, in either
+// direction. Pinning it is what made a moved store openable by podman,
+// but this file is global and bootc reads it too: pinned, bootc and
+// podman shared one libpod database, each wrote its own graphroot into it
+// and the other then refused to open it, which stopped `bootc upgrade` on
+// Boulder even with the store in its default place.
+func TestTheDropInLeavesLibpodsStaticDirAlone(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	oldStorage, oldDropIn, oldVendored := StorageConfig, ContainersDropIn, VendoredConfig
@@ -307,11 +309,21 @@ func TestStaticDirDoesNotFollowTheStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "static_dir = \"" + filepath.Join(DefaultRoot, "libpod") + "\""; !strings.Contains(string(b), want) {
-		t.Errorf("the drop-in does not pin %s:\n%s", want, b)
+	// The settings only: the comment explains static_dir at length.
+	var settings []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "#") {
+			settings = append(settings, t)
+		}
 	}
-	if strings.Contains(string(b), "static_dir = \""+filepath.Join(store, "libpod")) {
-		t.Error("static_dir followed the store to its new home")
+	for _, line := range settings {
+		if strings.HasPrefix(line, "static_dir") {
+			t.Errorf("the drop-in sets static_dir, which bootc inherits: %q", line)
+		}
+	}
+	// The setting it does carry is the one the drop-in is for.
+	if want := "image_copy_tmp_dir = \"" + filepath.Join(store, "tmp") + "\""; !strings.Contains(string(b), want) {
+		t.Errorf("the drop-in does not set %s:\n%s", want, b)
 	}
 }
 

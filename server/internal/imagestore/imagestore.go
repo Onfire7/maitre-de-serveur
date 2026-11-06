@@ -161,18 +161,18 @@ func Ensure(ctx context.Context, run Runner, dir string) (bool, error) {
 		"# travels with the image store: staging on a root that the store has\n" +
 		"# left is what ran out of space in the first place.\n" +
 		"#\n" +
-		"# static_dir does not travel, and is pinned so that it cannot. It is\n" +
-		"# libpod's own database, and libpod records the path it was made with\n" +
-		"# and refuses to open anywhere else: \"database static dir ... does\n" +
-		"# not match our static dir ...: database configuration mismatch\",\n" +
-		"# which left the moved store unopenable by the first podman command\n" +
-		"# to touch it. Keeping it where it has always been makes the\n" +
-		"# mismatch impossible rather than something to clean up after. It is\n" +
-		"# small — containers and pods, which are Quadlet units recreated on\n" +
-		"# start — while the images, which are what fills a root partition,\n" +
-		"# move with graphroot as intended.\n" +
-		"[engine]\nstatic_dir = \"" + filepath.Join(DefaultRoot, "libpod") + "\"\n" +
-		"image_copy_tmp_dir = \"" + tmp + "\"\n"
+		"# static_dir is deliberately NOT set here, although pinning it is\n" +
+		"# what made a moved store openable by podman. This file is global,\n" +
+		"# and bootc reads it too: it keeps its own container storage at\n" +
+		"# /run/bootc/storage and overrides graphroot, but it inherits\n" +
+		"# static_dir, so pinning it made bootc and podman share one libpod\n" +
+		"# database. Whichever opened it last wrote its own graphroot there,\n" +
+		"# and the other then refused -- \"database graph root ... does not\n" +
+		"# match our graph root\" -- which stopped `bootc upgrade` on Boulder\n" +
+		"# even with the store back in its default place. Left unset, each\n" +
+		"# gets its own database under its own graphroot, which is the\n" +
+		"# arrangement that has always worked.\n" +
+		"[engine]\nimage_copy_tmp_dir = \"" + tmp + "\"\n"
 	wrote, err = writeIfDifferent(ContainersDropIn, drop)
 	if err != nil {
 		return false, err
