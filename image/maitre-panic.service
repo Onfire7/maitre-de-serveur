@@ -1,12 +1,18 @@
 [Unit]
 Description=Put the last kernel panic into the journal
 Documentation=file:///usr/libexec/maitre-panic.sh
-# Nothing to do without the ramoops buffer, which only exists once the
-# module has claimed the reserved region.
-ConditionPathIsMountPoint=/sys/fs/pstore
-# systemd-pstore empties the buffer, so this has to read it first.
-Before=systemd-pstore.service
+# This runs in the same early phase as systemd-pstore.service, and for the
+# same reason: systemd-pstore archives these records and empties the
+# buffer, so this has to read them first, and a unit ordered Before= it
+# from a later phase makes an ordering cycle through basic.target. systemd
+# breaks such a cycle by deleting a job, and the job it chose was
+# systemd-pstore's -- so the records were journalled but never archived or
+# cleared, and the buffer would have filled with nobody noticing.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=systemd-pstore.service sysinit.target shutdown.target
 After=systemd-modules-load.service
+ConditionVirtualization=!container
 
 [Service]
 Type=oneshot
@@ -16,4 +22,4 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=sysinit.target
