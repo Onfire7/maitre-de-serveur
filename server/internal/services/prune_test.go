@@ -31,6 +31,10 @@ func (p *pruneRunner) Run(_ context.Context, name string, args ...string) (strin
 			"id-old1\tdocker.io/jellyfin/jellyfin:10.10.6",
 			"id-old2\tdocker.io/jellyfin/jellyfin:10.10.5",
 			"id-gone\tdocker.io/docmost/docmost:0.9.1",
+			// One image, two tags, which podman prints as two lines and
+			// refuses to delete by ID at all.
+			"id-twotags\tdocker.io/library/redis:7.4.12-alpine",
+			"id-twotags\tdocker.io/library/redis:7",
 			"id-dangle\t<none>:<none>",
 		}, "\n"), nil
 	case name == "podman" && len(args) > 1 && args[0] == "info":
@@ -95,6 +99,55 @@ func TestPruneKeepsWhatThisNodesServicesName(t *testing.T) {
 	}
 	if !slicesContains(run.cmds, "podman image prune -f") {
 		t.Error("dangling layers were not pruned")
+	}
+}
+
+// An image with more than one tag cannot be deleted by ID: podman refuses
+// outright ("unable to delete image ... by ID with more than one tag ...;
+// please force removal"). On Avalon that was every unreferenced image, so
+// the prune reported "removed 0" while naming three images it meant to
+// take, and 1.15 GiB stayed on a root at 96%. Each tag goes by name
+// instead, and the image goes with the last of them -- not --force, which
+// would delete the containers holding an image, and an image a container
+// holds is exactly the one to leave alone.
+func TestPruneRemovesAnImageWithMoreThanOneTag(t *testing.T) {
+	ctx := context.Background()
+	run := &pruneRunner{ids: map[string]string{}}
+	spec := single("jellyfin", 8096)
+	spec.NodeId = "node-a"
+	spec.Image = "docker.io/jellyfin/jellyfin:10.10.7@sha256:live"
+	run.ids[spec.GetImage()] = "id-live"
+
+	mgr, store2 := managerOver(t, run)
+	if _, err := store2.Put(ctx, services.KindService, spec.GetName(), spec, true); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := mgr.PruneImages(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := run.removed()
+	// Both tags in one call, so the image goes rather than being untagged
+	// down to one and left behind.
+	if !slicesContains(got, "docker.io/library/redis:7.4.12-alpine docker.io/library/redis:7") {
+		t.Errorf("the two-tag image was not removed by its tags: %v", got)
+	}
+	for _, c := range run.cmds {
+		if strings.Contains(c, "rmi") && strings.Contains(c, "id-twotags") {
+			t.Errorf("removed by ID, which podman refuses for a multi-tagged image: %q", c)
+		}
+		if strings.Contains(c, "--force") || strings.Contains(c, " -f ") && strings.Contains(c, "rmi") {
+			t.Errorf("forced the removal, which would delete the containers holding the image: %q", c)
+		}
+	}
+	// And it is reported, under a name someone can recognise.
+	if !slicesContains(res.GetRemoved(), "docker.io/library/redis:7.4.12-alpine") {
+		t.Errorf("the removal was not reported: %v", res.GetRemoved())
+	}
+	// A dangling image has no tag to name it by and still goes by ID.
+	if !slicesContains(got, "id-dangle") {
+		t.Errorf("the dangling image was not removed: %v", got)
 	}
 }
 

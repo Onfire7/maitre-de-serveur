@@ -59,25 +59,53 @@ func (m *Manager) PruneImages(ctx context.Context, keepRollback bool) (*maitrev1
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}
-	seen := map[string]bool{}
+	// `podman images` prints a line per *tag*, so an image carrying two of
+	// them appears twice. That matters for more than counting: podman
+	// refuses to delete such an image by ID at all --
+	//
+	//	Error: unable to delete image "98c6ca8..." by ID with more than
+	//	one tag ([docker.io/library/redis:7.4.12-alpine ...]); please
+	//	force removal
+	//
+	// -- and on Avalon that was every single unreferenced image, so the
+	// prune reported "removed 0" while naming three images it had meant to
+	// take. Not force: --force also deletes the containers holding an
+	// image, and an image a container holds is exactly the one to leave
+	// alone. Removing each tag by name does it, and the image goes with
+	// the last of them.
+	order := make([]string, 0, 32)
+	tags := map[string][]string{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		id, name, _ := strings.Cut(strings.TrimSpace(line), "\t")
-		if id == "" || keep[id] || seen[id] {
+		if id == "" || keep[id] {
 			continue
 		}
-		seen[id] = true
+		if _, ok := tags[id]; !ok {
+			order = append(order, id)
+			tags[id] = nil
+		}
+		// A dangling image has no reference to remove it by, so its tags
+		// stay empty and it goes by ID, which podman accepts.
+		if name != "" && !strings.Contains(name, "<none>") {
+			tags[id] = append(tags[id], name)
+		}
+	}
+	for _, id := range order {
+		// By ID wherever podman accepts it: a tag can be re-pointed
+		// between listing the store and removing from it, an ID cannot.
+		args, shown := []string{"rmi", id}, id
+		if names := tags[id]; len(names) > 1 {
+			args, shown = append([]string{"rmi"}, names...), names[0]
+		}
 		// A removal that fails is reported and the rest go on: an image a
 		// container still holds is not worth refusing the whole prune for.
-		if _, err := m.run.Run(ctx, "podman", "rmi", id); err != nil {
+		if _, err := m.run.Run(ctx, "podman", args...); err != nil {
 			if m.cfg.Log != nil {
-				m.cfg.Log.Warn("prune image", "image", name, "err", err)
+				m.cfg.Log.Warn("prune image", "image", shown, "err", err)
 			}
 			continue
 		}
-		if name == "" || strings.HasSuffix(name, ":<none>") {
-			name = id
-		}
-		res.Removed = append(res.Removed, name)
+		res.Removed = append(res.Removed, shown)
 	}
 	// Layers left behind by a pull that died partway, which is how both
 	// Nodes filled: these belong to no image at all.
