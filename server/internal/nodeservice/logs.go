@@ -3,6 +3,7 @@ package nodeservice
 import (
 	"context"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,14 @@ import (
 // these, never an arbitrary unit. Services are added per Node; a Service of
 // several components is listed whole (every component's journal, interleaved)
 // and once per component, as "service:<name>/<component>".
+//
+// The "-prev" pair reads the boot before this one, which is the only boot
+// worth reading after a Node comes back from a crash: a panic writes its
+// last words to the screen nobody was watching, and everything that led up
+// to it is in a journal that "-b" stops just short of. They are separate
+// sources rather than a field on the request so that a Node too old to
+// have them simply does not list them, and asking anyway is answered
+// "no log source" instead of quietly returning this boot instead.
 var logSources = []struct {
 	id, label string
 	args      []string
@@ -24,8 +33,11 @@ var logSources = []struct {
 	{"pool", "Storage pool", []string{"-u", "maitre-pool.service"}},
 	{"caddy", "Web routes (Caddy)", []string{"-u", "caddy.service"}},
 	{"health", "Boot health checks", []string{"-u", "greenboot-healthcheck.service"}},
+	{"panic", "Last kernel panic", []string{"-u", "maitre-panic.service"}},
 	{"kernel", "Kernel", []string{"-k", "-b"}},
+	{"kernel-prev", "Kernel, previous boot", []string{"-k", "-b", "-1"}},
 	{"system", "Everything since boot", []string{"-b"}},
+	{"system-prev", "Everything, previous boot", []string{"-b", "-1"}},
 }
 
 // Journal runs journalctl; swapped in tests.
@@ -72,7 +84,14 @@ func (s *Service) GetNodeLogs(ctx context.Context, req *maitrev1.GetNodeLogsRequ
 	}
 	out, err := Journal(ctx, append(append([]string{}, a...), "-n", strconv.Itoa(int(n)), "--no-pager", "-o", "short-iso")...)
 	if err != nil {
-		return nil, connect.Errorf(connect.CodeUnavailable, "journalctl: %v: %s", err, strings.TrimSpace(out))
+		// A Node that has only ever booted once has no previous boot, and
+		// never will have that one: NotFound, not Unavailable, which would
+		// invite the Console to keep asking.
+		code := connect.CodeUnavailable
+		if slices.Contains(a, "-1") {
+			code = connect.CodeNotFound
+		}
+		return nil, connect.Errorf(code, "journalctl: %v: %s", err, strings.TrimSpace(out))
 	}
 	out = strings.TrimRight(out, "\n")
 	if out != "" && out != "-- No entries --" {

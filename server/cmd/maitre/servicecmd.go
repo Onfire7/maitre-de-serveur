@@ -87,6 +87,12 @@ func runService(args []string) error {
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", fmt.Sprintf("127.0.0.1:%d", port), "Node address")
+	// A Node's id is the fingerprint of its key, so anything that already
+	// knows a Node knows enough to trust it. `maitre debug` takes one for
+	// that reason; without it here, reaching a real Node from a machine
+	// whose Console has never been pointed at it means first producing a
+	// PEM file that no command hands out.
+	fingerprint := fs.String("fingerprint", "", "trust the Node with this key fingerprint, which is its Node id, instead of (or as well as) a trust directory")
 	wait := fs.Duration("wait", 0, "install: wait up to this long for the Service to be running and healthy")
 	setFlags := fs.String("set", "", "install: settings as key=value,key=value")
 	deleteData := fs.Bool("delete-data", false, "remove: also delete the Service's volumes")
@@ -108,6 +114,9 @@ func runService(args []string) error {
 	list := trust.New()
 	if err := list.LoadDir(*trustDir); err != nil {
 		return err
+	}
+	if *fingerprint != "" {
+		list.Add(strings.ToLower(strings.TrimSpace(*fingerprint)))
 	}
 	transport := connecthttp.NewTransport(NewHTTPClient(mtls.ClientConfig(id, list)), "https://"+*addr)
 	c := maitrev1connect.NewServiceServiceClient(connect.NewClient(transport))
