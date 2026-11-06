@@ -18,13 +18,18 @@ image), `eba68de` (zram, greenboot falling into rescue, the rescue menu and
 the staging reserve) and `ff56a63` (the three tiers and the Console's
 amber image box).
 
+The Debug Console followed, as `internal/debugconsole` and `maitre debug`:
+six pages in Bubble Tea, each of them also a command, with `--json` for a
+script and `--demo` to look at the whole thing without a Node.
+
 What is **not** built, and is the honest remainder:
 
-- **The Debug Console app itself.** Its Node-side surface exists and the
-  Console advertises a debug image loudly, but the separate paired
-  application does not exist, and `authz.Role` has no fourth `Debug` member
-  — a Debug Console pairs as a Trusted Device today, and the debug tier
-  refuses a Node caller rather than demanding a role of its own.
+- **A fourth `Debug` role.** `authz.Role` is still `Stranger`, `Device`,
+  `Recovery`, `Node`, so the Debug Console pairs as a Trusted Device and is
+  trusted as fully as Maître Desktop is; the debug tier refuses a Node
+  caller rather than demanding a role of its own. This is the one part of
+  323 the app did not need, and the one that would narrow what a stolen
+  Debug Console key can do.
 - **A volume-less Service still skips both storage guards** (the open item
   below).
 - Nothing has run on a real Node. The whole of it has been verified in
@@ -253,29 +258,64 @@ unencrypted disk is root anyway, so the rescue shell takes nothing that was not
 already there. It would become the hole to think about if disk encryption or
 measured boot ever arrive.
 
-**16. The Debug Console (323).** A separate app, paired as a device is.
-`authz.Role` is `Stranger`, `Device`, `Recovery`, `Node`, and `trust.List`
-already keeps three key sets through `ReplaceRoles`, so `Debug` is a fourth and
-pairing is ADR 0002 and 0005 untouched. The loud advertising is the whole image
-box turning amber on both the Update and Node screens with a "Debug Console"
-pill inside it — one component, `ServerImage` in `NodeDetails.tsx`, which
-`UpdatesTab.tsx` imports, where `dev_mode` already renders beside the version as
-precedent.
+**16. The Debug Console (323).** Built. A separate app in the sense that
+matters — its own pages, its own trust, nothing of it compiled into what a Node
+serves — living in the `maitre` binary that is already the client CLI, so it
+needs no identity, trust list or dialling of its own invention.
+
+It is one surface in two shapes, and that is the design rather than a
+convenience. Every page is also a command: `maitre debug space` is the Space
+page, `maitre debug read` is the Files page, and `--json` prints the response as
+protobuf JSON. Both shapes go through one `Source` interface, so a page a script
+cannot reach cannot be written, and the fakes behind that interface are what the
+tests drive. The reason is the incident itself: what ends one is usually the
+same question asked of four Nodes at once, and a console that can only be
+watched cannot be asked that way.
+
+Decision 326's split is shown rather than hidden. Overview, Space, Services and
+Logs are the basic tier and answer from every shipped image. Files and Run are
+the debug tier, and against a shipped Node they say so before anything is typed,
+read from `NodeInfo.debug_build` — the Console does not make a Node refuse in
+order to discover what it is. The newer RPCs stay optional: `Unimplemented`
+reads as "this Node is older than the image list", never as a broken page.
+
+The loud advertising is the Desktop's, deliberately: the whole image box turns
+amber on the Update and Node screens through `ServerImage` in `NodeDetails.tsx`,
+and the Console's header carries the same amber `DEBUG BUILD` pill, because the
+risk 323 names is a debug image running in production unnoticed and it should
+look the same wherever a Node is described.
+
+What it does not do is reach a Node already running a shipped image, since
+getting it there is an update. It buys future diagnosis, not the recovery of a
+wedged Node, which is 324 and 325.
 
 ## Still open
 
 - A Service with no volumes skips both storage guards, since the default-Space
   check runs only `for _, v := range spec.GetVolumes()`, so a Tunnel could still
   install on a Drive-less Node.
-- Whether `storage.conf` honours a `storage.conf.d` drop-in on this podman.
+- Whether `storage.conf` honours a `storage.conf.d` drop-in on this podman:
+  **answered, inside the built image — it does not.** A drop-in is ignored and
+  `containers.conf.d` is not, which is why `storage.conf` is written whole from
+  the vendored copy; writing it fresh would silently drop the image's own
+  `additionalimagestores` and overlay `mountopt`.
 - The new `PruneImages` RPC must stay optional in the Console: an older Node
   answers `Unimplemented`, and the Console falls back rather than requiring it.
+  Done in the Debug Console, which names the Node old rather than showing an
+  error, and tested both ways. Maître Desktop does not call either RPC yet, so
+  there is nothing there to fall back from — which is itself the remaining
+  work, since the Desktop is where an older Node is likely to be looked at.
 
 ## How each of these is proven
 
-Four rungs, cheapest first. Nothing goes to a Node carrying real Services until
+Five rungs, cheapest first. Nothing goes to a Node carrying real Services until
 the rung below it has passed.
 
+0. **`maitre debug --demo`.** The Console against a made-up Node in the state
+   of 2026-11-04 — a root with a gigabyte left, an image store still on it, a
+   Service at 1174 restarts, images nothing names. It proves nothing about a
+   Node, and it is the only way to read every page of the Console at once
+   without one, which is what the Node's own `maitre tui --demo` is for.
 1. **Unit tests on the dev box.** Items 1-6 are all `fakeRunner` work: scripted
    `podman manifest inspect` output for an index and for a plain manifest, a
    free-space floor, a prune trigger, a gauge. No hardware.
