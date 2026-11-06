@@ -17,15 +17,28 @@ type netRunner struct {
 	cmds    []string
 	subnets string // what `podman network inspect` prints; "" means no network
 	absent  bool   // the network is not there at all: inspect fails
+	// created records that maitre-network.service has been restarted, so
+	// inspect afterwards answers as Podman would once the network exists.
+	created bool
+	// badCreate leaves the network on another subnet even after creating
+	// it, which is what the verifying inspect is there to catch.
+	badCreate bool
 }
 
 func (f *netRunner) Run(_ context.Context, name string, args ...string) (string, error) {
 	f.cmds = append(f.cmds, name+" "+strings.Join(args, " "))
 	if name == "podman" && len(args) > 1 && args[0] == "network" && args[1] == "inspect" {
-		if f.absent {
+		if f.created && !f.badCreate {
+			return services.FleetSubnet + " ", nil
+		}
+		if f.absent && !f.created {
 			return "", errorString("network not found")
 		}
 		return f.subnets, nil
+	}
+	if name == "systemctl" && len(args) > 1 && args[0] == "restart" && args[1] == "maitre-network.service" {
+		f.created = true
+		return "", nil
 	}
 	if name == "systemctl" && len(args) > 1 && args[0] == "show" {
 		return "LoadState=loaded\nActiveState=inactive\nSubState=dead\nNRestarts=0\nResult=success\n", nil
@@ -87,8 +100,26 @@ func TestMigrateEnsuresSharedNetwork(t *testing.T) {
 			if !r.ran("ip link del " + services.FleetIface) {
 				t.Errorf("the fleet interface was not cleared before creating the network; ran %v", r.cmds)
 			}
-			if !r.ran("systemctl start maitre-network.service") {
+			// restart, not start: the unit is a oneshot and may already
+			// have run in this boot, and `start` on one that has is a
+			// no-op reporting success — which left Avalon with no network
+			// at all and every Service failing to find it.
+			if !r.ran("systemctl restart maitre-network.service") {
 				t.Errorf("the shared network was never created; ran %v", r.cmds)
+			}
+			if r.ran("systemctl start maitre-network.service") {
+				t.Error("used `systemctl start` on a oneshot that may already have run")
+			}
+			// The result is checked, not assumed: removing a network and
+			// not replacing it is worse than leaving a wrong one alone.
+			inspects := 0
+			for _, c := range r.cmds {
+				if strings.HasPrefix(c, "podman network inspect") {
+					inspects++
+				}
+			}
+			if inspects < 2 {
+				t.Errorf("the created network was never inspected again; ran %v", r.cmds)
 			}
 			// A network on the wrong subnet has to go; one that is not
 			// there cannot be removed.
@@ -122,7 +153,7 @@ func TestMigrateLeavesAGoodNetworkAlone(t *testing.T) {
 	for _, unwanted := range []string{
 		"podman network rm -f maitre",
 		"ip link del " + services.FleetIface,
-		"systemctl start maitre-network.service",
+		"systemctl restart maitre-network.service",
 	} {
 		if r.ran(unwanted) {
 			t.Errorf("a network already on %s was disturbed by %q", services.FleetSubnet, unwanted)

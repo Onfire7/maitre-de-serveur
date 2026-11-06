@@ -413,11 +413,30 @@ func (m *Manager) ensureNetwork(ctx context.Context) error {
 	if err := writeUnit(); err != nil {
 		return err
 	}
-	// Create it here rather than leaving it to the first Service that
-	// wants it: a failure belongs in this Node's log next to the reason,
-	// not in fourteen Services reporting "Dependency failed".
-	if _, err := m.run.Run(ctx, "systemctl", "start", "maitre-network.service"); err != nil {
+	// Created here rather than left to the first Service that wants it: a
+	// failure belongs in this Node's log next to the reason, not in
+	// fourteen Services reporting "Dependency failed".
+	//
+	// restart, never start: maitre-network.service is a oneshot, and a
+	// Service of this Node may already have driven it to "active
+	// (exited)" earlier in the boot. `systemctl start` on a oneshot that
+	// has already run is a no-op that reports success, so the network
+	// would stay removed and every Service would then fail with "unable
+	// to find network with name or ID maitre". Avalon did exactly that.
+	if _, err := m.run.Run(ctx, "systemctl", "restart", "maitre-network.service"); err != nil {
 		return fmt.Errorf("create the shared network %s: %w", FleetSubnet, err)
+	}
+	// Say what Podman ended up with rather than assume. Removing a
+	// network and not replacing it is worse than leaving a wrong one
+	// alone, so this is the check that must not be skipped, and its
+	// message carries the subnets Podman reports so the next person does
+	// not have to guess at them.
+	out, err = m.run.Run(ctx, "podman", "network", "inspect", "maitre", "--format", "{{range .Subnets}}{{.Subnet}} {{end}}")
+	if err != nil {
+		return fmt.Errorf("the shared network was not there after creating it: %w", err)
+	}
+	if !strings.Contains(out, FleetSubnet) {
+		return fmt.Errorf("the shared network came back on %q, not %s", strings.TrimSpace(out), FleetSubnet)
 	}
 	return nil
 }
