@@ -154,6 +154,23 @@ func renderContainer(spec *maitrev1.ServiceSpec, c comp, vols map[string]string,
 	// whose store is an ordinary directory nothing: systemd adds a
 	// dependency only on mount units that exist.
 	add("RequiresMountsFor=" + imagestore.DefaultRoot)
+	// And its volumes, which are folders in a Pool the agent mounts from
+	// user space (maitre-pool.service) -- so there is no mount unit for
+	// RequiresMountsFor above to find, and the ordering has to be named.
+	// Without it a Service starts whenever systemd gets to it and Podman
+	// exits 125 with "statfs /var/mnt/pools/...: no such file or
+	// directory"; worse, in a Service of several containers that failure
+	// cancels the components that wait on the one that failed, and
+	// nothing retries them, so the Service is left down with one
+	// component running. Avalon did exactly that to monica, tandoor and
+	// vikunja on 2026-11-06: they had only ever started late enough by
+	// luck, and a change in boot ordering elsewhere was enough to take
+	// the luck away. Wants=, so the Pool is in the transaction at all,
+	// and not Requires=, because a Service that starts and says in its
+	// own log that its folder is missing is easier to understand than one
+	// systemd refuses to start.
+	add("Wants=maitre-pool.service")
+	add("After=maitre-pool.service")
 	if spec.GetInfrastructure() {
 		// Quadlet's own key, and the only thing that drops the
 		// network-online.target ordering it adds: the key is not

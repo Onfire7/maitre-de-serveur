@@ -266,3 +266,43 @@ func TestAnInfrastructureServiceDoesNotContradictItself(t *testing.T) {
 		t.Errorf("an ordinary Service touches the network-online ordering:\n%s", plain)
 	}
 }
+
+// A Service's volumes are folders in a Pool the agent mounts from user
+// space, so there is no mount unit for RequiresMountsFor to find and the
+// ordering has to be named. Without it Podman exits 125 with "statfs
+// /var/mnt/pools/...: no such file or directory", and in a Service of
+// several containers that cancels the components waiting on the failed
+// one with no retry -- which is how Avalon lost monica, tandoor and
+// vikunja on 2026-11-06.
+func TestEveryServiceWaitsForItsPool(t *testing.T) {
+	m, store, dir, _ := newManager(t)
+	ctx := context.Background()
+
+	plain := lanSpec("plain", "")
+	plain.Infrastructure = false
+	plain.NetworkKind = ""
+	plain.Settings = nil
+	if _, err := m.Install(ctx, plain); err != nil {
+		t.Fatal(err)
+	}
+	allowLAN(t, store, "dns", lanRepo)
+	if _, err := m.Install(ctx, lanSpec("dns", "192.168.4.81")); err != nil {
+		t.Fatal(err)
+	}
+	multi := lanSpec("stack", "")
+	multi.Infrastructure, multi.NetworkKind, multi.Settings, multi.Quadlet = false, "", nil, ""
+	multi.Components = []*maitrev1.ServiceComponent{
+		{Name: "app", Image: multi.GetImage(), Quadlet: "[Container]\nImage={{ .Image }}\n", After: []string{"db"}},
+		{Name: "db", Image: multi.GetImage(), Quadlet: "[Container]\nImage={{ .Image }}\n"},
+	}
+	multi.Pages[0].Component = "app"
+	if _, err := m.Install(ctx, multi); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"plain.container", "dns.container", "stack-app.container", "stack-db.container"} {
+		body := unitOf(t, dir, name)
+		if !strings.Contains(body, "Wants=maitre-pool.service") || !strings.Contains(body, "After=maitre-pool.service") {
+			t.Errorf("%s does not wait for the Pool its volumes are in:\n%s", name, body)
+		}
+	}
+}
