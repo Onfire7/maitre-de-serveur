@@ -17,20 +17,55 @@
 // parity and hidden from folder views. Not a partition of its own,
 // "especially when the OS is installed on a USB flash drive".
 //
-// Two settings move together and this package treats that as an
-// invariant: storage.conf's graphroot and containers.conf's
-// image_copy_tmp_dir. Blob staging is what hit ENOSPC, and leaving it on a
-// root that decision 321 then shrinks would make the failure likelier, not
-// rarer.
+// # How, and why not by configuration
 //
-// Measured on the Node image's own podman (6.x, fedora-bootc:42) rather
-// than assumed: a storage.conf.d drop-in is *ignored* (podman went on
-// reporting /var/lib/containers/storage), so storage.conf is written
-// whole — derived from the vendored copy, so that the image's own
-// additionalimagestores (/usr/lib/containers/storage) and overlay
-// mountopt survive, which a file written from nothing would silently drop.
-// A containers.conf.d drop-in does work, and that is where
-// image_copy_tmp_dir goes.
+// The store is moved by *mounting*, not by configuring: the Drive's
+// directory is bind-mounted onto /var/lib/containers/storage, which stays
+// podman's graphroot and the only path the store is ever reached by. The
+// first design instead wrote the new path into /etc/containers/storage.conf
+// and containers.conf.d, and every fault decision 319 collected on
+// hardware came from that one choice:
+//
+//   - `bootc upgrade` stopped working. bootc keeps its own container
+//     storage at /run/bootc/storage and reads the same global
+//     /etc/containers/containers.conf.d: it overrides graphroot but
+//     inherits [engine] static_dir, so pinning static_dir made bootc and
+//     podman share one libpod database, each wrote its own graphroot into
+//     it, and the other then refused — "database graph root ... does not
+//     match our graph root". Boulder could not stage an update at all,
+//     and not only while its store was off root. Unpinned, podman fails
+//     the same way instead. There is no safe version of writing it.
+//   - SELinux. A graphroot outside its usual place carries whatever
+//     context /var/mnt/drives/... has, so every container died with
+//     "RELRO protection failed" until an `semanage fcontext -e`
+//     equivalence was added — from a package the image did not install,
+//     written in a form semanage would accept (/var/mnt is equated with
+//     /mnt, and it refuses a spec under an equivalency's left side).
+//   - libpod's database could not travel with the store, because it
+//     records the static dir it was made with, so a move dropped every
+//     container and named volume record.
+//
+// A bind mount removes all of it by construction. Nothing records a path
+// that can disagree; bootc sees exactly the configuration it expects; the
+// files are labelled for the path they are reached by, which is the path
+// the policy already knows; and libpod's recorded graphroot and static dir
+// are unchanged by a move, so its database comes along.
+//
+// What is left to configure is one setting that no longer depends on where
+// the store is: containers.conf's image_copy_tmp_dir, pointed at
+// /var/lib/containers/storage/tmp. Blob staging is what hit ENOSPC, and
+// under the mount that path is on the Drive without naming it.
+//
+// # Boot
+//
+// Two mount units, both wanted by local-fs.target, so the store is in
+// place long before podman or a Service unit: one for the backing Drive
+// itself, by filesystem UUID, because the agent mounts Drives from user
+// space and does not run until well after the Quadlet units systemd
+// starts on its own; and the bind mount on top of it. Service units carry
+// RequiresMountsFor=/var/lib/containers/storage so that a Node whose
+// store did not mount starts no Service at all, rather than starting them
+// all against an empty store and pulling every image again.
 package imagestore
 
 import (
@@ -47,14 +82,24 @@ import (
 // folder views hide, so it is never mistaken for the user's data.
 const Dir = ".maitre/imagestore"
 
-// Paths written, as package variables so a test need not be root.
+// Paths written and read, as package variables so a test need not be root.
 var (
-	VendoredConfig   = "/usr/share/containers/storage.conf"
-	StorageConfig    = "/etc/containers/storage.conf"
-	ContainersDropIn = "/etc/containers/containers.conf.d/50-maitre-image-store.conf"
-	// DefaultRoot is where podman keeps the store when nothing says
-	// otherwise: on the root partition, which is the problem.
+	// DefaultRoot is podman's graphroot, and with this design it is also
+	// the only path the store is ever reached by, wherever its bytes are.
 	DefaultRoot = "/var/lib/containers/storage"
+	// UnitDir is where the two mount units go.
+	UnitDir = "/etc/systemd/system"
+	// ContainersDropIn carries image_copy_tmp_dir, whose value no longer
+	// depends on where the store is.
+	ContainersDropIn = "/etc/containers/containers.conf.d/50-maitre-image-store.conf"
+	// StorageConfig is only ever read and removed now. Decision 319's
+	// first design wrote a graphroot into it; see migrate.
+	StorageConfig = "/etc/containers/storage.conf"
+	// MountInfo says what is mounted where.
+	MountInfo = "/proc/self/mountinfo"
+	// DevByUUID is where the backing Drive's UUID is checked before a
+	// mount unit is written naming it.
+	DevByUUID = "/dev/disk/by-uuid"
 )
 
 // Runner runs a command; the agent's own.
@@ -106,18 +151,44 @@ func Choose(cands []Candidate) string {
 	return filepath.Join(pool[0].Mount, Dir)
 }
 
-// Configured is the graphroot the written configuration names, or "" when
-// nothing has been written and podman uses its own default.
+// Configured is the directory the bind mount's unit names, or "" when
+// there is no such unit and the store's bytes are wherever podman put
+// them. It is what has been *arranged*; Backing is what is true now.
 func Configured() string {
+	b, err := os.ReadFile(filepath.Join(UnitDir, BindUnit()))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "What="); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return ""
+}
+
+// Backing is where the store's bytes are: the Drive directory mounted
+// onto DefaultRoot, the legacy graphroot of a Node that was moved by the
+// configuration this design replaces, or DefaultRoot itself.
+func Backing() string {
+	if dir := Configured(); dir != "" && Mounted(DefaultRoot) {
+		return dir
+	}
+	if dir := legacyGraphroot(); dir != "" && dir != DefaultRoot {
+		return dir
+	}
+	return DefaultRoot
+}
+
+// legacyGraphroot is the graphroot decision 319's first design wrote into
+// /etc/containers/storage.conf, or "". A Node in that state cannot stage
+// an update, so finding one is a thing to act on, not to report.
+func legacyGraphroot() string {
 	b, err := os.ReadFile(StorageConfig)
 	if err != nil {
 		return ""
 	}
-	return graphrootOf(string(b))
-}
-
-func graphrootOf(body string) string {
-	for _, line := range strings.Split(body, "\n") {
+	for _, line := range strings.Split(string(b), "\n") {
 		key, val, ok := strings.Cut(strings.TrimSpace(line), "=")
 		if !ok || strings.TrimSpace(key) != "graphroot" {
 			continue
@@ -127,131 +198,330 @@ func graphrootOf(body string) string {
 	return ""
 }
 
-// Ensure makes dir the image store, idempotently: the directories, both
-// settings, and the SELinux labelling a graphroot outside the default
-// place needs. It returns whether anything changed, and it does not move a
-// single byte — see Move for that, which is the part that cannot be
-// silent.
+// Mounted reports whether anything is mounted at path.
+func Mounted(path string) bool {
+	b, err := os.ReadFile(MountInfo)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) > 4 && unescapeMountInfo(f[4]) == path {
+			return true
+		}
+	}
+	return false
+}
+
+// unescapeMountInfo undoes the octal escaping the kernel uses for spaces,
+// tabs, newlines and backslashes in mountinfo's paths.
+func unescapeMountInfo(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+3 < len(s) {
+			var n int
+			if _, err := fmt.Sscanf(s[i+1:i+4], "%o", &n); err == nil {
+				b.WriteByte(byte(n))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// Ensure makes dir the image store, idempotently: the directories, the
+// two mount units, and the mount itself. It returns whether anything
+// changed, and it does not move a single byte — see Move for that, which
+// is the part that cannot be silent.
+//
+// dir == DefaultRoot takes the arrangement away again, which is how a
+// Node gets back to podman's own store.
 func Ensure(ctx context.Context, run Runner, dir string) (bool, error) {
 	if dir == "" {
 		return false, nil
 	}
+	changed, err := writeIfDifferent(ContainersDropIn, dropIn())
+	if err != nil {
+		return false, err
+	}
+	if dir == DefaultRoot {
+		c, err := unbind(ctx, run)
+		return changed || c, err
+	}
 	tmp := filepath.Join(dir, "tmp")
 	for _, d := range []string{dir, tmp} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
-			return false, fmt.Errorf("image store %s: %w", d, err)
+			return changed, fmt.Errorf("image store %s: %w", d, err)
 		}
 	}
-	changed := false
-	// storage.conf: the vendored file with graphroot replaced, so the
-	// image's additional image store and overlay options survive.
-	base, err := os.ReadFile(VendoredConfig)
+	wrote, err := writeUnits(ctx, run, dir)
 	if err != nil {
-		// No vendored copy to build on: say the minimum, including the
-		// driver, which podman would otherwise have to guess.
-		base = []byte("[storage]\ndriver = \"overlay\"\nrunroot = \"/run/containers/storage\"\ngraphroot = \"" + DefaultRoot + "\"\n")
-	}
-	want := withGraphroot(string(base), dir)
-	wrote, err := writeIfDifferent(StorageConfig, want)
-	if err != nil {
-		return false, err
+		return changed, err
 	}
 	changed = changed || wrote
-	drop := "# Written by Maître (decision 319). The blob staging directory\n" +
-		"# travels with the image store: staging on a root that the store has\n" +
-		"# left is what ran out of space in the first place.\n" +
-		"#\n" +
-		"# static_dir is deliberately NOT set here, although pinning it is\n" +
-		"# what made a moved store openable by podman. This file is global,\n" +
-		"# and bootc reads it too: it keeps its own container storage at\n" +
-		"# /run/bootc/storage and overrides graphroot, but it inherits\n" +
-		"# static_dir, so pinning it made bootc and podman share one libpod\n" +
-		"# database. Whichever opened it last wrote its own graphroot there,\n" +
-		"# and the other then refused -- \"database graph root ... does not\n" +
-		"# match our graph root\" -- which stopped `bootc upgrade` on Boulder\n" +
-		"# even with the store back in its default place. Left unset, each\n" +
-		"# gets its own database under its own graphroot, which is the\n" +
-		"# arrangement that has always worked.\n" +
-		"[engine]\nimage_copy_tmp_dir = \"" + tmp + "\"\n"
-	wrote, err = writeIfDifferent(ContainersDropIn, drop)
-	if err != nil {
-		return false, err
-	}
-	changed = changed || wrote
-	if changed && run != nil {
-		if err := label(ctx, run, dir); err != nil {
+	if !Mounted(DefaultRoot) {
+		if err := os.MkdirAll(DefaultRoot, 0o700); err != nil {
 			return changed, err
+		}
+		if run != nil {
+			if out, err := run.Run(ctx, "systemctl", "start", BindUnit()); err != nil {
+				return changed, fmt.Errorf("mount the image store at %s: %w (%s)", DefaultRoot, err, strings.TrimSpace(out))
+			}
+		}
+		changed = true
+	}
+	return changed, nil
+}
+
+func dropIn() string {
+	return "# Written by Maître (decision 319). The image store lives on a Drive,\n" +
+		"# bind-mounted onto " + DefaultRoot + " -- see internal/imagestore.\n" +
+		"#\n" +
+		"# Blob staging is what ran out of space in the first place, so it goes\n" +
+		"# inside the store. Under the mount this path is on the Drive without\n" +
+		"# naming it, which is the point: this file is global and bootc reads it\n" +
+		"# too, and every value here that depended on where the store was is\n" +
+		"# what broke `bootc upgrade`. static_dir especially is NOT set: bootc\n" +
+		"# inherits it, and pinning it made bootc and podman share one libpod\n" +
+		"# database that each then refused to open.\n" +
+		"[engine]\nimage_copy_tmp_dir = \"" + filepath.Join(DefaultRoot, "tmp") + "\"\n"
+}
+
+// BindUnit is the name of the unit that mounts the store at DefaultRoot.
+func BindUnit() string { return unitName(DefaultRoot) }
+
+// driveUnit is the name of the unit that mounts the Drive the store is
+// on. The agent mounts Drives itself, from user space, long after systemd
+// has started the Quadlet units that need the store, so the one Drive the
+// store lives on gets mounted by systemd instead. The agent's own Mount is
+// idempotent and finds it already there.
+func driveUnit(mount string) string { return unitName(mount) }
+
+// unitName is systemd's name for a mount unit at path.
+func unitName(path string) string {
+	p := strings.Trim(path, "/")
+	if p == "" {
+		return "-.mount"
+	}
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		switch {
+		case c == '/':
+			b.WriteByte('-')
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_':
+			b.WriteByte(c)
+		case c == '.' && i > 0:
+			b.WriteByte(c)
+		default:
+			fmt.Fprintf(&b, `\x%02x`, c)
+		}
+	}
+	b.WriteString(".mount")
+	return b.String()
+}
+
+// driveOf is the mount point of the Drive dir sits on, and its filesystem
+// UUID, which is the directory name the agent mounts every Drive under.
+func driveOf(dir string) (mount, uuid string, err error) {
+	rest, ok := strings.CutSuffix(filepath.Clean(dir), string(filepath.Separator)+Dir)
+	if !ok {
+		return "", "", fmt.Errorf("%s is not a <drive>/%s directory, so there is no Drive to mount for it", dir, Dir)
+	}
+	return rest, filepath.Base(rest), nil
+}
+
+// fstypeAt is the filesystem type mounted at path, from mountinfo.
+func fstypeAt(path string) string {
+	b, err := os.ReadFile(MountInfo)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 5 || unescapeMountInfo(f[4]) != path {
+			continue
+		}
+		for i := 5; i < len(f); i++ {
+			if f[i] == "-" && i+1 < len(f) {
+				return f[i+1]
+			}
+		}
+	}
+	return ""
+}
+
+// writeUnits writes the Drive's mount unit and the bind mount on top of
+// it, and enables both. Nothing is started here.
+func writeUnits(ctx context.Context, run Runner, dir string) (bool, error) {
+	mount, uuid, err := driveOf(dir)
+	if err != nil {
+		return false, err
+	}
+	// A unit naming a UUID no device has would fail at every boot, and
+	// with RequiresMountsFor on the Service units that means a Node that
+	// runs nothing. Better to refuse now, while the store is still where
+	// it works.
+	if _, err := os.Stat(filepath.Join(DevByUUID, uuid)); err != nil {
+		return false, fmt.Errorf("no filesystem with UUID %s (%s): the image store's Drive must be named by UUID, since its mount unit runs before anything that could look it up", uuid, filepath.Join(DevByUUID, uuid))
+	}
+	fstype := fstypeAt(mount)
+	if fstype == "ntfs" {
+		fstype = "ntfs3" // as storage.Manager.Mount does
+	}
+	drive := "# Written by Maître (decision 319): the Drive the image store lives on.\n" +
+		"# Mounted here rather than by the agent, which runs from user space and\n" +
+		"# starts well after the Service units that need the store.\n" +
+		"[Unit]\n" +
+		"Description=Maître image store Drive\n" +
+		"Documentation=https://github.com/Onfire7/maitre-de-serveur\n" +
+		"[Mount]\n" +
+		"What=/dev/disk/by-uuid/" + uuid + "\n" +
+		"Where=" + mount + "\n" +
+		typeLine(fstype) +
+		"Options=noatime\n" +
+		"[Install]\nWantedBy=local-fs.target\n"
+	bind := "# Written by Maître (decision 319): the image store, off the root\n" +
+		"# partition. The bytes are on a Drive and the path is podman's own\n" +
+		"# graphroot, so nothing -- not podman, not bootc, not the SELinux\n" +
+		"# policy -- has to be told the store moved.\n" +
+		"[Unit]\n" +
+		"Description=Maître image store\n" +
+		"Documentation=https://github.com/Onfire7/maitre-de-serveur\n" +
+		"Requires=" + driveUnit(mount) + "\n" +
+		"After=" + driveUnit(mount) + "\n" +
+		"[Mount]\n" +
+		"What=" + dir + "\n" +
+		"Where=" + DefaultRoot + "\n" +
+		"Type=none\n" +
+		"Options=bind\n" +
+		"[Install]\nWantedBy=local-fs.target\n"
+	changed := false
+	for _, u := range []struct{ name, body string }{
+		{driveUnit(mount), drive},
+		{BindUnit(), bind},
+	} {
+		wrote, err := writeIfDifferent(filepath.Join(UnitDir, u.name), u.body)
+		if err != nil {
+			return changed, err
+		}
+		changed = changed || wrote
+	}
+	if !changed || run == nil {
+		return changed, nil
+	}
+	if out, err := run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
+		return changed, fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(out))
+	}
+	if out, err := run.Run(ctx, "systemctl", "enable", driveUnit(mount), BindUnit()); err != nil {
+		return changed, fmt.Errorf("enable the image store's mount units: %w (%s)", err, strings.TrimSpace(out))
+	}
+	return changed, nil
+}
+
+func typeLine(fstype string) string {
+	if fstype == "" {
+		// mount(8) probes. Only reached when the Drive is not mounted
+		// while the unit is written, which Choose does not do.
+		return ""
+	}
+	return "Type=" + fstype + "\n"
+}
+
+// unbind takes the mount units away, which is how the store goes back to
+// being an ordinary directory on the root partition. The mount is stopped
+// first, so what the caller then sees at DefaultRoot is the real
+// directory and not the Drive's.
+func unbind(ctx context.Context, run Runner) (bool, error) {
+	changed := false
+	if run != nil && Mounted(DefaultRoot) {
+		if out, err := run.Run(ctx, "systemctl", "stop", BindUnit()); err != nil {
+			return false, fmt.Errorf("unmount the image store from %s: %w (%s)", DefaultRoot, err, strings.TrimSpace(out))
+		}
+		changed = true
+	}
+	units := []string{BindUnit()}
+	if dir := Configured(); dir != "" {
+		if mount, _, err := driveOf(dir); err == nil {
+			units = append(units, driveUnit(mount))
+		}
+	}
+	for _, u := range units {
+		path := filepath.Join(UnitDir, u)
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		if run != nil {
+			if out, err := run.Run(ctx, "systemctl", "disable", u); err != nil {
+				return changed, fmt.Errorf("disable %s: %w (%s)", u, err, strings.TrimSpace(out))
+			}
+		}
+		if err := os.Remove(path); err != nil {
+			return changed, err
+		}
+		changed = true
+	}
+	if changed && run != nil {
+		if out, err := run.Run(ctx, "systemctl", "daemon-reload"); err != nil {
+			return changed, fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(out))
 		}
 	}
 	return changed, nil
 }
 
-// withGraphroot is body with graphroot pointing at dir, whether or not it
-// had one.
-func withGraphroot(body, dir string) string {
-	lines := strings.Split(body, "\n")
-	for i, line := range lines {
-		key, _, ok := strings.Cut(strings.TrimSpace(line), "=")
-		if ok && strings.TrimSpace(key) == "graphroot" {
-			lines[i] = "graphroot = \"" + dir + "\""
-			return strings.Join(lines, "\n")
-		}
+// Migrate repairs a Node that decision 319's first design moved by
+// configuration. Such a Node cannot stage an update at all, so this is
+// not optional and it does not wait to be asked: it bind-mounts the store
+// it already has onto podman's own graphroot and deletes the
+// configuration that named it. Not one byte is copied — only the path the
+// same directory is reached by changes.
+//
+// libpod's database does not survive that change of path, because it
+// records the graphroot it was made with, so it goes. What it holds is
+// containers, pods and named volumes; Maître keeps none of its own state
+// there (a Service is a Quadlet unit recreated on start, its volumes bind
+// mounts from a Space), and podman builds a fresh one.
+func Migrate(ctx context.Context, run Runner) (bool, error) {
+	dir := legacyGraphroot()
+	if dir == "" || dir == DefaultRoot {
+		return false, nil
 	}
-	for i, line := range lines {
-		if strings.TrimSpace(line) == "[storage]" {
-			rest := append([]string{"graphroot = \"" + dir + "\""}, lines[i+1:]...)
-			return strings.Join(append(lines[:i+1], rest...), "\n")
+	if _, err := os.Stat(dir); err != nil {
+		// The configuration names a store that is not there, which is
+		// worse than either state: remove it and let podman use its own.
+		if err := os.Remove(StorageConfig); err != nil {
+			return false, err
 		}
+		return true, nil
 	}
-	return body + "\n[storage]\ngraphroot = \"" + dir + "\"\n"
+	if err := os.RemoveAll(filepath.Join(dir, "libpod")); err != nil {
+		return false, err
+	}
+	if _, err := Ensure(ctx, run, dir); err != nil {
+		return false, fmt.Errorf("mount the image store at %s instead of configuring it: %w", DefaultRoot, err)
+	}
+	if err := os.Remove(StorageConfig); err != nil {
+		return true, fmt.Errorf("the store is mounted at %s, but %s still names it directly: %w", DefaultRoot, StorageConfig, err)
+	}
+	return true, nil
 }
 
-// label gives the new store the labelling podman's own place has, which
-// SELinux needs before a container can read a layer from it. An
-// equivalence rule covers everything under it, and relabelling follows.
-// Both are logged rather than fatal: a Node with SELinux permissive works
-// without them, and nobody can run the commands by hand to find out
-// (a Node has no terminal).
-func label(ctx context.Context, run Runner, dir string) error {
-	// The equivalence makes the policy give dir the same per-path contexts
-	// the default graphroot has, which `restorecon -R` then applies. An
-	// equivalence that is already there is the one error worth ignoring.
-	//
-	// These used to be discarded, and that is how a store nothing could
-	// run got built and the old one deleted on top of it: `semanage` lives
-	// in policycoreutils-python-utils, which the image did not install, so
-	// the rule was never added, restorecon applied whatever context
-	// /var/mnt/drives/... carries, and every container on the moved store
-	// died with "RELRO protection failed" as its loader was refused the
-	// mapping. A labelling that did not happen has to be loud.
-	if out, err := run.Run(ctx, "semanage", "fcontext", "-a", "-e", DefaultRoot, fcontextSpec(dir)); err != nil && !strings.Contains(out, "already defined") {
-		return fmt.Errorf("label %s like %s: %w (%s); semanage comes from policycoreutils-python-utils", dir, DefaultRoot, err, strings.TrimSpace(out))
+func writeIfDifferent(path, body string) (bool, error) {
+	if cur, err := os.ReadFile(path); err == nil && string(cur) == body {
+		return false, nil
 	}
-	if out, err := run.Run(ctx, "restorecon", "-R", dir); err != nil {
-		return fmt.Errorf("apply the labels to %s: %w (%s)", dir, err, strings.TrimSpace(out))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
 	}
-	return nil
-}
-
-// fcontextSpec is dir written the way semanage will accept it. The policy
-// already equates /var/mnt with /mnt (and /var/home with /home,
-// /var/roothome with /root), and semanage refuses a file spec that sits
-// under the left side of an existing equivalency — "File spec
-// /var/mnt/drives/... conflicts with equivalency rule '/var/mnt /mnt'" —
-// naming the form to use instead. Drives are mounted under /var/mnt, so
-// every image store off the root partition meets this. restorecon still
-// takes the real path; only the rule is written the other way.
-func fcontextSpec(dir string) string {
-	for _, eq := range []struct{ from, to string }{
-		{"/var/mnt", "/mnt"},
-		{"/var/home", "/home"},
-		{"/var/roothome", "/root"},
-	} {
-		if dir == eq.from || strings.HasPrefix(dir, eq.from+"/") {
-			return eq.to + strings.TrimPrefix(dir, eq.from)
-		}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		return false, fmt.Errorf("write %s: %w", path, err)
 	}
-	return dir
+	return true, nil
 }
 
 // storeImageIDs is every image the store podman is configured for holds.
@@ -271,33 +541,22 @@ func storeImageIDs(ctx context.Context, run Runner) (map[string]bool, error) {
 	return ids, nil
 }
 
-func writeIfDifferent(path, body string) (bool, error) {
-	if cur, err := os.ReadFile(path); err == nil && string(cur) == body {
-		return false, nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return false, err
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		return false, fmt.Errorf("write %s: %w", path, err)
-	}
-	return true, nil
-}
-
-// Move takes an image store that is already somewhere — in practice the
-// root partition, where every Node before decision 319 has one — and puts
-// it where it belongs, then frees what it left behind.
+// Move takes the image store's bytes from where they are to where they
+// belong, and frees what they left behind.
 //
 // This is deliberately not something Ensure does on its own at boot. The
-// copy is local but it is not small (Avalon's store is tens of gigabytes),
-// removing the old store while a container still has layers mounted from
-// it would break that container, and freeing a Node's root is not a
-// decision to take silently. So it is an action someone asks for, with the
-// Services stopped by the caller, and it reports what it moved.
+// copy is local but it is not small (Avalon's store is tens of
+// gigabytes), removing the old store while a container still has layers
+// mounted from it would break that container, and freeing a Node's root
+// is not a decision to take silently. So it is an action someone asks
+// for, with the Services stopped by the caller, and it reports what it
+// moved.
 //
-// Nothing is removed until the copy has succeeded, and the configuration
-// is switched only then: an interrupted Move leaves a Node exactly as it
-// was, minus some space in the new location that the next attempt reuses.
+// Nothing is removed until the copy has been checked against what the
+// store held before, image by image. An interrupted Move leaves the Node
+// able to run every Service it could before: the store it was using is
+// only ever renamed aside, never deleted, until the new one has answered
+// `podman images` correctly through the path everything uses.
 func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if to == "" {
 		return 0, fmt.Errorf("nowhere to move the image store to: this Node has no Drive for it")
@@ -305,49 +564,159 @@ func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if from == to {
 		return 0, nil
 	}
-	// Moving the store off the root partition breaks `bootc upgrade`, so
-	// it is refused until it does not. bootc keeps its own container
-	// storage at /run/bootc/storage and reads the same
-	// /etc/containers/containers.conf.d this writes: it overrides
-	// graphroot but inherits [engine] static_dir, so it opens libpod's
-	// database, finds the graphroot recorded there is a Drive and not its
-	// own, and stops -- "database graph root ... does not match our graph
-	// root \"/run/bootc/storage\": database configuration mismatch".
-	// Boulder could not stage an update until its store came back.
-	//
-	// Without the static_dir pin it fails the other way instead, on
-	// podman rather than bootc (the mismatch 2356d9c describes), so there
-	// is no version of writing this configuration globally that is safe.
-	// The way out is not to write it: keep /var/lib/containers/storage as
-	// the graphroot and bind-mount a Drive's directory onto it. Nothing
-	// then records a path that can disagree, bootc sees its usual
-	// configuration, and the labelling problems of 207cfa0 and 3f8cd15 go
-	// with it, because the policy already knows what that path holds.
-	//
-	// Moving back to the default stays allowed: it is the way out for a
-	// Node that already has a store somewhere else.
-	if to != DefaultRoot {
-		return 0, fmt.Errorf("moving the image store to %s would stop this Node updating: bootc reads the same containers.conf and refuses a libpod database whose graph root is not its own. Moving it back to %s is still possible", to, DefaultRoot)
+	if to == DefaultRoot {
+		return moveToRoot(ctx, run, from)
 	}
-	return move(ctx, run, from, to)
+	return moveToDrive(ctx, run, from, to)
 }
 
-// move is the mechanics, without the question of whether it should happen.
-func move(ctx context.Context, run Runner, from, to string) (uint64, error) {
+// moveToDrive copies the store onto a Drive and mounts it over the place
+// it came from. The order is what makes it safe: copy, rename the old
+// store aside, mount, check, and only then delete.
+func moveToDrive(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if _, err := os.Stat(from); err != nil {
-		// Nothing there to move: configuring the new place is all it takes.
+		// Nothing there to move: arranging the new place is all it takes.
 		_, err := Ensure(ctx, run, to)
+		return 0, err
+	}
+	// What the store holds now, while it is still the one podman reads.
+	was, err := storeImageIDs(ctx, run)
+	if err != nil {
 		return 0, err
 	}
 	if err := os.MkdirAll(to, 0o700); err != nil {
 		return 0, err
 	}
-	// What the store holds now, to compare with afterwards. Taken before
-	// anything is touched, while podman is still configured for `from`.
+	if err := copyStore(ctx, run, from, to); err != nil {
+		return 0, err
+	}
+	// The old store is renamed, not removed: the bind mount would hide it
+	// anyway, and a rename on one filesystem is instant and reversible.
+	// Everything after this point puts it back on any failure.
+	aside := from + ".moved-aside"
+	if err := os.RemoveAll(aside); err != nil {
+		return 0, err
+	}
+	if err := os.Rename(from, aside); err != nil {
+		return 0, fmt.Errorf("move %s aside: %w", from, err)
+	}
+	moved := dirBytes(ctx, run, to)
+	undo := func(cause error) (uint64, error) {
+		if _, err := unbind(ctx, run); err != nil {
+			return moved, fmt.Errorf("%w; and the mount could not be undone either: %v", cause, err)
+		}
+		_ = os.Remove(from)
+		if err := os.Rename(aside, from); err != nil {
+			return moved, fmt.Errorf("%w; and %s could not be put back from %s: %v", cause, from, aside, err)
+		}
+		return moved, fmt.Errorf("%w; the store at %s is kept and still in use", cause, from)
+	}
+	if _, err := Ensure(ctx, run, to); err != nil {
+		return undo(err)
+	}
+	if err := check(ctx, run, was, from, to); err != nil {
+		return undo(err)
+	}
+	if err := os.RemoveAll(aside); err != nil {
+		// The store is live and correct at the new place; what is left
+		// behind is only waste, and it is on the partition this was meant
+		// to free.
+		return moved, fmt.Errorf("the store now lives on %s, but the copy it replaced could not be removed from %s: %w", to, aside, err)
+	}
+	return moved, nil
+}
+
+// moveToRoot brings the store back to the root partition, which is the
+// way out for a Node whose Drive is going away. The staging copy lands
+// next to the mount point rather than under it, because the mount hides
+// the directory it is on top of: only once it is unmounted can the real
+// directory be replaced.
+func moveToRoot(ctx context.Context, run Runner, from string) (uint64, error) {
+	if !Mounted(DefaultRoot) && legacyGraphroot() == "" {
+		// Nothing is standing between podman and its own store.
+		_, err := unbind(ctx, run)
+		return 0, err
+	}
 	was, err := storeImageIDs(ctx, run)
 	if err != nil {
 		return 0, err
 	}
+	incoming := DefaultRoot + ".incoming"
+	if err := os.RemoveAll(incoming); err != nil {
+		return 0, err
+	}
+	if err := os.MkdirAll(incoming, 0o700); err != nil {
+		return 0, err
+	}
+	// Read through the path everything uses, so this works whether the
+	// store is bind-mounted or named by a legacy graphroot.
+	src := DefaultRoot
+	if !Mounted(DefaultRoot) {
+		src = from
+	}
+	if err := copyStore(ctx, run, src, incoming); err != nil {
+		return 0, err
+	}
+	moved := dirBytes(ctx, run, incoming)
+	if _, err := unbind(ctx, run); err != nil {
+		return moved, err
+	}
+	// Whatever is at DefaultRoot now is the directory the mount hid: on a
+	// Node that moved off root it is the empty mount point, and on one
+	// that never did it is a store nobody has used since.
+	aside := DefaultRoot + ".replaced"
+	if err := os.RemoveAll(aside); err != nil {
+		return moved, err
+	}
+	if err := os.Rename(DefaultRoot, aside); err != nil {
+		return moved, fmt.Errorf("move %s aside: %w", DefaultRoot, err)
+	}
+	if err := os.Rename(incoming, DefaultRoot); err != nil {
+		_ = os.Rename(aside, DefaultRoot)
+		return moved, fmt.Errorf("put the store back at %s: %w", DefaultRoot, err)
+	}
+	// The legacy configuration, if this was a Node moved by it, says the
+	// store is still on the Drive. It is not, from here on.
+	if legacyGraphroot() != "" {
+		if err := os.Remove(StorageConfig); err != nil {
+			return moved, fmt.Errorf("the store is back at %s, but %s still names %s: %w", DefaultRoot, StorageConfig, from, err)
+		}
+	}
+	if _, err := Ensure(ctx, run, DefaultRoot); err != nil {
+		return moved, err
+	}
+	if err := check(ctx, run, was, from, DefaultRoot); err != nil {
+		// Put the Drive's store back in service: it is untouched, and it
+		// is the one that is known to work.
+		_ = os.RemoveAll(DefaultRoot)
+		_ = os.Rename(aside, DefaultRoot)
+		if _, rerr := Ensure(ctx, run, from); rerr != nil {
+			return moved, fmt.Errorf("%w; and %s could not be mounted again: %v", err, from, rerr)
+		}
+		return moved, fmt.Errorf("%w; the store on %s is kept and still in use", err, from)
+	}
+	if err := os.RemoveAll(aside); err != nil {
+		return moved, fmt.Errorf("the store is back at %s, but the empty mount point at %s could not be removed: %w", DefaultRoot, aside, err)
+	}
+	if err := os.RemoveAll(from); err != nil {
+		return moved, fmt.Errorf("the store is back at %s, but the old one at %s could not be removed: %w", DefaultRoot, from, err)
+	}
+	return moved, nil
+}
+
+// copyStore copies a store's bytes. -aHAX, not -a: the graphroot's layers
+// carry xattrs, including ones in the trusted namespace, and its metadata
+// is a database. `cp -a` lost images outright — two became one with its
+// tag reduced to <none>, and a round trip lost both — so the copy has to
+// preserve hard links, ACLs and every xattr. rsync is in the image for
+// the Pool's own copies.
+//
+// libpod's database comes along, which it could not when the store moved
+// by configuration: it records the graphroot and static dir it was made
+// with, and under a bind mount both are the same path afterwards as
+// before. So a move keeps this Node's containers and named volumes
+// instead of dropping them.
+func copyStore(ctx context.Context, run Runner, from, to string) error {
 	// The source's own labels are made valid first. `bootc install` leaves
 	// files carrying `invalid_bootcinstall_testlabel_t`, a context the
 	// policy deliberately does not define so that setting it can be shown
@@ -356,69 +725,35 @@ func move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	// the copy reports failure. restorecon puts the source back on
 	// contexts the policy knows, which are the ones worth copying.
 	if out, err := run.Run(ctx, "restorecon", "-R", from); err != nil {
-		return 0, fmt.Errorf("relabel %s before copying it: %w (%s)", from, err, strings.TrimSpace(out))
+		return fmt.Errorf("relabel %s before copying it: %w (%s)", from, err, strings.TrimSpace(out))
 	}
-	// -aHAX, not -a: the graphroot's layers carry xattrs, including ones
-	// in the trusted namespace, and its metadata is a database. `cp -a`
-	// lost images outright — two became one with its tag reduced to
-	// <none>, and a round trip lost both — so the copy has to preserve
-	// hard links, ACLs and every xattr. rsync is in the image for the
-	// Pool's own copies.
-	// libpod's database is left behind. It records the static dir it was
-	// made with, and podman refuses to open one whose recorded path is not
-	// the configured one — "database static dir ... does not match our
-	// static dir ...: database configuration mismatch" — so a copied
-	// database makes the new store unopenable. What it holds is
-	// containers, pods and named volumes, and Maître keeps none of its
-	// own state there: a Service is a Quadlet unit recreated on start, and
-	// its volumes are bind mounts from a Space. podman builds a fresh one
-	// at the new path. An excluded path is not deleted by --delete, so a
-	// copy left by an earlier attempt goes explicitly.
-	if err := os.RemoveAll(filepath.Join(to, "libpod")); err != nil {
-		return 0, fmt.Errorf("clear %s: %w", filepath.Join(to, "libpod"), err)
+	if out, err := run.Run(ctx, "rsync", "-aHAX", "--delete", from+"/", to+"/"); err != nil {
+		return fmt.Errorf("copy the image store to %s: %w (%s)", to, err, strings.TrimSpace(out))
 	}
-	if out, err := run.Run(ctx, "rsync", "-aHAX", "--delete", "--exclude", "/libpod/", filepath.Join(from)+"/", to+"/"); err != nil {
-		return 0, fmt.Errorf("copy the image store to %s: %w (%s)", to, err, strings.TrimSpace(out))
-	}
-	if _, err := Ensure(ctx, run, to); err != nil {
-		// Labelling or configuration failed, so `to` is not a store
-		// anything can run from. Put podman back on the old one, which is
-		// untouched, and keep it.
-		if _, rerr := Ensure(ctx, run, from); rerr != nil {
-			return 0, fmt.Errorf("%w; and %s could not be configured again: %v", err, from, rerr)
-		}
-		return 0, err
-	}
-	moved := dirBytes(ctx, run, to)
-	// Never delete the old store on the strength of a copy that was not
-	// checked. podman now reads `to`, so this asks the new store what it
-	// holds; anything the old one had and this one does not means the
-	// copy is not a replacement, whatever the exit codes said.
+	return nil
+}
+
+// check asks the store that is now mounted what it holds. Never delete
+// the old one on the strength of a copy that was not checked: whatever
+// the exit codes said, an image the old store had and this one does not
+// means the copy is not a replacement.
+func check(ctx context.Context, run Runner, was map[string]bool, from, to string) error {
 	now, err := storeImageIDs(ctx, run)
-	if err == nil {
-		var lost []string
-		for id := range was {
-			if !now[id] {
-				lost = append(lost, id)
-			}
-		}
-		if len(lost) > 0 {
-			sort.Strings(lost)
-			err = fmt.Errorf("the copy at %s is missing %d of the %d images %s holds (%s), so it is not a replacement",
-				to, len(lost), len(was), from, strings.Join(lost, " "))
-		}
-	}
 	if err != nil {
-		if _, rerr := Ensure(ctx, run, from); rerr != nil {
-			return moved, fmt.Errorf("%w; and %s could not be configured again: %v", err, from, rerr)
+		return err
+	}
+	var lost []string
+	for id := range was {
+		if !now[id] {
+			lost = append(lost, id)
 		}
-		return moved, fmt.Errorf("%w; %s is kept and still in use", err, from)
 	}
-	if err := os.RemoveAll(from); err != nil {
-		// The new store is live and correct; the old copy is only waste.
-		return moved, fmt.Errorf("the store now lives at %s, but the old one at %s could not be removed: %w", to, from, err)
+	if len(lost) == 0 {
+		return nil
 	}
-	return moved, nil
+	sort.Strings(lost)
+	return fmt.Errorf("the copy at %s is missing %d of the %d images %s holds (%s), so it is not a replacement",
+		to, len(lost), len(was), from, strings.Join(lost, " "))
 }
 
 // dirBytes is du of a directory, which is wanted once and never on a

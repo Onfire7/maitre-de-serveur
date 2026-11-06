@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/imagestore"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/quadlet/parser"
 )
 
@@ -112,6 +113,15 @@ func renderContainer(spec *maitrev1.ServiceSpec, c comp, vols map[string]string,
 	// it, since a unit stopped by the limit refuses a plain start.
 	add("StartLimitIntervalSec=1h")
 	add("StartLimitBurst=5")
+	// A Service needs its image store, and on a Node where the store is a
+	// Drive bind-mounted here (decision 319) systemd starts these units
+	// long before the agent could mount anything. Without this, a Drive
+	// that failed to mount would leave every Service starting against an
+	// empty store and pulling its image again -- the failure that cost
+	// Avalon about 3 TB over 20 hours. Named as a path, so it costs a Node
+	// whose store is an ordinary directory nothing: systemd adds a
+	// dependency only on mount units that exist.
+	add("RequiresMountsFor=" + imagestore.DefaultRoot)
 	add("")
 	out = append(out, container...)
 	if spec.GetTunnel() && !parsed.HasKey("Container", "ContainerName") {

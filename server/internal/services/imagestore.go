@@ -32,7 +32,10 @@ func (m *Manager) MoveImageStore(ctx context.Context, dir string) (*maitrev1.Mov
 	if to == "" {
 		return nil, fmt.Errorf("the image store needs a Drive to live on, and this Node has none; add one first")
 	}
-	from := m.storeDir(ctx)
+	// Not storeDir: podman's graphroot is /var/lib/containers/storage
+	// whether or not a Drive is mounted there, which is the whole point of
+	// the arrangement. Backing is where the bytes actually are.
+	from := imagestore.Backing()
 	res := &maitrev1.MoveImageStoreResponse{From: from, To: to}
 	if from == to {
 		return res, nil
@@ -82,16 +85,30 @@ func (m *Manager) MoveImageStore(ctx context.Context, dir string) (*maitrev1.Mov
 	return res, nil
 }
 
-// EnsureImageStore configures the image store at startup, for a Node that
-// has somewhere to put it and nothing there yet (decision 319). It writes
-// configuration only: a Node whose store already holds images keeps them
-// until someone asks for MoveImageStore, since the copy is large and
-// freeing a root is not a thing to do silently.
+// EnsureImageStore arranges the image store at startup, for a Node that
+// has somewhere to put it and nothing there yet (decision 319). It moves
+// no bytes: a Node whose store already holds images keeps them until
+// someone asks for MoveImageStore, since the copy is large and freeing a
+// root is not a thing to do silently.
 func (m *Manager) EnsureImageStore(ctx context.Context) {
 	if m.cfg.ImageStore == nil {
 		return
 	}
-	// Already pointed somewhere deliberately: leave it alone.
+	// A Node that decision 319's first design moved by configuration
+	// cannot stage an update at all, so this is repaired before anything
+	// else and whether or not anyone asked. It copies nothing: the same
+	// directory is simply reached by podman's own graphroot from here on.
+	if did, err := imagestore.Migrate(ctx, m.run); err != nil {
+		m.logf("the image store was moved by configuration, which stops this Node updating, and it could not be re-mounted instead: %v", err)
+		return
+	} else if did {
+		m.logf("the image store is now bind-mounted onto %s instead of being configured, which is what `bootc upgrade` needs (decision 319)", imagestore.DefaultRoot)
+		m.storeMu.Lock()
+		m.store_ = ""
+		m.storeMu.Unlock()
+		return
+	}
+	// Already arranged: leave it alone.
 	if cur := imagestore.Configured(); cur != "" {
 		return
 	}
@@ -113,7 +130,7 @@ func (m *Manager) EnsureImageStore(ctx context.Context) {
 		return
 	}
 	if changed {
-		m.logf("the image store is %s (decision 319: off the root partition)", to)
+		m.logf("the image store is %s, mounted at %s (decision 319: off the root partition)", to, imagestore.DefaultRoot)
 		m.storeMu.Lock()
 		m.store_ = ""
 		m.storeMu.Unlock()
