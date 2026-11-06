@@ -286,6 +286,16 @@ func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// The source's own labels are made valid first. `bootc install` leaves
+	// files carrying `invalid_bootcinstall_testlabel_t`, a context the
+	// policy deliberately does not define so that setting it can be shown
+	// to fail, and a copy that preserves xattrs faithfully tries to carry
+	// it across: every file then fails with SELINUX_ERR op=setxattr and
+	// the copy reports failure. restorecon puts the source back on
+	// contexts the policy knows, which are the ones worth copying.
+	if out, err := run.Run(ctx, "restorecon", "-R", from); err != nil {
+		return 0, fmt.Errorf("relabel %s before copying it: %w (%s)", from, err, strings.TrimSpace(out))
+	}
 	// -aHAX, not -a: the graphroot's layers carry xattrs, including ones
 	// in the trusted namespace, and its metadata is a database. `cp -a`
 	// lost images outright — two became one with its tag reduced to

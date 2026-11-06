@@ -277,10 +277,22 @@ func (s *Service) PruneImages(ctx context.Context, req *maitrev1.PruneImagesRequ
 
 // MoveImageStore implements ServiceService (decision 319).
 func (s *Service) MoveImageStore(ctx context.Context, req *maitrev1.MoveImageStoreRequest) (*maitrev1.MoveImageStoreResponse, error) {
-	return s.mgr.MoveImageStore(ctx, req.GetDir())
+	// Through mapErr like every other call here. Returned raw, a move that
+	// refused to go through reached the CLI as a bare "unknown" with the
+	// reason gone, which is the worst possible answer from the one
+	// operation that rearranges a Node's storage.
+	res, err := s.mgr.MoveImageStore(ctx, req.GetDir())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return res, nil
 }
 
 // ListImages implements ServiceService (decision 326's basic tier).
 func (s *Service) ListImages(ctx context.Context, _ *maitrev1.ListImagesRequest) (*maitrev1.ListImagesResponse, error) {
-	return s.mgr.ListImages(ctx)
+	res, err := s.mgr.ListImages(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return res, nil
 }
