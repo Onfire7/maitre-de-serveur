@@ -222,13 +222,19 @@ func runInfo(args []string) error {
 	fs := flag.NewFlagSet("info", flag.ExitOnError)
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
+	// Same reason as `maitre service` and `maitre update`: a Node's id is
+	// the fingerprint of its key, so whoever can name the Node already
+	// knows enough to trust it. Reading a Node's logs is the first thing
+	// anyone wants after a Node misbehaves, and that is the worst moment
+	// to be assembling a trust directory by hand.
+	fingerprint := fs.String("fingerprint", "", "trust the Node with this key fingerprint, which is its Node id, instead of (or as well as) a trust directory")
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
 	metrics := fs.Bool("metrics", false, "print the Node's gauges (CPU, memory, Pool, network, temperature, load) instead")
 	drives := fs.Bool("drives", false, "print the Node's Drives (ListDrives) instead")
 	rename := fs.String("rename", "", "give the Node this name instead")
 	hist := fs.Duration("history", 0, "print the Node's stored metrics over this long (e.g. 1h, 168h) instead: each series' step, latest average and peak")
 	series := fs.String("series", "", "with --history: comma-separated series or prefixes ending in / (default node/ and drive/)")
-	logs := fs.String("logs", "", "print the Node's logs from this source instead (\"agent\", \"pool\", \"caddy\", \"health\", \"kernel\", \"system\"); --lines says how many")
+	logs := fs.String("logs", "", "print the Node's logs from this source instead (\"agent\", \"pool\", \"caddy\", \"health\", \"panic\", \"kernel\", \"kernel-prev\", \"system\", \"system-prev\"); --lines says how many")
 	logLines := fs.Uint("lines", 300, "with --logs: how many lines, at most 5000")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -240,6 +246,9 @@ func runInfo(args []string) error {
 	list := trust.New()
 	if err := list.LoadDir(*trustDir); err != nil {
 		return err
+	}
+	if *fingerprint != "" {
+		list.Add(strings.ToLower(strings.TrimSpace(*fingerprint)))
 	}
 	transport := connecthttp.NewTransport(NewHTTPClient(mtls.ClientConfig(id, list)), "https://"+*addr)
 	client := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))
