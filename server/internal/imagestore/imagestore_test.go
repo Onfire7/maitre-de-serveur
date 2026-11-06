@@ -198,7 +198,7 @@ func TestMoveKeepsTheOldStoreWhenAnImageDoesNotSurvive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Move(ctx, r, from, to)
+	_, err := move(ctx, r, from, to)
 	if err == nil {
 		t.Fatal("Move reported success although an image did not survive the copy")
 	}
@@ -274,7 +274,7 @@ func TestMoveLeavesLibpodBehind(t *testing.T) {
 	}
 	r := &moveRunner{before: "aaa\n", after: "aaa\n"}
 
-	if _, err := Move(ctx, r, from, to); err != nil {
+	if _, err := move(ctx, r, from, to); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
 	if !r.ran("rsync -aHAX --delete --exclude /libpod/") {
@@ -312,5 +312,22 @@ func TestStaticDirDoesNotFollowTheStore(t *testing.T) {
 	}
 	if strings.Contains(string(b), "static_dir = \""+filepath.Join(store, "libpod")) {
 		t.Error("static_dir followed the store to its new home")
+	}
+}
+
+// Moving the store off root is refused, because bootc reads the same
+// containers.conf and will not open a libpod database whose graph root is
+// not its own: Boulder could not stage an update until the store came
+// back. Moving it back is the way out and stays allowed.
+func TestMoveOffRootIsRefusedWhileItBreaksUpdates(t *testing.T) {
+	ctx := context.Background()
+	_, err := Move(ctx, &moveRunner{}, DefaultRoot, "/var/mnt/drives/abc/.maitre/imagestore")
+	if err == nil {
+		t.Fatal("the move was allowed")
+	}
+	for _, want := range []string{"stop this Node updating", DefaultRoot} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not mention %q: %v", want, err)
+		}
 	}
 }

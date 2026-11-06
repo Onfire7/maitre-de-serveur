@@ -305,6 +305,35 @@ func Move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if from == to {
 		return 0, nil
 	}
+	// Moving the store off the root partition breaks `bootc upgrade`, so
+	// it is refused until it does not. bootc keeps its own container
+	// storage at /run/bootc/storage and reads the same
+	// /etc/containers/containers.conf.d this writes: it overrides
+	// graphroot but inherits [engine] static_dir, so it opens libpod's
+	// database, finds the graphroot recorded there is a Drive and not its
+	// own, and stops -- "database graph root ... does not match our graph
+	// root \"/run/bootc/storage\": database configuration mismatch".
+	// Boulder could not stage an update until its store came back.
+	//
+	// Without the static_dir pin it fails the other way instead, on
+	// podman rather than bootc (the mismatch 2356d9c describes), so there
+	// is no version of writing this configuration globally that is safe.
+	// The way out is not to write it: keep /var/lib/containers/storage as
+	// the graphroot and bind-mount a Drive's directory onto it. Nothing
+	// then records a path that can disagree, bootc sees its usual
+	// configuration, and the labelling problems of 207cfa0 and 3f8cd15 go
+	// with it, because the policy already knows what that path holds.
+	//
+	// Moving back to the default stays allowed: it is the way out for a
+	// Node that already has a store somewhere else.
+	if to != DefaultRoot {
+		return 0, fmt.Errorf("moving the image store to %s would stop this Node updating: bootc reads the same containers.conf and refuses a libpod database whose graph root is not its own. Moving it back to %s is still possible", to, DefaultRoot)
+	}
+	return move(ctx, run, from, to)
+}
+
+// move is the mechanics, without the question of whether it should happen.
+func move(ctx context.Context, run Runner, from, to string) (uint64, error) {
 	if _, err := os.Stat(from); err != nil {
 		// Nothing there to move: configuring the new place is all it takes.
 		_, err := Ensure(ctx, run, to)

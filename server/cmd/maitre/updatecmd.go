@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -28,6 +29,9 @@ func runUpdate(args []string) error {
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", "127.0.0.1:7443", "Node address")
+	// As in `maitre debug` and `maitre service`: a Node's id is the
+	// fingerprint of its key, so knowing the Node is knowing enough.
+	fingerprint := fs.String("fingerprint", "", "trust the Node with this key fingerprint, which is its Node id, instead of (or as well as) a trust directory")
 	image := fs.String("image", "", "image reference to stage (bootc switch)")
 	insecure := fs.Bool("insecure", false, "the image's registry speaks plain HTTP (a local Depot)")
 	noReboot := fs.Bool("no-reboot", false, "stage only; do not reboot afterwards")
@@ -42,6 +46,9 @@ func runUpdate(args []string) error {
 		return fmt.Errorf("load identity (run `maitre keygen` first): %w", err)
 	}
 	list := trust.New()
+	if *fingerprint != "" {
+		list.Add(strings.ToLower(strings.TrimSpace(*fingerprint)))
+	}
 	if err := list.LoadDir(*trustDir); err != nil {
 		return err
 	}
