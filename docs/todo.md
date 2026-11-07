@@ -55,3 +55,7 @@ To work out before this is broken down:
 - **The container's state.** The command runs only while the Service is running. Show the item disabled, with the reason, when it is stopped?
 - **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry. A free-form shell into a container is a separate decision and not part of this. It weakens "a Node is not an administrator" (ADR 0008) and is a root channel for any container with a granted host mount.
 - **Custom Services.** Can a user add their own commands in Setup, the way they can override other options?
+
+### A Claude-powered video editing Service
+
+Create a video editing Service that uses Claude to do the editing. Nothing is planned yet. To work out: what the person asks for and how (a chat beside a timeline, or edits described in plain words), what Claude actually drives (ffmpeg, or an existing editor's project format), whose Claude account and API key it uses, and where the footage lives (a shared folder, so the Service works on files other Services can already see). The T3 Code entry already runs Claude Code inside a Service, which may be a starting point.
