@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -24,6 +25,12 @@ func runRecord(args []string) error {
 	idDir := fs.String("identity", filepath.Join(defaultState(), "device"), "directory holding the caller's identity")
 	trustDir := fs.String("trust", filepath.Join(defaultState(), "device", "trusted"), "directory of *.pub files for Nodes to trust")
 	addr := fs.String("addr", fmt.Sprintf("127.0.0.1:%d", port), "Node address")
+	// A Node's id is the fingerprint of its key, as for service, update
+	// and info: anything that already knows a Node knows enough to trust
+	// it, and without this reading a Fleet record from a machine whose
+	// Console has never been pointed at that Node means first producing a
+	// PEM file no command hands out.
+	fingerprint := fs.String("fingerprint", "", "trust the Node with this key fingerprint, which is its Node id, instead of (or as well as) a trust directory")
 	kind := fs.String("kind", "", "record kind")
 	rid := fs.String("id", "", "record id")
 	body := fs.String("body", "", "put: body as text")
@@ -40,6 +47,9 @@ func runRecord(args []string) error {
 	list := trust.New()
 	if err := list.LoadDir(*trustDir); err != nil {
 		return err
+	}
+	if *fingerprint != "" {
+		list.Add(strings.ToLower(strings.TrimSpace(*fingerprint)))
 	}
 	transport := connecthttp.NewTransport(NewHTTPClient(mtls.ClientConfig(id, list)), "https://"+*addr)
 	c := maitrev1connect.NewNodeServiceClient(connect.NewClient(transport))

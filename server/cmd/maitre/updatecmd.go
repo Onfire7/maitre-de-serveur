@@ -120,6 +120,13 @@ func runUpdate(args []string) error {
 	if st.GetAvailable() != "" {
 		fmt.Printf("available %s\n", st.GetAvailable())
 	}
+	// The staged rollout's own last decision (rollout.Decide). The Node has
+	// always reported it and nothing printed it, so the one question it
+	// answers -- whether this Node updates itself, and why it did -- could
+	// only be guessed at from the outside.
+	if st.GetRollout() != "" {
+		fmt.Printf("rollout   %s\n", st.GetRollout())
+	}
 	for _, d := range st.GetDepotImages() {
 		fmt.Printf("depot     %s  %s  %s  %s\n", d.GetRef(), d.GetDigest(), d.GetVersion(), d.GetCreated())
 	}
