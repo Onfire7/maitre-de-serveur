@@ -2,7 +2,8 @@
 // to this Node over UPnP (decision 115). Nothing is forwarded unless a
 // Service explicitly asked for it, or a Service is published at the user's
 // own domain (then 80 and 443 for Caddy). Mappings are leased for an hour
-// and renewed; anything no longer wanted is deleted.
+// and renewed, the router is asked each minute where each port goes, and
+// anything no longer wanted is deleted.
 package portmap
 
 import (
@@ -49,6 +50,9 @@ func Parse(s string) (Mapping, bool) {
 type Router interface {
 	Name() string
 	Add(ctx context.Context, m Mapping, internalIP string, lease time.Duration) error
+	// Holder is the address the router forwards m's port to now and the
+	// mapping's description, "" when it forwards it nowhere.
+	Holder(ctx context.Context, m Mapping) (client, desc string, err error)
 	// Delete removes the mapping only while it still forwards to
 	// internalIP, and answers ErrNotOurs when it forwards elsewhere. A
 	// router keys mappings by external port alone, so a Node letting go of
@@ -56,6 +60,10 @@ type Router interface {
 	// decision 218) would otherwise delete the new holder's forward.
 	Delete(ctx context.Context, m Mapping, internalIP string) error
 }
+
+// descPrefix starts the description of every mapping a Node asks for, so
+// a Node can tell another Node's leftover forward from anything else.
+const descPrefix = "Maitre "
 
 // ErrNotOurs is Delete's answer for a mapping another machine now holds;
 // it was left in place.
@@ -75,7 +83,12 @@ type live struct {
 	mapped  bool
 	err     string
 	renewed time.Time
+	tries   int // failed deletes, for a mapping being let go
 }
+
+// deleteTries is how many passes (a minute apart) a Node keeps trying to
+// delete a forward it let go of when the router does not answer.
+const deleteTries = 10
 
 // Manager keeps the wanted mappings in step with the router.
 type Manager struct {
@@ -86,6 +99,7 @@ type Manager struct {
 	mu        sync.Mutex
 	wants     map[key]Mapping
 	state     map[key]*live
+	gone      map[key]*live // let go of, but the delete has not gone through
 	router    Router
 	routerErr string
 	looked    bool
@@ -105,7 +119,7 @@ const (
 // New builds a Manager that discovers a UPnP router. localIP gives this
 // Node's LAN address, the one the router must forward to.
 func New(log *slog.Logger, localIP func() string) *Manager {
-	return &Manager{log: log, Discover: discoverUPnP, LocalIP: localIP, wants: map[key]Mapping{}, state: map[key]*live{}, now: time.Now, wake: make(chan struct{}, 1)}
+	return &Manager{log: log, Discover: discoverUPnP, LocalIP: localIP, wants: map[key]Mapping{}, state: map[key]*live{}, gone: map[key]*live{}, now: time.Now, wake: make(chan struct{}, 1)}
 }
 
 // Reconcile sets the complete list of wanted mappings. Changes are applied
@@ -213,7 +227,7 @@ func (m *Manager) tick(ctx context.Context) {
 		wants[k] = w
 	}
 	router := m.router
-	stale := len(m.state) > 0
+	stale := len(m.state) > 0 || len(m.gone) > 0
 	m.mu.Unlock()
 	if len(wants) == 0 && !stale {
 		return
@@ -250,52 +264,87 @@ func (m *Manager) tick(ctx context.Context) {
 	ip := m.LocalIP()
 	now := time.Now()
 	m.mu.Lock()
-	var add []Mapping
+	var add, check []Mapping
 	var del []live
 	for k, w := range wants {
 		l := m.state[k]
-		if l == nil || !l.mapped || now.Sub(l.renewed) > Lease/2 {
+		switch {
+		case l == nil || !l.mapped || now.Sub(l.renewed) > Lease/2:
 			add = append(add, w)
+		default:
+			check = append(check, w)
 		}
 	}
 	for k, l := range m.state {
 		if _, ok := wants[k]; !ok {
-			del = append(del, *l)
+			delete(m.state, k)
+			if l.mapped {
+				m.gone[k] = l
+			}
 		}
+	}
+	for k, l := range m.gone {
+		if _, ok := wants[k]; ok {
+			delete(m.gone, k)
+			continue
+		}
+		del = append(del, *l)
 	}
 	m.mu.Unlock()
 	for _, l := range del {
 		w := l.m
-		m.mu.Lock()
-		delete(m.state, key{w.Port, w.Proto})
-		m.mu.Unlock()
-		if !l.mapped {
-			continue
-		}
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		err := router.Delete(cctx, w, l.ip)
 		cancel()
+		m.mu.Lock()
+		k := key{w.Port, w.Proto}
+		if g := m.gone[k]; g != nil && err != nil && !errors.Is(err, ErrNotOurs) && g.tries+1 < deleteTries {
+			g.tries++
+		} else {
+			delete(m.gone, k)
+		}
+		m.mu.Unlock()
 		switch {
 		case errors.Is(err, ErrNotOurs):
 			m.log.Info("port mapping: let go", "port", w.String(), "owner", w.Owner, "note", err)
 		case err != nil:
-			m.log.Warn("port mapping: delete", "port", w.String(), "err", err)
+			m.log.Warn("port mapping: delete", "port", w.String(), "try", l.tries+1, "err", err)
 		default:
 			m.log.Info("port mapping: removed", "port", w.String(), "owner", w.Owner)
 		}
+	}
+	// A forward the router says it holds may stop being one: another Node
+	// took the port, or the router dropped it. Each pass asks.
+	for _, w := range check {
+		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		client, _, err := router.Holder(cctx, w)
+		cancel()
+		if err != nil || client == ip {
+			continue
+		}
+		m.log.Warn("port mapping: lost", "port", w.String(), "owner", w.Owner, "now", or(client, "nowhere"))
+		add = append(add, w)
 	}
 	for _, w := range add {
 		if ip == "" {
 			m.setErr(w, "this Node has no LAN address yet")
 			continue
 		}
-		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		err := router.Add(cctx, w, ip, Lease)
+		var cleared string
+		if err == nil {
+			cleared, err = claim(cctx, router, w, ip)
+		}
 		cancel()
 		if err != nil {
-			m.setErr(w, trim(err))
-			m.log.Warn("port mapping: add", "port", w.String(), "err", err)
+			if m.setErr(w, trim(err)) {
+				m.log.Warn("port mapping: add", "port", w.String(), "err", err)
+			}
 			continue
+		}
+		if cleared != "" {
+			m.log.Info("port mapping: cleared another Node's forward", "port", w.String(), "from", cleared)
 		}
 		m.mu.Lock()
 		l := m.state[key{w.Port, w.Proto}]
@@ -308,10 +357,53 @@ func (m *Manager) tick(ctx context.Context) {
 	}
 }
 
-func (m *Manager) setErr(w Mapping, msg string) {
+// claim makes sure the router forwards w to ip once Add has answered OK.
+// A router can keep an entry per machine for the same port and go on
+// forwarding to the first one while telling the second it succeeded: the
+// eero does, and Avalon, back from a reboot, spent half an hour "forwarded"
+// while 443 still went to Boulder, which had held it meanwhile. Another
+// Node's forward is cleared, since the Fleet gave this Node the port;
+// anything else on it is left and reported, and the next pass tries again.
+// cleared names the address whose forward was removed.
+func claim(ctx context.Context, router Router, w Mapping, ip string) (cleared string, err error) {
+	client, desc, err := router.Holder(ctx, w)
+	if err != nil || client == ip {
+		return "", nil // a router that cannot say is taken at its word
+	}
+	if client != "" && strings.HasPrefix(desc, descPrefix) {
+		if err := router.Delete(ctx, w, client); err != nil {
+			return "", fmt.Errorf("forwarded to %s by another Node, which could not be cleared: %w", client, err)
+		}
+		cleared = client
+		if err := router.Add(ctx, w, ip, Lease); err != nil {
+			return cleared, err
+		}
+		if client, desc, err = router.Holder(ctx, w); err != nil || client == ip {
+			return cleared, nil
+		}
+	}
+	if client == "" {
+		return cleared, errors.New("the router accepted the forward but does not use it")
+	}
+	return cleared, fmt.Errorf("the router still forwards it to %s (%s)", client, or(desc, "no description"))
+}
+
+func or(s, alt string) string {
+	if s == "" {
+		return alt
+	}
+	return s
+}
+
+// setErr records why w is not forwarded, and says whether that is news:
+// a failure repeated each minute is logged once.
+func (m *Manager) setErr(w Mapping, msg string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.state[key{w.Port, w.Proto}] = &live{m: w, err: msg}
+	k := key{w.Port, w.Proto}
+	l := m.state[k]
+	m.state[k] = &live{m: w, err: msg}
+	return l == nil || l.err != msg
 }
 
 // release deletes every mapping at shutdown; a stopped Node should not
@@ -325,7 +417,10 @@ func (m *Manager) release() {
 			del = append(del, *l)
 		}
 	}
-	m.state = map[key]*live{}
+	for _, l := range m.gone {
+		del = append(del, *l)
+	}
+	m.state, m.gone = map[key]*live{}, map[key]*live{}
 	m.mu.Unlock()
 	if router == nil {
 		return
@@ -357,7 +452,7 @@ type upnpRouter struct {
 func (r *upnpRouter) Name() string { return r.name }
 
 func (r *upnpRouter) Add(ctx context.Context, m Mapping, ip string, lease time.Duration) error {
-	desc := "Maitre " + m.Owner
+	desc := descPrefix + m.Owner
 	err := r.add(ctx, "", m.Port, strings.ToUpper(m.Proto), m.Port, ip, true, desc, uint32(lease/time.Second))
 	if err != nil {
 		// Older gateways only take permanent leases (error 725
@@ -369,18 +464,42 @@ func (r *upnpRouter) Add(ctx context.Context, m Mapping, ip string, lease time.D
 	return err
 }
 
+func (r *upnpRouter) Holder(ctx context.Context, m Mapping) (string, string, error) {
+	_, client, _, desc, _, err := r.get(ctx, "", m.Port, strings.ToUpper(m.Proto))
+	if upnpCode(err) == 714 { // NoSuchEntryInArray
+		return "", "", nil
+	}
+	return client, desc, err
+}
+
+// Delete asks again after each delete: a router that keeps an entry per
+// machine shows the next one once the first is gone, and Boulder's "removed"
+// 443 once went on forwarding to Boulder.
 func (r *upnpRouter) Delete(ctx context.Context, m Mapping, ip string) error {
 	proto := strings.ToUpper(m.Proto)
-	_, client, _, _, _, err := r.get(ctx, "", m.Port, proto)
-	switch {
-	case upnpCode(err) == 714: // NoSuchEntryInArray: already gone
-		return nil
-	case err == nil && client != ip:
-		return fmt.Errorf("%w (%s)", ErrNotOurs, client)
+	for removed := 0; removed < 4; removed++ {
+		client, _, err := r.Holder(ctx, m)
+		switch {
+		case err == nil && client == "":
+			return nil
+		case err == nil && client != ip && removed > 0:
+			return nil
+		case err == nil && client != ip:
+			return fmt.Errorf("%w (%s)", ErrNotOurs, client)
+		}
+		if derr := r.del(ctx, "", m.Port, proto); derr != nil {
+			if upnpCode(derr) == 714 {
+				return nil
+			}
+			return derr
+		}
+		if err != nil {
+			// A router that cannot say who holds the port is answered as
+			// before: deleted once.
+			return nil
+		}
 	}
-	// A router that cannot say who holds the port is answered as before:
-	// the mapping is deleted.
-	return r.del(ctx, "", m.Port, proto)
+	return errors.New("the router still forwards it here after four deletes")
 }
 
 // upnpCode is the UPnP error code in a SOAP fault, 0 for anything else.
