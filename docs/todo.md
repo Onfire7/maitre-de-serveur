@@ -24,6 +24,8 @@ The Tauri shell and the Console (`desktop/`).
 
 The Catalog entries and their format (`catalog/`, Onfire7/maitre-catalog).
 
+- **Add lawn** ([pingdotgg/lawn](https://github.com/pingdotgg/lawn), MIT, lawn.video): video review for creative teams, a self-hosted stand-in for Frame.io. It is not ready to package as it is. It deploys only to Vercel with a hosted Convex backend, ships no container image or Compose file, and its `.env.example` expects Clerk (sign-in), Stripe and Autumn (billing), Mux and Chunkify (video), and an S3 bucket. An entry needs a self-hosted Convex backend as a component, a local S3 store (or a volume) for the videos, and a way to run without Stripe and Autumn. Clerk and Mux are hosted services with no self-hosted version, so check first whether the app can run without them; if it can't, the entry needs a fork or an upstream change.
+
 ## CI and tooling
 
 GitHub Actions, the QEMU checks, `make` targets and the `maitre` development subcommands.
