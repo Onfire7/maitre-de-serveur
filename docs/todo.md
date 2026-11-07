@@ -18,6 +18,8 @@ The Protobuf schema between the Console and Nodes (`api/`).
 
 The Tauri shell and the Console (`desktop/`).
 
+- **Say how long this Node takes to update.** The Update confirmation says "A Node normally takes under a minute" (`app/NodeDetails.tsx`), which is wrong: a real update stages and reboots, and takes several minutes. "Stop for a minute or two" (`NodeDetails.tsx`, `app/NodesTab.tsx`) is the same guess. Each Node already keeps its `UpdateRun` history, with start and end times and an outcome. Use the average of its recent `OUTCOME_UPDATED` runs ("usually about 6 minutes"), and keep a plain fallback, without a number, for a Node with no finished update yet. To decide: the average or the median, how many runs to count, and whether a progress view should show the elapsed time against it.
+
 ## Catalog
 
 The Catalog entries and their format (`catalog/`, Onfire7/maitre-catalog).
