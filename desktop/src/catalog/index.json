@@ -273,7 +273,8 @@
         {
           "name": "db",
           "image": "docker.io/linuxserver/mariadb:10.11.6@sha256:7e34d92147dd7e1b63f43b3e76af73c273d7c3677786c32164a485f2a04964d8",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=MYSQL_DATABASE=bookstackapp\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=bookstack\nVolume={{ .Volumes.mysql }}:/config:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=mariadb-admin ping -h 127.0.0.1\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=MYSQL_DATABASE=bookstackapp\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=bookstack\nVolume={{ .Volumes.mysql }}:/config:Z\n"
         }
       ],
       "source": {
@@ -698,12 +699,14 @@
         {
           "name": "db",
           "image": "docker.io/library/postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_DB=docmost\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=POSTGRES_USER=docmost\nVolume={{ .Volumes.pgdata }}:/var/lib/postgresql/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U docmost -d docmost\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=docmost\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=POSTGRES_USER=docmost\nVolume={{ .Volumes.pgdata }}:/var/lib/postgresql/data:Z\n"
         },
         {
           "name": "redis",
           "image": "docker.io/library/redis:7.4.12-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
-          "quadlet": "[Container]\nImage={{ .Image }}\nVolume={{ .Volumes.redis }}:/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=redis-cli ping\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nVolume={{ .Volumes.redis }}:/data:Z\n"
         }
       ],
       "source": {
@@ -1391,7 +1394,8 @@
         {
           "name": "db",
           "image": "docker.io/library/mysql:8.4@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=MYSQL_DATABASE=ghost\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=ghost\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=mysqladmin ping -h 127.0.0.1\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=MYSQL_DATABASE=ghost\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=ghost\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
         }
       ],
       "source": {
@@ -2091,12 +2095,14 @@
         {
           "name": "redis",
           "image": "docker.io/valkey/valkey:9@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d",
+          "wait_healthy": true,
           "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=redis-cli ping | grep -q PONG || exit 1\n"
         },
         {
           "name": "database",
           "image": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=POSTGRES_USER=postgres\nEnvironment=POSTGRES_DB=immich\nEnvironment=POSTGRES_INITDB_ARGS=--data-checksums\nVolume={{ .Volumes.database }}:/var/lib/postgresql/data:Z\nShmSize=128m\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U postgres -d immich\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\nEnvironment=POSTGRES_USER=postgres\nEnvironment=POSTGRES_DB=immich\nEnvironment=POSTGRES_INITDB_ARGS=--data-checksums\nVolume={{ .Volumes.database }}:/var/lib/postgresql/data:Z\nShmSize=128m\n"
         }
       ],
       "units": [
@@ -2313,7 +2319,8 @@
         {
           "name": "db",
           "image": "docker.io/library/postgres:15.19@sha256:40e8c839f86c404f9bd1c456bb83f11b205f2cd95d753b34c2d074e89ecee786",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_DB=jfstat\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_USER=postgres\nVolume={{ .Volumes.postgres_data }}:/var/lib/postgresql/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U postgres -d jfstat\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=jfstat\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_USER=postgres\nVolume={{ .Volumes.postgres_data }}:/var/lib/postgresql/data:Z\n"
         }
       ],
       "source": {
@@ -2377,7 +2384,8 @@
         {
           "name": "db",
           "image": "docker.io/library/postgres:14.2@sha256:2c954f8c5d03da58f8b82645b783b56c1135df17e650b186b296fa1bb71f9cfd",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_DB=joplin\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_USER=joplin\nVolume={{ .Volumes.data }}:/var/lib/postgresql/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U joplin -d joplin\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=joplin\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.POSTGRES_PASSWORD }}\"\nEnvironment=POSTGRES_USER=joplin\nVolume={{ .Volumes.data }}:/var/lib/postgresql/data:Z\n"
         }
       ],
       "source": {
@@ -2457,12 +2465,14 @@
         {
           "name": "chrome",
           "image": "ghcr.io/karakeep-app/karakeep-chrome:release@sha256:49b5eaf63cac3b6ad6a28b2ce0cd421486f440a49db41221af6c1b3229d139bd",
-          "quadlet": "[Container]\nImage={{ .Image }}\nRunInit=true\nExec='--disable-gpu' '--disable-dev-shm-usage' '--hide-scrollbars' '--disable-blink-features=AutomationControlled' '--window-size=1440,900'\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=wget -q -O- http://localhost:9222/json/version\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nRunInit=true\nExec='--disable-gpu' '--disable-dev-shm-usage' '--hide-scrollbars' '--disable-blink-features=AutomationControlled' '--window-size=1440,900'\n"
         },
         {
           "name": "search",
           "image": "docker.io/getmeili/meilisearch:v1.56.1@sha256:b7ba431bf6f9b26cc86132798f3640964147a699cf23f026b74c6c05dbb1d60d",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=\"MEILI_MASTER_KEY={{ .Settings.MEILI_MASTER_KEY }}\"\nEnvironment=MEILI_NO_ANALYTICS=true\nVolume={{ .Volumes.meilisearch }}:/meili_data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=curl -fsS http://localhost:7700/health\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=\"MEILI_MASTER_KEY={{ .Settings.MEILI_MASTER_KEY }}\"\nEnvironment=MEILI_NO_ANALYTICS=true\nVolume={{ .Volumes.meilisearch }}:/meili_data:Z\n"
         }
       ],
       "source": {
@@ -2870,7 +2880,8 @@
         {
           "name": "search",
           "image": "docker.io/getmeili/meilisearch:v1.56.1@sha256:b7ba431bf6f9b26cc86132798f3640964147a699cf23f026b74c6c05dbb1d60d",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=MEILI_ENV=production\nEnvironment=\"MEILI_MASTER_KEY={{ .Settings.MEILI_MASTER_KEY }}\"\nVolume={{ .Volumes.meili_data }}:/meili_data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=curl -fsS http://localhost:7700/health\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=MEILI_ENV=production\nEnvironment=\"MEILI_MASTER_KEY={{ .Settings.MEILI_MASTER_KEY }}\"\nVolume={{ .Volumes.meili_data }}:/meili_data:Z\n"
         },
         {
           "name": "db",
@@ -3170,7 +3181,8 @@
         {
           "name": "db",
           "image": "docker.io/library/mariadb:11.8.9@sha256:c4124d1afa875e47f2892edf26b482fa54f796e2f342d3717a04ca091a22a9bd",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=MARIADB_DATABASE=monica\nEnvironment=\"MARIADB_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=MARIADB_RANDOM_ROOT_PASSWORD=true\nEnvironment=MARIADB_USER=monicauser\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=healthcheck.sh --connect --innodb_initialized\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=MARIADB_DATABASE=monica\nEnvironment=\"MARIADB_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=MARIADB_RANDOM_ROOT_PASSWORD=true\nEnvironment=MARIADB_USER=monicauser\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
         }
       ],
       "source": {
@@ -3434,7 +3446,8 @@
         {
           "name": "db",
           "image": "docker.io/library/postgres:13@sha256:4689940c683801b4ab839ab3b0a0a3555a5fe425371422310944e89eca7d8068",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_DB=nocodb\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=POSTGRES_USER=nocodb\nVolume={{ .Volumes.pgdata }}:/var/lib/postgresql/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U nocodb -d nocodb\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=nocodb\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=POSTGRES_USER=nocodb\nVolume={{ .Volumes.pgdata }}:/var/lib/postgresql/data:Z\n"
         },
         {
           "name": "redis",
@@ -3846,12 +3859,14 @@
         {
           "name": "broker",
           "image": "docker.io/library/redis:8.10.2@sha256:97ec88159e6d7cfb5ddef9015386087d58a912de80112f06ebdfa78fa5989901",
-          "quadlet": "[Container]\nImage={{ .Image }}\nVolume={{ .Volumes.redis }}:/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=redis-cli ping\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nVolume={{ .Volumes.redis }}:/data:Z\n"
         },
         {
           "name": "db",
           "image": "docker.io/library/postgres:16@sha256:be01cf82fc7dbba824acf0a82e150b4b360f3ff93c6631d7844af431e841a95c",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=POSTGRES_DB=paperless\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.PAPERLESS_DBPASS }}\"\nEnvironment=POSTGRES_USER=paperless\nVolume={{ .Volumes.postgres }}:/var/lib/postgresql/data:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=pg_isready -U paperless -d paperless\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=POSTGRES_DB=paperless\nEnvironment=\"POSTGRES_PASSWORD={{ .Settings.PAPERLESS_DBPASS }}\"\nEnvironment=POSTGRES_USER=paperless\nVolume={{ .Volumes.postgres }}:/var/lib/postgresql/data:Z\n"
         },
         {
           "name": "gotenberg",
@@ -5646,7 +5661,8 @@
         {
           "name": "db",
           "image": "docker.io/library/mysql:8.4@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7",
-          "quadlet": "[Container]\nImage={{ .Image }}\nEnvironment=MYSQL_DATABASE=wordpress\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=wordpress\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=mysqladmin ping -h 127.0.0.1\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nEnvironment=MYSQL_DATABASE=wordpress\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.DB_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=wordpress\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
         }
       ],
       "source": {
