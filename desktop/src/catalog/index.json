@@ -5411,7 +5411,8 @@
         {
           "name": "db",
           "image": "docker.io/library/mariadb:11@sha256:efb4959ef2c835cd735dbc388eb9ad6aab0c78dd64febcd51bc17481111890c4",
-          "quadlet": "[Container]\nImage={{ .Image }}\nExec='--character-set-server=utf8mb4' '--collation-server=utf8mb4_unicode_ci'\nEnvironment=MYSQL_DATABASE=vikunja\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.VIKUNJA_DATABASE_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=vikunja\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
+          "wait_healthy": true,
+          "quadlet": "[Container]\nImage={{ .Image }}\nHealthCmd=healthcheck.sh --connect --innodb_initialized\nHealthInterval=10s\nHealthTimeout=5s\nHealthRetries=5\nHealthStartPeriod=30s\nExec='--character-set-server=utf8mb4' '--collation-server=utf8mb4_unicode_ci'\nEnvironment=MYSQL_DATABASE=vikunja\nEnvironment=\"MYSQL_PASSWORD={{ .Settings.VIKUNJA_DATABASE_PASSWORD }}\"\nEnvironment=\"MYSQL_ROOT_PASSWORD={{ .Settings.DB_ROOT_PASSWORD }}\"\nEnvironment=MYSQL_USER=vikunja\nVolume={{ .Volumes.mysql }}:/var/lib/mysql:Z\n"
         }
       ],
       "source": {

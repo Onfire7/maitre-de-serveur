@@ -934,7 +934,18 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 		// start with "start request repeated too quickly", which would make
 		// the Console's Start look broken. Asking again is the user saying
 		// to try now, so the counter is cleared first.
-		_, _ = m.run.Run(ctx, "systemctl", "reset-failed", unit)
+		//
+		// Every unit of the Service, not only the one the lifecycle hangs
+		// off: in a Service of several containers that is the .target, and
+		// clearing a target clears nothing for the components under it. A
+		// component that burnt its five starts -- vikunja's app did on
+		// Avalon on 2026-11-06, in twenty-five seconds, while MariaDB was
+		// still opening its socket -- then stayed down for the hour with
+		// Start and Restart both answering as though they had done
+		// something, and the restart counter frozen to prove they had not.
+		for _, u := range append(componentServiceUnits(&spec), unit) {
+			_, _ = m.run.Run(ctx, "systemctl", "reset-failed", u)
+		}
 		_, err := m.run.Run(ctx, "systemctl", "start", "--no-block", unit)
 		if err != nil {
 			return nil, err
@@ -944,6 +955,12 @@ func (m *Manager) Control(ctx context.Context, req *maitrev1.ControlServiceReque
 			return nil, err
 		}
 	case maitrev1.ControlServiceRequest_ACTION_RESTART:
+		// Restart is the user asking for it now too, so the same clearing
+		// as Start above: a component held by its start limit would make
+		// Restart a no-op that reports success.
+		for _, u := range append(componentServiceUnits(&spec), unit) {
+			_, _ = m.run.Run(ctx, "systemctl", "reset-failed", u)
+		}
 		if _, err := m.run.Run(ctx, "systemctl", "restart", "--no-block", unit); err != nil {
 			return nil, err
 		}
