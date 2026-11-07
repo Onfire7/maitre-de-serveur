@@ -104,7 +104,7 @@ func TestStartStagesAndReboots(t *testing.T) {
 	f := &fakeRunner{}
 	m := New(f, nil)
 	m.RegistriesDir = t.TempDir()
-	if err := m.Start("192.168.1.5:8080/maitre-server:dev", true, true); err != nil {
+	if err := m.Start("192.168.1.5:8080/maitre-server:dev", true, true, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	st := wait(t, m, maitrev1.UpdateStatus_STATE_REBOOTING)
@@ -118,7 +118,7 @@ func TestStartStagesAndReboots(t *testing.T) {
 	if err != nil || !strings.Contains(string(b), `location = "192.168.1.5:8080"`) || !strings.Contains(string(b), "insecure = true") {
 		t.Errorf("registries drop-in: %v %s", err, b)
 	}
-	if err := m.Start("x/y:z", false, false); !errors.Is(err, ErrBusy) {
+	if err := m.Start("x/y:z", false, false, "test-device"); !errors.Is(err, ErrBusy) {
 		t.Errorf("second start: %v", err)
 	}
 }
@@ -126,7 +126,7 @@ func TestStartStagesAndReboots(t *testing.T) {
 func TestStartWithoutReboot(t *testing.T) {
 	f := &fakeRunner{}
 	m := New(f, nil)
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	st := wait(t, m, maitrev1.UpdateStatus_STATE_IDLE)
@@ -143,7 +143,7 @@ func TestStartWithoutReboot(t *testing.T) {
 func TestStartFailure(t *testing.T) {
 	f := &fakeRunner{fail: true}
 	m := New(f, nil)
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", true, false); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", true, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED)
@@ -151,7 +151,7 @@ func TestStartFailure(t *testing.T) {
 		t.Errorf("message = %q", st.GetMessage())
 	}
 	// A failed update does not block the next one.
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -183,7 +183,7 @@ func TestInsecureOnlyForLANHosts(t *testing.T) {
 	f := &fakeRunner{}
 	m := New(f, nil)
 	m.RegistriesDir = t.TempDir()
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, true); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, true, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED)
@@ -197,14 +197,14 @@ func TestInsecureOnlyForLANHosts(t *testing.T) {
 	}
 	// A secure update removes a previous insecure drop-in.
 	os.WriteFile(filepath.Join(m.RegistriesDir, InsecureDropIn), []byte("x"), 0o644)
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	wait(t, m, maitrev1.UpdateStatus_STATE_IDLE)
 	if _, err := os.Stat(filepath.Join(m.RegistriesDir, InsecureDropIn)); err == nil {
 		t.Error("insecure drop-in survived a secure update")
 	}
-	if err := m.Start("--retain", false, false); err != nil {
+	if err := m.Start("--retain", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	if st := wait(t, m, maitrev1.UpdateStatus_STATE_FAILED); !strings.Contains(st.GetMessage(), "not an image reference") {
@@ -216,7 +216,7 @@ func TestSameReferenceUpgrades(t *testing.T) {
 	f := &fakeRunner{}
 	m := New(f, nil)
 	// sampleStatus boots ghcr.io/onfire7/maitre-server:main.
-	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false); err != nil {
+	if err := m.Start("ghcr.io/onfire7/maitre-server:main", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	wait(t, m, maitrev1.UpdateStatus_STATE_IDLE)
@@ -225,7 +225,7 @@ func TestSameReferenceUpgrades(t *testing.T) {
 	}
 	f2 := &fakeRunner{}
 	m2 := New(f2, nil)
-	if err := m2.Start("ghcr.io/onfire7/maitre-server:other", false, false); err != nil {
+	if err := m2.Start("ghcr.io/onfire7/maitre-server:other", false, false, "test-device"); err != nil {
 		t.Fatal(err)
 	}
 	wait(t, m2, maitrev1.UpdateStatus_STATE_IDLE)
@@ -248,16 +248,21 @@ func TestHooks(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := New(&fakeRunner{fail: c.fail}, nil)
 			var mu sync.Mutex
-			var started string
+			var started, startedBy string
 			var ended maitrev1.UpdateRun_Outcome
-			m.OnStart = func(image string) { mu.Lock(); started = image; mu.Unlock() }
+			m.OnStart = func(image, by string) { mu.Lock(); started, startedBy = image, by; mu.Unlock() }
 			m.OnEnd = func(o maitrev1.UpdateRun_Outcome, _ string) { mu.Lock(); ended = o; mu.Unlock() }
-			if err := m.Start("ghcr.io/onfire7/maitre-server:main", c.reboot, false); err != nil {
+			if err := m.Start("ghcr.io/onfire7/maitre-server:main", c.reboot, false, "test-device"); err != nil {
 				t.Fatal(err)
 			}
 			mu.Lock()
 			if started != "ghcr.io/onfire7/maitre-server:main" {
 				t.Errorf("OnStart not called before Start returned: %q", started)
+			}
+			// The caller reaches the record through OnStart, which is the
+			// only place that knows it.
+			if startedBy != "test-device" {
+				t.Errorf("OnStart lost who asked: %q", startedBy)
 			}
 			mu.Unlock()
 			state := map[maitrev1.UpdateRun_Outcome]maitrev1.UpdateStatus_State{

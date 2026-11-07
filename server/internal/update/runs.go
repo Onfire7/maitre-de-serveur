@@ -24,9 +24,14 @@ func BootID() string {
 	return strings.TrimSpace(string(b))
 }
 
-// Begin marks n as updating to target from the image it runs now.
-func Begin(n *maitrev1.Node, target, fromDigest, bootID string, now time.Time) {
-	n.Updating = &maitrev1.NodeUpdate{StartedUnixMs: now.UnixMilli(), Target: target, FromDigest: fromDigest, BootId: bootID}
+// ByRollout is requested_by for the Fleet's own staged rollout, so an
+// update nobody asked for is not left looking like one somebody did.
+const ByRollout = "rollout"
+
+// Begin marks n as updating to target from the image it runs now, and who
+// asked (a Trusted Device's fingerprint, or ByRollout).
+func Begin(n *maitrev1.Node, target, fromDigest, bootID, by string, now time.Time) {
+	n.Updating = &maitrev1.NodeUpdate{StartedUnixMs: now.UnixMilli(), Target: target, FromDigest: fromDigest, BootId: bootID, RequestedBy: by}
 }
 
 // End closes n's update in progress, if any, as outcome; false when there
@@ -39,6 +44,7 @@ func End(n *maitrev1.Node, outcome maitrev1.UpdateRun_Outcome, toDigest, msg str
 	n.Updates = append(n.Updates, &maitrev1.UpdateRun{
 		StartedUnixMs: u.GetStartedUnixMs(), EndedUnixMs: now.UnixMilli(), Target: u.GetTarget(),
 		FromDigest: u.GetFromDigest(), ToDigest: toDigest, Outcome: outcome, Message: msg,
+		RequestedBy: u.GetRequestedBy(),
 	})
 	if len(n.Updates) > KeepRuns {
 		n.Updates = n.Updates[len(n.Updates)-KeepRuns:]

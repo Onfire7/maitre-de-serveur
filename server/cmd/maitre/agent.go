@@ -464,10 +464,10 @@ func runAgent(args []string) error {
 	// Decision 214: the Node says in its own record that it is updating,
 	// before the update starts and until it is back, so peers and the
 	// Console show it as updating while it is offline; only it writes that.
-	svc.Updates.OnStart = func(image string) {
+	svc.Updates.OnStart = func(image, requestedBy string) {
 		_, from := current()
 		editSelf(func(n *maitrev1.Node) bool {
-			update.Begin(n, image, from, update.BootID(), time.Now())
+			update.Begin(n, image, from, update.BootID(), requestedBy, time.Now())
 			return true
 		})
 	}
@@ -483,6 +483,15 @@ func runAgent(args []string) error {
 	ro := rollout.New(st, svc.Updates, log, id.Fingerprint())
 	ro.Current = current
 	svc.Rollout = func() string { return ro.Last.Reason }
+	// This Node's own update history, out of its record, so `maitre update`
+	// can say what changed its version and who asked for it.
+	svc.Runs = func() []*maitrev1.UpdateRun {
+		var n maitrev1.Node
+		if _, err := st.Get(ctx, store.KindNode, id.Fingerprint(), &n); err != nil {
+			return nil
+		}
+		return n.GetUpdates()
+	}
 	svc.Available = ro.Available
 	go ro.Run(ctx)
 	// The Depots this Node reaches, for a Console that cannot reach them.

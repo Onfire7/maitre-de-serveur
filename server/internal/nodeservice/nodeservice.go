@@ -93,6 +93,10 @@ type Service struct {
 	Tailscale func() *maitrev1.TailscaleStatus
 	// Rollout reports the staged rollout's last decision; nil if none.
 	Rollout func() string
+	// Runs reports this Node's finished update runs from its own record,
+	// newest last; nil when it keeps none. Reported so the history can be
+	// read at all: the record held it and nothing ever showed it.
+	Runs func() []*maitrev1.UpdateRun
 	// Available is the newer image digest the registry last offered; nil
 	// if none (UpdateStatus.available).
 	Available func() string
@@ -399,6 +403,9 @@ func (s *Service) OwnStatus(ctx context.Context) *maitrev1.FleetNodeStatus {
 	if st := s.cachedUpdate(ctx); st != nil {
 		self.UpdateState, self.UpdateMessage, self.UpdateProgress = st.GetState(), st.GetMessage(), st.GetProgress()
 		self.UpdateStaged, self.LastRollback = st.GetStaged() != nil && !st.GetRollbackQueued(), st.GetLastRollback()
+		if self.UpdateStaged {
+			self.StagedVersion = st.GetStaged().GetVersion()
+		}
 		self.UpdateAvailable = st.GetAvailable() != ""
 	}
 	if s.Peers != nil {
@@ -462,6 +469,7 @@ func (s *Service) GetFleetStatus(ctx context.Context, _ *maitrev1.GetFleetStatus
 				st.Services, st.ServicesUnixMs = last.GetServices(), last.GetServicesUnixMs()
 				st.UpdateState, st.UpdateMessage, st.UpdateProgress = last.GetUpdateState(), last.GetUpdateMessage(), last.GetUpdateProgress()
 				st.UpdateStaged, st.LastRollback = last.GetUpdateStaged(), last.GetLastRollback()
+				st.StagedVersion = last.GetStagedVersion()
 				st.UpdateAvailable = last.GetUpdateAvailable()
 				st.SyncGaps = last.GetSyncGaps()
 				st.Entries = last.GetEntries()
@@ -507,6 +515,9 @@ func (s *Service) decorate(st *maitrev1.UpdateStatus) {
 	if s.Rollout != nil {
 		st.Rollout = s.Rollout()
 	}
+	if s.Runs != nil {
+		st.Runs = s.Runs()
+	}
 	if s.Offers != nil {
 		st.DepotImages = s.Offers()
 	}
@@ -521,11 +532,18 @@ func (s *Service) decorate(st *maitrev1.UpdateStatus) {
 }
 
 // UpdateImage implements NodeService.
-func (s *Service) UpdateImage(_ context.Context, req *maitrev1.UpdateImageRequest) (*maitrev1.UpdateImageResponse, error) {
+func (s *Service) UpdateImage(ctx context.Context, req *maitrev1.UpdateImageRequest) (*maitrev1.UpdateImageResponse, error) {
 	if s.Updates == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "this Node does not run on bootc (dev mode)")
 	}
-	switch err := s.Updates.Start(req.GetImage(), req.GetReboot(), req.GetInsecureRegistry()); {
+	// Who asked, recorded on the run: a version that changed is otherwise
+	// traceable to nobody, and a staged update that applies at some later
+	// reboot is exactly the case where that matters.
+	by := ""
+	if p, ok := peer.From(ctx); ok {
+		by = p.Fingerprint
+	}
+	switch err := s.Updates.Start(req.GetImage(), req.GetReboot(), req.GetInsecureRegistry(), by); {
 	case errors.Is(err, update.ErrBusy):
 		return nil, connect.Errorf(connect.CodeFailedPrecondition, "%v", err)
 	case err != nil:

@@ -16,6 +16,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/update"
 )
 
 // runUpdate is `maitre update`: the Console's Update panel for a terminal.
@@ -130,5 +131,52 @@ func runUpdate(args []string) error {
 	for _, d := range st.GetDepotImages() {
 		fmt.Printf("depot     %s  %s  %s  %s\n", d.GetRef(), d.GetDigest(), d.GetVersion(), d.GetCreated())
 	}
+	// The Node's own update history, newest last. "staged" here is the one
+	// worth reading twice: it means that run never rebooted, so the image
+	// it pulled applies at whatever restart comes next, however much later
+	// and whatever causes it.
+	runs := st.GetRuns()
+	if len(runs) > maxRuns {
+		runs = runs[len(runs)-maxRuns:]
+	}
+	for _, r := range runs {
+		fmt.Printf("run       %s  %-10s %-14s %s\n",
+			time.UnixMilli(r.GetStartedUnixMs()).Format("2006-01-02 15:04:05"),
+			outcomeWord(r.GetOutcome()), askedBy(r.GetRequestedBy()), r.GetTarget())
+	}
 	return nil
+}
+
+// maxRuns is how many of the Node's update runs the status prints.
+const maxRuns = 10
+
+// outcomeWord is an UpdateRun outcome in the words the Console uses.
+func outcomeWord(o maitrev1.UpdateRun_Outcome) string {
+	switch o {
+	case maitrev1.UpdateRun_OUTCOME_UPDATED:
+		return "updated"
+	case maitrev1.UpdateRun_OUTCOME_ROLLED_BACK:
+		return "rolled-back"
+	case maitrev1.UpdateRun_OUTCOME_FAILED:
+		return "failed"
+	case maitrev1.UpdateRun_OUTCOME_STAGED:
+		return "staged"
+	}
+	return "unknown"
+}
+
+// askedBy names who asked for an update run. A Node from before the field
+// existed recorded nobody, and saying so is better than an empty column
+// that reads like the Node did it to itself.
+func askedBy(by string) string {
+	switch by {
+	case "":
+		return "(not recorded)"
+	case update.ByRollout:
+		return "auto rollout"
+	}
+	if len(by) > 12 {
+		return "device " + by[:8]
+	}
+	return "device " + by
 }

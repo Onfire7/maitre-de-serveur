@@ -192,6 +192,10 @@ message FleetNodeStatus {
   string update_message = 9;
   double update_progress = 10;
   bool update_staged = 11;
+  // The version a staged update would boot, so a notice can name it. A
+  // staged deployment never expires: it applies at the next restart,
+  // whatever causes it, which is the point and also the hazard.
+  string staged_version = 24;
   string last_rollback = 12;
   // Set while the Node is still being installed: the answering Node has its
   // record but never heard from it, so it asks the Installer at the
@@ -323,6 +327,11 @@ message UpdateStatus {
   double progress = 7;
   // The image reference the running or last update was asked for.
   string target = 8;
+  // This Node's finished update runs, newest last, as its own record keeps
+  // them (fleet.proto UpdateRun). Reported here because nothing showed them
+  // anywhere: the record held the whole history and the only way to read it
+  // was to decode a protobuf by hand.
+  repeated UpdateRun runs = 14;
   // False when this Node does not run on bootc (dev mode), so none of the
   // update calls work.
   bool supported = 9;

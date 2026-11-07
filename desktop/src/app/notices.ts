@@ -32,9 +32,23 @@ export function notices(snap: FleetSnapshot | undefined, found: Found[], scope: 
     else if (nodeWord(st, now) === "Unreachable") out.push({ id: `unreachable:${n.nodeId}`, title: `${n.name} is unreachable`, detail: "Its Services are unavailable until it is back.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.updateState === 3) out.push({ id: `update-failed:${n.nodeId}`, title: `${n.name}'s update failed`, detail: st.updateMessage || "See the Node's details.", tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.lastRollback) out.push({ id: `rolled-back:${n.nodeId}`, title: `${n.name} rolled back its last update`, detail: st.lastRollback, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
-    else if (st?.updateStaged) out.push({ id: `staged:${n.nodeId}`, title: `${n.name} has an update staged`, detail: "Restart it to run the new version.", tab: "nodes", nodeId: n.nodeId, severity: "info" });
     else if (st?.problems.length) out.push({ id: `problems:${n.nodeId}`, title: `${n.name} needs attention`, detail: `${n.name} ${st.problems[0]}`, tab: "nodes", nodeId: n.nodeId, severity: "attention" });
     else if (st?.metrics?.poolFallback) out.push({ id: `fallback:${n.nodeId}`, title: `${n.name} has no Pool for the default Space`, detail: "Service data is landing on its system disk.", tab: "storage", nodeId: n.nodeId, severity: "attention" });
+    // Outside the chain above, because a staged update is a standing fact
+    // about the Node and stays true while something else is also wrong with
+    // it -- unreachable, failed, rolled back -- each of which used to hide
+    // it. It does not expire, which is the point: the new image waits for a
+    // convenient restart. The hazard is that *any* restart will do, so the
+    // wording says which version will come up rather than only "restart it".
+    if (st?.updateStaged)
+      out.push({
+        id: `staged:${n.nodeId}`,
+        title: `${n.name} will start ${st.stagedVersion || "a new version"} at its next restart`,
+        detail: "The update is downloaded and waiting. It stays staged until something restarts the Node, whether that is you, a power cut or a failed boot — so its version can change without anyone updating it that day.",
+        tab: "nodes",
+        nodeId: n.nodeId,
+        severity: "info",
+      });
   }
   // Decision 168: a Node holding older copies than another.
   const name = (id: string) => snap.nodes.find((n) => n.nodeId === id)?.name ?? id.slice(0, 8);

@@ -59,7 +59,7 @@ type Manager struct {
 	// as updating in its record first (decision 214); OnEnd when one ends
 	// without the reboot (it failed, or was only staged). Both optional; a
 	// reboot's end is recorded at the next start (Back).
-	OnStart func(image string)
+	OnStart func(image, requestedBy string)
 	OnEnd   func(outcome maitrev1.UpdateRun_Outcome, msg string)
 
 	mu       sync.Mutex
@@ -116,7 +116,7 @@ var ErrBusy = errors.New("an update is already in progress")
 // Start stages image in the background. When reboot is set the Node reboots
 // once staging succeeds. insecure marks the image's registry host as plain
 // HTTP / untrusted TLS before pulling.
-func (m *Manager) Start(image string, reboot, insecure bool) error {
+func (m *Manager) Start(image string, reboot, insecure bool, requestedBy string) error {
 	image = strings.TrimSpace(image)
 	if image == "" {
 		return errors.New("image reference is empty")
@@ -129,7 +129,7 @@ func (m *Manager) Start(image string, reboot, insecure bool) error {
 	m.state, m.message, m.progress, m.target = maitrev1.UpdateStatus_STATE_UPDATING, "starting", 0, image
 	m.mu.Unlock()
 	if m.OnStart != nil {
-		m.OnStart(image)
+		m.OnStart(image, requestedBy)
 	}
 	go m.stage(image, reboot, insecure)
 	return nil

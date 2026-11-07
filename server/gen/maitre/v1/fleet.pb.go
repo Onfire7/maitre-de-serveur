@@ -446,7 +446,13 @@ type NodeUpdate struct {
 	FromDigest string `protobuf:"bytes,3,opt,name=from_digest,json=fromDigest,proto3" json:"from_digest,omitempty"`
 	// The kernel's boot id when it started: still the same at the next start
 	// means the agent restarted without the reboot (the update was cut short).
-	BootId        string `protobuf:"bytes,4,opt,name=boot_id,json=bootId,proto3" json:"boot_id,omitempty"`
+	BootId string `protobuf:"bytes,4,opt,name=boot_id,json=bootId,proto3" json:"boot_id,omitempty"`
+	// Who asked for it: the key fingerprint of the Trusted Device that called
+	// UpdateImage, or "rollout" for the Fleet's own staged rollout. Empty from
+	// a Node too old to record it. Without this a version that changed could
+	// not be traced to anyone, which on 2026-11-06 took an evening to work
+	// out and ended in a guess.
+	RequestedBy   string `protobuf:"bytes,5,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -509,6 +515,13 @@ func (x *NodeUpdate) GetBootId() string {
 	return ""
 }
 
+func (x *NodeUpdate) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
+	}
+	return ""
+}
+
 // UpdateRun is one finished update.
 type UpdateRun struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -518,9 +531,11 @@ type UpdateRun struct {
 	Target      string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
 	FromDigest  string `protobuf:"bytes,4,opt,name=from_digest,json=fromDigest,proto3" json:"from_digest,omitempty"`
 	// What it booted afterwards.
-	ToDigest      string            `protobuf:"bytes,5,opt,name=to_digest,json=toDigest,proto3" json:"to_digest,omitempty"`
-	Outcome       UpdateRun_Outcome `protobuf:"varint,6,opt,name=outcome,proto3,enum=maitre.v1.UpdateRun_Outcome" json:"outcome,omitempty"`
-	Message       string            `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
+	ToDigest string            `protobuf:"bytes,5,opt,name=to_digest,json=toDigest,proto3" json:"to_digest,omitempty"`
+	Outcome  UpdateRun_Outcome `protobuf:"varint,6,opt,name=outcome,proto3,enum=maitre.v1.UpdateRun_Outcome" json:"outcome,omitempty"`
+	Message  string            `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
+	// Who asked for it, as NodeUpdate.requested_by above.
+	RequestedBy   string `protobuf:"bytes,8,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -600,6 +615,13 @@ func (x *UpdateRun) GetOutcome() UpdateRun_Outcome {
 func (x *UpdateRun) GetMessage() string {
 	if x != nil {
 		return x.Message
+	}
+	return ""
+}
+
+func (x *UpdateRun) GetRequestedBy() string {
+	if x != nil {
+		return x.RequestedBy
 	}
 	return ""
 }
@@ -1278,14 +1300,15 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	" \x01(\tR\x11nfsCertificatePem\x12:\n" +
 	"\x19nfs_certificate_signature\x18\v \x01(\fR\x17nfsCertificateSignature\x121\n" +
 	"\bupdating\x18\f \x01(\v2\x15.maitre.v1.NodeUpdateR\bupdating\x12.\n" +
-	"\aupdates\x18\r \x03(\v2\x14.maitre.v1.UpdateRunR\aupdates\"\x86\x01\n" +
+	"\aupdates\x18\r \x03(\v2\x14.maitre.v1.UpdateRunR\aupdates\"\xa9\x01\n" +
 	"\n" +
 	"NodeUpdate\x12&\n" +
 	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x1f\n" +
 	"\vfrom_digest\x18\x03 \x01(\tR\n" +
 	"fromDigest\x12\x17\n" +
-	"\aboot_id\x18\x04 \x01(\tR\x06bootId\"\xf9\x02\n" +
+	"\aboot_id\x18\x04 \x01(\tR\x06bootId\x12!\n" +
+	"\frequested_by\x18\x05 \x01(\tR\vrequestedBy\"\x9c\x03\n" +
 	"\tUpdateRun\x12&\n" +
 	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\"\n" +
 	"\rended_unix_ms\x18\x02 \x01(\x03R\vendedUnixMs\x12\x16\n" +
@@ -1294,7 +1317,8 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"fromDigest\x12\x1b\n" +
 	"\tto_digest\x18\x05 \x01(\tR\btoDigest\x126\n" +
 	"\aoutcome\x18\x06 \x01(\x0e2\x1c.maitre.v1.UpdateRun.OutcomeR\aoutcome\x12\x18\n" +
-	"\amessage\x18\a \x01(\tR\amessage\"x\n" +
+	"\amessage\x18\a \x01(\tR\amessage\x12!\n" +
+	"\frequested_by\x18\b \x01(\tR\vrequestedBy\"x\n" +
 	"\aOutcome\x12\x17\n" +
 	"\x13OUTCOME_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOUTCOME_UPDATED\x10\x01\x12\x17\n" +

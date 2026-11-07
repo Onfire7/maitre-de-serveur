@@ -89,6 +89,12 @@ message NodeUpdate {
   // The kernel's boot id when it started: still the same at the next start
   // means the agent restarted without the reboot (the update was cut short).
   string boot_id = 4;
+  // Who asked for it: the key fingerprint of the Trusted Device that called
+  // UpdateImage, or "rollout" for the Fleet's own staged rollout. Empty from
+  // a Node too old to record it. Without this a version that changed could
+  // not be traced to anyone, which on 2026-11-06 took an evening to work
+  // out and ended in a guess.
+  string requested_by = 5;
 }
 
 // UpdateRun is one finished update.
@@ -113,6 +119,8 @@ message UpdateRun {
   }
   Outcome outcome = 6;
   string message = 7;
+  // Who asked for it, as NodeUpdate.requested_by above.
+  string requested_by = 8;
 }
 
 // FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"
