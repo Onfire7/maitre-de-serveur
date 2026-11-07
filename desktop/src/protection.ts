@@ -3,7 +3,7 @@
 // the most copies a Space can ask for (decision 259). Pure functions, so
 // the Protection tab, the Storage tab's cards and the tests share them.
 import type { FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
-import type { DriveRecord, Space } from "@/gen/maitre/v1/storage_pb";
+import type { Drive, DriveRecord, Space } from "@/gen/maitre/v1/storage_pb";
 import { spacesOf } from "@/spaces";
 
 export type Word = "Protected" | "Partly protected" | "Not protected" | "Off" | "Held" | "Drive missing" | "Building parity" | "Rebuilding";
@@ -22,6 +22,15 @@ export interface Coverage {
 /** The role a record says, "data" when it says none. */
 export function roleOf(d: DriveRecord): "data" | "parity" | "mirrored" {
   return d.role === "parity" || d.role === "mirrored" ? d.role : "data";
+}
+
+/**
+ * A disk no record knows that carries Maître parity: one from before a
+ * reinstall, or one a failed Parity Drive switch formatted and then lost
+ * track of. The Node takes it back as a Parity Drive as it is (decision 225).
+ */
+export function heldParity(d: Drive): boolean {
+  return !d.adopted && d.fstype === "btrfs" && d.label.startsWith("maitre-parity-");
 }
 
 /** The Drives of a Space on a Node that hold its files: not Parity Drives, not replaced ones. */

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { FleetNodeStatusSchema, type FleetNodeStatus } from "@/gen/maitre/v1/node_pb";
-import { DriveRecordSchema, SpaceSchema } from "@/gen/maitre/v1/storage_pb";
-import { coverage, maxCopies, nextSync, scheduleWords } from "./protection";
+import { DriveRecordSchema, DriveSchema, SpaceSchema } from "@/gen/maitre/v1/storage_pb";
+import { coverage, heldParity, maxCopies, nextSync, scheduleWords } from "./protection";
 
 const spaces = [
   create(SpaceSchema, { spaceId: "media", name: "Media", requireTags: ["hdd"], parityLevel: 1, spanNodes: true, priority: 10 }),
@@ -74,5 +74,14 @@ describe("schedule", () => {
     const sat = new Date(2026, 9, 31, 12, 0);
     expect(nextSync({ syncTime: "", syncDays: [] }, sat).getTime()).toBe(new Date(2026, 10, 1, 3, 0).getTime());
     expect(nextSync({ syncTime: "02:00", syncDays: [1, 4] }, sat).getTime()).toBe(new Date(2026, 10, 2, 2, 0).getTime());
+  });
+});
+
+describe("heldParity", () => {
+  it("is a btrfs disk labelled for parity that no record knows", () => {
+    expect(heldParity(create(DriveSchema, { device: "/dev/sdd1", fstype: "btrfs", label: "maitre-parity-atlas" }))).toBe(true);
+    expect(heldParity(create(DriveSchema, { device: "/dev/sdd1", fstype: "btrfs", label: "maitre-parity-atlas", adopted: true }))).toBe(false);
+    expect(heldParity(create(DriveSchema, { device: "/dev/sdd1", fstype: "btrfs", label: "maitre-atlas" }))).toBe(false);
+    expect(heldParity(create(DriveSchema, { device: "/dev/sdd1", fstype: "xfs", label: "maitre-parity-atlas" }))).toBe(false);
   });
 });

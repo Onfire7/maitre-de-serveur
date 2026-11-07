@@ -1,7 +1,8 @@
 // The demo Fleet's storage protection (ADR 0009): Parity Drives, Drains,
 // copies and Mirrored Drives, simulated well enough for the Console to be
 // built and screenshotted against it. `?scenario=held` holds Alder's last
-// parity update; `?scenario=failed` takes Atlas away.
+// parity update; `?scenario=failed` takes Atlas away; `?scenario=lost-parity`
+// leaves a disk on Basalt formatted for parity with no record.
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { DriveRecordSchema, type CheckParityDriveResponse, type DrainJob, type DrainPlan, type Drive, type MirrorStatus, type ParityStatus, type CopiesStatus } from "@/gen/maitre/v1/storage_pb";
@@ -223,6 +224,7 @@ export function checkParity(f: DemoFleet, n: DemoNode, driveId: string, device: 
   }
   res.protects = [...protects].sort();
   if (d.sizeBytes < res.largestProtectedBytes) res.blockers.push(`${name} holds ${fmt(d.sizeBytes)}; a Drive it would protect holds ${fmt(res.largestProtectedBytes)}. A Parity Drive must be at least as large as the most protected data on any one Drive.`);
+  if (!d.record && d.label.startsWith("maitre-parity-")) res.warnings.push("This disk holds Maître parity from before; it is kept, not formatted (decision 225).");
   if (protects.size === 0) res.warnings.push("No Space on this Node has a Parity Level yet; the Parity Drive protects nothing until one does.");
   if (d.record && d.folders.length) {
     const plan = planFor(f, d, looseTo, []);

@@ -20,7 +20,7 @@ import { nodeDown, nodeWord } from "@/fleet/useFleet";
 import { targetFor } from "@/fleet/actions";
 import type { ConsoleState } from "@/state";
 import { spacesOf } from "@/spaces";
-import { coverage, parityDrivesOf, roleOf } from "@/protection";
+import { coverage, heldParity, parityDrivesOf, roleOf } from "@/protection";
 import { colorOf } from "./StorageTab";
 import { COPIES_HELP, CopiesControl, DrainRow, LevelControl, MakeParityDialog, MirroredDialog, PARITY_HELP, ParityOffDialog, ParitySwitch, ReplaceDialog, ScheduleEditor, SpaceEdge, SyncLine, WordPill, needsUpdate, useSpacePut } from "./ProtectionControls";
 
@@ -177,7 +177,7 @@ function NodeParityCard({ snap, nodeId, name, spaces, live, target, onAsk }: { s
   const parityIds = parityDrivesOf(nodeId, drives, status);
   const pds = parityIds.map((id) => drives.find((d) => d.driveId === id)).filter((d): d is DriveRecord => !!d);
   const mirrors = drives.filter((d) => d.nodeId === nodeId && roleOf(d) === "mirrored" && !d.replacedBy);
-  const candidates = live.filter((d) => (d.adopted && d.record && roleOf(d.record) === "data" && d.record.origin !== "internal" && !d.record.draining) || (!d.adopted && !d.fstype));
+  const candidates = live.filter((d) => (d.adopted && d.record && roleOf(d.record) === "data" && d.record.origin !== "internal" && !d.record.draining) || (!d.adopted && !d.fstype) || heldParity(d));
   const blank = live.filter((d) => !d.adopted && !d.fstype && d.device === d.disk);
   const busy = status?.parity?.job !== "" && status?.parity?.job !== undefined;
   const liveOf = (id: string) => live.find((d) => d.driveId === id);
@@ -228,7 +228,7 @@ function NodeParityCard({ snap, nodeId, name, spaces, live, target, onAsk }: { s
             {candidates.map((d) => (
               <Button key={d.device} size="sm" variant="outline" className="h-6 text-xs" onClick={() => onAsk({ kind: "parity-on", nodeId, drive: d })}>
                 {d.record?.name || d.model} · {formatBytes(d.sizeBytes)}
-                {!d.adopted && " · blank"}
+                {!d.adopted && (heldParity(d) ? " · holds parity" : " · blank")}
               </Button>
             ))}
           </li>

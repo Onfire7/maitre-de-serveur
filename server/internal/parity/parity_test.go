@@ -31,6 +31,7 @@ const lsblk = `{"blockdevices":[
 type fakeRunner struct {
 	cmds      []string
 	formatted bool
+	label     string
 	diff      string
 }
 
@@ -40,13 +41,13 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	case "lsblk":
 		out := lsblk
 		if f.formatted {
-			out = strings.NewReplacer("FSTYPE", `"btrfs"`, "UUID", `"d1"`, "LABEL", `"maitre-parity-arbor"`).Replace(out)
+			out = strings.NewReplacer("FSTYPE", `"btrfs"`, "UUID", `"d1"`, "LABEL", `"`+f.label+`"`).Replace(out)
 		} else {
 			out = strings.NewReplacer("FSTYPE", "null", "UUID", "null", "LABEL", "null").Replace(out)
 		}
 		return out, nil
 	case "mkfs.btrfs":
-		f.formatted = true
+		f.formatted, f.label = true, args[2]
 	case "snapraid":
 		if len(args) >= 3 && args[2] == "diff" {
 			return f.diff, nil

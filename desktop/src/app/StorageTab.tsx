@@ -36,7 +36,7 @@ import { spacesOf } from "@/spaces";
 import { useRoute } from "./routes";
 // ADR 0009: a Space's protection on its card and the Parity Drive switch
 // on each Drive row; the Protection tab has the rest.
-import { coverage, roleOf } from "@/protection";
+import { coverage, heldParity, roleOf } from "@/protection";
 import { CopiesControl, LevelControl, MakeParityDialog, ParityOffDialog, ParitySwitch, WordPill } from "./ProtectionControls";
 
 // How a Space fills its Drives: decision 201 adds the least free ones (the
@@ -580,7 +580,7 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives, stat
                         <span className="size-2 rounded-full" style={{ background: colorOf(spaces[i], spaces) }} /> {spaces[i].name}
                       </Badge>
                     ))}
-                  {!d.adopted && <Badge variant="outline">not used</Badge>}
+                  {!d.adopted && <Badge variant="outline">{heldParity(d) ? "holds parity, not used" : "not used"}</Badge>}
                   {d.record?.origin === "internal" && <span className="text-xs text-muted-foreground">built in</span>}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground">
@@ -622,7 +622,12 @@ function NodeDrives({ nodeId, name, target, unreachable, spaces, allDrives, stat
               </div>
               <div className="flex items-center gap-1">
                 {d.adopted && <ParitySwitch drive={d} status={status} onAsk={(on) => setAsk({ on, drive: d })} />}
-                {!d.adopted && d.fstype && (
+                {heldParity(d) && (
+                  <Button size="sm" variant="outline" disabled={!target} title="Take it back as a Parity Drive, as it is" onClick={() => setAsk({ on: true, drive: d })}>
+                    Use as Parity Drive
+                  </Button>
+                )}
+                {!d.adopted && d.fstype && !heldParity(d) && (
                   <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "adopt", drive: d })}>
                     Adopt
                   </Button>

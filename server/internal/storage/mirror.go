@@ -73,12 +73,9 @@ func (m *Manager) MakeMirrored(ctx context.Context, devices []string, name strin
 		return nil, err
 	}
 	_, _ = m.run.Run(ctx, "btrfs", "device", "scan")
-	d, err := m.find(ctx, devices[0])
+	d, err := m.formatted(ctx, devices[0], label)
 	if err != nil {
 		return nil, err
-	}
-	if d.GetDriveId() == "" {
-		return nil, errors.New("formatted, but the new filesystem reports no UUID")
 	}
 	role := Role{Role: RoleMirrored}
 	for _, p := range pair {

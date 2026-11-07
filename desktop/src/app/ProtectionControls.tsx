@@ -23,7 +23,7 @@ import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { currentRecord, putSigned } from "@/fleet/sign";
 import { nextOwnerId } from "@/fleet/owners";
-import { COPIES_HELP, DAY, PARITY_HELP, maxCopies, nextSync, scheduleWords, type Word } from "@/protection";
+import { COPIES_HELP, DAY, PARITY_HELP, heldParity, maxCopies, nextSync, scheduleWords, type Word } from "@/protection";
 
 /** A Node that lacks a call answers Unimplemented: say what to do instead. */
 export function needsUpdate(e: unknown, nodeName: string): Error {
@@ -254,7 +254,7 @@ export function MakeParityDialog({ target, nodeName, drive, spaces, onDone }: { 
         <DialogHeader>
           <DialogTitle>Make {name} a Parity Drive?</DialogTitle>
           <DialogDescription>
-            A Parity Drive holds no files of its own. It keeps the information that rebuilds a failed Drive on {nodeName}, for every Space with a Parity Level. {drive.record ? `${name}'s files move to other Drives first; then it is erased and the first parity update runs. Services keep their files where they see them throughout.` : "The disk is erased and the first parity update runs."}
+            A Parity Drive holds no files of its own. It keeps the information that rebuilds a failed Drive on {nodeName}, for every Space with a Parity Level. {drive.record ? `${name}'s files move to other Drives first; then it is erased and the first parity update runs. Services keep their files where they see them throughout.` : heldParity(drive) ? "This disk already holds Maître parity. It is kept as it is, not erased, and the next parity update brings it up to date." : "The disk is erased and the first parity update runs."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
@@ -330,7 +330,7 @@ export function MakeParityDialog({ target, nodeName, drive, spaces, onDone }: { 
           )}
           {!blocked && (
             <div className="space-y-1">
-              <Label htmlFor="pd-name">Type {expected} to erase it{drive.record ? " once its files have moved" : ""}</Label>
+              <Label htmlFor="pd-name">Type {expected} {heldParity(drive) ? "to use it" : `to erase it${drive.record ? " once its files have moved" : ""}`}</Label>
               <Input id="pd-name" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
             </div>
           )}

@@ -284,3 +284,65 @@ func (f *fixedRunner) Run(ctx context.Context, name string, args ...string) (str
 	}
 	return f.inner.Run(ctx, name, args...)
 }
+
+// staleRunner is udev late after mkfs: lsblk keeps listing sdb1's old NTFS
+// filesystem for lag more calls, while blkid -p already reads the new one.
+type staleRunner struct {
+	cmds      []string
+	formatted bool
+	lag       int
+}
+
+func (f *staleRunner) Run(_ context.Context, name string, args ...string) (string, error) {
+	f.cmds = append(f.cmds, name+" "+strings.Join(args, " "))
+	switch name {
+	case "lsblk":
+		if f.formatted && f.lag == 0 {
+			return strings.Replace(lsblkFixture, `"fstype":"ntfs","uuid":"BBBB-1","label":"Media"`, `"fstype":"btrfs","uuid":"nnnn","label":"maitre-parity-media"`, 1), nil
+		}
+		if f.formatted {
+			f.lag--
+		}
+		return lsblkFixture, nil
+	case "mkfs.btrfs":
+		f.formatted = true
+	case "blkid":
+		if f.formatted {
+			return "nnnn\n", nil
+		}
+	}
+	return "", nil
+}
+
+// Reformat records the filesystem mkfs made, not the one lsblk still lists
+// from before it: recording the stale UUID left Avalon's new Parity Drive
+// with no record at all.
+func TestReformatWaitsForTheNewFilesystem(t *testing.T) {
+	ctx := context.Background()
+	st, _ := store.Open(filepath.Join(t.TempDir(), "fleet.db"), "node-a")
+	defer st.Close()
+	settleWait = 0
+	run := &staleRunner{lag: 3}
+	m := New(st, run)
+	m.Mounts = t.TempDir()
+	if _, err := m.Adopt(ctx, "/dev/sdb1", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	d, err := m.Reformat(ctx, "BBBB-1", Role{Role: RoleParity})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.GetDriveId() != "nnnn" || d.GetRecord().GetRole() != RoleParity || d.GetRecord().GetName() != "Media" {
+		t.Fatalf("reformatted: %v", d)
+	}
+	if after := strings.SplitN(strings.Join(run.cmds, "\n"), "mkfs.btrfs", 2)[1]; strings.Contains(after, "UUID=BBBB-1") || !strings.Contains(after, "mount -t btrfs -o noatime UUID=nnnn ") {
+		t.Fatalf("commands: %v", run.cmds)
+	}
+
+	// udev never catching up is an error naming what is still listed.
+	run2 := &staleRunner{lag: 1000}
+	m.run = run2
+	if _, err := m.Format(ctx, "/dev/sdc", "stick", nil, "Kingston DataTraveler"); err == nil || !strings.Contains(err.Error(), "still lists it") {
+		t.Fatalf("never settled: %v", err)
+	}
+}

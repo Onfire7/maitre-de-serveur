@@ -422,14 +422,42 @@ func (m *Manager) FormatAs(ctx context.Context, device, name string, tags []stri
 	if _, err := m.run.Run(ctx, "mkfs.btrfs", "-f", "-L", label, device); err != nil {
 		return nil, err
 	}
-	d, err = m.find(ctx, device)
+	d, err = m.formatted(ctx, device, label)
 	if err != nil {
 		return nil, err
 	}
-	if d.GetDriveId() == "" {
-		return nil, errors.New("formatted, but the new filesystem reports no UUID")
-	}
 	return m.recordAs(ctx, d, name, tags, "formatted", role)
+}
+
+// How long a new filesystem may take to show in lsblk.
+var settleTries, settleWait = 40, 250 * time.Millisecond
+
+// formatted is device as lsblk lists it once it shows the btrfs mkfs just
+// wrote there, labelled label. lsblk answers from udev's database, which
+// learns of a new filesystem only after mkfs returns: asked at once it can
+// still give the old filesystem and its UUID, and a Drive recorded from
+// that answer mounts a UUID that is gone. Reformat had deleted the old
+// record by then, so the disk was known to nothing (Avalon, twice).
+// blkid -p reads the disk itself, so its UUID is the one waited for.
+func (m *Manager) formatted(ctx context.Context, device, label string) (*maitrev1.Drive, error) {
+	out, _ := m.run.Run(ctx, "blkid", "-p", "-s", "UUID", "-o", "value", device)
+	uuid := strings.TrimSpace(out)
+	var d *maitrev1.Drive
+	var err error
+	for i := 0; i < settleTries; i++ {
+		if i > 0 {
+			time.Sleep(settleWait)
+		}
+		_, _ = m.run.Run(ctx, "udevadm", "trigger", "--settle", "--action=change", device)
+		d, err = m.find(ctx, device)
+		if err == nil && d.GetFstype() == "btrfs" && d.GetLabel() == label && d.GetDriveId() != "" && (uuid == "" || d.GetDriveId() == uuid) {
+			return d, nil
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("formatted %s, but it no longer lists: %w", device, err)
+	}
+	return nil, fmt.Errorf("formatted %s as %s, but the system still lists it as %s %s", device, label, orNone(d.GetFstype()), d.GetDriveId())
 }
 
 // ParityLabelPrefix starts the filesystem label of a Parity Drive.

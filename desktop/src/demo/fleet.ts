@@ -526,6 +526,8 @@ export class DemoFleet {
       atlas.missing = true;
       this.parity.set(NODE_A, { lastSync: t - 9 * 3600_000, lastScrub: t - 3 * 86400_000, job: "", progress: 0, jobDriveId: "", held: "Atlas is not connected. A sync now would record its files as deleted.", unprotected: 214, missing: ["sda"] });
     }
+    // A Parity Drive switch that formatted the disk and lost track of it.
+    if (scenario === "lost-parity") Object.assign(this.drives.find((d) => d.driveId === "sde" && d.nodeId === NODE_B)!, { fstype: "btrfs", label: "maitre-parity-bramble", model: "Seagate IronWolf 12TB", sizeBytes: BigInt(12 * TiB) });
     if (scenario === "held") this.parity.set(NODE_A, { lastSync: t - 33 * 3600_000, lastScrub: t - 3 * 86400_000, job: "", progress: 0, jobDriveId: "", held: "1412 of 22780 protected files (6%) were deleted since the last sync. If that was not you, they can still be restored; a sync now makes it final.", unprotected: 1412, missing: [] });
     this.services = [
       this.service(specFromCatalog("jellyfin", "jellyfin", NODE_A, 20001, { quadlet: catalogEntries.find((c) => c.id === "jellyfin")!.quadlet.replace("[Container]\n", "[Container]\nAddDevice=/dev/dri\n") }), ServiceStatus_State.RUNNING, { healthy: true, startedUnixMs: t - 6 * 86400_000 }),
