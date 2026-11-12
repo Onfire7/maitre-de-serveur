@@ -26,6 +26,8 @@ The Catalog entries and their format (`catalog/`, Onfire7/maitre-catalog).
 
 - **Add lawn** ([pingdotgg/lawn](https://github.com/pingdotgg/lawn), MIT, lawn.video): video review for creative teams, a self-hosted stand-in for Frame.io. It is not ready to package as it is. It deploys only to Vercel with a hosted Convex backend, ships no container image or Compose file, and its `.env.example` expects Clerk (sign-in), Stripe and Autumn (billing), Mux and Chunkify (video), and an S3 bucket. An entry needs a self-hosted Convex backend as a component, a local S3 store (or a volume) for the videos, and a way to run without Stripe and Autumn. Clerk and Mux are hosted services with no self-hosted version, so check first whether the app can run without them; if it can't, the entry needs a fork or an upstream change.
 
+- **AdGuard Home's Page breaks after its own setup wizard.** The entry declares the web Page on port 3000, which is only where AdGuard serves its first-run wizard; the wizard asks for the web port and writes whatever the person picks into `AdGuardHome.yaml`. Avalon, 2026-11-12: the person picked 80, so after the restart systemd said running, DNS answered, and the Console said "not answering its health check" because the probe at 3000 was refused, with nothing to say why. The entry is only right while the person types 3000 in a wizard that never mentions it. Overriding the port with `--web-addr` would make the wizard's field a silent lie, and seeding the config would have Maître handle a password the app's wizard is meant to own; neither is acceptable. The fix is in two ideas below: **Typed health checks**, so the Console says which check failed and the DNS check stays honest, and the **Configuration Wizard**, so the person is told to keep 3000 before the app's wizard asks. Until then, the entry's description should at least say so.
+
 ## CI and tooling
 
 GitHub Actions, the QEMU checks, `make` targets and the `maitre` development subcommands.
@@ -54,7 +56,66 @@ To work out before this is broken down:
 - **Where the terminal lives.** A Console view in the Service's area, next to its Pages, with a terminal component in the Desktop. What happens on close: the command is killed, or it keeps running and you can come back to it?
 - **The container's state.** The command runs only while the Service is running. Show the item disabled, with the reason, when it is stopped?
 - **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry. A free-form shell into a container is a separate decision and not part of this. It weakens "a Node is not an administrator" (ADR 0008) and is a root channel for any container with a granted host mount.
-- **Custom Services.** Can a user add their own commands in Setup, the way they can override other options?
+- **Custom Services.** Can a user add their own commands in Service Configuration, the way they can override other options?
+
+### Typed health checks
+
+A Service has one health check today: the Node sends an HTTP GET to the first Page's published loopback port, at `health.http` or the Page's path (`services.go`, `probe`), and the answer is one flag. Components may also carry a Quadlet `HealthCmd=`, which only `wait_healthy` uses. The two never meet, and a failed check has no reason the Console can show. AdGuard Home (above) is the case: the check that mattered, DNS, answered the whole time, and the one that failed, the web page, failed for a reason one sentence would have explained.
+
+A sketch of `health:` as a list of checks, each of one type:
+
+```yaml
+health:
+  - name: dns
+    dns: { port: 53, query: example.com }   # a query gets an answer
+  - name: web
+    http: { page: web, path: / }            # today's check, by Page
+  - name: db
+    component: db
+    cmd: [pg_isready, -U, docmost]          # rendered to HealthCmd=, read back from Podman
+  - name: api
+    tcp: { port: 8080 }                     # the port accepts a connection
+```
+
+Rules: every check passes means Online; any failure means Attention, with a message that names each check and what it tried ("web: port 3000 refused; dns: answered"). A failed `http` check also marks that Page as not answering, so the Pages list shows it. Values may use the entry's settings, `{{ .Settings.lan_address }}` style, the same as the container templates. The one-form `health: { http: / }` stays and reads as a list of one, so no entry changes.
+
+To work out before this is broken down:
+
+- **Where a check is sent.** From the Node to the Service's address on the shared maitre network, not its LAN address: a macvlan parent cannot reach its children, so a DNS check at `lan_address` would always fail from the Node. Whether phones on the LAN can reach it is a different check, from another Node or not at all, and a separate decision.
+- **The API.** `PageStatus.healthy` becomes a list of check results on `ServiceStatus` (name, passed, what it tried), gossiped like the rest of the status (ADR 0006). Following the "Console vs older Nodes" rule, a Node without it keeps sending the flag.
+- **`cmd` checks.** Rendered to `HealthCmd=` with `Notify=healthy` where `wait_healthy` asks for it; the Node reads the result from Podman rather than running the command itself.
+- **Interval and grace.** One interval for all, or per check, and how long after start before a failure counts.
+
+### Configuration Wizard
+
+A Catalog entry can carry its own Configuration Wizard, a file beside the manifest, that the Console runs when the Service is installed. It is a sequence of steps; each shows text, some of the entry's `settings:`, or one of its Pages. Its purpose is the facts an app's own first-run wizard does not know and the person cannot guess: keep the web port at 3000, pick DNS on all interfaces, give your router this address afterwards. The app's wizard stays the owner of its own secrets; Maître never seeds them, it only says what to type where.
+
+A sketch of `install.yaml`:
+
+```yaml
+steps:
+  - title: Address on your home network
+    text: Pick one outside your router's DHCP pool. Your devices will use it as their DNS server.
+    settings: [lan_address]
+  - title: AdGuard's own setup
+    text: |
+      AdGuard Home opens its setup wizard on first start. On its "Admin Web Interface"
+      step keep port 3000: Maître reaches the page there, and a different port breaks it.
+      Listen for DNS on all interfaces, port 53. Choose an admin login; Maître does not keep it.
+    page: web                 # the Service starts first; the Page opens here once its check passes
+  - title: Point your devices at it
+    text: Give your router {{ .Settings.lan_address }} as its DNS server, or set it on each device.
+```
+
+The flow: Install opens the Wizard in the Service's area. Steps with `settings:` show the existing settings form for those keys, which keeps one concept for environment variables and settings. The first step with `page:` deploys the Service and waits for its health check, then opens that Page inside the step. The last step leads to the Service's area as today. An entry with no `install.yaml` gets today's one-page form, so nothing changes for the rest of the Catalog.
+
+To work out before this is broken down:
+
+- **Knowing a wizard is done.** The person clicks Next, or the Service's health passes after the wizard restarts the app, or both.
+- **Waiting on a Page.** `page:` needs the Service deployed before the step: which steps run before deploy (settings) and which after (pages, final text), and whether that is implied by order or declared.
+- **Coming back.** A "Run the Wizard again" item in the Service's menu, for a reinstall, a move, or a person who closed it; and whether a step can be marked done.
+- **Converted entries.** `convert` cannot write one; a converted entry without one is fine, so this is never a reason to mark an entry unfinished.
+- **Where it runs.** The Console renders it from the signed bundle, so no Node change is needed beyond what typed health checks already add. A Node without those still works: the Page step opens on the running state alone.
 
 ### A Claude-powered video editing Service
 

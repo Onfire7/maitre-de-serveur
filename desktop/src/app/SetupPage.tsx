@@ -116,7 +116,7 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
         </Button>
         <ServiceIcon catalogId={service.spec.catalogId} word={service.word} size={32} />
         <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold">{name} · Setup</h1>
+          <h1 className="truncate text-base font-semibold">{name} · Service Configuration</h1>
           <p className="truncate text-xs text-muted-foreground">
             <StatusWord word={service.word} />
             {service.node && <> · on {service.node.name}</>}

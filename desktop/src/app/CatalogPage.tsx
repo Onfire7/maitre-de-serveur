@@ -454,7 +454,7 @@ function InstallSheet({ entry, snap, onClose, onInstall, devices, target }: { en
                   <ChevronRight className="size-4 transition-transform group-open:rotate-90" /> Advanced
                 </summary>
                 <div className="space-y-4 border-t px-3 py-3">
-                  <p className="text-xs text-muted-foreground">Its network, which Services may reach it, its pages and the options of its container. All of this can be changed later from its Setup.</p>
+                  <p className="text-xs text-muted-foreground">Its network, which Services may reach it, its pages and the options of its container. All of this can be changed later from its Service Configuration.</p>
                   <SetupFields
                     setup={setup ?? entrySetup!}
                     edit={(f) => {

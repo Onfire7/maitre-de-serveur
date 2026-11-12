@@ -200,7 +200,7 @@ export function flyoutItems(service: FleetService): FlyoutEntry[] {
     ...(canRollBack(service.spec) ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
     { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
     { id: "access", label: "Access…", icon: <Globe /> },
-    { id: "setup", label: "Setup…", icon: <SlidersHorizontal /> },
+    { id: "setup", label: "Service Configuration…", icon: <SlidersHorizontal /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),
     { id: "storage", label: "Storage…", icon: <HardDrive /> },
     ...(service.grants ? [{ id: "grants" as const, label: `Root powers (${service.grants})…`, icon: <ShieldAlert /> }] : []),

@@ -157,9 +157,13 @@ _Avoid_: User, guest, viewer
 The area of the Console for administering the Fleet itself (Nodes, Storage, Devices, Updates, remote access) rather than using its Services.
 _Avoid_: Settings, admin, config
 
-**Setup**:
-The Console page where a Service's settings beyond its install form are changed: its network choice, Pages, fixed address, exposure and container options, with the rendered configuration shown read-only. Changes apply with a restart.
-_Avoid_: Advanced settings, config editor, YAML
+**Service Configuration**:
+The Console page where a Service's settings beyond its install form are changed: its network choice, Pages, fixed address, exposure and container options, with the rendered configuration shown read-only. Changes apply with a restart. ADR 0010 and the code call it Setup, its earlier name.
+_Avoid_: Setup, Advanced settings, config editor, YAML
+
+**Configuration Wizard**:
+The steps a Catalog entry declares for installing its Service, run by the Console once at install: its settings, grouped into pages, and the facts the person needs for the app's own first-run setup, with the Service's Page opened in place once it answers. Not Service Configuration, which is for changes afterwards.
+_Avoid_: Walkthrough, onboarding, guided install, Service Configuration Wizard, setup wizard (which is the app's own)
 
 **Service status**:
 One of four words the Console uses for a Service: **Online** (running and healthy), **Starting** (starting, or being updated), **Stopped** (stopped by the user), **Attention** (failed, running but unhealthy, or restart-looping).
