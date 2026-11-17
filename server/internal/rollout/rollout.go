@@ -77,6 +77,10 @@ func Decide(policy *maitrev1.UpdatePolicy, nodes []*maitrev1.Node, self, booted,
 // minutes)", from n's own runs through update.Typical, the same figure
 // GetUpdateStatus reports; empty without one. It is the first Node's figure
 // only, never an estimate for the whole rollout.
+//
+// Its wording and rounding (whole minutes, half up; "under a minute"
+// below one) are the Console's for the same figure, minutes() and
+// updateTimesLine in desktop/src/app/updateTimes.ts: change both together.
 func usually(n *maitrev1.Node) string {
 	total, _ := update.Typical(n.GetUpdates())
 	switch m := int(total.Round(time.Minute) / time.Minute); {
