@@ -4,6 +4,7 @@
 //!
 //!   MAITRE_TUNNEL_NODE=127.0.0.1:7443 MAITRE_TUNNEL_FP=<node fingerprint>
 //!   MAITRE_TUNNEL_IDENTITY=/path/to/device cargo test --test tunnel -- --ignored
+use maitre_desktop_lib::dial::Dialer;
 use maitre_desktop_lib::identity::Identity;
 use maitre_desktop_lib::proxy::Proxies;
 use std::path::Path;
@@ -29,8 +30,10 @@ async fn tunnel_http_and_websocket() {
     let dir = std::env::var("MAITRE_TUNNEL_IDENTITY").expect("MAITRE_TUNNEL_IDENTITY");
     let id = Arc::new(Identity::load_or_generate(Path::new(&dir)).unwrap());
     let proxies = Proxies::default();
-    let url = proxies.open(id, node, fp, "echo".into()).await.expect("open proxy");
-    let port: u16 = url.trim_start_matches("http://127.0.0.1:").trim_end_matches('/').parse().unwrap();
+    let (_, port) = proxies
+        .open(Arc::new(Dialer::new(id)), node, fp, "echo".into(), "echo".into(), String::new(), None)
+        .await
+        .expect("open proxy");
 
     // Plain request: path and query must arrive untouched.
     let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();

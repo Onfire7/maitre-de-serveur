@@ -1,15 +1,17 @@
 //! Downloads and uploads for the file manager (decisions 180, 183, 185).
 //! Bytes stream between the disk and the Node over mutual TLS here, never
-//! through the webview; progress goes to the Console as `transfer` events.
+//! through the webview, on a connection from the Dialer (src/dial.rs);
+//! progress goes to the Console as `transfer` events (src/lib.rs).
 
+use crate::rpc::{full_body, stream_body, NodeClient};
 use bytes::Bytes;
 use futures_util::StreamExt;
+use http_body_util::BodyExt;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const CONTENT: &str = "/maitre/files/content";
@@ -23,14 +25,6 @@ pub struct Scope {
     pub drive: String,
 }
 
-#[derive(Serialize, Clone)]
-struct Progress {
-    id: String,
-    done: u64,
-    total: u64,
-    current: String,
-}
-
 /// What an upload did with each local file.
 #[derive(Serialize, Default)]
 pub struct UploadResult {
@@ -40,52 +34,65 @@ pub struct UploadResult {
     pub failed: Vec<String>,
 }
 
-fn emit(app: &AppHandle, id: &str, done: u64, total: u64, current: &str) {
-    let _ = app.emit("transfer", Progress { id: id.into(), done, total, current: current.into() });
+/// Hears how far a transfer is: bytes done, bytes in all, and the file.
+pub type Progress = Arc<dyn Fn(u64, u64, &str) + Send + Sync>;
+
+fn content_uri(q: &[(&str, &str)]) -> String {
+    let query = form_urlencoded::Serializer::new(String::new()).extend_pairs(q).finish();
+    format!("{CONTENT}?{query}")
 }
 
 /// Save a file, or a folder as a zip, from the Node to `dest`. Written to
 /// `dest.part` first so a broken download never looks finished.
-pub async fn download(app: AppHandle, client: reqwest::Client, addr: String, scope: Scope, path: String, folder: bool, dest: String, id: String) -> Result<(), String> {
-    let mut q = vec![("space", scope.space), ("drive", scope.drive), ("path", path), ("download", "1".into())];
+#[allow(clippy::too_many_arguments)]
+pub async fn download(client: &NodeClient, addr: &str, fingerprint: &str, scope: Scope, path: String, folder: bool, dest: String, progress: Progress) -> Result<(), String> {
+    let mut q = vec![("space", scope.space.as_str()), ("drive", scope.drive.as_str()), ("path", path.as_str()), ("download", "1")];
     if folder {
-        q.push(("zip", "1".into()));
+        q.push(("zip", "1"));
     }
-    let res = client.get(format!("https://{addr}{CONTENT}")).query(&q).send().await.map_err(|e| e.to_string())?;
+    let req = hyper::Request::get(content_uri(&q)).body(full_body(Bytes::new())).map_err(|e| e.to_string())?;
+    let res = client.send(addr, fingerprint, req).await?;
     if !res.status().is_success() {
         let code = res.status();
-        return Err(format!("{code}: {}", res.text().await.unwrap_or_default().trim()));
+        let text = res.into_body().collect().await.map(|b| b.to_bytes()).unwrap_or_default();
+        return Err(format!("{code}: {}", String::from_utf8_lossy(&text).trim()));
     }
-    let total = res.content_length().unwrap_or(0);
+    let total = res
+        .headers()
+        .get(hyper::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0u64);
     let part = PathBuf::from(format!("{dest}.part"));
     let mut out = tokio::fs::File::create(&part).await.map_err(|e| e.to_string())?;
-    let mut stream = res.bytes_stream();
+    let mut body = res.into_body();
     let (mut done, mut last) = (0u64, Instant::now());
-    while let Some(chunk) = stream.next().await {
-        let chunk = match chunk {
-            Ok(c) => c,
+    while let Some(frame) = body.frame().await {
+        let frame = match frame {
+            Ok(f) => f,
             Err(e) => {
                 let _ = tokio::fs::remove_file(&part).await;
                 return Err(e.to_string());
             }
         };
+        let Ok(chunk) = frame.into_data() else { continue };
         out.write_all(&chunk).await.map_err(|e| e.to_string())?;
         done += chunk.len() as u64;
         if last.elapsed() > Duration::from_millis(250) {
-            emit(&app, &id, done, total, &dest);
+            progress(done, total, &dest);
             last = Instant::now();
         }
     }
     out.flush().await.map_err(|e| e.to_string())?;
     drop(out);
     tokio::fs::rename(&part, &dest).await.map_err(|e| e.to_string())?;
-    emit(&app, &id, done, done, &dest);
+    progress(done, done, &dest);
     Ok(())
 }
 
 /// Upload local files and folders into `folder` of a scope. Folders keep
 /// their layout; hidden files stay behind, as the Node refuses them.
-pub async fn upload(app: AppHandle, client: reqwest::Client, addr: String, scope: Scope, folder: String, paths: Vec<String>, id: String) -> Result<UploadResult, String> {
+pub async fn upload(client: &NodeClient, addr: &str, fingerprint: &str, scope: Scope, folder: String, paths: Vec<String>, progress: Progress) -> Result<UploadResult, String> {
     // (local file, path on the Node, size)
     let mut files: Vec<(PathBuf, String, u64)> = Vec::new();
     for p in &paths {
@@ -108,9 +115,9 @@ pub async fn upload(app: AppHandle, client: reqwest::Client, addr: String, scope
         let modified = std::fs::metadata(&local)
             .and_then(|m| m.modified())
             .ok()
-            .map(|t| chrono_rfc3339(t))
+            .map(chrono_rfc3339)
             .unwrap_or_default();
-        let (app2, id2, done2) = (app.clone(), id.clone(), done.clone());
+        let (progress2, done2) = (progress.clone(), done.clone());
         let last = Arc::new(std::sync::Mutex::new(Instant::now()));
         let body = futures_util::stream::unfold(file, |mut f| async move {
             let mut buf = vec![0u8; 256 * 1024];
@@ -128,21 +135,28 @@ pub async fn upload(app: AppHandle, client: reqwest::Client, addr: String, scope
                 let d = done2.fetch_add(c.len() as u64, Ordering::Relaxed) + c.len() as u64;
                 let mut l = last.lock().unwrap();
                 if l.elapsed() > Duration::from_millis(250) {
-                    emit(&app2, &id2, d, total, &current);
+                    progress2(d, total, &current);
                     *l = Instant::now();
                 }
             }
             chunk
         });
         let q = [("space", scope.space.as_str()), ("drive", scope.drive.as_str()), ("path", remote.as_str()), ("mkdirs", "1"), ("modified", modified.as_str())];
-        match client.put(format!("https://{addr}{CONTENT}")).query(&q).body(reqwest::Body::wrap_stream(body)).send().await {
-            Ok(res) if res.status() == reqwest::StatusCode::CONFLICT => result.skipped.push(remote),
+        let req = match hyper::Request::put(content_uri(&q)).body(stream_body(body)) {
+            Ok(r) => r,
+            Err(_) => {
+                result.failed.push(remote);
+                continue;
+            }
+        };
+        match client.send(addr, fingerprint, req).await {
+            Ok(res) if res.status() == hyper::StatusCode::CONFLICT => result.skipped.push(remote),
             Ok(res) if res.status().is_success() => result.uploaded += 1,
             _ => result.failed.push(remote),
         }
     }
     let d = done.load(Ordering::Relaxed);
-    emit(&app, &id, d.max(total), total, "");
+    progress(d.max(total), total, "");
     Ok(result)
 }
 
@@ -189,6 +203,87 @@ fn chrono_rfc3339(t: std::time::SystemTime) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dial::{fake, Dialer};
+    use crate::rpc::NodeClient;
+    use http_body_util::{BodyExt, Full};
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    /// A Node keeping files in memory: GET returns what the query asked
+    /// for, PUT stores the body under its path and refuses a path it has.
+    async fn files_node(stored: Arc<Mutex<HashMap<String, String>>>) -> fake::FakeNode {
+        fake::start(move |tls| {
+            let stored = stored.clone();
+            async move {
+                let svc = hyper::service::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+                    let stored = stored.clone();
+                    async move {
+                        let q: HashMap<String, String> = form_urlencoded::parse(req.uri().query().unwrap_or("").as_bytes()).into_owned().collect();
+                        let path = q.get("path").cloned().unwrap_or_default();
+                        let res = if req.method() == hyper::Method::GET {
+                            let mut keys: Vec<_> = q.iter().map(|(k, v)| format!("{k}={v}")).collect();
+                            keys.sort();
+                            hyper::Response::new(Full::new(Bytes::from(keys.join("&"))))
+                        } else if stored.lock().unwrap().contains_key(&path) {
+                            hyper::Response::builder().status(409).body(Full::new(Bytes::new())).unwrap()
+                        } else {
+                            let body = req.into_body().collect().await?.to_bytes();
+                            stored.lock().unwrap().insert(path, String::from_utf8_lossy(&body).into_owned());
+                            hyper::Response::new(Full::new(Bytes::new()))
+                        };
+                        Ok::<_, hyper::Error>(res)
+                    }
+                });
+                let _ = hyper::server::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new())
+                    .serve_connection(hyper_util::rt::TokioIo::new(tls), svc)
+                    .await;
+            }
+        })
+        .await
+    }
+
+    fn quiet() -> Progress {
+        Arc::new(|_, _, _| {})
+    }
+
+    #[tokio::test]
+    async fn a_download_is_saved_whole_at_its_destination() {
+        let node = files_node(Arc::default()).await;
+        let client = NodeClient::new(Arc::new(Dialer::new(fake::temp_identity("device"))));
+        let dir = std::env::temp_dir().join(format!("maitre-dl-{:x}", rand::random::<u64>()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let dest = dir.join("Shows.zip").to_string_lossy().into_owned();
+        let scope = Scope { space: "media".into(), drive: String::new() };
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s2 = seen.clone();
+        let progress: Progress = Arc::new(move |done, total, _| s2.lock().unwrap().push((done, total)));
+        download(&client, &node.addr, &node.fingerprint, scope, "Media/Shows & more".into(), true, dest.clone(), progress).await.unwrap();
+        let got = std::fs::read_to_string(&dest).unwrap();
+        assert_eq!(got, "download=1&drive=&path=Media/Shows & more&space=media&zip=1");
+        assert!(!dir.join("Shows.zip.part").exists());
+        assert_eq!(seen.lock().unwrap().last(), Some(&(got.len() as u64, got.len() as u64)));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_upload_sends_each_file_and_skips_names_already_there() {
+        let stored: Arc<Mutex<HashMap<String, String>>> = Arc::default();
+        stored.lock().unwrap().insert("Media/Shows/old.mkv".into(), "kept".into());
+        let node = files_node(stored.clone()).await;
+        let client = NodeClient::new(Arc::new(Dialer::new(fake::temp_identity("device"))));
+        let dir = std::env::temp_dir().join(format!("maitre-ul-{:x}", rand::random::<u64>()));
+        std::fs::create_dir_all(dir.join("Shows/S1")).unwrap();
+        std::fs::write(dir.join("Shows/S1/e1.mkv"), b"episode one").unwrap();
+        std::fs::write(dir.join("Shows/old.mkv"), b"new").unwrap();
+        let scope = Scope { space: "media".into(), drive: String::new() };
+        let paths = vec![dir.join("Shows").to_string_lossy().into_owned()];
+        let r = upload(&client, &node.addr, &node.fingerprint, scope, "Media".into(), paths, quiet()).await.unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!((r.uploaded, r.skipped.clone(), r.failed.clone()), (1, vec!["Media/Shows/old.mkv".to_string()], vec![]));
+        let stored = stored.lock().unwrap();
+        assert_eq!(stored.get("Media/Shows/S1/e1.mkv").map(String::as_str), Some("episode one"));
+        assert_eq!(stored.get("Media/Shows/old.mkv").map(String::as_str), Some("kept"));
+    }
 
     #[test]
     fn rfc3339() {

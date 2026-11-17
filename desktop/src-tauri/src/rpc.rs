@@ -1,12 +1,22 @@
 //! Mutual-TLS HTTP/2 client to a Node. The server certificate is accepted if
 //! and only if its Ed25519 key fingerprint is one we trust; no CA, no chain.
+//! Connections come from the Dialer (src/dial.rs), the one way to a Node.
 
+use crate::dial::{Dialer, Proto};
 use crate::identity::{fingerprint_of_raw_key, Identity};
+use bytes::Bytes;
+use http_body_util::{combinators::BoxBody, BodyExt, Full, StreamBody};
+use hyper::body::{Frame, Incoming};
+use hyper::client::conn::http2::SendRequest;
+use hyper::{Request, Response};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
-use std::collections::HashSet;
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use x509_parser::oid_registry::OID_SIG_ED25519;
 use x509_parser::prelude::*;
 
@@ -100,7 +110,9 @@ impl ServerCertVerifier for RecordingVerifier {
 }
 
 /// Connect to `addr` once and return the server's raw Ed25519 public key.
-/// Nothing but the handshake happens over this connection.
+/// Nothing but the handshake happens over this connection. The one
+/// connection not made by the Dialer: an Installer is not yet a Node, has
+/// no node id to pin, and is never reached through the Relay.
 pub async fn peek_server_key(id: &Identity, addr: &str) -> Result<Vec<u8>, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let verifier = Arc::new(RecordingVerifier { seen: Mutex::new(None), provider: provider.clone() });
@@ -136,7 +148,7 @@ fn own_credentials(id: &Identity) -> Result<(Vec<CertificateDer<'static>>, Priva
 }
 
 /// rustls config presenting `id`, trusting only `fingerprint`, with the given ALPN list.
-pub fn pinned_tls_config(id: &Identity, fingerprint: &str, alpn: &[Vec<u8>]) -> Result<rustls::ClientConfig, String> {
+pub(crate) fn pinned_tls_config(id: &Identity, fingerprint: &str, alpn: &[Vec<u8>]) -> Result<rustls::ClientConfig, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let (certs, key) = own_credentials(id)?;
     let mut config = rustls::ClientConfig::builder_with_provider(provider.clone())
@@ -153,36 +165,234 @@ pub fn pinned_tls_config(id: &Identity, fingerprint: &str, alpn: &[Vec<u8>]) -> 
     Ok(config)
 }
 
-/// Build a client that presents `id` and trusts only the given Node fingerprints.
-pub fn build_client(id: &Identity, trusted: HashSet<String>) -> Result<reqwest::Client, String> {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
+/// A request or response body: bytes, or a stream of them.
+pub type Body = BoxBody<Bytes, BoxError>;
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-    let (certs, key) = own_credentials(id)?;
+/// A body of bytes already in hand.
+pub fn full_body(bytes: impl Into<Bytes>) -> Body {
+    Full::new(bytes.into()).map_err(|never| match never {}).boxed()
+}
 
-    let mut config = rustls::ClientConfig::builder_with_provider(provider.clone())
-        .with_protocol_versions(&[&rustls::version::TLS13])
-        .map_err(|e| e.to_string())?
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(PinnedKeyVerifier { trusted, provider }))
-        .with_client_auth_cert(certs, key)
-        .map_err(|e| format!("client auth: {e}"))?;
-    config.alpn_protocols = vec![b"h2".to_vec()];
+/// A body streamed as it is read, for uploads.
+pub fn stream_body<S, E>(chunks: S) -> Body
+where
+    S: futures_util::Stream<Item = Result<Bytes, E>> + Send + Sync + 'static,
+    E: Into<BoxError> + 'static,
+{
+    use futures_util::TryStreamExt;
+    StreamBody::new(chunks.map_ok(Frame::data).map_err(Into::into)).boxed()
+}
 
-    reqwest::Client::builder()
-        .use_preconfigured_tls(config)
-        .http2_prior_knowledge()
-        .build()
-        .map_err(|e| e.to_string())
+/// What a Connect unary call returned.
+#[derive(Serialize)]
+pub struct RpcResponse {
+    pub status: u16,
+    pub content_type: String,
+    pub body: Vec<u8>,
+}
+
+/// HTTP/2 to Nodes over connections from the Dialer: RPCs and file
+/// transfers. One connection per Node and address, dialled again when the
+/// Node has closed it.
+pub struct NodeClient {
+    dialer: Arc<Dialer>,
+    conns: Mutex<HashMap<(String, String), SendRequest<Body>>>,
+}
+
+/// How long a unary RPC may take, connecting included.
+const CALL_TIMEOUT: Duration = Duration::from_secs(15);
+
+impl NodeClient {
+    pub fn new(dialer: Arc<Dialer>) -> Self {
+        Self { dialer, conns: Mutex::new(HashMap::new()) }
+    }
+
+    async fn connect(&self, addr: &str, fingerprint: &str) -> Result<SendRequest<Body>, String> {
+        let stream = self.dialer.dial(addr, fingerprint, Proto::H2).await?;
+        let (sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor::new())
+            .handshake(TokioIo::new(stream))
+            .await
+            .map_err(|e| why(&e))?;
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+        Ok(sender)
+    }
+
+    /// Send `req`, whose URI is a path and query, to the Node `fingerprint`
+    /// at `addr`. Fails, saying the address could not be reached, when no
+    /// answer came back; an answer of any status is Ok.
+    pub async fn send(&self, addr: &str, fingerprint: &str, req: Request<Body>) -> Result<Response<Incoming>, String> {
+        let unreachable = |why: String| format!("{addr} could not be reached: {why}");
+        let key = (fingerprint.trim().to_lowercase(), addr.to_string());
+        let (mut parts, body) = req.into_parts();
+        let pq = parts.uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
+        // HTTP/2 needs a scheme and authority; the Node routes by path alone.
+        parts.uri = format!("https://{addr}{pq}").parse().map_err(|e: hyper::http::uri::InvalidUri| e.to_string())?;
+        let mut req = Request::from_parts(parts, body);
+        let pooled = self.conns.lock().unwrap().get(&key).filter(|s| s.is_ready()).cloned();
+        if let Some(mut sender) = pooled {
+            match sender.try_send_request(req).await {
+                Ok(res) => return Ok(res),
+                // The Node closed the connection before taking the request: dial again.
+                Err(mut e) => match e.take_message() {
+                    Some(r) => req = r,
+                    None => {
+                        self.conns.lock().unwrap().remove(&key);
+                        return Err(unreachable(why(e.error())));
+                    }
+                },
+            }
+        }
+        self.conns.lock().unwrap().remove(&key);
+        let mut sender = self.connect(addr, fingerprint).await.map_err(unreachable)?;
+        self.conns.lock().unwrap().insert(key, sender.clone());
+        sender.send_request(req).await.map_err(|e| unreachable(why(&e)))
+    }
+
+    /// One Connect-protocol unary call: `procedure` is like
+    /// "/maitre.v1.NodeService/GetNodeInfo".
+    pub async fn call(&self, addr: &str, fingerprint: &str, procedure: &str, body: Vec<u8>) -> Result<RpcResponse, String> {
+        let req = Request::post(procedure)
+            .header("content-type", "application/proto")
+            .header("connect-protocol-version", "1")
+            .body(full_body(body))
+            .map_err(|e| e.to_string())?;
+        let call = async {
+            let res = self.send(addr, fingerprint, req).await?;
+            let status = res.status().as_u16();
+            let content_type = res.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+            let body = res.into_body().collect().await.map_err(|e| why(&e))?.to_bytes().to_vec();
+            Ok(RpcResponse { status, content_type, body })
+        };
+        match tokio::time::timeout(CALL_TIMEOUT, call).await {
+            Ok(r) => r,
+            Err(_) => Err(format!("{addr} could not be reached: did not answer in {} s", CALL_TIMEOUT.as_secs())),
+        }
+    }
+}
+
+/// An error with its causes: hyper's own words ("connection error") hide
+/// the refused connection or reset underneath, which is what the user needs.
+fn why(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = vec![e.to_string()];
+    let mut cur = e.source();
+    while let Some(c) = cur {
+        let s = c.to_string();
+        if !s.is_empty() && !out.contains(&s) {
+            out.push(s);
+        }
+        cur = c.source();
+    }
+    out.join(": ")
 }
 
 #[cfg(test)]
 mod tests {
-    //! Cross-language check against a running `maitre dev`. Skipped unless
-    //! MAITRE_TEST_NODE_ADDR and MAITRE_TEST_NODE_FP are set; `make m0-check`
-    //! sets up both sides and runs it.
     use super::*;
-    use std::collections::HashSet;
+    use crate::dial::{fake, Dialer};
+    use http_body_util::BodyExt;
+    use hyper_util::rt::{TokioExecutor, TokioIo};
 
+    /// A Node answering every request with what it was asked, over HTTP/2.
+    /// With `close_after_one`, it closes each connection after its first
+    /// answer, as a Node that restarted would.
+    async fn h2_node(close_after_one: bool) -> fake::FakeNode {
+        fake::start(move |tls| async move {
+            let done = Arc::new(tokio::sync::Notify::new());
+            let answered = done.clone();
+            let svc = hyper::service::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+                let answered = answered.clone();
+                async move {
+                    let head = format!("{} {} {}", req.method(), req.uri().path_and_query().map(|p| p.as_str()).unwrap_or(""), req.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or(""));
+                    let body = req.into_body().collect().await?.to_bytes();
+                    answered.notify_one();
+                    Ok::<_, hyper::Error>(
+                        hyper::Response::builder()
+                            .header("content-type", "application/proto")
+                            .body(http_body_util::Full::new(Bytes::from(format!("{head} {}", String::from_utf8_lossy(&body)))))
+                            .unwrap(),
+                    )
+                }
+            });
+            let conn = hyper::server::conn::http2::Builder::new(TokioExecutor::new()).serve_connection(TokioIo::new(tls), svc);
+            tokio::pin!(conn);
+            if close_after_one {
+                tokio::select! {
+                    _ = conn.as_mut() => return,
+                    _ = done.notified() => {}
+                }
+                // Let the answer go out, then drop the connection.
+                let _ = tokio::time::timeout(std::time::Duration::from_millis(20), conn.as_mut()).await;
+                return;
+            }
+            let _ = conn.await;
+        })
+        .await
+    }
+
+    fn client() -> (NodeClient, Arc<Identity>) {
+        let me = fake::temp_identity("device");
+        (NodeClient::new(Arc::new(Dialer::new(me.clone()))), me)
+    }
+
+    #[tokio::test]
+    async fn rpcs_reach_their_node_over_one_connection() {
+        let node = h2_node(false).await;
+        let (client, me) = client();
+        let res = client.call(&node.addr, &node.fingerprint, "/maitre.v1.NodeService/GetNodeInfo", b"hi".to_vec()).await.unwrap();
+        assert_eq!(res.status, 200);
+        assert_eq!(res.content_type, "application/proto");
+        assert_eq!(String::from_utf8(res.body).unwrap(), "POST /maitre.v1.NodeService/GetNodeInfo application/proto hi");
+        let again = client.call(&node.addr, &node.fingerprint, "/maitre.v1.NodeService/ListSpaces", vec![]).await.unwrap();
+        assert_eq!(String::from_utf8(again.body).unwrap(), "POST /maitre.v1.NodeService/ListSpaces application/proto ");
+        assert_eq!(*node.clients.lock().unwrap(), vec![me.fingerprint()]);
+        assert_eq!(node.connections.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_connection_the_node_closed_is_dialled_again() {
+        let node = h2_node(true).await;
+        let (client, _) = client();
+        for _ in 0..3 {
+            let res = client.call(&node.addr, &node.fingerprint, "/p", vec![]).await.expect("call");
+            assert_eq!(res.status, 200);
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert_eq!(node.connections.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn a_request_streams_its_body_and_query_to_the_node() {
+        let node = h2_node(false).await;
+        let (client, _) = client();
+        let chunks = futures_util::stream::iter(vec![Ok::<_, std::io::Error>(Bytes::from("a")), Ok(Bytes::from("b"))]);
+        let req = hyper::Request::put("/maitre/files/content?path=a%20b").body(stream_body(chunks)).unwrap();
+        let res = client.send(&node.addr, &node.fingerprint, req).await.unwrap();
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body, "PUT /maitre/files/content?path=a%20b  ab");
+    }
+
+    #[tokio::test]
+    async fn an_rpc_to_an_address_that_does_not_answer_says_which() {
+        let addr = fake::dead_addr().await;
+        let (client, _) = client();
+        let err = client.call(&addr, &"00".repeat(32), "/p", vec![]).await.err().expect("no answer");
+        assert!(err.starts_with(&format!("{addr} could not be reached: ")), "{err}");
+    }
+
+    #[tokio::test]
+    async fn an_rpc_to_a_node_with_another_key_is_refused() {
+        let node = h2_node(false).await;
+        let (client, _) = client();
+        let err = client.call(&node.addr, &"00".repeat(32), "/p", vec![]).await.err().expect("refused");
+        assert!(err.contains("trust list"), "{err}");
+    }
+
+    // Cross-language check against a running `maitre dev`. Skipped unless
+    // MAITRE_TEST_NODE_ADDR and MAITRE_TEST_NODE_FP are set; `make m0-check`
+    // sets up both sides and runs it.
     fn env(name: &str) -> Option<String> {
         std::env::var(name).ok().filter(|v| !v.is_empty())
     }
@@ -195,21 +405,14 @@ mod tests {
             eprintln!("skipped: MAITRE_TEST_DEVICE_DIR not set");
             return;
         };
-        let id = Identity::load_or_generate(std::path::Path::new(&id_dir)).unwrap();
+        let id = Arc::new(Identity::load_or_generate(std::path::Path::new(&id_dir)).unwrap());
         let (Some(addr), Some(fp)) = (env("MAITRE_TEST_NODE_ADDR"), env("MAITRE_TEST_NODE_FP")) else {
             eprintln!("skipped: node not configured");
             return;
         };
-        let client = build_client(&id, HashSet::from([fp])).unwrap();
-        let res = client
-            .post(format!("https://{addr}/maitre.v1.NodeService/GetNodeInfo"))
-            .header("content-type", "application/proto")
-            .header("connect-protocol-version", "1")
-            .body(Vec::<u8>::new())
-            .send()
-            .await
-            .expect("mTLS call to Go dev node");
-        assert_eq!(res.status(), 200, "body: {:?}", res.text().await);
+        let client = NodeClient::new(Arc::new(Dialer::new(id)));
+        let res = client.call(&addr, &fp, "/maitre.v1.NodeService/GetNodeInfo", vec![]).await.expect("mTLS call to Go dev node");
+        assert_eq!(res.status, 200, "body: {:?}", String::from_utf8_lossy(&res.body));
     }
 
     #[tokio::test]
@@ -217,15 +420,9 @@ mod tests {
         let (Some(addr), Some(id_dir)) = (env("MAITRE_TEST_NODE_ADDR"), env("MAITRE_TEST_DEVICE_DIR")) else {
             return;
         };
-        let id = Identity::load_or_generate(std::path::Path::new(&id_dir)).unwrap();
-        let client = build_client(&id, HashSet::from(["00".repeat(32)])).unwrap();
-        let err = client
-            .post(format!("https://{addr}/maitre.v1.NodeService/GetNodeInfo"))
-            .body(Vec::<u8>::new())
-            .send()
-            .await
-            .expect_err("connected to a node with the wrong fingerprint");
-        let msg = format!("{err:?}");
-        assert!(msg.contains("trust list"), "unexpected error: {msg}");
+        let id = Arc::new(Identity::load_or_generate(std::path::Path::new(&id_dir)).unwrap());
+        let client = NodeClient::new(Arc::new(Dialer::new(id)));
+        let err = client.call(&addr, &"00".repeat(32), "/maitre.v1.NodeService/GetNodeInfo", vec![]).await.err().expect("connected to a node with the wrong fingerprint");
+        assert!(err.contains("trust list"), "unexpected error: {err}");
     }
 }
