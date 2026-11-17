@@ -9,6 +9,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,13 +64,31 @@ func Decide(policy *maitrev1.UpdatePolicy, nodes []*maitrev1.Node, self, booted,
 		stage = 24 * time.Hour
 	}
 	if first.GetImageDigest() != newest {
-		return Decision{Reason: "an update is ready; waiting for " + first.GetName() + " to take it first"}
+		return Decision{Reason: "an update is ready; waiting for " + first.GetName() + " to take it first" + usually(first)}
 	}
 	ran := now.Sub(time.UnixMilli(first.GetBootedUnixMs()))
 	if ran < stage {
 		return Decision{Reason: "an update is ready; " + first.GetName() + " has run it " + ran.Round(time.Minute).String() + " of " + stage.String()}
 	}
 	return Decision{Update: true, Reason: first.GetName() + " has run the update for " + stage.String() + "; taking it now"}
+}
+
+// usually is how long n's updates usually take, " (usually about 6
+// minutes)", from n's own runs through update.Typical, the same figure
+// GetUpdateStatus reports; empty without one. It is the first Node's figure
+// only, never an estimate for the whole rollout.
+func usually(n *maitrev1.Node) string {
+	total, _ := update.Typical(n.GetUpdates())
+	switch m := int(total.Round(time.Minute) / time.Minute); {
+	case total == 0:
+		return ""
+	case total < time.Minute:
+		return " (usually under a minute)"
+	case m == 1:
+		return " (usually about 1 minute)"
+	default:
+		return " (usually about " + strconv.Itoa(m) + " minutes)"
+	}
 }
 
 // Runner checks hourly and acts on the decision.
