@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Target } from "@/transport";
 import type { TerminalChoice } from "@/terminal/session";
+import type { Grant } from "@/gen/maitre/v1/fleet_pb";
+import { grantWarning } from "@/terminal/grantWarning";
 import { OpenTerminalDialog } from "./OpenTerminalDialog";
 import { TerminalView } from "@/terminal/TerminalView";
 import {
@@ -32,20 +34,22 @@ import {
 
 /**
  * Every open Terminal; `shown` is the key of the view in sight. onClose
- * follows closing a view; onList goes to the Service's Terminals.
+ * follows closing a view; onList goes to the Service's Terminals. grants
+ * are a Service's protected grants, which its Terminals name in a warning
+ * line (#8).
  */
-export function TerminalLayer({ shown, onClose, onList }: { shown: string | undefined; onClose: (t: OpenTerminal) => void; onList: (service: string) => void }) {
+export function TerminalLayer({ shown, onClose, onList, grants }: { shown: string | undefined; onClose: (t: OpenTerminal) => void; onList: (service: string) => void; grants?: (service: string) => Grant[] }) {
   const open = useTerminals();
   return (
     <>
       {open.map((t) => (
-        <TerminalPane key={t.key} terminal={t} shown={t.key === shown} onClose={() => onClose(t)} onList={() => onList(t.service)} />
+        <TerminalPane key={t.key} terminal={t} shown={t.key === shown} grants={grants?.(t.service) ?? []} onClose={() => onClose(t)} onList={() => onList(t.service)} />
       ))}
     </>
   );
 }
 
-function TerminalPane({ terminal, shown, onClose, onList }: { terminal: OpenTerminal; shown: boolean; onClose: () => void; onList: () => void }) {
+function TerminalPane({ terminal, shown, grants, onClose, onList }: { terminal: OpenTerminal; shown: boolean; grants: Grant[]; onClose: () => void; onList: () => void }) {
   const { session, service, key } = terminal;
   const info = useSyncExternalStore(
     (l) => session.subscribe(l),
@@ -53,6 +57,8 @@ function TerminalPane({ terminal, shown, onClose, onList }: { terminal: OpenTerm
   );
   const label = info.container ? `${info.container} · ${info.user}` : info.phase === "connecting" ? "Connecting…" : "Terminal";
   const ended = info.phase === "exited" || info.phase === "failed" || info.phase === "no-shell";
+  // Named once the Node says which container it runs in (ADR 0011).
+  const warning = info.container ? grantWarning(grants, info.container) : undefined;
   const iconButton = "rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-neutral-100";
   const [launchError, setLaunchError] = useState<string>();
   const openInTerminal = () => {
@@ -85,6 +91,11 @@ function TerminalPane({ terminal, shown, onClose, onList }: { terminal: OpenTerm
           <X className="size-3.5" />
         </button>
       </div>
+      {warning && (
+        <div role="note" className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200">
+          {warning}
+        </div>
+      )}
       {info.phase === "no-shell" ? (
         <div className="flex flex-1 items-center justify-center p-8 text-sm text-neutral-300">{info.message}</div>
       ) : (
@@ -129,9 +140,13 @@ const node: TerminalListDeps = { list: listTerminals, end: endTerminal };
 
 const time = (ms: bigint) => new Date(Number(ms)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-/** The state of a Terminal the Node holds, in the Console's words. */
+/**
+ * The Node's record of a Terminal it holds, briefly (#8): who opened it,
+ * when, and how it ended, "Opened by Laptop, 14:02, exit 0 at 14:05".
+ */
 export function terminalState(t: HeldTerminal): string {
-  return t.running ? `Running since ${time(t.startedUnixMs)}` : `Exited with code ${t.code} at ${time(t.endedUnixMs)}`;
+  const opened = t.openedBy ? `Opened by ${t.openedBy}, ${time(t.startedUnixMs)}` : `Opened ${time(t.startedUnixMs)}`;
+  return `${opened}, ${t.running ? "running" : `exit ${t.code} at ${time(t.endedUnixMs)}`}`;
 }
 
 /**
@@ -210,11 +225,11 @@ export function TerminalList({ service, target, containers = [], deps = node, on
 }
 
 /**
- * Where a held Terminal ran and as whom, as far as its info tells, for Run
- * again once it ends: its container is the component's name in a Service
- * of several (the Service's own name otherwise), and a shell that ran as
- * "root" runs again as root (uid 0 either way).
+ * Where a held Terminal ran and as whom, for Run again once it ends: its
+ * container is the component's name in a Service of several (the Service's
+ * own name otherwise), and one started with Run as root runs again as root,
+ * as the Node recorded (#8); an image whose own user is root needs no flag.
  */
 function heldChoice(service: string, t: HeldTerminal): TerminalChoice {
-  return { ...(t.container && t.container !== service ? { component: t.container } : {}), ...(t.user === "root" ? { root: true } : {}) };
+  return { ...(t.container && t.container !== service ? { component: t.container } : {}), ...(t.root ? { root: true } : {}) };
 }

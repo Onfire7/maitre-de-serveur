@@ -23,7 +23,7 @@ import { api, type ConsoleState, type DeviceInfo, type Found, type KnownNode } f
 import { gapLine, nodeDown, nodeWord, syncGaps, useFleet, useFleetServices, type FleetService } from "@/fleet/useFleet";
 import { controlService, installEntry, listDevices, needComponents, removeService, targetFor, type ServiceAction } from "@/fleet/actions";
 import { assignOwners } from "@/fleet/owners";
-import { declined } from "@/fleet/grants";
+import { declined, grantsOf } from "@/fleet/grants";
 import { useIntroduce } from "@/fleet/introduce";
 import type { CatalogEntry } from "@/services";
 import type { ServiceSpec } from "@/gen/maitre/v1/service_pb";
@@ -360,6 +360,11 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
               go(other ? { name: "terminal", service, view: other.key } : s && pageViewOf(s, "") ? { name: "page", service, page: "" } : { name: "fleet", tab: "services" });
             }}
             onList={(service) => go({ name: "terminal", service })}
+            grants={(service) => {
+              // The grants of the Service on its own Node (#8).
+              const nodeId = services.find((x) => x.spec.name === service)?.spec.nodeId;
+              return grantsOf(snap?.records, service).map((g) => g.grant).filter((g) => !g.nodeId || g.nodeId === nodeId);
+            }}
           />
           </div>
         </main>

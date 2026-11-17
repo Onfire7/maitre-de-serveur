@@ -6,6 +6,7 @@ import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 import type { TerminalSocket } from "@/terminal/session";
 import { getTerminal, openTerminal, resetTerminals, terminalsOf, type HeldTerminal } from "@/terminal/terminals";
+import { GrantSchema } from "@/gen/maitre/v1/fleet_pb";
 import { TerminalLayer, TerminalList } from "./TerminalPane";
 
 // The library is behind TerminalView (#10 may swap it); the pane is tested without it.
@@ -86,6 +87,38 @@ describe("a Terminal in the Service's area (ADR 0011)", () => {
     await flush();
     const pane = screen.getByTestId("terminal-pane");
     expect(pane.getAttribute("data-shown")).toBeNull();
+  });
+});
+
+describe("a Terminal into a Service with protected grants (#8)", () => {
+  beforeEach(() => {
+    resetTerminals();
+    sockets = [];
+  });
+  const grantsOf = (service: string) => (service === "jellyfin" ? [create(GrantSchema, { service, option: "Volume=/mnt/media" }), create(GrantSchema, { service, option: "PodmanArgs=--privileged" })] : []);
+
+  async function into(service: string) {
+    const t = openTerminal(service, target, { url: async () => "ws://x", socket });
+    render(<TerminalLayer shown={t.key} grants={grantsOf} onClose={() => {}} onList={() => {}} />);
+    await flush();
+    act(() => {
+      sockets[0].onopen?.();
+      sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "1", container: service, user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    });
+  }
+
+  it("shows a warning line naming the grants, with nothing to confirm", async () => {
+    await into("jellyfin");
+    const note = screen.getByRole("note");
+    expect(note.textContent).toBe("This Service has host access: /mnt/media, privileged. Commands here can change the Node itself.");
+    expect(within(note).queryByRole("button")).toBeNull();
+    expect(screen.getByTestId("terminal-view")).toBeTruthy();
+  });
+
+  it("shows none for a Service without them", async () => {
+    await into("kuma");
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/host access/)).toBeNull();
   });
 });
 
@@ -222,7 +255,34 @@ describe("the Service's Terminals (#5)", () => {
     resetTerminals();
     sockets = [];
   });
-  const held = (p: Partial<HeldTerminal>): HeldTerminal => ({ $typeName: "maitre.v1.TerminalInfo", id: "", service: "kuma", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 0n, running: false, code: 0, endedUnixMs: 0n, ...p });
+  const held = (p: Partial<HeldTerminal>): HeldTerminal => ({ $typeName: "maitre.v1.TerminalInfo", id: "", service: "kuma", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 0n, running: false, code: 0, endedUnixMs: 0n, root: false, openedBy: "", ...p });
+
+  it("says who opened each Terminal, when, and its exit code (#8)", async () => {
+    const at = (h: number, m: number) => BigInt(new Date(2026, 10, 17, h, m).getTime());
+    const list = [
+      held({ id: "aaaaaaaaaaaaaaaa", running: true, startedUnixMs: at(14, 2), openedBy: "Laptop" }),
+      held({ id: "bbbbbbbbbbbbbbbb", code: 0, startedUnixMs: at(9, 30), endedUnixMs: at(9, 41), openedBy: "Phone" }),
+    ];
+    render(<TerminalList service="kuma" target={target} deps={{ list: async () => list, end: async () => {} }} onOpen={() => {}} />);
+    await flush();
+    const rows = screen.getAllByTestId("held-terminal");
+    // In the person's own clock: 14:02, or 02:02 PM.
+    expect(rows[0].textContent).toMatch(/Opened by Laptop, (14:02|02:02\s?PM), running/);
+    expect(rows[1].textContent).toMatch(/Opened by Phone, 09:30( AM)?, exit 0 at 09:41/);
+  });
+
+  it("reopens a Terminal started with Run as root as root, and one whose image runs as root as the image's user (#8)", async () => {
+    const opened: string[] = [];
+    const list = [held({ id: "aaaaaaaaaaaaaaaa", running: true, user: "root", root: true }), held({ id: "bbbbbbbbbbbbbbbb", running: true, user: "root", root: false })];
+    render(<TerminalList service="kuma" target={target} deps={{ list: async () => list, end: async () => {}, terminal: { url: async () => "ws://x", socket } }} onOpen={(key) => opened.push(key)} />);
+    await flush();
+    const rows = screen.getAllByTestId("held-terminal");
+    fireEvent.click(within(rows[0]).getByRole("button", { name: "Open" }));
+    fireEvent.click(within(rows[1]).getByRole("button", { name: "Open" }));
+    await flush();
+    expect(getTerminal(opened[0])?.session.choice.root).toBe(true);
+    expect(getTerminal(opened[1])?.session.choice.root).toBeFalsy();
+  });
 
   it("lists running and finished Terminals with their state; each opens, and a running one can be Ended", async () => {
     const ended: string[] = [];
@@ -240,8 +300,8 @@ describe("the Service's Terminals (#5)", () => {
     await flush();
     const rows = screen.getAllByTestId("held-terminal");
     expect(rows).toHaveLength(2);
-    expect(rows[0].textContent).toMatch(/Running since/);
-    expect(rows[1].textContent).toMatch(/Exited with code 3/);
+    expect(rows[0].textContent).toMatch(/, running/);
+    expect(rows[1].textContent).toMatch(/exit 3/);
     expect(within(rows[1]).queryByRole("button", { name: "End" })).toBeNull();
 
     fireEvent.click(within(rows[0]).getByRole("button", { name: "End" }));
