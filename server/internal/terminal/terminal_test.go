@@ -552,3 +552,30 @@ func TestAComponentsShellIsItsOwn(t *testing.T) {
 		}
 	}
 }
+
+// A Service's own page cannot open a Terminal (ADR 0011): a request on the
+// Service tunnel that carries X-Maitre-Page came through a page proxy, so it
+// is refused whatever its path's spelling, the first Page's (an empty
+// X-Maitre-Page) included.
+func TestAPagesRequestNeverOpensATerminal(t *testing.T) {
+	e := start(t, "kuma")
+	e.container(t, "kuma", "", "sh")
+	for _, path := range []string{terminal.Path, "/%5F%5Fmaitre/terminal", "/__maitre%2Fterminal"} {
+		for _, page := range []string{"", "admin"} {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			h := http.Header{}
+			h.Set(svcproxy.Header, "kuma")
+			h.Set("X-Test-Peer", "laptop")
+			h[svcproxy.PageHeader] = []string{page}
+			c, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(e.url, "http")+path, &websocket.DialOptions{HTTPHeader: h})
+			cancel()
+			if err == nil {
+				c.CloseNow()
+				t.Fatalf("%s, page %q: a Terminal opened", path, page)
+			}
+			if res == nil || res.StatusCode == http.StatusSwitchingProtocols {
+				t.Fatalf("%s, page %q: res %v", path, page, res)
+			}
+		}
+	}
+}

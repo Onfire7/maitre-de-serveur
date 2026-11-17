@@ -47,11 +47,13 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 )
 
 // Path is where a Terminal's WebSocket is opened on the Service tunnel. The
-// Desktop's page proxies never relay /__maitre/ paths, so a Service's own
-// page cannot reach it.
+// Desktop's page proxies never forward /__maitre/ paths, however spelled,
+// and the endpoint refuses any request a page proxy sent (one carrying
+// X-Maitre-Page), so a Service's own page cannot reach it.
 const Path = "/__maitre/terminal"
 
 // Feature is what a Node lists in NodeInfo.features when it serves Terminals.
@@ -113,10 +115,17 @@ func New(cfg Config) *Handler {
 }
 
 // Wrap sends Terminal requests on the Service tunnel (svcHeader set, Path)
-// to the endpoint and everything else to next.
+// to the endpoint and everything else to next. A request carrying
+// X-Maitre-Page, even empty, came from one of the Desktop's page proxies,
+// that is from a Service's own page, and is refused: only the Desktop's
+// Terminal proxy opens a Terminal (ADR 0011).
 func (h *Handler) Wrap(svcHeader string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == Path && r.Header.Get(svcHeader) != "" {
+			if _, page := r.Header[http.CanonicalHeaderKey(svcproxy.PageHeader)]; page {
+				http.Error(w, "a Service's page cannot open a Terminal", http.StatusForbidden)
+				return
+			}
 			h.serve(w, r, r.Header.Get(svcHeader))
 			return
 		}

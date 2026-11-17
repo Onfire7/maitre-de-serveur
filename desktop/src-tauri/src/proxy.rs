@@ -22,7 +22,8 @@
 //! this computer can reach 127.0.0.1, so that proxy relays nothing without
 //! a one-time token in the URL, which the Desktop hands only to the
 //! Console: `ws://127.0.0.1:<port>/<token>`, good for one upgrade or 30 s.
-//! A page proxy never relays a `/__maitre/` path, so a Service's own page
+//! A page proxy never forwards a `/__maitre/` path, however spelled, and
+//! always names its Page, which the Node refuses there, so a Service's own page
 //! cannot open one either.
 //!
 //! A Page's port is the same from one launch to the next and whichever
@@ -284,11 +285,14 @@ async fn relay(
     let is_page = !target.service.is_empty() && !is_terminal;
     // The Console's own paths on a page's proxy (frame.js and nav, below)
     // are answered here; no other /__maitre/ path goes to the Node, so a
-    // page cannot reach the Terminal endpoint (ADR 0011).
-    if is_page && req.uri().path().starts_with("/__maitre/") && req.uri().path() != FRAME_SCRIPT_PATH && req.uri().path() != NAV_PATH {
+    // page cannot reach the Terminal endpoint (ADR 0011). The path is read
+    // as the Node reads it, decoded and with its dot segments resolved, so
+    // no spelling of it gets past.
+    let path = normal_path(req.uri().path());
+    if is_page && (path == "/__maitre" || path.starts_with("/__maitre/")) && path != FRAME_SCRIPT_PATH && path != NAV_PATH {
         return Ok(text(404, "not found".into()));
     }
-    if is_page && req.uri().path() == FRAME_SCRIPT_PATH {
+    if is_page && path == FRAME_SCRIPT_PATH {
         return Ok(Response::builder()
             .status(200)
             .header("content-type", "application/javascript; charset=utf-8")
@@ -296,7 +300,7 @@ async fn relay(
             .body(http_body_util::Full::new(Bytes::from_static(FRAME_SCRIPT.as_bytes())).map_err(|never| match never {}).boxed())
             .unwrap());
     }
-    if is_page && req.uri().path() == NAV_PATH {
+    if is_page && path == NAV_PATH {
         if req.method() == hyper::Method::POST {
             let body = req.into_body().collect().await.map(|b| b.to_bytes()).unwrap_or_default();
             if let (Some(report), Some((event, url))) = (reporter, parse_nav(&body)) {
@@ -323,11 +327,16 @@ async fn relay(
                     HeaderName::from_static("x-maitre-service"),
                     HeaderValue::from_str(&target.service).unwrap(),
                 );
-                if !target.page.is_empty() {
+                // A page's request always names its Page, the first as
+                // empty, so the Node refuses it at the Terminal endpoint
+                // (ADR 0011); the Terminal proxy's never does.
+                if is_page {
                     req.headers_mut().insert(
                         HeaderName::from_static("x-maitre-page"),
                         HeaderValue::from_str(&target.page).unwrap(),
                     );
+                } else {
+                    req.headers_mut().remove("x-maitre-page");
                 }
             }
             // Origin-form URI; the agent routes by header, not host.
@@ -365,6 +374,43 @@ async fn relay(
         }
         Err(e) => Ok(text(502, format!("Maître Desktop could not reach the Node: {e}"))),
     }
+}
+
+/// `path` as the Node will read it: percent-decoded, with empty and `.`
+/// segments dropped and `..` taking the one before it away. A trailing
+/// slash is kept.
+fn normal_path(path: &str) -> String {
+    let raw = path.as_bytes();
+    let mut bytes = Vec::with_capacity(raw.len());
+    let hex = |b: u8| (b as char).to_digit(16);
+    let mut i = 0;
+    while i < raw.len() {
+        if raw[i] == b'%' && i + 2 < raw.len() {
+            if let (Some(h), Some(l)) = (hex(raw[i + 1]), hex(raw[i + 2])) {
+                bytes.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        bytes.push(raw[i]);
+        i += 1;
+    }
+    let decoded = String::from_utf8_lossy(&bytes);
+    let mut segs: Vec<&str> = Vec::new();
+    for seg in decoded.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                segs.pop();
+            }
+            s => segs.push(s),
+        }
+    }
+    let mut out = format!("/{}", segs.join("/"));
+    if decoded.ends_with('/') && out != "/" {
+        out.push('/');
+    }
+    out
 }
 
 async fn connect(
@@ -576,9 +622,9 @@ mod tests {
     }
 
     // A Service's own page is on the same kind of proxy; it never reaches
-    // the Terminal endpoint, token or not.
+    // the Terminal endpoint, token or not, however it spells the path.
     #[tokio::test]
-    async fn a_page_proxy_does_not_relay_the_terminal_path() {
+    async fn a_page_proxy_does_not_forward_the_terminal_path() {
         let node = echo_node().await;
         let me = fake::temp_identity("device");
         let proxies = Proxies::default();
@@ -586,9 +632,70 @@ mod tests {
             .open(Arc::new(Dialer::new(me)), node.addr.clone(), node.fingerprint.clone(), "kuma".into(), "kuma".into(), String::new(), None)
             .await
             .unwrap();
-        let out = get(port, "/__maitre/terminal").await;
-        assert!(out.starts_with("HTTP/1.1 404"), "{out}");
+        for path in [
+            "/__maitre/terminal",
+            "/%5F%5Fmaitre/terminal",
+            "/%5f%5fmaitre/terminal",
+            "/__maitre%2Fterminal",
+            "/__maitre%2fterminal",
+            "/%5F_maitre%2fterminal",
+            "//__maitre/terminal",
+            "/./__maitre/terminal",
+            "/x/../__maitre/terminal",
+            "/x/%2E%2E/__maitre/terminal",
+            "/__maitre/./terminal",
+            "/__maitre",
+            "/%5F%5Fmaitre",
+        ] {
+            let out = get(port, path).await;
+            assert!(out.starts_with("HTTP/1.1 404"), "{path}: {out}");
+        }
         assert!(node.clients.lock().unwrap().is_empty());
+    }
+
+    // A page proxy always names the Page, the first one as an empty
+    // X-Maitre-Page, so the Node can tell a page's request from a
+    // Terminal's (ADR 0011); the Terminal proxy never does.
+    #[tokio::test]
+    async fn a_page_request_always_names_its_page() {
+        let node = fake::start(|tls| async move {
+            let svc = hyper::service::service_fn(|req: Request<Incoming>| async move {
+                let page = match req.headers().get("x-maitre-page") {
+                    Some(v) => format!("page={:?}", v.to_str().unwrap_or("")),
+                    None => "no page".to_string(),
+                };
+                Ok::<_, hyper::Error>(Response::new(http_body_util::Full::new(Bytes::from(page))))
+            });
+            let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(tls), svc).await;
+        })
+        .await;
+        let me = fake::temp_identity("device");
+        let proxies = Proxies::default();
+        let dialer = Arc::new(Dialer::new(me));
+        for (page, want) in [("", "page=\"\""), ("admin", "page=\"admin\"")] {
+            let (_, port) = proxies
+                .open(dialer.clone(), node.addr.clone(), node.fingerprint.clone(), format!("kuma-{page}"), "kuma".into(), page.into(), None)
+                .await
+                .unwrap();
+            let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+            s.write_all(b"GET /a HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").await.unwrap();
+            let mut out = String::new();
+            s.read_to_string(&mut out).await.unwrap();
+            assert!(out.ends_with(want), "{page:?}: {out}");
+        }
+        let url = proxies.open_terminal(dialer, node.addr.clone(), node.fingerprint.clone(), "kuma".into()).await.unwrap();
+        let (port, path) = port_and_path(&url);
+        let out = get(port, &path).await;
+        assert!(out.ends_with("no page"), "{out}");
+    }
+
+    #[test]
+    fn a_path_is_read_as_the_node_reads_it() {
+        assert_eq!(normal_path("/a/b"), "/a/b");
+        assert_eq!(normal_path("/%5F%5Fmaitre%2Fnav"), "/__maitre/nav");
+        assert_eq!(normal_path("//a/./b/../c/"), "/a/c/");
+        assert_eq!(normal_path("/../../a"), "/a");
+        assert_eq!(normal_path("/%zz%2"), "/%zz%2");
     }
 
     #[test]
