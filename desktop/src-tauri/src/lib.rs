@@ -1,4 +1,5 @@
 mod catalogs;
+pub mod dial;
 mod discovery;
 pub mod identity;
 mod media;
@@ -16,7 +17,7 @@ pub mod sign;
 use discovery::{Discovery, Found};
 use identity::Identity;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -63,13 +64,6 @@ pub struct DeviceInfo {
 }
 
 #[derive(Serialize)]
-pub struct RpcResponse {
-    pub status: u16,
-    pub content_type: String,
-    pub body: Vec<u8>,
-}
-
-#[derive(Serialize)]
 pub struct Peek {
     pub fingerprint: String,
     pub pairing_code: String,
@@ -83,7 +77,10 @@ struct AppState {
     identity: Arc<Identity>,
     proxies: proxy::Proxies,
     state: Mutex<ConsoleState>,
-    clients: Mutex<HashMap<String, reqwest::Client>>,
+    /// The one way to a Node (ADR 0012): the RPC client, file transfers
+    /// and the loopback proxy all connect through it.
+    dialer: Arc<dial::Dialer>,
+    nodes: rpc::NodeClient,
     discovery: Discovery,
     netboot: netboot::Netboot,
     media: media::Media,
@@ -100,17 +97,6 @@ impl AppState {
             .map_err(|e| e.to_string())?;
         *self.state.lock().unwrap() = state;
         Ok(())
-    }
-
-    /// One client per pinned server fingerprint.
-    fn client_for(&self, fingerprint: &str) -> Result<reqwest::Client, String> {
-        let fp = fingerprint.trim().to_lowercase();
-        if let Some(c) = self.clients.lock().unwrap().get(&fp) {
-            return Ok(c.clone());
-        }
-        let client = rpc::build_client(&self.identity, HashSet::from([fp.clone()]))?;
-        self.clients.lock().unwrap().insert(fp, client.clone());
-        Ok(client)
     }
 }
 
@@ -193,7 +179,7 @@ async fn peek_installer(state: State<'_, AppState>, addr: String) -> Result<Peek
 #[tauri::command]
 async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: String, view: String, service: String, page: String) -> Result<String, String> {
     let remembered = state.state.lock().unwrap().ports.get(&view).copied();
-    let (url, port) = state.proxies.open(state.identity.clone(), addr, fingerprint, view.clone(), service, page, remembered).await?;
+    let (url, port) = state.proxies.open(state.dialer.clone(), addr, fingerprint, view.clone(), service, page, remembered).await?;
     if remembered != Some(port) {
         let mut st = state.state.lock().unwrap().clone();
         st.ports.insert(view, port);
@@ -206,7 +192,7 @@ async fn service_url(state: State<'_, AppState>, addr: String, fingerprint: Stri
 /// manager's previews read `<base>/maitre/files/content?…` from it.
 #[tauri::command]
 async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String) -> Result<String, String> {
-    state.proxies.open_files(state.identity.clone(), addr, fingerprint).await
+    state.proxies.open_files(state.dialer.clone(), addr, fingerprint).await
 }
 
 /// A Service's Page in a view of its own (decision 294, src/views.rs):
@@ -272,47 +258,40 @@ async fn view_sample(state: State<'_, AppState>, view: String, cols: i32, rows: 
     state.views.sample(&view, cols, rows).await
 }
 
+#[derive(Serialize, Clone)]
+struct TransferProgress {
+    id: String,
+    done: u64,
+    total: u64,
+    current: String,
+}
+
+/// A transfer's progress, sent to the Console as `transfer` events.
+fn transfer_events(app: tauri::AppHandle, id: String) -> transfer::Progress {
+    use tauri::Emitter;
+    Arc::new(move |done, total, current| {
+        let _ = app.emit("transfer", TransferProgress { id: id.clone(), done, total, current: current.into() });
+    })
+}
+
 /// Save a file (or a folder as a zip) from a Node to `dest` on this computer.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 async fn files_download(app: tauri::AppHandle, state: State<'_, AppState>, addr: String, fingerprint: String, scope: transfer::Scope, path: String, folder: bool, dest: String, id: String) -> Result<(), String> {
-    let client = state.client_for(&fingerprint)?;
-    transfer::download(app, client, addr, scope, path, folder, dest, id).await
+    transfer::download(&state.nodes, &addr, &fingerprint, scope, path, folder, dest, transfer_events(app, id)).await
 }
 
 /// Upload local files and folders into `folder` of a scope on a Node.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 async fn files_upload(app: tauri::AppHandle, state: State<'_, AppState>, addr: String, fingerprint: String, scope: transfer::Scope, folder: String, paths: Vec<String>, id: String) -> Result<transfer::UploadResult, String> {
-    let client = state.client_for(&fingerprint)?;
-    transfer::upload(app, client, addr, scope, folder, paths, id).await
+    transfer::upload(&state.nodes, &addr, &fingerprint, scope, folder, paths, transfer_events(app, id)).await
 }
 
-/// Send one Connect-protocol unary request to `addr`, trusting only `fingerprint`.
-/// Why a request to `addr` could not be sent, with its cause: reqwest's
-/// own words are "error sending request for url" whatever happened, and
-/// the timeout or refused connection underneath is what the user needs.
-fn send_error(addr: &str, e: &reqwest::Error) -> String {
-    let mut causes = Vec::new();
-    let mut cur: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
-    while let Some(c) = cur {
-        let s = c.to_string();
-        if !s.is_empty() && !causes.contains(&s) {
-            causes.push(s);
-        }
-        cur = std::error::Error::source(c);
-    }
-    let why = if e.is_timeout() {
-        "did not answer in 15 s".to_string()
-    } else if causes.is_empty() {
-        e.to_string()
-    } else {
-        causes.join(": ")
-    };
-    format!("{addr} could not be reached: {why}")
-}
-
-/// `procedure` is like "/maitre.v1.NodeService/GetNodeInfo".
+/// Send one Connect-protocol unary request to `addr`, trusting only
+/// `fingerprint`. `procedure` is like "/maitre.v1.NodeService/GetNodeInfo".
+/// An error means the Node could not be reached, which the Console's
+/// transport takes as the cue to try the Node's other addresses.
 #[tauri::command]
 async fn rpc(
     state: State<'_, AppState>,
@@ -320,29 +299,11 @@ async fn rpc(
     fingerprint: String,
     procedure: String,
     body: Vec<u8>,
-) -> Result<RpcResponse, String> {
+) -> Result<rpc::RpcResponse, String> {
     if addr.is_empty() || fingerprint.is_empty() {
         return Err("rpc needs an address and a fingerprint".into());
     }
-    let client = state.client_for(&fingerprint)?;
-    let res = client
-        .post(format!("https://{addr}{procedure}"))
-        .header("content-type", "application/proto")
-        .header("connect-protocol-version", "1")
-        .timeout(std::time::Duration::from_secs(15))
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| send_error(&addr, &e))?;
-    let status = res.status().as_u16();
-    let content_type = res
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-    let body = res.bytes().await.map_err(|e| e.to_string())?.to_vec();
-    Ok(RpcResponse { status, content_type, body })
+    state.nodes.call(&addr, &fingerprint, &procedure, body).await
 }
 
 #[tauri::command]
@@ -422,18 +383,10 @@ async fn recover_with_phrase(_state: State<'_, AppState>, phrase: String, addr: 
     let key = recovery::key_pair(&entropy)?;
     let pem = key.public_key_pem();
     let rec_id = Identity::from_key_pair(key)?;
-    let client = rpc::build_client(&rec_id, HashSet::from([fingerprint.trim().to_lowercase()]))?;
-    let res = client
-        .post(format!("https://{addr}/maitre.v1.NodeService/PutRecord"))
-        .header("content-type", "application/proto")
-        .header("connect-protocol-version", "1")
-        .timeout(std::time::Duration::from_secs(15))
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !res.status().is_success() {
-        let text = res.text().await.unwrap_or_default();
+    let nodes = rpc::NodeClient::new(Arc::new(dial::Dialer::new(Arc::new(rec_id))));
+    let res = nodes.call(&addr, &fingerprint, "/maitre.v1.NodeService/PutRecord", body).await?;
+    if !(200..300).contains(&res.status) {
+        let text = String::from_utf8_lossy(&res.body);
         return Err(format!("the Node refused the phrase: {text}"));
     }
     Ok(pem)
@@ -552,12 +505,15 @@ pub fn run() {
             let handle = app.handle().clone();
             let proxies = proxy::Proxies::default();
             proxies.set_reporter(move |view, event, url| views::report(&handle, view, event, url));
+            let identity = Arc::new(identity);
+            let dialer = Arc::new(dial::Dialer::new(identity.clone()));
             app.manage(AppState {
                 data_dir,
-                identity: Arc::new(identity),
+                identity,
                 proxies,
                 state: Mutex::new(state),
-                clients: Mutex::new(HashMap::new()),
+                nodes: rpc::NodeClient::new(dialer.clone()),
+                dialer,
                 discovery: Discovery::start(),
                 netboot: netboot::Netboot::default(),
                 media: media::Media::default(),

@@ -25,8 +25,7 @@
 //! the Console's saved state; a running proxy follows a change of Node
 //! address rather than opening a new origin.
 
-use crate::identity::Identity;
-use crate::rpc::pinned_tls_config;
+use crate::dial::{Dialer, Proto};
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt};
 use hyper::body::Incoming;
@@ -36,8 +35,7 @@ use hyper_util::rt::TokioIo;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
-use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::TlsConnector;
+use tokio::net::TcpListener;
 
 #[derive(Clone)]
 struct Target {
@@ -54,7 +52,7 @@ struct Target {
 }
 
 /// Where a running proxy relays to; swapped when the Node is reached another way.
-type Upstream = Arc<RwLock<(Target, Arc<rustls::ClientConfig>)>>;
+type Upstream = Arc<RwLock<(Target, Arc<Dialer>)>>;
 
 struct Live {
     port: u16,
@@ -107,7 +105,7 @@ impl Proxies {
     /// else on a port from `view`, the Page's host name. A proxy already
     /// running for that Page is pointed at `addr` if it was reaching the
     /// Node another way.
-    pub async fn open(&self, id: Arc<Identity>, addr: String, fingerprint: String, view: String, service: String, page: String, remembered: Option<u16>) -> Result<(String, u16), String> {
+    pub async fn open(&self, dialer: Arc<Dialer>, addr: String, fingerprint: String, view: String, service: String, page: String, remembered: Option<u16>) -> Result<(String, u16), String> {
         let target = Target { addr, fingerprint, service, page, token: String::new() };
         let live = self.ports.lock().unwrap().get(&view).map(|l| (l.port, l.upstream.clone()));
         if let Some((port, upstream)) = live {
@@ -116,25 +114,24 @@ impl Proxies {
                 cur.0.addr == target.addr && cur.0.fingerprint == target.fingerprint
             };
             if !same {
-                let tls = Arc::new(pinned_tls_config(&id, &target.fingerprint, &[b"http/1.1".to_vec()])?);
-                *upstream.write().unwrap() = (target, tls);
+                *upstream.write().unwrap() = (target, dialer);
             }
             return Ok((format!("http://127.0.0.1:{port}/"), port));
         }
         let candidates = port_candidates(&view, remembered);
-        self.serve(id, view, target, &candidates).await
+        self.serve(dialer, view, target, &candidates).await
     }
 
     /// Returns the local base URL (ending in the token, no slash) for a
     /// Node's file contents, starting a proxy if needed.
-    pub async fn open_files(&self, id: Arc<Identity>, addr: String, fingerprint: String) -> Result<String, String> {
+    pub async fn open_files(&self, dialer: Arc<Dialer>, addr: String, fingerprint: String) -> Result<String, String> {
         let key = format!("{fingerprint}@{addr}#files");
         if let Some(base) = self.files.lock().unwrap().get(&key) {
             return Ok(base.clone());
         }
         let token = format!("{:032x}", rand::random::<u128>());
         let target = Target { addr, fingerprint, service: String::new(), page: String::new(), token: token.clone() };
-        let (root, _) = self.serve(id, key.clone(), target, &[]).await?;
+        let (root, _) = self.serve(dialer, key.clone(), target, &[]).await?;
         let base = format!("{root}{token}");
         self.files.lock().unwrap().insert(key, base.clone());
         Ok(base)
@@ -142,7 +139,7 @@ impl Proxies {
 
     /// Listens on the first free port of `prefer`, or on any free port when
     /// none of them is (another program has them), and relays to `target`.
-    async fn serve(&self, id: Arc<Identity>, key: String, target: Target, prefer: &[u16]) -> Result<(String, u16), String> {
+    async fn serve(&self, dialer: Arc<Dialer>, key: String, target: Target, prefer: &[u16]) -> Result<(String, u16), String> {
         let mut listener = None;
         for &p in prefer {
             if let Ok(l) = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], p))).await {
@@ -155,8 +152,7 @@ impl Proxies {
             None => TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.map_err(|e| e.to_string())?,
         };
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-        let tls = Arc::new(pinned_tls_config(&id, &target.fingerprint, &[b"http/1.1".to_vec()])?);
-        let upstream: Upstream = Arc::new(RwLock::new((target, tls)));
+        let upstream: Upstream = Arc::new(RwLock::new((target, dialer)));
         let up = upstream.clone();
         let reporter = self.reporter.lock().unwrap().clone();
         tokio::spawn(async move {
@@ -166,8 +162,8 @@ impl Proxies {
                 let reporter = reporter.clone();
                 tokio::spawn(async move {
                     let svc = hyper::service::service_fn(move |req| {
-                        let (target, tls) = up.read().unwrap().clone();
-                        relay(req, target, tls, reporter.clone())
+                        let (target, dialer) = up.read().unwrap().clone();
+                        relay(req, target, dialer, reporter.clone())
                     });
                     let _ = hyper::server::conn::http1::Builder::new()
                         .preserve_header_case(true)
@@ -186,7 +182,7 @@ impl Proxies {
 async fn relay(
     mut req: Request<Incoming>,
     target: Target,
-    tls: Arc<rustls::ClientConfig>,
+    dialer: Arc<Dialer>,
     reporter: Option<Reporter>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     if !target.token.is_empty() {
@@ -225,7 +221,7 @@ async fn relay(
     if document {
         req.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
     }
-    match connect(&target, tls).await {
+    match connect(&target, &dialer).await {
         Ok(mut sender) => {
             let client_upgrade = hyper::upgrade::on(&mut req);
             let wants_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
@@ -280,11 +276,9 @@ async fn relay(
 
 async fn connect(
     target: &Target,
-    tls: Arc<rustls::ClientConfig>,
+    dialer: &Dialer,
 ) -> Result<hyper::client::conn::http1::SendRequest<Incoming>, String> {
-    let tcp = TcpStream::connect(&target.addr).await.map_err(|e| e.to_string())?;
-    let name = rustls::pki_types::ServerName::try_from("maitre").map_err(|e| e.to_string())?;
-    let stream = TlsConnector::from(tls).connect(name, tcp).await.map_err(|e| e.to_string())?;
+    let stream = dialer.dial(&target.addr, &target.fingerprint, Proto::Http1).await?;
     let (sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream)).await.map_err(|e| e.to_string())?;
     tokio::spawn(async move {
         let _ = conn.with_upgrades().await;
@@ -388,6 +382,36 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dial::fake;
+    use crate::identity::Identity;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn a_page_request_reaches_its_node_through_the_dialer() {
+        let node = fake::start(|tls| async move {
+            let svc = hyper::service::service_fn(|req: Request<Incoming>| async move {
+                let service = req.headers().get("x-maitre-service").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+                let body = format!("{} {} service={service}", req.method(), req.uri());
+                Ok::<_, hyper::Error>(Response::new(http_body_util::Full::new(Bytes::from(body))))
+            });
+            let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(tls), svc).await;
+        })
+        .await;
+        let me = fake::temp_identity("device");
+        let proxies = Proxies::default();
+        let (_, port) = proxies
+            .open(Arc::new(Dialer::new(me.clone())), node.addr.clone(), node.fingerprint.clone(), "echo".into(), "echo".into(), String::new(), None)
+            .await
+            .unwrap();
+        let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        s.write_all(b"GET /a?b=1 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").await.unwrap();
+        let mut out = String::new();
+        s.read_to_string(&mut out).await.unwrap();
+        assert!(out.starts_with("HTTP/1.1 200"), "{out}");
+        assert!(out.ends_with("GET /a?b=1 service=echo"), "{out}");
+        assert_eq!(*node.clients.lock().unwrap(), vec![me.fingerprint()]);
+    }
 
     #[test]
     fn script_goes_after_head_whatever_its_case() {
@@ -429,7 +453,7 @@ mod tests {
     #[tokio::test]
     async fn a_page_keeps_its_port_and_origin_when_its_node_is_reached_another_way() {
         let dir = std::env::temp_dir().join(format!("maitre-proxy-test-{:x}", rand::random::<u64>()));
-        let id = Arc::new(Identity::load_or_generate(&dir.join("device")).unwrap());
+        let id = Arc::new(crate::dial::Dialer::new(Arc::new(Identity::load_or_generate(&dir.join("device")).unwrap())));
         let fp = "ab".repeat(32);
         let proxies = Proxies::default();
         let (url, port) = proxies.open(id.clone(), "192.168.1.5:7443".into(), fp.clone(), "jellyfin".into(), "jellyfin".into(), String::new(), None).await.unwrap();

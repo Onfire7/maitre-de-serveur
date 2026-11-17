@@ -2164,6 +2164,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cairo-rs",
+ "form_urlencoded",
  "futures-util",
  "glib",
  "gtk",
