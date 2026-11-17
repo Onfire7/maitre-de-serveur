@@ -165,6 +165,10 @@ _Avoid_: Setup, Advanced settings, config editor, YAML
 The steps a Catalog entry declares for installing its Service, run by the Console once at install: its settings, grouped into pages, and the facts the person needs for the app's own first-run setup, with the Service's Page opened in place once it answers. Not Service Configuration, which is for changes afterwards.
 _Avoid_: Walkthrough, onboarding, guided install, Service Configuration Wizard, setup wizard (which is the app's own)
 
+**Terminal**:
+A shell or command running inside one of a Service's containers, opened from the Console by a Trusted Device, with keystrokes in and output out. It belongs to the Service's Node: it keeps running when no Console is attached, any Trusted Device may attach to it, and it ends when its command exits, when it is ended, or when its container stops. A Service command is a Terminal that starts with the command its Catalog entry declares.
+_Avoid_: Console, Service console, shell, exec, SSH
+
 **Service status**:
 One of four words the Console uses for a Service: **Online** (running and healthy), **Starting** (starting, or being updated), **Stopped** (stopped by the user), **Attention** (failed, running but unhealthy, or restart-looping).
 _Avoid_: Up, down, healthy (for Services), crashed, degraded

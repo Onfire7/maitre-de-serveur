@@ -51,3 +51,7 @@ Lines in any section other than `[Container]` (such as `[Service] ExecStartPre=`
 - The Console signs every record it writes, asks for grants in a warning dialog, and lists a Service's grants with Revoke.
 - Peers' Pools are exported with `root_squash,anonuid=<owner>,anongid=<owner>` and mounted `nosuid,nodev,noexec`.
 - What 189 does not prevent: a container with no grants that escapes Podman and SELinux through a kernel bug is root on its Node. bootc's read-only `/usr` makes it harder for that to survive a reboot, and Node keys limit what it reaches beyond that Node.
+
+## Amendment: Terminals (ADR 0011)
+
+A Trusted Device may open a Terminal inside a Service's container, in shipped images, without a grant. It stays inside the container's confinement; in a Service whose grants reach the Node, it can do what those grants already allow, and the Console says so. Node keys and the Recovery Phrase cannot open one, and the Node itself still has no terminal.

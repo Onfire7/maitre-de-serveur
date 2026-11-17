@@ -6,6 +6,8 @@ Work that is agreed but not yet done, grouped by the part of the system it touch
 
 The agent on every Node (`server/`).
 
+- **Relay through the anchor.** The Console reads the Fleet through the anchor (`GetFleetStatus`, record writes), but every action, Page and file transfer goes straight to the Node concerned (`fleet/actions.ts` `targetFor`, `ServicePage.tsx`), so a Node the Desktop cannot reach directly can be seen but not used. This has been causing serious connectivity problems. The anchor should relay RPCs, Pages, file contents and Terminals to the other Nodes. The shape agreed (2026-11-17): an opaque TCP pipe, with the Device's own mTLS session to the target Node, its certificate pinned, running inside it, so the anchor can neither read nor change the traffic nor pose as either end; the target Node also checks that the relaying peer holds a Node key (ADR 0008). It ships before Terminals. To work out in its own session: whether the Console always goes through the anchor or only when the direct way fails, how the anchor learns where to dial and how the Desktop names the target inside the relay, what tunnelling all Page traffic through one Node costs, and its ADR.
+
 ## Image
 
 The bootc image, its units and updates (`image/`).
@@ -48,28 +50,29 @@ commands:
     run: [app, pair, --new]    # argv, not a shell string
 ```
 
+Settled with Terminals (ADR 0011, 2026-11-17): a command is a Terminal started by name, over the same stream; the Node resolves the argv from the signed entry, and the Console never sends a command line. It always opens a new Terminal titled with the command's label, which keeps running when the view closes or the connection drops, and is disabled, with the reason, while the Service is stopped. A Node without `terminal` in its features hides the menu items. An entry whose image has no shell offers only its commands.
+
 To work out before this is broken down:
 
-- **Interactive or not.** A real terminal (a PTY, keystrokes in, output streamed out, resize) or only streamed output? Some admin tools prompt for input, so a terminal is the likely answer. That needs a streaming RPC, which none of the Service RPCs are yet.
-- **Which RPC.** It would be a new Service RPC that runs an entry's declared command by name. The Console never sends a command line, so this is not a general exec, and it is not `DebugExec`, which only debug builds have. Following the "Console vs older Nodes" rule, a Node without the RPC hides the menu items instead of failing.
 - **Arguments.** Fixed argv only, or prompts filled from a small form (like `settings:`) before the terminal opens?
-- **Where the terminal lives.** A Console view in the Service's area, next to its Pages, with a terminal component in the Desktop. What happens on close: the command is killed, or it keeps running and you can come back to it?
-- **The container's state.** The command runs only while the Service is running. Show the item disabled, with the reason, when it is stopped?
-- **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry. A free-form shell into a container is a separate decision, below under **Interactive Service console**.
+- **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry.
 - **Custom Services.** Can a user add their own commands in Service Configuration, the way they can override other options?
 
-### Interactive Service console
+### Terminals
 
-A terminal in the Console attached to one of a Service's containers: a shell, or any command typed into it, with keystrokes in, output out, and resizing. Service commands need the same machinery, a PTY in the container streamed to a terminal view in the Desktop, so building the console first gives commands their transport and their view, and a command becomes a console that starts with a fixed argv.
+Planned in the design session of 2026-11-17; the decisions are ADR 0011 and the term is in `GLOSSARY.md`. A Terminal is a shell or command inside one of a Service's containers, opened from the Console by a Trusted Device, held by the Service's Node. **Relay through the anchor** (under Maître Server) ships first. It gives Service commands their transport and their view. Ready to break down into tickets:
 
-To work out before this is broken down:
-
-- **The RPC.** A bidirectional stream: a start message (Service, component, argv or the image's shell, terminal size), then input and resize frames in and output frames out, ending with the exit code. Connect over HTTP/2 carries bidi streams, but nothing in the API uses one yet, so check the Desktop's Rust client and the loopback proxy pass it through. On the Node it is `podman exec -it` or the Podman API's exec with a TTY. Following the "Console vs older Nodes" rule, a Node without the RPC hides the console instead of failing.
-- **Which shell.** Many images have no shell at all (distroless, scratch). Fall back to `/bin/sh`, say plainly when there is none, and think about a debug sidecar with busybox that joins the container's namespaces.
-- **The terminal view.** A terminal component (xterm.js or similar) placed like a Page in the Service's area, so it can sit beside the Service's Pages. On close: kill the process, or keep the session so it can be reattached, which needs the Node to hold it.
-- **Trust.** This is the free-form shell the Service commands sketch left out. It cuts against "a Node is not an administrator" (ADR 0008): a container with a granted host mount, or one that runs privileged, is a root shell on the Node, and the Node has no terminal of its own on purpose. Options: refuse the console for Services with host grants, or warn and require typing the Service's name like other destructive actions. It is only offered to paired devices over mTLS either way, and could be left out of a shipped image like the debug tier if it should not be a product feature.
-- **Which user.** The container's default user, or a choice of root, which most images run as anyway.
-- **Records.** Whether the Node logs who opened a console on what, the same way an update run now records who asked for it.
+- **API.** Protobuf messages for the stream's frames (start: Service, component, argv or the shell, or a Service command's name, user, size; input; resize; output; exit with its code), a way to list a Service's Terminals with their state for the Console, and `terminal` in `NodeInfo.features`.
+- **Node: the session.** Each Terminal runs `podman exec` with a TTY in a transient systemd unit of its own that holds the PTY, so the agent can restart without ending it. About 1 MiB of recent output in memory for replay on attach; any number of Devices attached at once, the last to type or resize setting the size; at most 10 per container. It ends when its process exits, on End (SIGHUP, then SIGKILL after 5 s), or when its container stops; no idle timeout. A finished Terminal keeps its exit code until a Device has seen it, or 24 hours.
+- **Node: the shell and the user.** The component's `shell:` from the Catalog entry, else the same field set in Service Configuration (custom Services), else `/bin/bash`, else `/bin/sh`, else "This container has no shell" and only the entry's Service commands. The image's default user, or root when asked.
+- **Node: the endpoint and its checks.** A WebSocket on the Service tunnel (`svcproxy`), the frames as binary messages. Only a full Trusted Device; never a Node key or the Recovery Phrase. Records, without keystrokes or output: Device, Service, component, argv, user, start, end, exit code, and each attach.
+- **Node: what ends Terminals.** Automatic rollouts on a Node wait up to a day for its Terminals to finish.
+- **Desktop: the loopback proxy.** A one-time token in the URL for each Terminal connection, valid for one upgrade or 30 s, checked before the proxy relays.
+- **Desktop: the view.** A `TerminalView` in the Service's area, beside its Pages, labelled with the container and user ("server · root"), never dropped for being idle and not counted in the frames' limit. It shows the exit code and **Run again** when its process ends. A Service with protected grants gets a warning line naming them. The Service's area lists its running and finished Terminals; disabled, with the reason, while the Service is not running.
+- **Desktop: the warnings.** Stop, Restart, Update, Move, Remove, applying Service Configuration, and a Node's Update or Reboot name the running Terminals they will end, without refusing.
+- **Desktop: which terminal library.** Decided by a throwaway prototype in the Tauri app on Linux (WebKitGTK above all), macOS and Windows, not by guessing. Candidates: xterm.js with its WebGL renderer, Unicode 11 widths and the fit addon; ghostty-web (Ghostty's engine as WASM on a canvas, the same API); and other libraries still marked unstable if they are generally said to work well. The checks: the app's shortcuts never steal the Terminal's keys (Ctrl+W, Ctrl+Tab), Option/Alt as Meta, dead keys and IME, copy and paste per platform, `vim`, `htop` and `mc`, a 50 MB `cat`, emoji and CJK widths, crisp text at fractional scaling, a password prompt, and resizing during output. A native libghostty surface is reconsidered only if every web candidate fails on WebKitGTK. Revisit ghostty-web once it builds on Ghostty's own WASM release.
+- **Desktop, after the view: Open in your terminal.** A small bridge binary shipped as a Tauri sidecar, launched in the person's own terminal app (Windows Terminal or conhost, the macOS default, `xdg-terminal-exec` or a short list on Linux), attached to the same session through the same token.
+- **Considered and rejected.** A busybox sidecar for images without a shell: it would pull an image no Catalog entry signed and run outside the confinement of ADR 0008. A bidirectional Connect RPC: see ADR 0011.
 
 ### Typed health checks
 
