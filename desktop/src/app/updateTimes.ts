@@ -28,7 +28,12 @@ export function servicesStopFor(st: Pick<UpdateStatus, "typicalDowntimeMs"> | un
   return down === null ? "a few minutes" : down === 0 ? "under a minute" : `about ${down} ${down === 1 ? "minute" : "minutes"}`;
 }
 
-/** Whole minutes; 0 below one; null when the Node has no figure. */
+/**
+ * Whole minutes; 0 below one; null when the Node has no figure. The Node
+ * words the same figure in its rollout line, usually() in
+ * server/internal/rollout/rollout.go, with the same rounding (half up)
+ * and words ("under a minute", "about 1 minute"): change both together.
+ */
 function minutes(ms: bigint): number | null {
   if (!ms) return null;
   const n = Number(ms);

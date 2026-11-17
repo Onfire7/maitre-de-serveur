@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -32,9 +33,12 @@ import (
 var ReconcileEvery = 20 * time.Second
 
 type peer struct {
-	id       string
-	name     string
-	addrs    []string // host:port, most recently working first
+	id    string
+	name  string
+	addrs []string // host:port, most recently working first
+	// recorded are the addresses the peer's Node record gives (addrs
+	// also holds what mDNS reported).
+	recorded []string
 	online   bool
 	lastSeen time.Time
 	client   maitrev1connect.NodeServiceClient
@@ -102,6 +106,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 		}
 		p.name = n.GetName()
 		p.provisioned = time.UnixMilli(n.GetProvisionedUnixMs())
+		p.recorded = append([]string(nil), n.GetAddresses()...)
 		for _, a := range n.GetAddresses() {
 			p.addAddr(a, false)
 		}
@@ -151,6 +156,25 @@ func (m *Manager) Addresses() map[string][]string {
 	out := map[string][]string{}
 	for id, p := range m.peers {
 		out[id] = append([]string(nil), p.addrs...)
+	}
+	return out
+}
+
+// RecordedAddresses returns the addresses the Fleet's records give the
+// Node id, best first, leaving out any only mDNS reported: what the Relay
+// may dial (ADR 0012).
+func (m *Manager) RecordedAddresses(id string) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.peers[id]
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, a := range p.addrs {
+		if slices.Contains(p.recorded, a) {
+			out = append(out, a)
+		}
 	}
 	return out
 }

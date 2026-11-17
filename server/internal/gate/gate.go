@@ -38,7 +38,7 @@ var NodeCalls = map[string]bool{
 	"/maitre.v1.FilesService/ListJobs":       true,
 	"/maitre.v1.FilesService/CancelJob":      true,
 	// A connection carried to one of this Node's Services for a Service
-	// of the peer's (ADR 0010, fleetnet).
+	// of the peer's (ADR 0010, fleetnet.CarryPath; not the Relay).
 	"/maitre/relay": true,
 	// A Device's connection relayed by the anchor (ADR 0012, relay.InPath);
 	// the Device inside it is authorized on its own.

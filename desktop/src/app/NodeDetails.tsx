@@ -33,6 +33,7 @@ import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
 import { servicesStopFor, updateTimesLine } from "./updateTimes";
 import { EndsTerminals } from "@/terminal/warning";
+import type { HeldTerminal } from "@/terminal/terminals";
 import { UpdateProgress } from "./UpdateProgress";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
@@ -272,14 +273,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
           </div>
         )}
         {st?.state === UpdateStatus_State.FAILED && <p className="text-xs text-destructive">Update to {st.target} failed: {st.message}</p>}
-        {st?.staged && st.state !== UpdateStatus_State.UPDATING && !job && (
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            An update is staged. Restart the Node to run it.
-            <Button size="sm" variant="outline" className="h-7" onClick={() => client && run(() => client.reboot({}), { kind: "reboot" })}>
-              <RotateCw /> Restart now
-            </Button>
-          </p>
-        )}
+        {st?.staged && st.state !== UpdateStatus_State.UPDATING && !job && <RestartStaged name={node.name} target={target} status={st} onRestart={() => client && run(() => client.reboot({}), { kind: "reboot" })} />}
         {st?.available && st.state !== UpdateStatus_State.UPDATING && <p className="text-xs text-muted-foreground">The registry has a newer build of {st.booted?.image || "this Node's image"}.</p>}
         {st?.rollout && <p className="text-xs text-muted-foreground">Automatic updates: {st.rollout}.</p>}
         {st?.lastRollback && <p className="text-xs text-status-attention">The last update was rolled back: {st.lastRollback}. The Node runs the image from before it.</p>}
@@ -310,6 +304,45 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
               }}
             >
               {busy(snap) ? "Hold to queue the roll back" : "Hold to roll back and restart"}
+            </HoldButton>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/**
+ * "Restart now" for a staged update. It restarts the Node, so it asks
+ * first, as the Node's Restart does (#9, #22): how long its Services stop
+ * and the Terminals the restart ends; holding the button goes ahead.
+ */
+export function RestartStaged({ name, target, status, onRestart, list }: { name: string; target: Target | undefined; status: Pick<UpdateStatus, "typicalDowntimeMs">; onRestart: () => void; list?: (t: Target, service: string) => Promise<HeldTerminal[]> }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+        An update is staged. Restart the Node to run it.
+        <Button size="sm" variant="outline" className="h-7" onClick={() => setOpen(true)}>
+          <RotateCw /> Restart now
+        </Button>
+      </p>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restart {name}?</AlertDialogTitle>
+            <AlertDialogDescription>It restarts into the staged update. Its Services stop for {servicesStopFor(status)} while it comes back.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {open && <EndsTerminals target={target} downtime={servicesStopFor(status)} list={list} />}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <HoldButton
+              onConfirm={() => {
+                setOpen(false);
+                onRestart();
+              }}
+            >
+              Hold to restart
             </HoldButton>
           </AlertDialogFooter>
         </AlertDialogContent>

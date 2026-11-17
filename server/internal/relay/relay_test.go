@@ -300,3 +300,31 @@ func TestAnUnreachableTargetIsTheAnchorsAnswer(t *testing.T) {
 	_, err := relayed(t, f.device, f.anchor, f.target.id.Fingerprint())
 	refused(t, err, "502 Bad Gateway: Node "+f.target.id.Fingerprint()[:8]+" could not be reached from the anchor")
 }
+
+// The Relay is one hop (ADR 0012): a connection that came through the
+// Relay cannot ask its Node for another, so a Device cannot chain Nodes.
+func TestARelayedConnectionCannotAskForAnotherRelay(t *testing.T) {
+	f := newFleet(t)
+	outer, err := relayed(t, f.device, f.anchor, f.target.id.Fingerprint())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer outer.Close()
+	inner := tls.Client(outer, pinned(f.device, f.target.id.Fingerprint(), "http/1.1"))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := inner.HandshakeContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// The target knows the anchor's address, so only the one-hop rule
+	// stands between this request and a second Relay.
+	fmt.Fprintf(inner, "GET %s?node=%s HTTP/1.1\r\nHost: maitre\r\nConnection: Upgrade\r\nUpgrade: %s\r\n\r\n", relay.Path, f.anchor.id.Fingerprint(), relay.Token)
+	res, err := http.ReadResponse(bufio.NewReader(inner), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusForbidden || !strings.Contains(string(b), "one hop") {
+		t.Fatalf("got %s: %s", res.Status, b)
+	}
+}

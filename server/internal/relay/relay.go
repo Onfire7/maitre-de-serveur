@@ -119,6 +119,8 @@ func (r *Relay) give(device string) {
 
 // Anchor answers Path: it relays a Trusted Device's connection to the
 // Node it names, one hop, to the addresses the Fleet's records give.
+// A request that itself came through the Relay is refused (ADR 0012: the
+// Relay is one hop).
 func (r *Relay) Anchor() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		p, ok := peer.From(req.Context())
@@ -128,6 +130,9 @@ func (r *Relay) Anchor() http.Handler {
 			return
 		case r.cfg.Roles.Node(p.Fingerprint):
 			refuse(w, http.StatusForbidden, "a Node may not use the Relay; it reaches other Nodes itself")
+			return
+		case throughRelay(req):
+			refuse(w, http.StatusForbidden, "the Relay is one hop: a relayed connection cannot ask for another")
 			return
 		case req.ProtoMajor != 1 || !strings.EqualFold(req.Header.Get("Upgrade"), Token):
 			w.Header().Set("Upgrade", Token)
@@ -226,7 +231,7 @@ func (r *Relay) Target() http.Handler {
 		}
 		mine, theirs := net.Pipe()
 		defer mine.Close()
-		if err := r.ln.hand(theirs); err != nil {
+		if err := r.ln.hand(relayedConn{theirs}); err != nil {
 			refuse(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}
@@ -279,6 +284,19 @@ func (l *Listener) Close() error {
 }
 
 func (l *Listener) Addr() net.Addr { return relayAddr{} }
+
+// relayedConn is a connection relayed to this Node: its local address is
+// the Listener's, which is how throughRelay knows a request came through it.
+type relayedConn struct{ net.Conn }
+
+func (relayedConn) LocalAddr() net.Addr { return relayAddr{} }
+
+// throughRelay reports whether req arrived on a connection relayed to this Node
+// (the http.Server puts the connection's local address in its context).
+func throughRelay(req *http.Request) bool {
+	a, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	return ok && a.Network() == (relayAddr{}).Network()
+}
 
 type relayAddr struct{}
 

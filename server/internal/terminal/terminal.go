@@ -47,15 +47,22 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 )
 
 // Path is where a Terminal's WebSocket is opened on the Service tunnel. The
-// Desktop's page proxies never relay /__maitre/ paths, so a Service's own
-// page cannot reach it.
+// Desktop's page proxies never forward /__maitre/ paths, however spelled,
+// and the endpoint refuses any request a page proxy sent (one carrying
+// X-Maitre-Page), so a Service's own page cannot reach it.
 const Path = "/__maitre/terminal"
 
 // Feature is what a Node lists in NodeInfo.features when it serves Terminals.
 const Feature = "terminal"
+
+// Gone is what the Console shows, as it is, when a Terminal it attaches to
+// or Ends is no longer on the Node: in the Terminal's view and in the
+// Service's Terminal list.
+const Gone = "That Terminal is no longer on the Node."
 
 // NoShell is what the Console shows for a container without a shell.
 const NoShell = "This container has no shell"
@@ -94,8 +101,14 @@ type Handler struct {
 	// starting is held while a Terminal is counted and launched, so two
 	// opened at once cannot both be a container's 11th.
 	starting sync.Mutex
-	// recording is held while a Terminal's record is read and written.
+	// recording is held while a Terminal's record is read and written,
+	// and guards the two below.
 	recording sync.Mutex
+	// unendedIDs is this Node's records of Terminals not seen to end, as
+	// of the last rescan (records.go) and the writes since; nil until
+	// the first.
+	unendedIDs map[string]bool
+	scanned    time.Time
 }
 
 // New makes the endpoint.
@@ -113,10 +126,17 @@ func New(cfg Config) *Handler {
 }
 
 // Wrap sends Terminal requests on the Service tunnel (svcHeader set, Path)
-// to the endpoint and everything else to next.
+// to the endpoint and everything else to next. A request carrying
+// X-Maitre-Page, even empty, came from one of the Desktop's page proxies,
+// that is from a Service's own page, and is refused: only the Desktop's
+// Terminal proxy opens a Terminal (ADR 0011).
 func (h *Handler) Wrap(svcHeader string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == Path && r.Header.Get(svcHeader) != "" {
+			if _, page := r.Header[http.CanonicalHeaderKey(svcproxy.PageHeader)]; page {
+				http.Error(w, "a Service's page cannot open a Terminal", http.StatusForbidden)
+				return
+			}
 			h.serve(w, r, r.Header.Get(svcHeader))
 			return
 		}
@@ -251,6 +271,8 @@ func (h *Handler) session(ctx context.Context, c *websocket.Conn, spec *maitrev1
 }
 
 // failure is a Terminal that could not be opened, as its exit frame says.
+// The Console shows msg to the person as it is, so it is a sentence, unlike
+// the server's error strings.
 type failure struct {
 	reason maitrev1.TerminalExit_Reason
 	msg    string
@@ -271,7 +293,7 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	h.starting.Lock()
 	defer h.starting.Unlock()
 	if n := h.running(ctx, spec.GetName(), label); n >= MaxPerContainer {
-		return nil, nil, fmt.Errorf("%s already has %d Terminals running, the most a container may hold. End one to open another.", label, n)
+		return nil, nil, failure{maitrev1.TerminalExit_REASON_FAILED, fmt.Sprintf("%s already has %d Terminals running, the most a container may hold. End one to open another.", label, n)}
 	}
 	user := "root"
 	if !st.GetRoot() {
@@ -311,7 +333,7 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 
 // attach connects a view to a Terminal the Node holds, the Service's own.
 func (h *Handler) attach(ctx context.Context, service string, a *maitrev1.TerminalAttach) (net.Conn, *maitrev1.TerminalInfo, error) {
-	gone := errors.New("That Terminal is no longer on the Node.")
+	gone := failure{maitrev1.TerminalExit_REASON_FAILED, Gone}
 	if !validID(a.GetId()) {
 		return nil, nil, gone
 	}
@@ -424,7 +446,7 @@ func (h *Handler) held(ctx context.Context, service string) []*maitrev1.Terminal
 // EndTerminal implements TerminalService: End a running Terminal, or let a
 // finished one go.
 func (h *Handler) EndTerminal(ctx context.Context, req *maitrev1.EndTerminalRequest) (*maitrev1.EndTerminalResponse, error) {
-	notFound := connect.NewError(connect.CodeNotFound, "that Terminal is no longer on the Node")
+	notFound := connect.NewError(connect.CodeNotFound, Gone)
 	if !validID(req.GetId()) {
 		return nil, notFound
 	}
