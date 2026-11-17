@@ -1245,7 +1245,7 @@ func runAgent(args []string) error {
 	// carried to another Node of the Fleet; as its target, one carried
 	// here, served on the mutual-TLS listener like any other.
 	rl := relay.New(relay.Config{Log: log, Self: id.Fingerprint(), Roles: list, HTTP: pm.HTTPClient(),
-		Addresses: func(nodeID string) []string { return pm.Addresses()[nodeID] }})
+		Addresses: pm.RecordedAddresses})
 	defer rl.Close()
 	mux.Handle(relay.Path, rl.Anchor())
 	mux.Handle(relay.InPath, rl.Target())
