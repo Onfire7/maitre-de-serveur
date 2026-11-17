@@ -19,8 +19,9 @@ import (
 // any Record.
 const KindRecord = "terminal"
 
-// deviceName is the name the Node knows a Trusted Device by, or its
-// fingerprint.
+// deviceName is the name the Node knows a Trusted Device by, or "" when
+// it has none (the record keeps the fingerprint beside it, and the list
+// shows the fingerprint instead).
 func (h *Handler) deviceName(ctx context.Context, fp string) string {
 	var d maitrev1.TrustedDevice
 	if _, err := h.cfg.Store.Get(ctx, store.KindTrustedDevice, fp, &d); err == nil && d.GetName() != "" {
