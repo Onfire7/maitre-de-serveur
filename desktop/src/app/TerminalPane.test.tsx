@@ -110,7 +110,7 @@ describe("a Terminal into a Service with protected grants (#8)", () => {
   it("shows a warning line naming the grants, with nothing to confirm", async () => {
     await into("jellyfin");
     const note = screen.getByRole("note");
-    expect(note.textContent).toBe("This Service has host access: /mnt/media, privileged. Commands here can change the Node itself.");
+    expect(note.textContent).toBe("This Service has access to the Node: /mnt/media, privileged. Commands here can change the Node itself.");
     expect(within(note).queryByRole("button")).toBeNull();
     expect(screen.getByTestId("terminal-view")).toBeTruthy();
   });
@@ -118,7 +118,7 @@ describe("a Terminal into a Service with protected grants (#8)", () => {
   it("shows none for a Service without them", async () => {
     await into("kuma");
     expect(screen.queryByRole("note")).toBeNull();
-    expect(screen.queryByText(/host access/)).toBeNull();
+    expect(screen.queryByText(/access to the Node/)).toBeNull();
   });
 });
 

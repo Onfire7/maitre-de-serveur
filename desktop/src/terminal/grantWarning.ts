@@ -19,7 +19,7 @@ function grantName(option: string): string {
     case "AddCapability":
       return value || o;
     case "Network":
-      return value === "host" ? "the host's network" : o;
+      return value === "host" ? "the Node's network" : o;
     case "PodmanArgs":
       return /^--privileged(=true)?$/.test(value.trim()) ? "privileged" : o;
     case "Privileged":
@@ -40,5 +40,5 @@ export function grantWarning(grants: Grant[], container?: string): string | unde
   const mine = grants.filter((g) => !g.component || container === undefined || g.component === container);
   if (mine.length === 0) return undefined;
   const names = [...new Set(mine.map((g) => grantName(g.option)))];
-  return `This Service has host access: ${names.join(", ")}. Commands here can change the Node itself.`;
+  return `This Service has access to the Node: ${names.join(", ")}. Commands here can change the Node itself.`;
 }
