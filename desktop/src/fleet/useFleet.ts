@@ -10,11 +10,12 @@ import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus, type SyncGap 
 import { NodeSchema, FleetSchema, GrantSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
-import { relayThrough, transportFor, type Target } from "@/transport";
+import { nodeWay, relayThrough, transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
 import { allPicks, attemptKey, pickAnchor, type AnchorPick } from "./anchor";
 import { chooseAddress, demoteRoute, lastAnchor, pinned, rememberRoute, routeKind, routeOrder, setLastAnchor, setPinned } from "./route";
 import { domainAddr, rememberDomain } from "./domain";
+import { createReach, type Way } from "./reach";
 
 export const FLEET_POLL_MS = 3000;
 /** Metrics older than this are shown dimmed (decision 158). */
@@ -30,9 +31,18 @@ export const UPDATE_LIMIT_MS = 60 * 60_000;
 /**
  * A Node's gossiped status, plus when it started updating if its own
  * record says it is (decision 214): it writes that before the update and
- * clears it when it is back, and no one else may change it.
+ * clears it when it is back, and no one else may change it. And how this
+ * device reaches it (ADR 0012, see reach.ts).
  */
-export type NodeStatus = FleetNodeStatus & { updatingSince?: number };
+export type NodeStatus = FleetNodeStatus & {
+  updatingSince?: number;
+  /** How the Desktop last reached it: straight, or through the anchor's Relay. */
+  way?: Way;
+  /** The address it was reached at, when straight. */
+  wayAddr?: string;
+  /** This device reached it itself lately, whatever the anchor says. */
+  consoleReached?: boolean;
+};
 
 export interface FleetSnapshot {
   anchor: AnchorPick;
@@ -128,6 +138,27 @@ export async function readFleet(anchor: AnchorPick, known: KnownNode[] = [], tf:
   };
 }
 
+let reach: ReturnType<typeof createReach> | undefined;
+
+/**
+ * The status with how this device reaches each Node (ADR 0012): the
+ * Desktop's way for each, and a call now and then to a Node not reached
+ * yet or lost by the anchor, which is Unreachable only if that fails too.
+ */
+function withWays(anchor: AnchorPick, status: Map<string, NodeStatus>, nodes: Node[]): Promise<Map<string, NodeStatus>> {
+  reach ??= createReach({
+    wayOf: (id) => nodeWay(id),
+    probe: async (t) => void (await createClient(NodeService, transportFor(t)).getNodeInfo({}, { timeoutMs: 5000 })),
+  });
+  const dom = domainAddr();
+  const kind = routeKind(anchor.addr, dom);
+  const targets = nodes.flatMap((n) => {
+    const addr = chooseAddress(n.nodeId, n.addresses, kind, dom);
+    return addr ? [{ fingerprint: n.nodeId, addr }] : [];
+  });
+  return reach(anchor, status, targets, Date.now());
+}
+
 /** One try at reading the Fleet this round (decision 284), for the connection chooser. */
 export interface Attempt {
   nodeId: string;
@@ -218,7 +249,7 @@ export function useFleet(known: KnownNode[]) {
           setLastAnchor({ fingerprint: pick.nodeId, addr: pick.addr });
           relayThrough({ fingerprint: pick.nodeId, addr: pick.addr });
           rememberRoute(pick.nodeId, pick.addr);
-          const snap = { ...data, anchor: pick, at: Date.now() };
+          const snap = { ...data, status: await withWays(pick, data.status, data.nodes), anchor: pick, at: Date.now() };
           rememberDomain(snap);
           return snap;
         } catch (e) {
@@ -312,7 +343,9 @@ export function nodeWord(n: NodeStatus | undefined, now: number): NodeWord {
   // Its own record says it is updating (decision 214): so it is, even while
   // it restarts and nobody can reach it.
   if (n?.updatingSince && now - n.updatingSince < UPDATE_LIMIT_MS) return "Updating";
-  if (!n || !n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) return "Unreachable";
+  // Unreachable means neither the anchor nor this device reaches it (ADR
+  // 0012): one the anchor reaches is reached through its Relay at worst.
+  if (!n || ((!n.reachable || now - Number(n.lastSeenUnixMs) > UNREACHABLE_MS) && !n.consoleReached)) return "Unreachable";
   // UpdateStatus.State: 2 updating, 3 failed, 4 rebooting.
   if (n.updateState === 2 || n.updateState === 4) return "Updating";
   // A peer that answered with errors (ADR 0007) needs attention; it is

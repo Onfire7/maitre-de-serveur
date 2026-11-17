@@ -223,6 +223,8 @@ export interface DemoNode {
   reachable: boolean;
   /** When this Node was last heard from by anyone, frozen while unreachable. */
   lastSeenUnixMs: number;
+  /** This device does not reach it straight: the anchor's Relay carries its calls (ADR 0012). */
+  relayed?: boolean;
   metrics: NodeMetrics;
   metricsUnixMs: number;
   update: UpdateStatus;
@@ -480,6 +482,7 @@ export class DemoFleet {
         addr: "10.0.0.6:7443",
         reachable: true,
         lastSeenUnixMs: t,
+        relayed: true,
         metrics: metrics({ cpuPercent: 61, memoryTotalBytes: 16 * GiB, memoryUsedBytes: 11 * GiB, poolTotalBytes: 1.8 * TiB, poolUsedBytes: 0.4 * TiB, temperatureC: 58, load1m: 2.4, netRxBytesPerSec: 0.3e6, netTxBytesPerSec: 0.1e6 }),
         metricsUnixMs: t,
         // The registry has a newer stable image for Basalt (its Update button).
@@ -672,6 +675,13 @@ export class DemoFleet {
     const n = this.nodes.find((x) => x.nodeId === id);
     if (!n) throw new Error(`demo: no Node ${id}`);
     return n;
+  }
+
+  /** How the Desktop's dial last reached this Node, as the `node_way` command says it. */
+  wayOf(nodeId: string): "direct" | "relayed" | null {
+    const n = this.nodes.find((x) => x.nodeId === nodeId);
+    if (!n?.reachable) return null;
+    return n.relayed ? "relayed" : "direct";
   }
 
   nodeByAddr(addr: string): DemoNode | undefined {
