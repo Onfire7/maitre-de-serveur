@@ -11,11 +11,19 @@ option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;m
 // every binary message either way is one TerminalFrame. A Node that offers
 // it lists "terminal" in NodeInfo.features.
 //
-// The Console's first frame is `start`; then it sends `input` and `resize`.
-// The Node answers `started` once the process runs, then `output`, and
-// `exit` last, after which it closes the WebSocket. The Node also keeps the
-// session between the agent and the unit that holds the PTY in these
-// frames, length-prefixed.
+// The Console's first frame is `start`, for a new Terminal, or `attach`,
+// to one the Node holds already; then it sends `input`, `resize`, and `end`
+// to End it. The Node answers `started` once the process runs (on an attach,
+// its recent output follows, replayed), then `output`, and `exit` last,
+// after which it closes the WebSocket. Closing the WebSocket only detaches:
+// the Terminal runs on (ADR 0011).
+//
+// The Node keeps the session between the agent and the unit that holds the
+// PTY (`maitre terminal-hold`) in these frames too, length-prefixed. The
+// holder's first frame on every connection is `info`. The agent's first
+// frame is `attach` (a view: the replay, then output and the exit), `info`
+// (empty: the holder answers with its info and closes) or `end`. An `end`
+// on an attached connection after the exit says a Device has seen it.
 message TerminalFrame {
   oneof frame {
     TerminalStart start = 1;
@@ -24,8 +32,65 @@ message TerminalFrame {
     TerminalStarted started = 4;
     TerminalOutput output = 5;
     TerminalExit exit = 6;
+    TerminalAttach attach = 7;
+    TerminalEnd end = 8;
+    TerminalInfo info = 9;
   }
 }
+
+// TerminalService lists a Service's Terminals and Ends them. Only a full
+// Trusted Device may call it (ADR 0011).
+service TerminalService {
+  // ListTerminals returns the Service's running and finished Terminals.
+  rpc ListTerminals(ListTerminalsRequest) returns (ListTerminalsResponse) {}
+  // EndTerminal Ends a running Terminal (SIGHUP, then SIGKILL after 5
+  // seconds) or forgets a finished one.
+  rpc EndTerminal(EndTerminalRequest) returns (EndTerminalResponse) {}
+}
+
+message ListTerminalsRequest {
+  string service = 1;
+}
+
+message ListTerminalsResponse {
+  // Oldest first.
+  repeated TerminalInfo terminals = 1;
+}
+
+message EndTerminalRequest {
+  string service = 1;
+  string id = 2;
+}
+
+message EndTerminalResponse {}
+
+// TerminalInfo is one Terminal the Node holds, running or finished. A
+// finished one is kept, with its exit code and its output to replay, until
+// a Device has seen it or for 24 hours.
+message TerminalInfo {
+  string id = 1;
+  string service = 2;
+  // As in TerminalStarted.
+  string container = 3;
+  string user = 4;
+  repeated string argv = 5;
+  int64 started_unix_ms = 6;
+  bool running = 7;
+  // Once finished: the exit code (128+n for signal n) and when.
+  int32 code = 8;
+  int64 ended_unix_ms = 9;
+}
+
+// TerminalAttach reattaches to a Terminal the Node holds, by its id; size
+// is the view's.
+message TerminalAttach {
+  string id = 1;
+  TerminalSize size = 2;
+}
+
+// TerminalEnd Ends the attached Terminal: SIGHUP, then SIGKILL after 5
+// seconds.
+message TerminalEnd {}
 
 // TerminalSize is the view's size in character cells.
 message TerminalSize {
@@ -66,6 +131,8 @@ message TerminalStarted {
   string user = 3;
   // The command that runs, the shell found in the container.
   repeated string argv = 4;
+  // When it started; on an attach, possibly long ago.
+  int64 started_unix_ms = 5;
 }
 
 // TerminalOutput is what the process wrote to its terminal.

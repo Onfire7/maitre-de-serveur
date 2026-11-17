@@ -73,7 +73,7 @@ func (x TerminalExit_Reason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TerminalExit_Reason.Descriptor instead.
 func (TerminalExit_Reason) EnumDescriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{7, 0}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{14, 0}
 }
 
 // A Terminal (ADR 0011) is a shell or command inside one of a Service's
@@ -83,11 +83,19 @@ func (TerminalExit_Reason) EnumDescriptor() ([]byte, []int) {
 // every binary message either way is one TerminalFrame. A Node that offers
 // it lists "terminal" in NodeInfo.features.
 //
-// The Console's first frame is `start`; then it sends `input` and `resize`.
-// The Node answers `started` once the process runs, then `output`, and
-// `exit` last, after which it closes the WebSocket. The Node also keeps the
-// session between the agent and the unit that holds the PTY in these
-// frames, length-prefixed.
+// The Console's first frame is `start`, for a new Terminal, or `attach`,
+// to one the Node holds already; then it sends `input`, `resize`, and `end`
+// to End it. The Node answers `started` once the process runs (on an attach,
+// its recent output follows, replayed), then `output`, and `exit` last,
+// after which it closes the WebSocket. Closing the WebSocket only detaches:
+// the Terminal runs on (ADR 0011).
+//
+// The Node keeps the session between the agent and the unit that holds the
+// PTY (`maitre terminal-hold`) in these frames too, length-prefixed. The
+// holder's first frame on every connection is `info`. The agent's first
+// frame is `attach` (a view: the replay, then output and the exit), `info`
+// (empty: the holder answers with its info and closes) or `end`. An `end`
+// on an attached connection after the exit says a Device has seen it.
 type TerminalFrame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Frame:
@@ -98,6 +106,9 @@ type TerminalFrame struct {
 	//	*TerminalFrame_Started
 	//	*TerminalFrame_Output
 	//	*TerminalFrame_Exit
+	//	*TerminalFrame_Attach
+	//	*TerminalFrame_End
+	//	*TerminalFrame_Info
 	Frame         isTerminalFrame_Frame `protobuf_oneof:"frame"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -194,6 +205,33 @@ func (x *TerminalFrame) GetExit() *TerminalExit {
 	return nil
 }
 
+func (x *TerminalFrame) GetAttach() *TerminalAttach {
+	if x != nil {
+		if x, ok := x.Frame.(*TerminalFrame_Attach); ok {
+			return x.Attach
+		}
+	}
+	return nil
+}
+
+func (x *TerminalFrame) GetEnd() *TerminalEnd {
+	if x != nil {
+		if x, ok := x.Frame.(*TerminalFrame_End); ok {
+			return x.End
+		}
+	}
+	return nil
+}
+
+func (x *TerminalFrame) GetInfo() *TerminalInfo {
+	if x != nil {
+		if x, ok := x.Frame.(*TerminalFrame_Info); ok {
+			return x.Info
+		}
+	}
+	return nil
+}
+
 type isTerminalFrame_Frame interface {
 	isTerminalFrame_Frame()
 }
@@ -222,6 +260,18 @@ type TerminalFrame_Exit struct {
 	Exit *TerminalExit `protobuf:"bytes,6,opt,name=exit,proto3,oneof"`
 }
 
+type TerminalFrame_Attach struct {
+	Attach *TerminalAttach `protobuf:"bytes,7,opt,name=attach,proto3,oneof"`
+}
+
+type TerminalFrame_End struct {
+	End *TerminalEnd `protobuf:"bytes,8,opt,name=end,proto3,oneof"`
+}
+
+type TerminalFrame_Info struct {
+	Info *TerminalInfo `protobuf:"bytes,9,opt,name=info,proto3,oneof"`
+}
+
 func (*TerminalFrame_Start) isTerminalFrame_Frame() {}
 
 func (*TerminalFrame_Input) isTerminalFrame_Frame() {}
@@ -234,6 +284,394 @@ func (*TerminalFrame_Output) isTerminalFrame_Frame() {}
 
 func (*TerminalFrame_Exit) isTerminalFrame_Frame() {}
 
+func (*TerminalFrame_Attach) isTerminalFrame_Frame() {}
+
+func (*TerminalFrame_End) isTerminalFrame_Frame() {}
+
+func (*TerminalFrame_Info) isTerminalFrame_Frame() {}
+
+type ListTerminalsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTerminalsRequest) Reset() {
+	*x = ListTerminalsRequest{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTerminalsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTerminalsRequest) ProtoMessage() {}
+
+func (x *ListTerminalsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTerminalsRequest.ProtoReflect.Descriptor instead.
+func (*ListTerminalsRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListTerminalsRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+type ListTerminalsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Oldest first.
+	Terminals     []*TerminalInfo `protobuf:"bytes,1,rep,name=terminals,proto3" json:"terminals,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTerminalsResponse) Reset() {
+	*x = ListTerminalsResponse{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTerminalsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTerminalsResponse) ProtoMessage() {}
+
+func (x *ListTerminalsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTerminalsResponse.ProtoReflect.Descriptor instead.
+func (*ListTerminalsResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListTerminalsResponse) GetTerminals() []*TerminalInfo {
+	if x != nil {
+		return x.Terminals
+	}
+	return nil
+}
+
+type EndTerminalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndTerminalRequest) Reset() {
+	*x = EndTerminalRequest{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndTerminalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndTerminalRequest) ProtoMessage() {}
+
+func (x *EndTerminalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndTerminalRequest.ProtoReflect.Descriptor instead.
+func (*EndTerminalRequest) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *EndTerminalRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *EndTerminalRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type EndTerminalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndTerminalResponse) Reset() {
+	*x = EndTerminalResponse{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndTerminalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndTerminalResponse) ProtoMessage() {}
+
+func (x *EndTerminalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndTerminalResponse.ProtoReflect.Descriptor instead.
+func (*EndTerminalResponse) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{4}
+}
+
+// TerminalInfo is one Terminal the Node holds, running or finished. A
+// finished one is kept, with its exit code and its output to replay, until
+// a Device has seen it or for 24 hours.
+type TerminalInfo struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Id      string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Service string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	// As in TerminalStarted.
+	Container     string   `protobuf:"bytes,3,opt,name=container,proto3" json:"container,omitempty"`
+	User          string   `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	Argv          []string `protobuf:"bytes,5,rep,name=argv,proto3" json:"argv,omitempty"`
+	StartedUnixMs int64    `protobuf:"varint,6,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
+	Running       bool     `protobuf:"varint,7,opt,name=running,proto3" json:"running,omitempty"`
+	// Once finished: the exit code (128+n for signal n) and when.
+	Code          int32 `protobuf:"varint,8,opt,name=code,proto3" json:"code,omitempty"`
+	EndedUnixMs   int64 `protobuf:"varint,9,opt,name=ended_unix_ms,json=endedUnixMs,proto3" json:"ended_unix_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminalInfo) Reset() {
+	*x = TerminalInfo{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminalInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminalInfo) ProtoMessage() {}
+
+func (x *TerminalInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminalInfo.ProtoReflect.Descriptor instead.
+func (*TerminalInfo) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *TerminalInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TerminalInfo) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *TerminalInfo) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
+}
+
+func (x *TerminalInfo) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *TerminalInfo) GetArgv() []string {
+	if x != nil {
+		return x.Argv
+	}
+	return nil
+}
+
+func (x *TerminalInfo) GetStartedUnixMs() int64 {
+	if x != nil {
+		return x.StartedUnixMs
+	}
+	return 0
+}
+
+func (x *TerminalInfo) GetRunning() bool {
+	if x != nil {
+		return x.Running
+	}
+	return false
+}
+
+func (x *TerminalInfo) GetCode() int32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *TerminalInfo) GetEndedUnixMs() int64 {
+	if x != nil {
+		return x.EndedUnixMs
+	}
+	return 0
+}
+
+// TerminalAttach reattaches to a Terminal the Node holds, by its id; size
+// is the view's.
+type TerminalAttach struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Size          *TerminalSize          `protobuf:"bytes,2,opt,name=size,proto3" json:"size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminalAttach) Reset() {
+	*x = TerminalAttach{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminalAttach) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminalAttach) ProtoMessage() {}
+
+func (x *TerminalAttach) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminalAttach.ProtoReflect.Descriptor instead.
+func (*TerminalAttach) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *TerminalAttach) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TerminalAttach) GetSize() *TerminalSize {
+	if x != nil {
+		return x.Size
+	}
+	return nil
+}
+
+// TerminalEnd Ends the attached Terminal: SIGHUP, then SIGKILL after 5
+// seconds.
+type TerminalEnd struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminalEnd) Reset() {
+	*x = TerminalEnd{}
+	mi := &file_maitre_v1_terminal_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminalEnd) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminalEnd) ProtoMessage() {}
+
+func (x *TerminalEnd) ProtoReflect() protoreflect.Message {
+	mi := &file_maitre_v1_terminal_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminalEnd.ProtoReflect.Descriptor instead.
+func (*TerminalEnd) Descriptor() ([]byte, []int) {
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{7}
+}
+
 // TerminalSize is the view's size in character cells.
 type TerminalSize struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -245,7 +683,7 @@ type TerminalSize struct {
 
 func (x *TerminalSize) Reset() {
 	*x = TerminalSize{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[1]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -257,7 +695,7 @@ func (x *TerminalSize) String() string {
 func (*TerminalSize) ProtoMessage() {}
 
 func (x *TerminalSize) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[1]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -270,7 +708,7 @@ func (x *TerminalSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalSize.ProtoReflect.Descriptor instead.
 func (*TerminalSize) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{1}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TerminalSize) GetCols() uint32 {
@@ -303,7 +741,7 @@ type TerminalStart struct {
 
 func (x *TerminalStart) Reset() {
 	*x = TerminalStart{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[2]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -315,7 +753,7 @@ func (x *TerminalStart) String() string {
 func (*TerminalStart) ProtoMessage() {}
 
 func (x *TerminalStart) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[2]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -328,7 +766,7 @@ func (x *TerminalStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalStart.ProtoReflect.Descriptor instead.
 func (*TerminalStart) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{2}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TerminalStart) GetService() string {
@@ -362,7 +800,7 @@ type TerminalInput struct {
 
 func (x *TerminalInput) Reset() {
 	*x = TerminalInput{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[3]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -374,7 +812,7 @@ func (x *TerminalInput) String() string {
 func (*TerminalInput) ProtoMessage() {}
 
 func (x *TerminalInput) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[3]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -387,7 +825,7 @@ func (x *TerminalInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalInput.ProtoReflect.Descriptor instead.
 func (*TerminalInput) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{3}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TerminalInput) GetData() []byte {
@@ -407,7 +845,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[4]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -419,7 +857,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[4]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -432,7 +870,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{4}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *TerminalResize) GetSize() *TerminalSize {
@@ -454,14 +892,16 @@ type TerminalStarted struct {
 	// names none).
 	User string `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
 	// The command that runs, the shell found in the container.
-	Argv          []string `protobuf:"bytes,4,rep,name=argv,proto3" json:"argv,omitempty"`
+	Argv []string `protobuf:"bytes,4,rep,name=argv,proto3" json:"argv,omitempty"`
+	// When it started; on an attach, possibly long ago.
+	StartedUnixMs int64 `protobuf:"varint,5,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TerminalStarted) Reset() {
 	*x = TerminalStarted{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[5]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -473,7 +913,7 @@ func (x *TerminalStarted) String() string {
 func (*TerminalStarted) ProtoMessage() {}
 
 func (x *TerminalStarted) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[5]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -486,7 +926,7 @@ func (x *TerminalStarted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalStarted.ProtoReflect.Descriptor instead.
 func (*TerminalStarted) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{5}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TerminalStarted) GetId() string {
@@ -517,6 +957,13 @@ func (x *TerminalStarted) GetArgv() []string {
 	return nil
 }
 
+func (x *TerminalStarted) GetStartedUnixMs() int64 {
+	if x != nil {
+		return x.StartedUnixMs
+	}
+	return 0
+}
+
 // TerminalOutput is what the process wrote to its terminal.
 type TerminalOutput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -527,7 +974,7 @@ type TerminalOutput struct {
 
 func (x *TerminalOutput) Reset() {
 	*x = TerminalOutput{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[6]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -539,7 +986,7 @@ func (x *TerminalOutput) String() string {
 func (*TerminalOutput) ProtoMessage() {}
 
 func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[6]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,7 +999,7 @@ func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalOutput.ProtoReflect.Descriptor instead.
 func (*TerminalOutput) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{6}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TerminalOutput) GetData() []byte {
@@ -575,7 +1022,7 @@ type TerminalExit struct {
 
 func (x *TerminalExit) Reset() {
 	*x = TerminalExit{}
-	mi := &file_maitre_v1_terminal_proto_msgTypes[7]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +1034,7 @@ func (x *TerminalExit) String() string {
 func (*TerminalExit) ProtoMessage() {}
 
 func (x *TerminalExit) ProtoReflect() protoreflect.Message {
-	mi := &file_maitre_v1_terminal_proto_msgTypes[7]
+	mi := &file_maitre_v1_terminal_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -600,7 +1047,7 @@ func (x *TerminalExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalExit.ProtoReflect.Descriptor instead.
 func (*TerminalExit) Descriptor() ([]byte, []int) {
-	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{7}
+	return file_maitre_v1_terminal_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TerminalExit) GetReason() TerminalExit_Reason {
@@ -628,15 +1075,40 @@ var File_maitre_v1_terminal_proto protoreflect.FileDescriptor
 
 const file_maitre_v1_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x18maitre/v1/terminal.proto\x12\tmaitre.v1\"\xcd\x02\n" +
+	"\x18maitre/v1/terminal.proto\x12\tmaitre.v1\"\xdd\x03\n" +
 	"\rTerminalFrame\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x18.maitre.v1.TerminalStartH\x00R\x05start\x120\n" +
 	"\x05input\x18\x02 \x01(\v2\x18.maitre.v1.TerminalInputH\x00R\x05input\x123\n" +
 	"\x06resize\x18\x03 \x01(\v2\x19.maitre.v1.TerminalResizeH\x00R\x06resize\x126\n" +
 	"\astarted\x18\x04 \x01(\v2\x1a.maitre.v1.TerminalStartedH\x00R\astarted\x123\n" +
 	"\x06output\x18\x05 \x01(\v2\x19.maitre.v1.TerminalOutputH\x00R\x06output\x12-\n" +
-	"\x04exit\x18\x06 \x01(\v2\x17.maitre.v1.TerminalExitH\x00R\x04exitB\a\n" +
-	"\x05frame\"6\n" +
+	"\x04exit\x18\x06 \x01(\v2\x17.maitre.v1.TerminalExitH\x00R\x04exit\x123\n" +
+	"\x06attach\x18\a \x01(\v2\x19.maitre.v1.TerminalAttachH\x00R\x06attach\x12*\n" +
+	"\x03end\x18\b \x01(\v2\x16.maitre.v1.TerminalEndH\x00R\x03end\x12-\n" +
+	"\x04info\x18\t \x01(\v2\x17.maitre.v1.TerminalInfoH\x00R\x04infoB\a\n" +
+	"\x05frame\"0\n" +
+	"\x14ListTerminalsRequest\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"N\n" +
+	"\x15ListTerminalsResponse\x125\n" +
+	"\tterminals\x18\x01 \x03(\v2\x17.maitre.v1.TerminalInfoR\tterminals\">\n" +
+	"\x12EndTerminalRequest\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\x15\n" +
+	"\x13EndTerminalResponse\"\xf8\x01\n" +
+	"\fTerminalInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x1c\n" +
+	"\tcontainer\x18\x03 \x01(\tR\tcontainer\x12\x12\n" +
+	"\x04user\x18\x04 \x01(\tR\x04user\x12\x12\n" +
+	"\x04argv\x18\x05 \x03(\tR\x04argv\x12&\n" +
+	"\x0fstarted_unix_ms\x18\x06 \x01(\x03R\rstartedUnixMs\x12\x18\n" +
+	"\arunning\x18\a \x01(\bR\arunning\x12\x12\n" +
+	"\x04code\x18\b \x01(\x05R\x04code\x12\"\n" +
+	"\rended_unix_ms\x18\t \x01(\x03R\vendedUnixMs\"M\n" +
+	"\x0eTerminalAttach\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12+\n" +
+	"\x04size\x18\x02 \x01(\v2\x17.maitre.v1.TerminalSizeR\x04size\"\r\n" +
+	"\vTerminalEnd\"6\n" +
 	"\fTerminalSize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x02 \x01(\rR\x04rows\"t\n" +
@@ -647,12 +1119,13 @@ const file_maitre_v1_terminal_proto_rawDesc = "" +
 	"\rTerminalInput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"=\n" +
 	"\x0eTerminalResize\x12+\n" +
-	"\x04size\x18\x01 \x01(\v2\x17.maitre.v1.TerminalSizeR\x04size\"g\n" +
+	"\x04size\x18\x01 \x01(\v2\x17.maitre.v1.TerminalSizeR\x04size\"\x8f\x01\n" +
 	"\x0fTerminalStarted\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x12\n" +
 	"\x04user\x18\x03 \x01(\tR\x04user\x12\x12\n" +
-	"\x04argv\x18\x04 \x03(\tR\x04argv\"$\n" +
+	"\x04argv\x18\x04 \x03(\tR\x04argv\x12&\n" +
+	"\x0fstarted_unix_ms\x18\x05 \x01(\x03R\rstartedUnixMs\"$\n" +
 	"\x0eTerminalOutput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"\xd1\x01\n" +
 	"\fTerminalExit\x126\n" +
@@ -663,7 +1136,10 @@ const file_maitre_v1_terminal_proto_rawDesc = "" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rREASON_EXITED\x10\x01\x12\x13\n" +
 	"\x0fREASON_NO_SHELL\x10\x02\x12\x11\n" +
-	"\rREASON_FAILED\x10\x03BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
+	"\rREASON_FAILED\x10\x032\xb7\x01\n" +
+	"\x0fTerminalService\x12T\n" +
+	"\rListTerminals\x12\x1f.maitre.v1.ListTerminalsRequest\x1a .maitre.v1.ListTerminalsResponse\"\x00\x12N\n" +
+	"\vEndTerminal\x12\x1d.maitre.v1.EndTerminalRequest\x1a\x1e.maitre.v1.EndTerminalResponse\"\x00BDZBgithub.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1b\x06proto3"
 
 var (
 	file_maitre_v1_terminal_proto_rawDescOnce sync.Once
@@ -678,33 +1154,49 @@ func file_maitre_v1_terminal_proto_rawDescGZIP() []byte {
 }
 
 var file_maitre_v1_terminal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_maitre_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_maitre_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_maitre_v1_terminal_proto_goTypes = []any{
-	(TerminalExit_Reason)(0), // 0: maitre.v1.TerminalExit.Reason
-	(*TerminalFrame)(nil),    // 1: maitre.v1.TerminalFrame
-	(*TerminalSize)(nil),     // 2: maitre.v1.TerminalSize
-	(*TerminalStart)(nil),    // 3: maitre.v1.TerminalStart
-	(*TerminalInput)(nil),    // 4: maitre.v1.TerminalInput
-	(*TerminalResize)(nil),   // 5: maitre.v1.TerminalResize
-	(*TerminalStarted)(nil),  // 6: maitre.v1.TerminalStarted
-	(*TerminalOutput)(nil),   // 7: maitre.v1.TerminalOutput
-	(*TerminalExit)(nil),     // 8: maitre.v1.TerminalExit
+	(TerminalExit_Reason)(0),      // 0: maitre.v1.TerminalExit.Reason
+	(*TerminalFrame)(nil),         // 1: maitre.v1.TerminalFrame
+	(*ListTerminalsRequest)(nil),  // 2: maitre.v1.ListTerminalsRequest
+	(*ListTerminalsResponse)(nil), // 3: maitre.v1.ListTerminalsResponse
+	(*EndTerminalRequest)(nil),    // 4: maitre.v1.EndTerminalRequest
+	(*EndTerminalResponse)(nil),   // 5: maitre.v1.EndTerminalResponse
+	(*TerminalInfo)(nil),          // 6: maitre.v1.TerminalInfo
+	(*TerminalAttach)(nil),        // 7: maitre.v1.TerminalAttach
+	(*TerminalEnd)(nil),           // 8: maitre.v1.TerminalEnd
+	(*TerminalSize)(nil),          // 9: maitre.v1.TerminalSize
+	(*TerminalStart)(nil),         // 10: maitre.v1.TerminalStart
+	(*TerminalInput)(nil),         // 11: maitre.v1.TerminalInput
+	(*TerminalResize)(nil),        // 12: maitre.v1.TerminalResize
+	(*TerminalStarted)(nil),       // 13: maitre.v1.TerminalStarted
+	(*TerminalOutput)(nil),        // 14: maitre.v1.TerminalOutput
+	(*TerminalExit)(nil),          // 15: maitre.v1.TerminalExit
 }
 var file_maitre_v1_terminal_proto_depIdxs = []int32{
-	3, // 0: maitre.v1.TerminalFrame.start:type_name -> maitre.v1.TerminalStart
-	4, // 1: maitre.v1.TerminalFrame.input:type_name -> maitre.v1.TerminalInput
-	5, // 2: maitre.v1.TerminalFrame.resize:type_name -> maitre.v1.TerminalResize
-	6, // 3: maitre.v1.TerminalFrame.started:type_name -> maitre.v1.TerminalStarted
-	7, // 4: maitre.v1.TerminalFrame.output:type_name -> maitre.v1.TerminalOutput
-	8, // 5: maitre.v1.TerminalFrame.exit:type_name -> maitre.v1.TerminalExit
-	2, // 6: maitre.v1.TerminalStart.size:type_name -> maitre.v1.TerminalSize
-	2, // 7: maitre.v1.TerminalResize.size:type_name -> maitre.v1.TerminalSize
-	0, // 8: maitre.v1.TerminalExit.reason:type_name -> maitre.v1.TerminalExit.Reason
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	10, // 0: maitre.v1.TerminalFrame.start:type_name -> maitre.v1.TerminalStart
+	11, // 1: maitre.v1.TerminalFrame.input:type_name -> maitre.v1.TerminalInput
+	12, // 2: maitre.v1.TerminalFrame.resize:type_name -> maitre.v1.TerminalResize
+	13, // 3: maitre.v1.TerminalFrame.started:type_name -> maitre.v1.TerminalStarted
+	14, // 4: maitre.v1.TerminalFrame.output:type_name -> maitre.v1.TerminalOutput
+	15, // 5: maitre.v1.TerminalFrame.exit:type_name -> maitre.v1.TerminalExit
+	7,  // 6: maitre.v1.TerminalFrame.attach:type_name -> maitre.v1.TerminalAttach
+	8,  // 7: maitre.v1.TerminalFrame.end:type_name -> maitre.v1.TerminalEnd
+	6,  // 8: maitre.v1.TerminalFrame.info:type_name -> maitre.v1.TerminalInfo
+	6,  // 9: maitre.v1.ListTerminalsResponse.terminals:type_name -> maitre.v1.TerminalInfo
+	9,  // 10: maitre.v1.TerminalAttach.size:type_name -> maitre.v1.TerminalSize
+	9,  // 11: maitre.v1.TerminalStart.size:type_name -> maitre.v1.TerminalSize
+	9,  // 12: maitre.v1.TerminalResize.size:type_name -> maitre.v1.TerminalSize
+	0,  // 13: maitre.v1.TerminalExit.reason:type_name -> maitre.v1.TerminalExit.Reason
+	2,  // 14: maitre.v1.TerminalService.ListTerminals:input_type -> maitre.v1.ListTerminalsRequest
+	4,  // 15: maitre.v1.TerminalService.EndTerminal:input_type -> maitre.v1.EndTerminalRequest
+	3,  // 16: maitre.v1.TerminalService.ListTerminals:output_type -> maitre.v1.ListTerminalsResponse
+	5,  // 17: maitre.v1.TerminalService.EndTerminal:output_type -> maitre.v1.EndTerminalResponse
+	16, // [16:18] is the sub-list for method output_type
+	14, // [14:16] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_maitre_v1_terminal_proto_init() }
@@ -719,6 +1211,9 @@ func file_maitre_v1_terminal_proto_init() {
 		(*TerminalFrame_Started)(nil),
 		(*TerminalFrame_Output)(nil),
 		(*TerminalFrame_Exit)(nil),
+		(*TerminalFrame_Attach)(nil),
+		(*TerminalFrame_End)(nil),
+		(*TerminalFrame_Info)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -726,9 +1221,9 @@ func file_maitre_v1_terminal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_maitre_v1_terminal_proto_rawDesc), len(file_maitre_v1_terminal_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   15,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_maitre_v1_terminal_proto_goTypes,
 		DependencyIndexes: file_maitre_v1_terminal_proto_depIdxs,

@@ -33,8 +33,8 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_WIDTH, Sidebar, sidebarNodes } from "./Sideb
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
 import { ServiceViews } from "./ServiceViews";
-import { TerminalLayer } from "./TerminalPane";
-import { closeTerminal, getTerminal, openTerminal, useTerminals } from "@/terminal/terminals";
+import { TerminalLayer, TerminalList } from "./TerminalPane";
+import { closeTerminal, getTerminal, listTerminals, openTerminal, useTerminals } from "@/terminal/terminals";
 import { ToastRoom } from "./ToastRoom";
 import { forgetService } from "./frames";
 import { pageViewOf } from "@/fleet/pages";
@@ -195,7 +195,11 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "terminal":
         // ADR 0011: a shell in its container, beside its Pages.
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
-        openTerminal(s.spec.name, t);
+        // The open view, else the Service's Terminals on the Node (#5), else a new one.
+        if (!getTerminal(s.spec.name)) {
+          const held = await listTerminals(t, s.spec.name).catch(() => []);
+          if (!held.length) openTerminal(s.spec.name, t);
+        }
         go({ name: "terminal", service: s.spec.name });
         return;
       case "ports":
@@ -291,9 +295,15 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
-              {route.name === "terminal" && !getTerminal(route.service) && (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No Terminal is open for {route.service}.</div>
-              )}
+              {route.name === "terminal" && !getTerminal(route.service) && (() => {
+                const s = services.find((x) => x.spec.name === route.service);
+                const t = s && target(s);
+                return t ? (
+                  <TerminalList service={route.service} target={t} />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
+                );
+              })()}
               {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} target={(nodeId) => targetFor(snap, state.nodes, nodeId)} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} onRefresh={() => fleet.refresh()} connection={connectionLine(snap, state.nodes)} onConnection={() => setConnecting(true)} />}
               {route.name === "add-node" && addFound && (

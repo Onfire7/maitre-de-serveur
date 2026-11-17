@@ -1223,6 +1223,14 @@ func runAgent(args []string) error {
 	// Decision 326: the debug tier is for a Device, never Node to Node.
 	svc.IsNode = list.Node
 	maitrev1connect.RegisterFilesServiceHandler(rpc, fsvc)
+	// ADR 0011: Terminals, on the Service tunnel, each held by a transient
+	// systemd unit of its own running `maitre terminal-hold`.
+	exe, _ := os.Executable()
+	terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log,
+		Launcher: terminal.Systemd{Self: exe}, Dir: "/run/maitre/terminals"})
+	// Listing and Ending them (#5): a full Trusted Device's call, as the
+	// gate and the interceptor above keep it.
+	maitrev1connect.RegisterTerminalServiceHandler(rpc, terms)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 	// ADR 0010: a peer's connection to one of this Node's Services.
@@ -1234,11 +1242,6 @@ func runAgent(args []string) error {
 		Addresses: func(nodeID string) []string { return pm.Addresses()[nodeID] }})
 	defer rl.Close()
 	mux.Handle(relay.Path, rl.Anchor())
-	// ADR 0011: Terminals, on the Service tunnel, each held by a transient
-	// systemd unit of its own running `maitre terminal-hold`.
-	exe, _ := os.Executable()
-	terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log,
-		Launcher: terminal.Systemd{Self: exe, Dir: "/run/maitre/terminals"}})
 	mux.Handle(relay.InPath, rl.Target())
 	// Decision 183: file contents for the file manager, same callers as RPCs.
 	mux.Handle(files.ContentPath, fm.Handler(func(r *http.Request) bool {
