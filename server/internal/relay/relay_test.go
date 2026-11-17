@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -30,6 +31,7 @@ type node struct {
 	list  *trust.List
 	addr  string
 	addrs map[string][]string // the Fleet's records: Node id -> addresses
+	log   *journal
 }
 
 func newIdentity(t *testing.T) *identity.Identity {
@@ -41,11 +43,12 @@ func newIdentity(t *testing.T) *identity.Identity {
 	return id
 }
 
-func startNode(t *testing.T, id *identity.Identity, list *trust.List, addrs map[string][]string) *node {
+func startNode(t *testing.T, id *identity.Identity, list *trust.List, addrs map[string][]string, listen func() (net.Listener, error)) *node {
 	t.Helper()
-	n := &node{id: id, list: list, addrs: addrs}
+	n := &node{id: id, list: list, addrs: addrs, log: &journal{}}
 	tlsCfg := mtls.ServerConfig(id, list)
 	r := relay.New(relay.Config{
+		Log:       slog.New(n.log),
 		Self:      id.Fingerprint(),
 		Roles:     list,
 		Addresses: func(nodeID string) []string { return n.addrs[nodeID] },
@@ -58,8 +61,9 @@ func startNode(t *testing.T, id *identity.Identity, list *trust.List, addrs map[
 		p, _ := peer.From(req.Context())
 		fmt.Fprintf(w, "%s %s %s", id.Fingerprint(), p.Fingerprint, req.Proto)
 	})
-	srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, "X-Maitre-Service", mux)), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	// A Node's own server, with the timeouts it has.
+	srv := mtls.Server(peer.Middleware(gate.Handler(list, "X-Maitre-Service", mux)), tlsCfg)
+	ln, err := listen()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +76,7 @@ func startNode(t *testing.T, id *identity.Identity, list *trust.List, addrs map[
 
 // nodeClient is how one Node reaches another: HTTP/2 over mutual TLS.
 func nodeClient(id *identity.Identity, list *trust.List) *http.Client {
-	return &http.Client{Transport: &http2.Transport{TLSClientConfig: mtls.ClientConfig(id, list)}}
+	return mtls.NodeClient(mtls.ClientConfig(id, list))
 }
 
 // fleet is two Nodes, an anchor and a target, and a Trusted Device.
@@ -85,6 +89,12 @@ type fleet struct {
 
 func newFleet(t *testing.T) *fleet {
 	t.Helper()
+	return newFleetOn(t, func() (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") })
+}
+
+// newFleetOn serves the Fleet's Nodes on the listeners listen gives.
+func newFleetOn(t *testing.T, listen func() (net.Listener, error)) *fleet {
+	t.Helper()
 	a, b := newIdentity(t), newIdentity(t)
 	dev, rec, out := newIdentity(t), newIdentity(t), newIdentity(t)
 	roles := func() *trust.List {
@@ -93,8 +103,8 @@ func newFleet(t *testing.T) *fleet {
 		return l
 	}
 	f := &fleet{device: dev, recovery: rec, outsider: out}
-	f.target = startNode(t, b, roles(), map[string][]string{})
-	f.anchor = startNode(t, a, roles(), map[string][]string{b.Fingerprint(): {f.target.addr}})
+	f.target = startNode(t, b, roles(), map[string][]string{}, listen)
+	f.anchor = startNode(t, a, roles(), map[string][]string{b.Fingerprint(): {f.target.addr}}, listen)
 	f.target.addrs[a.Fingerprint()] = []string{f.anchor.addr}
 	return f
 }

@@ -13,6 +13,7 @@ package relay
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Onfire7/maitre-de-serveur/server/internal/carry"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
 )
 
@@ -170,7 +172,12 @@ func (r *Relay) Anchor() http.Handler {
 			return
 		}
 		defer conn.Close()
+		// No deadline on the Device's leg, however long it is silent; TCP
+		// keepalives find a Device that is gone, whatever listener it
+		// came in on. (The anchor's leg to the target is the Nodes' own
+		// link, which mtls dials and accepts with keepalives.)
 		_ = conn.SetDeadline(time.Time{})
+		keepAlive(conn)
 		_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: " + Token + "\r\n\r\n")
 		if err := brw.Flush(); err != nil {
 			return
@@ -181,6 +188,18 @@ func (r *Relay) Anchor() http.Handler {
 			"start", start.Format(time.RFC3339), "end", time.Now().Format(time.RFC3339),
 			"bytes_to_target", toTarget, "bytes_from_target", fromTarget)
 	})
+}
+
+// keepAlive turns TCP keepalives on under c, a TLS connection or not.
+func keepAlive(c net.Conn) {
+	if t, ok := c.(*tls.Conn); ok {
+		c = t.NetConn()
+	}
+	if k, ok := c.(interface {
+		SetKeepAliveConfig(net.KeepAliveConfig) error
+	}); ok {
+		_ = k.SetKeepAliveConfig(mtls.KeepAlive)
+	}
 }
 
 // hijacked reads what the server had buffered before the connection.
