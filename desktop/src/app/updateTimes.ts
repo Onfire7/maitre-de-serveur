@@ -18,6 +18,16 @@ export function updateTimesLine(st: Pick<UpdateStatus, "typicalUpdateMs" | "typi
   return `${head}; its Services are down for ${tail}.`;
 }
 
+/**
+ * How long a Node's Services stop when it restarts, for the Restart and
+ * Roll back dialogs: the same boot as an update's restart, so the update's
+ * downtime figure. "a few minutes" without one, or before the Node answers.
+ */
+export function servicesStopFor(st: Pick<UpdateStatus, "typicalDowntimeMs"> | undefined): string {
+  const down = st ? minutes(st.typicalDowntimeMs) : null;
+  return down === null ? "a few minutes" : down === 0 ? "under a minute" : `about ${down} ${down === 1 ? "minute" : "minutes"}`;
+}
+
 /** Whole minutes; 0 below one; null when the Node has no figure. */
 function minutes(ms: bigint): number | null {
   if (!ms) return null;

@@ -29,7 +29,7 @@ import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
-import { updateTimesLine } from "./updateTimes";
+import { servicesStopFor, updateTimesLine } from "./updateTimes";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
@@ -285,7 +285,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
             <AlertDialogTitle>Roll {node.name} back?</AlertDialogTitle>
             <AlertDialogDescription>
               It restarts into {st?.rollback?.version ? `version ${st.rollback.version}` : "its previous image"}
-              {st?.rollback?.timestamp && `, built ${new Date(st.rollback.timestamp).toLocaleDateString()}`}. Its Services stop for a minute or two.
+              {st?.rollback?.timestamp && `, built ${new Date(st.rollback.timestamp).toLocaleDateString()}`}. Its Services stop for {servicesStopFor(st)}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

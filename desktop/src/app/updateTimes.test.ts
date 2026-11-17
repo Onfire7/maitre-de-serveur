@@ -1,7 +1,7 @@
 // How long a Node's updates take, as the Console says it: the Node works
 // out the figures (GetUpdateStatus); the Console only words them.
 import { describe, expect, it } from "vitest";
-import { updateTimesLine } from "./updateTimes";
+import { servicesStopFor, updateTimesLine } from "./updateTimes";
 
 const min = 60_000;
 
@@ -22,5 +22,21 @@ describe("the line saying how long a Node's updates take", () => {
   it("says the Services keep running when it is not to restart", () => {
     expect(updateTimesLine({ typicalUpdateMs: BigInt(6 * min), typicalDowntimeMs: BigInt(2 * min) }, false)).toBe("Updates usually take about 6 minutes; its Services keep running until it next restarts.");
     expect(updateTimesLine({ typicalUpdateMs: 0n, typicalDowntimeMs: 0n }, false)).toBe("Updates usually take a few minutes; its Services keep running until it next restarts.");
+  });
+});
+
+// A Restart or a Roll back is the same boot as an update's restart, so the
+// update's downtime figure says how long the Services stop.
+describe("how long the Services stop for a Restart or a Roll back", () => {
+  it("is the Node's typical downtime in whole minutes", () => {
+    expect(servicesStopFor({ typicalDowntimeMs: BigInt(2 * min - 25_000) })).toBe("about 2 minutes");
+    expect(servicesStopFor({ typicalDowntimeMs: BigInt(70_000) })).toBe("about 1 minute");
+  });
+  it("says under a minute below one", () => {
+    expect(servicesStopFor({ typicalDowntimeMs: BigInt(40_000) })).toBe("under a minute");
+  });
+  it("says a few minutes without a figure, or before the Node has answered", () => {
+    expect(servicesStopFor({ typicalDowntimeMs: 0n })).toBe("a few minutes");
+    expect(servicesStopFor(undefined)).toBe("a few minutes");
   });
 });
