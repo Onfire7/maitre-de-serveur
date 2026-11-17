@@ -21,6 +21,14 @@ export interface Job {
   progress: number;
   message: string;
   started: number;
+  /** The Node's typical update and downtime (ms, 0 without a figure), from before it went down. */
+  typical: Typical;
+}
+
+/** How long the Node's updates usually take and how long it is down, in ms; 0 is no figure. */
+export interface Typical {
+  updateMs: number;
+  downtimeMs: number;
 }
 
 interface Calls {
@@ -62,11 +70,11 @@ export function describe(m: Maintenance) {
 }
 
 /** Adds a job for a Node at the back of the queue; it starts at once when nothing is updating. */
-export function enqueue(nodeId: string, name: string, m: Maintenance, c: Calls) {
+export function enqueue(nodeId: string, name: string, m: Maintenance, c: Calls, typical: Typical = { updateMs: 0, downtimeMs: 0 }) {
   if (jobs.some((j) => j.nodeId === nodeId && j.phase !== "failed")) return;
   const id = nextId++;
   calls.set(id, c);
-  set([...jobs, { id, nodeId, name, m, phase: "waiting", progress: 0, message: "", started: 0 }]);
+  set([...jobs, { id, nodeId, name, m, phase: "waiting", progress: 0, message: "", started: 0, typical }]);
   pump(lastSnap);
 }
 
