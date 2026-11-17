@@ -30,6 +30,20 @@ describe("the warning before an action that ends running Terminals (ADR 0011)", 
     expect(terminalWarning([held("nextcloud", "server", ["occ", "upgrade"])], { services: true })).toEqual(["A Terminal is running in nextcloud (server): `occ upgrade`. It will end."]);
   });
 
+  it("says how long the Services stop before a Node's Update or Restart (#22)", () => {
+    expect(terminalWarning([held("nextcloud", "server", ["app", "migrate"])], { downtime: "about 2 minutes" })).toEqual(["A Terminal is running in server: `app migrate`. Its Services stop for about 2 minutes."]);
+    expect(terminalWarning([held("nextcloud", "server", ["occ", "upgrade"]), held("kuma", "kuma", [])], { node: true, downtime: "a few minutes" })).toEqual([
+      "2 Terminals are running on this Node, and will end:",
+      "in nextcloud (server): `occ upgrade`",
+      "in kuma: a shell",
+      "Their Services stop for a few minutes.",
+    ]);
+  });
+
+  it("gives no downtime when none runs", () => {
+    expect(terminalWarning([], { node: true, downtime: "about 2 minutes" })).toEqual([]);
+  });
+
   it("leaves finished Terminals out, and says nothing when none runs", () => {
     expect(terminalWarning([held("kuma", "kuma", ["ls"], false)])).toEqual([]);
   });
@@ -50,6 +64,11 @@ describe("the warning before an action that ends running Terminals (ADR 0011)", 
     expect(note.textContent).toBe("A Terminal is running in server: app migrate. It will end.");
     expect(note.querySelector("code")?.textContent).toBe("app migrate");
     expect(asked).toBe("");
+  });
+
+  it("adds the Node's downtime in a confirmation that restarts it", async () => {
+    render(<EndsTerminals target={target} downtime="about 2 minutes" list={async () => [held("nextcloud", "server", ["app", "migrate"])]} />);
+    expect((await screen.findByRole("note")).textContent).toBe("A Terminal is running on this Node in nextcloud (server): app migrate. Its Services stop for about 2 minutes.");
   });
 
   it("shows nothing when the Node cannot be asked", async () => {

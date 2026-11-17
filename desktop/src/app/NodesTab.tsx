@@ -299,7 +299,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {confirm === "reboot" && <EndsTerminals target={t} />}
+          {confirm === "reboot" && <EndsTerminals target={t} downtime={servicesStopFor(upd.data)} />}
           {confirm === "remove" && (
             <div className="space-y-1.5 text-sm">
               <div>

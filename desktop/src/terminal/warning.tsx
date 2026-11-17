@@ -16,6 +16,12 @@ export interface WarningScope {
   node?: boolean;
   /** The action covers several Services, so each names its Service. */
   services?: boolean;
+  /**
+   * How long the Node's Services stop, when the action restarts the Node
+   * (#22): "about 2 minutes", "a few minutes" (servicesStopFor). It takes
+   * the place of "It will end": the restart ends them.
+   */
+  downtime?: string;
 }
 
 /**
@@ -32,8 +38,9 @@ export function terminalWarning(held: readonly HeldTerminal[], scope: WarningSco
   };
   const onNode = scope.node ? " on this Node" : "";
   if (running.length === 0) return [];
-  if (running.length === 1) return [`A Terminal is running${onNode} ${named(running[0])}. It will end.`];
-  return [`${running.length} Terminals are running${onNode}, and will end:`, ...running.map(named)];
+  if (running.length === 1) return [`A Terminal is running${onNode} ${named(running[0])}. ${scope.downtime ? `Its Services stop for ${scope.downtime}.` : "It will end."}`];
+  const lines = [`${running.length} Terminals are running${onNode}, and will end:`, ...running.map(named)];
+  return scope.downtime ? [...lines, `Their Services stop for ${scope.downtime}.`] : lines;
 }
 
 /** Every Terminal the Node holds (ListTerminals without a Service). */
@@ -76,9 +83,10 @@ export function WarningLines({ lines }: { lines: readonly string[] }) {
 /**
  * The running Terminals an action will end, asked of the Node when shown:
  * those of services, or every one on the Node when services is left out.
- * Shows nothing until the Node answers, or when none is running.
+ * Shows nothing until the Node answers, or when none is running. With
+ * downtime (the Node restarts), it says how long its Services stop.
  */
-export function EndsTerminals({ target, services, list }: { target: Target | undefined; services?: readonly string[]; list?: (t: Target, service: string) => Promise<HeldTerminal[]> }) {
+export function EndsTerminals({ target, services, downtime, list }: { target: Target | undefined; services?: readonly string[]; downtime?: string; list?: (t: Target, service: string) => Promise<HeldTerminal[]> }) {
   const [running, setRunning] = useState<HeldTerminal[]>([]);
   const key = services?.join("\n");
   useEffect(() => {
@@ -89,7 +97,7 @@ export function EndsTerminals({ target, services, list }: { target: Target | und
       live = false;
     };
   }, [target?.addr, target?.fingerprint, key]);
-  return <WarningLines lines={terminalWarning(running, { node: !services, services: (services?.length ?? 0) > 1 })} />;
+  return <WarningLines lines={terminalWarning(running, { node: !services, services: (services?.length ?? 0) > 1, downtime })} />;
 }
 
 /** What an action without a confirmation of its own asks first, when it would end Terminals. */

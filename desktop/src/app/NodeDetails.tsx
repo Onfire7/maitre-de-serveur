@@ -300,7 +300,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
               {st?.rollback?.timestamp && `, built ${new Date(st.rollback.timestamp).toLocaleDateString()}`}. Its Services stop for {servicesStopFor(st)}.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {rollbackOpen && <EndsTerminals target={target} />}
+          {rollbackOpen && <EndsTerminals target={target} downtime={servicesStopFor(st)} />}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <HoldButton
@@ -414,7 +414,7 @@ function UpdateDialog({ open, onClose, status, target, queue, onRun }: { open: b
             <Switch checked={reboot} onCheckedChange={setReboot} />
           </label>
           <p className="text-xs text-muted-foreground">{updateTimesLine(status, reboot)}</p>
-          {open && reboot && <EndsTerminals target={target} />}
+          {open && reboot && <EndsTerminals target={target} downtime={servicesStopFor(status)} />}
           {queue && <p className="text-xs text-muted-foreground">Another Node is updating. This one joins the queue and starts once none is.</p>}
         </div>
         <DialogFooter>
