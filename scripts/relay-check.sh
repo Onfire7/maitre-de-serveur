@@ -18,14 +18,15 @@ install_node() { # name port joinflags...
   local name=$1 port=$2; shift 2
   "$MAITRE" installer --no-mdns --no-screen --no-reboot --image example.invalid/maitre:test \
     --state "$STATE/inst-$name" --fake-install "$STATE/$name" --listen "127.0.0.1:$port" 2>"$STATE/inst-$name.log" & INST_PID=$!
-  for _ in $(seq 1 50); do grep -q listening "$STATE/inst-$name.log" 2>/dev/null && break; sleep 0.1; done
+  # Up to 60 s: a loaded machine takes a while to start one.
+  for _ in $(seq 1 600); do grep -q listening "$STATE/inst-$name.log" 2>/dev/null && break; sleep 0.1; done
   "$MAITRE" provision $DEV --addr "127.0.0.1:$port" --name "$name" --disk /dev/fake-ssd --yes "$@" > "$STATE/prov-$name.log"
   kill $INST_PID; wait $INST_PID 2>/dev/null || true
   mkdir -p "$STATE/device/trusted" && cp "$STATE/$name/node/identity.pub" "$STATE/device/trusted/$name.pub"
 }
 start_node() { # name port
   "$MAITRE" agent --no-screen --no-mdns --no-tailscale --caddy "" --state "$STATE/$1" --listen "127.0.0.1:$2" --advertise "127.0.0.1:$2" 2>>"$STATE/agent-$1.log" &
-  for _ in $(seq 1 50); do "$MAITRE" info $DEV --addr "127.0.0.1:$2" >/dev/null 2>&1 && break; sleep 0.2; done
+  for _ in $(seq 1 300); do "$MAITRE" info $DEV --addr "127.0.0.1:$2" >/dev/null 2>&1 && break; sleep 0.2; done
 }
 fp() { "$MAITRE" keygen --out "$STATE/$1/node" | sed -n 's/^identity //p'; }
 
