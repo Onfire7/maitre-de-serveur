@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HoldButton } from "@/components/hold-button";
+import { TimedBar } from "@/components/timed-bar";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatUptime } from "@/lib/format";
@@ -30,6 +31,7 @@ import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
 import { servicesStopFor, updateTimesLine } from "./updateTimes";
+import { UpdateProgress } from "./UpdateProgress";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
@@ -193,7 +195,9 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
   function run(fn: () => Promise<unknown>, m: Maintenance) {
     if (!client) return;
     const wait = busy(snap);
-    enqueue(node.nodeId, node.name, m, { start: fn, status: async () => (await client.getUpdateStatus({})).status });
+    // The Node's typical times, kept on the job: it cannot be asked while it is down.
+    const typical = { updateMs: Number(st?.typicalUpdateMs ?? 0n), downtimeMs: Number(st?.typicalDowntimeMs ?? 0n) };
+    enqueue(node.nodeId, node.name, m, { start: fn, status: async () => (await client.getUpdateStatus({})).status }, typical);
     if (wait) toast(`${node.name}: ${describe(m)} queued`, { description: "It starts once no Node is updating." });
   }
 
@@ -452,18 +456,23 @@ function QueuedLine({ job, queue }: { job: Job; queue: Job[] }) {
  */
 function MaintenanceCard({ job }: { job: Job }) {
   const { name, m, phase } = job;
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const seconds = Math.max(0, Math.round((now - job.started) / 1000));
   const waiting = useUpdateQueue().filter((j) => j.phase === "waiting").length;
   const what = m.kind === "update" ? `Updating ${name} to ${m.target}` : m.kind === "rollback" ? `Rolling ${name} back` : `Restarting ${name}`;
+  // A Restart, or a Roll back that restarts, is one timed section from the
+  // moment it is asked: against the Node's typical downtime. An update is
+  // the three-section bar.
+  const restarts = m.kind === "reboot" || (m.kind === "rollback" && m.reboot);
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">{what}</h3>
-      {phase === "working" && (
+      {restarts && (phase === "working" || phase === "down") && (
+        <>
+          <TimedBar since={job.started} sections={[{ label: "Restarting", typicalMs: job.typical.downtimeMs, since: job.started }]} />
+          <p className="text-sm text-muted-foreground">{phase === "down" ? "The Node is restarting. Its monitor shows the Maître banner when it is back." : "Asking the Node to restart."}</p>
+        </>
+      )}
+      {m.kind === "update" && (phase === "working" || phase === "down") && <UpdateProgress job={job} />}
+      {m.kind === "rollback" && !m.reboot && phase === "working" && (
         <>
           <div className="h-1.5 overflow-hidden rounded bg-muted">
             <div className="h-full rounded bg-status-starting transition-[width]" style={{ width: `${Math.round(job.progress * 100)}%` }} />
@@ -471,13 +480,10 @@ function MaintenanceCard({ job }: { job: Job }) {
           <p className="text-sm text-muted-foreground">{job.message || "starting"}</p>
         </>
       )}
-      {phase === "down" && (
+      {m.kind === "rollback" && !m.reboot && phase === "down" && (
         <>
-          <div className="h-1.5 overflow-hidden rounded bg-muted">
-            <div className="h-full w-1/3 animate-pulse rounded bg-status-starting" />
-          </div>
-          <p className="text-sm">The Node is restarting. Waiting for it to answer again ({seconds}s).</p>
-          <p className="text-xs text-muted-foreground">A Node normally takes under a minute. Its monitor shows the Maître banner when it is back.</p>
+          <TimedBar since={job.started} sections={[{ label: "Restarting", typicalMs: 0, since: null }]} />
+          <p className="text-sm">The Node is restarting. Its monitor shows the Maître banner when it is back.</p>
         </>
       )}
       {phase === "back" && <p className="text-sm">{name} is back.</p>}

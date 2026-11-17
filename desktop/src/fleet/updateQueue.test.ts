@@ -70,6 +70,13 @@ describe("the update queue", () => {
     expect(log).toEqual(["start a", "start b"]);
   });
 
+  it("keeps the Node's typical times, asked before it goes down, on its job", () => {
+    pump(snapWith(["c"]));
+    enqueue("a", "A", { kind: "reboot" }, node([], "a"), { updateMs: 262_000, downtimeMs: 95_000 });
+    enqueue("b", "B", update, node([], "b"));
+    expect(queued().map((j) => j.typical)).toEqual([{ updateMs: 262_000, downtimeMs: 95_000 }, { updateMs: 0, downtimeMs: 0 }]);
+  });
+
   it("cancels a waiting job and asks a Node only once", async () => {
     const log: string[] = [];
     pump(snapWith(["c"]));
@@ -103,5 +110,48 @@ describe("a Node back from its restart", () => {
     expect(log).toEqual(["start a"]);
     await wait(150);
     expect(log).toEqual(["start a", "start b"]);
+  });
+});
+
+describe("the restart's start", () => {
+  it("is stamped on the job when the Node first says it is restarting, and kept while it is down", async () => {
+    let calls = 0;
+    // Staging for two polls, then restarting, then unreachable for a few polls, then idle.
+    const steps = ["updating", "updating", "rebooting", "down", "down", "down", "idle"];
+    pump(snapWith([]));
+    enqueue("a", "A", { kind: "update", target: "img", reboot: true }, {
+      start: async () => {},
+      status: async () => {
+        const s = steps[Math.min(calls++, steps.length - 1)];
+        if (s === "down") throw new Error("connection refused");
+        if (s === "rebooting") return { state: UpdateStatus_State.REBOOTING, progress: 1, message: "" } as UpdateStatus;
+        return s === "idle" ? idle : ({ state: UpdateStatus_State.UPDATING, progress: 0.4, message: "downloading" } as UpdateStatus);
+      },
+    });
+    expect(queued()[0].restarted).toBeNull();
+    while (calls < 2) await wait(2);
+    expect(queued()[0].restarted).toBeNull();
+    const before = Date.now();
+    while (calls < 4) await wait(2);
+    const stamp = queued()[0].restarted!;
+    expect(stamp).toBeGreaterThanOrEqual(before - 50);
+    expect(stamp).toBeLessThanOrEqual(Date.now());
+    while (calls < 6) await wait(2);
+    expect(queued()[0].restarted).toBe(stamp);
+  });
+
+  it("is stamped when the Node stops answering without saying so first", async () => {
+    let calls = 0;
+    pump(snapWith([]));
+    enqueue("a", "A", { kind: "update", target: "img", reboot: true }, {
+      start: async () => {},
+      status: async () => {
+        if (calls++ < 3) throw new Error("connection refused");
+        return idle;
+      },
+    });
+    while (calls < 1) await wait(2);
+    await wait(2);
+    expect(queued()[0].restarted).toEqual(expect.any(Number));
   });
 });

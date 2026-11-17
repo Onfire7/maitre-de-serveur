@@ -21,6 +21,16 @@ export interface Job {
   progress: number;
   message: string;
   started: number;
+  /** When the Node began restarting (ms), null until then: the first time it said so or stopped answering. */
+  restarted: number | null;
+  /** The Node's typical update and downtime (ms, 0 without a figure), from before it went down. */
+  typical: Typical;
+}
+
+/** How long the Node's updates usually take and how long it is down, in ms; 0 is no figure. */
+export interface Typical {
+  updateMs: number;
+  downtimeMs: number;
 }
 
 interface Calls {
@@ -62,11 +72,11 @@ export function describe(m: Maintenance) {
 }
 
 /** Adds a job for a Node at the back of the queue; it starts at once when nothing is updating. */
-export function enqueue(nodeId: string, name: string, m: Maintenance, c: Calls) {
+export function enqueue(nodeId: string, name: string, m: Maintenance, c: Calls, typical: Typical = { updateMs: 0, downtimeMs: 0 }) {
   if (jobs.some((j) => j.nodeId === nodeId && j.phase !== "failed")) return;
   const id = nextId++;
   calls.set(id, c);
-  set([...jobs, { id, nodeId, name, m, phase: "waiting", progress: 0, message: "", started: 0 }]);
+  set([...jobs, { id, nodeId, name, m, phase: "waiting", progress: 0, message: "", started: 0, restarted: null, typical }]);
   pump(lastSnap);
 }
 
@@ -113,6 +123,8 @@ async function run(j: Job) {
 function watch(id: number, m: Maintenance, c: Calls) {
   const expectReboot = m.kind === "reboot" || m.reboot;
   let wentDown = false;
+  // The restart begins the first time the Node says so or stops answering.
+  const down = () => patch(id, jobs.find((x) => x.id === id)?.restarted == null ? { phase: "down", restarted: Date.now() } : { phase: "down" });
   const done = () => {
     patch(id, { phase: "back" });
     setTimeout(() => {
@@ -129,13 +141,13 @@ function watch(id: number, m: Maintenance, c: Calls) {
         // Done once it is idle: back from its restart, or staged without one.
         // A Node back from a restart may still be busy, e.g. downloading.
         if (st.state === UpdateStatus_State.FAILED) return patch(id, { phase: "failed", message: st.message });
-        if (st.state === UpdateStatus_State.REBOOTING) patch(id, { phase: "down" });
+        if (st.state === UpdateStatus_State.REBOOTING) down();
         else if (st.state !== UpdateStatus_State.UPDATING && (wentDown || !expectReboot)) return done();
         else patch(id, { phase: "working", progress: st.progress, message: st.message || "starting" });
       }
     } catch {
       wentDown = true;
-      patch(id, { phase: "down" });
+      down();
     }
     setTimeout(tick, timing.tick);
   };
