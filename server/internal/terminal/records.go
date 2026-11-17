@@ -36,6 +36,12 @@ func (h *Handler) visit(ctx context.Context, fp string) *maitrev1.TerminalVisit 
 }
 
 // recordOpened records a Terminal just opened by the visit's Device.
+//
+// TerminalRecord repeats most of TerminalInfo's fields, copied here, rather
+// than holding a TerminalInfo: the two differ in what they are (a Record
+// every Node keeps and signs, and the holder's live answer, with running
+// and opened_by for the list), a shared sub-message would renumber fields
+// both already carry on the wire, and this is the one place they meet.
 func (h *Handler) recordOpened(ctx context.Context, info *maitrev1.TerminalInfo, opened *maitrev1.TerminalVisit) {
 	h.recording.Lock()
 	defer h.recording.Unlock()
