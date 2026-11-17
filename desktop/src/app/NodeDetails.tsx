@@ -29,6 +29,7 @@ import { ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
+import { updateTimesLine } from "./updateTimes";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
@@ -247,6 +248,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
             {st.rollback && <Deployment label={st.rollbackQueued ? "Rollback, boots next" : "Previous"} d={st.rollback} />}
           </div>
         )}
+        {st?.supported && <p className="text-xs text-muted-foreground">{updateTimesLine(st)}</p>}
         {st?.state === UpdateStatus_State.UPDATING && (
           <div className="space-y-1">
             <div className="h-1.5 overflow-hidden rounded bg-muted">
@@ -398,6 +400,7 @@ function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; 
             </span>
             <Switch checked={reboot} onCheckedChange={setReboot} />
           </label>
+          <p className="text-xs text-muted-foreground">{updateTimesLine(status, reboot)}</p>
           {queue && <p className="text-xs text-muted-foreground">Another Node is updating. This one joins the queue and starts once none is.</p>}
         </div>
         <DialogFooter>

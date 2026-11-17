@@ -61,6 +61,9 @@ type Manager struct {
 	// reboot's end is recorded at the next start (Back).
 	OnStart func(image, requestedBy string)
 	OnEnd   func(outcome maitrev1.UpdateRun_Outcome, msg string)
+	// OnRestart runs just before an update's reboot, so the Node can record
+	// when its Services went down (Restarting): the run's downtime. Optional.
+	OnRestart func()
 
 	mu       sync.Mutex
 	state    maitrev1.UpdateStatus_State
@@ -213,6 +216,9 @@ func (m *Manager) stage(image string, reboot, insecure bool) {
 		return
 	}
 	m.set(maitrev1.UpdateStatus_STATE_REBOOTING, "staged; rebooting", 1)
+	if m.OnRestart != nil {
+		m.OnRestart()
+	}
 	if err := m.Reboot(ctx); err != nil {
 		m.fail("staged, but reboot failed: "+err.Error(), 1)
 	}

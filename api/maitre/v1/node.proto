@@ -349,6 +349,14 @@ message UpdateStatus {
   // Console away from home still sees them and can pick one. Newest first;
   // empty from a Node that reaches no Depot, or one from before this field.
   repeated DepotImage depot_images = 13;
+  // How long this Node's updates usually take, from its own runs and never
+  // another Node's (machines differ): the median of its last 5 runs that
+  // ended updated, start to back up. 0 when it has fewer than 3 (no figure).
+  int64 typical_update_ms = 15;
+  // How long its Services are usually down in one, restart to back up: the
+  // median of its last 5 updated runs that recorded the restart. 0 when
+  // fewer than 3 did.
+  int64 typical_downtime_ms = 16;
 }
 
 // DepotImage is one image a Depot offers, as the Node saw it.

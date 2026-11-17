@@ -518,6 +518,10 @@ func (s *Service) decorate(st *maitrev1.UpdateStatus) {
 	if s.Runs != nil {
 		st.Runs = s.Runs()
 	}
+	// How long its updates usually take, worked out here once (the
+	// Console only shows it).
+	total, down := update.Typical(st.GetRuns())
+	st.TypicalUpdateMs, st.TypicalDowntimeMs = total.Milliseconds(), down.Milliseconds()
 	if s.Offers != nil {
 		st.DepotImages = s.Offers()
 	}
