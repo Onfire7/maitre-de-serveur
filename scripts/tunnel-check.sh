@@ -6,6 +6,8 @@
 # directly, once through a second dev Node's Relay (ADR 0012). Without
 # podman here, the container is scripts/fake-podman's: a real shell on a
 # real PTY, held by `maitre terminal-hold`, only the container pretend.
+# `maitre terminal-bridge` (Open in your terminal) attaches to that Terminal
+# beside the view, as the person's own terminal app would run it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MAITRE=${MAITRE:-./server/bin/maitre}
@@ -22,6 +24,8 @@ cp "$T/device/identity.pub" "$T/anchor/trusted/device.pub"
 mkdir -p "$T/containers/echo/bin"
 ln -s "$(command -v bash)" "$T/containers/echo/bin/bash"
 export MAITRE_PODMAN="$PWD/scripts/fake-podman" MAITRE_FAKE_PODMAN_ROOT="$T/containers" MAITRE_TUNNEL_TERMINAL=1
+# Open in your terminal (#11): the bridge is the same binary, bundled as the Desktop's helper.
+export MAITRE_TUNNEL_BRIDGE="$(cd "$(dirname "$MAITRE")" && pwd)/$(basename "$MAITRE")"
 AFP=$("$MAITRE" keygen --out "$T/anchor/node" | sed -n 's/^identity //p')
 "$MAITRE" dev --state "$T/node" --listen 127.0.0.1:17999 --fake-service echo --relay-node "$AFP=127.0.0.1:17998" >"$T/node.log" 2>&1 &
 echo $! >"$T/pid"
@@ -39,4 +43,4 @@ MAITRE_TUNNEL_ANCHOR=127.0.0.1:17998 MAITRE_TUNNEL_ANCHOR_FP="$AFP" \
 # The anchor journals each relayed connection when it closes.
 for _ in $(seq 1 50); do grep -q "relayed connection" "$T/anchor.log" && break; sleep 0.1; done
 grep -q "relayed connection" "$T/anchor.log"
-echo "tunnel-check: OK (HTTP, WebSocket and a Terminal through Desktop proxy -> Node mTLS -> Service, directly and through the anchor's Relay)"
+echo "tunnel-check: OK (HTTP, WebSocket, a Terminal and its bridge through Desktop proxy -> Node mTLS -> Service, directly and through the anchor's Relay)"

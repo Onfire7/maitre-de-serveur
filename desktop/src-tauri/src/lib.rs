@@ -2,6 +2,7 @@ mod catalogs;
 pub mod dial;
 mod discovery;
 pub mod identity;
+pub mod launch;
 mod media;
 mod netboot;
 mod pairing;
@@ -201,6 +202,18 @@ async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String
 #[tauri::command]
 async fn terminal_url(state: State<'_, AppState>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
     state.proxies.open_terminal(state.dialer.clone(), addr, fingerprint, service).await
+}
+
+/// Open in your terminal (ADR 0011, src/launch.rs): run the bundled
+/// `maitre terminal-bridge` in the person's own terminal app, attached to
+/// Terminal `terminal` of `service` through the Terminal proxy with a
+/// one-time token. `Err` is for the Console, e.g. launch::NO_TERMINAL.
+#[tauri::command]
+async fn open_in_terminal(state: State<'_, AppState>, addr: String, fingerprint: String, service: String, terminal: String) -> Result<(), String> {
+    let bridge = netboot::Netboot::helper_path()?;
+    let url = state.proxies.open_terminal(state.dialer.clone(), addr, fingerprint, service).await?;
+    let tickets = state.data_dir.join("terminal-tickets");
+    tauri::async_runtime::spawn_blocking(move || launch::open(&tickets, &bridge, &url, &terminal)).await.map_err(|e| e.to_string())?
 }
 
 /// A Service's Page in a view of its own (decision 294, src/views.rs):
@@ -562,6 +575,7 @@ pub fn run() {
             peek_installer,
             service_url,
             terminal_url,
+            open_in_terminal,
             view_open,
             view_place,
             view_show,
