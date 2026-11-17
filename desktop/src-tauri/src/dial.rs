@@ -254,8 +254,7 @@ impl Dialer {
 
     async fn direct(&self, addr: &str, fingerprint: &str, proto: Proto) -> Result<NodeStream, String> {
         let config = self.config(fingerprint, proto)?;
-        let tcp = TcpStream::connect(addr).await.map_err(|e| e.to_string())?;
-        let _ = tcp.set_nodelay(true);
+        let tcp = connect_tcp(addr).await.map_err(|e| e.to_string())?;
         let name = rustls::pki_types::ServerName::try_from("maitre").map_err(|e| e.to_string())?;
         let tls = TlsConnector::from(config).connect(name, tcp).await.map_err(|e| e.to_string())?;
         Ok(Box::new(tls))
@@ -292,6 +291,22 @@ impl Dialer {
         let tls = TlsConnector::from(config).connect(name, outer).await.map_err(|e| e.to_string())?;
         Ok(Box::new(tls))
     }
+}
+
+/// TCP keepalive on every connection the Desktop dials, as the Nodes set
+/// it (mtls.KeepAlive): a relayed connection or a Terminal may carry
+/// nothing for hours, and the probes keep NATs and firewalls from
+/// forgetting it and find a Node that is gone.
+const KEEPALIVE: Duration = Duration::from_secs(15);
+const KEEPALIVE_PROBES: u32 = 4;
+
+/// A TCP connection to `addr`, with no delay and with keepalives.
+async fn connect_tcp(addr: &str) -> std::io::Result<TcpStream> {
+    let tcp = TcpStream::connect(addr).await?;
+    let _ = tcp.set_nodelay(true);
+    let keepalive = socket2::TcpKeepalive::new().with_time(KEEPALIVE).with_interval(KEEPALIVE).with_retries(KEEPALIVE_PROBES);
+    socket2::SockRef::from(&tcp).set_tcp_keepalive(&keepalive)?;
+    Ok(tcp)
 }
 
 /// Set when the anchor a connection was relayed through is no longer the
@@ -538,6 +553,23 @@ pub(crate) mod fake {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // A relayed connection or a Terminal may carry nothing for hours: TCP
+    // keepalives, as the Nodes set them, keep NATs from forgetting the
+    // connection and find a Node that is gone.
+    #[tokio::test]
+    async fn the_desktop_dials_with_tcp_keepalives() {
+        let ln = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let tcp = connect_tcp(&ln.local_addr().unwrap().to_string()).await.unwrap();
+        let s = socket2::SockRef::from(&tcp);
+        assert!(s.keepalive().unwrap());
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(s.tcp_keepalive_time().unwrap(), Duration::from_secs(15));
+            assert_eq!(s.tcp_keepalive_interval().unwrap(), Duration::from_secs(15));
+            assert_eq!(s.tcp_keepalive_retries().unwrap(), 4);
+        }
+    }
 
     /// A Node that writes the protocol it agreed, then echoes.
     async fn echo_node() -> fake::FakeNode {
