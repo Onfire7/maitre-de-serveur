@@ -201,8 +201,8 @@ export function Sidebar({
   // Only Services that offer a Page, or have a Terminal open, are listed here.
   const listed = services.flatMap((s) => {
     const pages = pageViews(s);
-    const terminal = terminals.find((t) => t.service === s.spec.name);
-    return pages.length || terminal ? [{ service: s, pages, terminal }] : [];
+    const open = terminals.filter((t) => t.service === s.spec.name);
+    return pages.length || open.length ? [{ service: s, pages, terminals: open }] : [];
   });
 
   return (
@@ -263,7 +263,7 @@ export function Sidebar({
           onMouseEnter={keepOpen}
         >
           <ul className="px-1.5">
-            {listed.map(({ service: s, pages, terminal }, i) => {
+            {listed.map(({ service: s, pages, terminals: open }, i) => {
               const here = selectedService === s.spec.name;
               const several = pages.length > 1;
               return (
@@ -278,7 +278,7 @@ export function Sidebar({
                   collapsed={collapsed}
                   selected={here && route.name !== "terminal" && (!several || route.name === "setup")}
                   idle={here ? null : idleOfAny(pages.map((p) => p.host))}
-                  onClick={() => go(pages.length ? { name: "page", service: s.spec.name, page: pages[0].page.name } : { name: "terminal", service: s.spec.name })}
+                  onClick={() => go(pages.length ? { name: "page", service: s.spec.name, page: pages[0].page.name } : { name: "terminal", service: s.spec.name, view: open[0]?.key })}
                   onEnter={(el) => rowEnter(s, el)}
                   onChevron={(el) => {
                     clearTimers();
@@ -299,16 +299,17 @@ export function Sidebar({
                     </motion.ul>
                   )}
                 </AnimatePresence>
-                {/* Its open Terminal, beside its Pages (ADR 0011). */}
-                {terminal && (
+                {/* Its open Terminals, beside its Pages (ADR 0011), one row each (#6). */}
+                {open.map((t) => (
                   <TerminalRow
-                    label={terminal.session.info.container ? `${terminal.session.info.container} · ${terminal.session.info.user}` : "Terminal"}
+                    key={t.key}
+                    label={t.session.info.container ? `${t.session.info.container} · ${t.session.info.user}` : "Terminal"}
                     collapsed={collapsed}
-                    selected={route.name === "terminal" && here}
-                    onClick={() => go({ name: "terminal", service: s.spec.name })}
+                    selected={route.name === "terminal" && route.view === t.key}
+                    onClick={() => go({ name: "terminal", service: s.spec.name, view: t.key })}
                     onEnter={scheduleClose}
                   />
-                )}
+                ))}
               </motion.li>
               );
             })}
@@ -580,7 +581,7 @@ function PageRow({ page, collapsed, selected, idle, onClick, onEnter }: { page: 
   );
 }
 
-/** A Service's open Terminal: a nested row under its Service's, labelled
+/** One of a Service's open Terminals: a nested row under its Service's, labelled
  * with the container and user it runs as (ADR 0011). */
 function TerminalRow({ label, collapsed, selected, onClick, onEnter }: { label: string; collapsed: boolean; selected: boolean; onClick: () => void; onEnter: () => void }) {
   return (

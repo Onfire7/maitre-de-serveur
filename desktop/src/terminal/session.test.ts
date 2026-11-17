@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 import { TerminalSession, type TerminalSocket } from "./session";
-import { attachTerminal, closeTerminal, getTerminal, openTerminal, reattach, resetTerminals, runAgain } from "./terminals";
+import { attachTerminal, closeTerminal, getTerminal, openTerminal, reattach, resetTerminals, runAgain, terminalsOf } from "./terminals";
 import { IDLE_MS, MAX_LIVE, getFrame, resetFrames, showFrame, hideFrame, tick } from "@/app/frames";
 
 /** A WebSocket the test plays the Node's end of. */
@@ -154,6 +154,35 @@ describe("a Terminal held by the Node (#5)", () => {
   });
 });
 
+describe("a shared Terminal (#6)", () => {
+  const sized = (cols: number, rows: number) => ({ case: "resize", value: { $typeName: "maitre.v1.TerminalResize", size: { $typeName: "maitre.v1.TerminalSize", cols, rows } } }) as const;
+
+  it("shows the session at the size the Node says, which another Device may have set", async () => {
+    const { s, sockets } = session();
+    s.resize(100, 30);
+    await flush();
+    sockets[0].onopen?.();
+    const seen: [number, number][] = [];
+    s.onSize((cols, rows) => seen.push([cols, rows]));
+    sockets[0].node(sized(80, 24));
+    expect(seen).toEqual([[80, 24]]);
+    // A view mounted later starts at the session's size.
+    const late: [number, number][] = [];
+    s.onSize((cols, rows) => late.push([cols, rows]));
+    expect(late).toEqual([[80, 24]]);
+  });
+
+  it("says its own size again only when it changes, not when the session's does", async () => {
+    const { s, sockets } = session();
+    await flush();
+    sockets[0].onopen?.();
+    s.resize(100, 30);
+    sockets[0].node(sized(80, 24));
+    s.resize(100, 30);
+    expect(sockets[0].sent.filter((f) => f.frame.case === "resize")).toHaveLength(1);
+  });
+});
+
 describe("the Console's open Terminals", () => {
   const target = { addr: "192.168.1.5:7443", fingerprint: "ab".repeat(32) };
   beforeEach(() => {
@@ -161,7 +190,7 @@ describe("the Console's open Terminals", () => {
     resetFrames(() => 0);
   });
 
-  it("asks for a new one-time URL each time, and Run again starts a new shell", async () => {
+  it("asks for a new one-time URL each time, and Run again starts a new shell in the same view", async () => {
     const urls: string[] = [];
     const sockets: FakeSocket[] = [];
     let n = 0;
@@ -179,19 +208,38 @@ describe("the Console's open Terminals", () => {
       },
     };
     const first = openTerminal("kuma", target, deps);
-    expect(openTerminal("kuma", target, deps)).toBe(first);
     await flush();
     sockets[0].onopen?.();
     sockets[0].node({ case: "exit", value: { $typeName: "maitre.v1.TerminalExit", reason: TerminalExit_Reason.EXITED, code: 1, message: "" } });
-    const again = runAgain("kuma");
-    expect(again).not.toBe(first);
+    const again = runAgain(first.key);
+    expect(again?.session).not.toBe(first.session);
+    expect(again?.key).toBe(first.key);
     expect(sockets[0].closed).toBe(true);
     await flush();
     expect(urls).toEqual(["ws://127.0.0.1:41000/kuma-1", "ws://127.0.0.1:41000/kuma-2"]);
-    expect(getTerminal("kuma")?.session).toBe(again);
-    closeTerminal("kuma");
-    expect(getTerminal("kuma")).toBeUndefined();
+    expect(getTerminal(first.key)?.session).toBe(again?.session);
+    closeTerminal(first.key);
+    expect(getTerminal(first.key)).toBeUndefined();
     expect(sockets[1].closed).toBe(true);
+  });
+
+  it("opens several Terminals in one Service, each its own view, and one Terminal only once (#6)", async () => {
+    const sockets: FakeSocket[] = [];
+    const deps = { url: async () => "ws://x", socket: (u: string) => { const f = new FakeSocket(u); sockets.push(f); return f; } };
+    const a = openTerminal("kuma", target, deps);
+    const b = openTerminal("kuma", target, deps);
+    expect(a.key).not.toBe(b.key);
+    expect(terminalsOf("kuma").map((t) => t.key)).toEqual([a.key, b.key]);
+    await flush();
+    sockets[0].onopen?.();
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "aaaaaaaaaaaaaaaa", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    // Opening a Terminal already in view here shows that view.
+    expect(attachTerminal("kuma", target, "aaaaaaaaaaaaaaaa", deps)).toBe(a);
+    const c = attachTerminal("kuma", target, "cccccccccccccccc", deps);
+    expect(terminalsOf("kuma")).toHaveLength(3);
+    closeTerminal(a.key);
+    expect(sockets[0].closed).toBe(true);
+    expect(terminalsOf("kuma").map((t) => t.key)).toEqual([b.key, c.key]);
   });
 
   it("opens a Terminal the Node holds by its id, and reattaches to the one whose connection was lost", async () => {
@@ -203,8 +251,8 @@ describe("the Console's open Terminals", () => {
     expect(sockets[0].sent[0].frame.case).toBe("attach");
     sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "0123456789abcdef", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
     sockets[0].onclose?.({ code: 1001, reason: "" });
-    const again = reattach("kuma");
-    expect(again).not.toBe(first);
+    const again = reattach(first.key);
+    expect(again?.session).not.toBe(first.session);
     await flush();
     sockets[1].onopen?.();
     const f = sockets[1].sent[0].frame;
@@ -212,7 +260,7 @@ describe("the Console's open Terminals", () => {
   });
 
   it("an open Terminal is neither dropped by the frames' idle timer nor counted in their limit", async () => {
-    openTerminal("kuma", target, { url: async () => "ws://x", socket: (u) => new FakeSocket(u) });
+    const t = openTerminal("kuma", target, { url: async () => "ws://x", socket: (u) => new FakeSocket(u) });
     for (let i = 0; i < MAX_LIVE; i++) {
       showFrame(`page${i}`, `http://127.0.0.1:${41001 + i}/`);
       hideFrame(`page${i}`);
@@ -221,6 +269,6 @@ describe("the Console's open Terminals", () => {
     expect(Array.from({ length: MAX_LIVE }, (_, i) => getFrame(`page${i}`)?.live)).toEqual(Array(MAX_LIVE).fill(true));
     tick(IDLE_MS * 5);
     expect(getFrame("page0")?.live).toBe(false);
-    expect(getTerminal("kuma")).toBeDefined();
+    expect(getTerminal(t.key)).toBeDefined();
   });
 });

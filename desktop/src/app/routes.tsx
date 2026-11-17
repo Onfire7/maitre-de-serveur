@@ -22,8 +22,9 @@ export type ServiceEdit = "access" | "storage";
 export type Route =
   // One Page of a Service (ADR 0010); `page` is its name, "" the first.
   | { name: "page"; service: string; page: string }
-  // The Service's open Terminal (ADR 0011).
-  | { name: "terminal"; service: string }
+  // One of the Service's open Terminals (ADR 0011), by its view's key
+  // (terminals.ts); without one, the Service's Terminals on its Node.
+  | { name: "terminal"; service: string; view?: string }
   // A Service's Setup: its network, Pages, address and container options.
   | { name: "setup"; service: string }
   | { name: "catalog" }

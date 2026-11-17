@@ -22,10 +22,19 @@ export const file_maitre_v1_terminal: GenFile = /*@__PURE__*/
  *
  * The Console's first frame is `start`, for a new Terminal, or `attach`,
  * to one the Node holds already; then it sends `input`, `resize`, and `end`
- * to End it. The Node answers `started` once the process runs (on an attach,
- * its recent output follows, replayed), then `output`, and `exit` last,
- * after which it closes the WebSocket. Closing the WebSocket only detaches:
- * the Terminal runs on (ADR 0011).
+ * to End it. The Node answers `started` once the process runs, then
+ * `resize` with the session's size (on an attach, its recent output
+ * follows, replayed), then `output` and `resize` as they come, and `exit`
+ * last, after which it closes the WebSocket. Closing the WebSocket only
+ * detaches: the Terminal runs on (ADR 0011).
+ *
+ * Terminals are shared: any number of views may attach to one, each sees
+ * its output and may type into it. The view that last typed or resized
+ * sets the session's size, and the Node sends every view the new size in a
+ * `resize`, so the others show the session at that size. A view attaching
+ * while others are attached takes their size until it types or resizes. A
+ * container holds at most 10 running Terminals; a `start` for an 11th ends
+ * in an `exit` (REASON_FAILED) saying so.
  *
  * The Node keeps the session between the agent and the unit that holds the
  * PTY (`maitre terminal-hold`) in these frames too, length-prefixed. The
@@ -241,8 +250,8 @@ export const TerminalInfoSchema: GenMessage<TerminalInfo> = /*@__PURE__*/
   messageDesc(file_maitre_v1_terminal, 5);
 
 /**
- * TerminalAttach reattaches to a Terminal the Node holds, by its id; size
- * is the view's.
+ * TerminalAttach attaches to a Terminal the Node holds, by its id, beside
+ * any other views of it; size is the view's.
  *
  * @generated from message maitre.v1.TerminalAttach
  */
@@ -282,7 +291,7 @@ export const TerminalEndSchema: GenMessage<TerminalEnd> = /*@__PURE__*/
   messageDesc(file_maitre_v1_terminal, 7);
 
 /**
- * TerminalSize is the view's size in character cells.
+ * TerminalSize is a size in character cells: a view's, or the session's.
  *
  * @generated from message maitre.v1.TerminalSize
  */
@@ -360,7 +369,9 @@ export const TerminalInputSchema: GenMessage<TerminalInput> = /*@__PURE__*/
   messageDesc(file_maitre_v1_terminal, 10);
 
 /**
- * TerminalResize is a new size for the session.
+ * TerminalResize, from the Console, is the view's new size, which becomes
+ * the session's; from the Node, it is the session's size, which every view
+ * shows.
  *
  * @generated from message maitre.v1.TerminalResize
  */

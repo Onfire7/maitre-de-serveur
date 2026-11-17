@@ -6,6 +6,9 @@
 // output and sends what is typed and its size. The Terminal belongs to the
 // Node: closing this connection only detaches, and a new session can attach
 // to it again by its id, getting its recent output replayed first.
+// Terminals are shared (#6): other Devices may be attached too, and the one
+// that last typed or resized sets the session's size, which the Node says
+// to every view (onSize) so each shows the session at that size.
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 
@@ -43,6 +46,7 @@ export interface TerminalInfo {
 
 type Listener = () => void;
 type OutputListener = (data: Uint8Array) => void;
+type SizeListener = (cols: number, rows: number) => void;
 
 /** Output kept for a view that is not listening yet. */
 const BACKLOG_BYTES = 256 * 1024;
@@ -56,6 +60,9 @@ export class TerminalSession {
   private size = { cols: 80, rows: 24 };
   private listeners = new Set<Listener>();
   private outputs = new Set<OutputListener>();
+  private sizes = new Set<SizeListener>();
+  /** The session's size, as the Node last said. */
+  private shared: { cols: number; rows: number } | undefined;
   private backlog: Uint8Array[] = [];
   private backlogBytes = 0;
 
@@ -124,6 +131,13 @@ export class TerminalSession {
         }
         return;
       }
+      case "resize": {
+        const { cols = 0, rows = 0 } = f.frame.value.size ?? {};
+        if (cols < 1 || rows < 1) return;
+        this.shared = { cols, rows };
+        this.sizes.forEach((l) => l(cols, rows));
+        return;
+      }
       case "exit": {
         const x = f.frame.value;
         if (x.reason === TerminalExit_Reason.NO_SHELL) this.set({ phase: "no-shell", message: x.message || "This container has no shell" });
@@ -139,7 +153,10 @@ export class TerminalSession {
     this.send({ case: "input", value: { $typeName: "maitre.v1.TerminalInput", data: bytes } });
   }
 
-  /** The view's size in cells; before the shell starts, the size it starts at. */
+  /**
+   * The view's own size in cells, said again only when it changes; it
+   * becomes the session's (#6). Before the shell starts, the size it starts at.
+   */
   resize(cols: number, rows: number) {
     if (cols < 1 || rows < 1 || (cols === this.size.cols && rows === this.size.rows)) return;
     this.size = { cols, rows };
@@ -153,6 +170,13 @@ export class TerminalSession {
     this.backlogBytes = 0;
     this.outputs.add(l);
     return () => this.outputs.delete(l);
+  }
+
+  /** Hear the session's size, which another Device's view may have set; the current one first. */
+  onSize(l: SizeListener): () => void {
+    if (this.shared) l(this.shared.cols, this.shared.rows);
+    this.sizes.add(l);
+    return () => this.sizes.delete(l);
   }
 
   /** End the Terminal on the Node: SIGHUP, then SIGKILL after 5 seconds. Its exit comes back. */
