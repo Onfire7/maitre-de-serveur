@@ -4,7 +4,12 @@
 //!
 //!   MAITRE_TUNNEL_NODE=127.0.0.1:7443 MAITRE_TUNNEL_FP=<node fingerprint>
 //!   MAITRE_TUNNEL_IDENTITY=/path/to/device cargo test --test tunnel -- --ignored
-use maitre_desktop_lib::dial::Dialer;
+//!
+//! With MAITRE_TUNNEL_ANCHOR=<addr> and MAITRE_TUNNEL_ANCHOR_FP=<fingerprint>
+//! the Desktop also has that anchor's Relay (ADR 0012); give
+//! MAITRE_TUNNEL_NODE an address that does not answer to check the tunnel
+//! through the Relay.
+use maitre_desktop_lib::dial::{Anchor, Dialer};
 use maitre_desktop_lib::identity::Identity;
 use maitre_desktop_lib::proxy::Proxies;
 use std::path::Path;
@@ -29,9 +34,13 @@ async fn tunnel_http_and_websocket() {
     let fp = std::env::var("MAITRE_TUNNEL_FP").expect("MAITRE_TUNNEL_FP");
     let dir = std::env::var("MAITRE_TUNNEL_IDENTITY").expect("MAITRE_TUNNEL_IDENTITY");
     let id = Arc::new(Identity::load_or_generate(Path::new(&dir)).unwrap());
+    let dialer = Arc::new(Dialer::new(id));
+    if let (Ok(addr), Ok(fingerprint)) = (std::env::var("MAITRE_TUNNEL_ANCHOR"), std::env::var("MAITRE_TUNNEL_ANCHOR_FP")) {
+        dialer.relay_through(Some(Anchor { addr, fingerprint }));
+    }
     let proxies = Proxies::default();
     let (_, port) = proxies
-        .open(Arc::new(Dialer::new(id)), node, fp, "echo".into(), "echo".into(), String::new(), None)
+        .open(dialer, node, fp, "echo".into(), "echo".into(), String::new(), None)
         .await
         .expect("open proxy");
 

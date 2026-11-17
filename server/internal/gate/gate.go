@@ -40,6 +40,17 @@ var NodeCalls = map[string]bool{
 	// A connection carried to one of this Node's Services for a Service
 	// of the peer's (ADR 0010, fleetnet).
 	"/maitre/relay": true,
+	// A Device's connection relayed by the anchor (ADR 0012, relay.InPath);
+	// the Device inside it is authorized on its own.
+	"/maitre/relayed": true,
+}
+
+// LimitedCalls are what the Recovery Phrase may call: adding a Trusted
+// Device, and asking the anchor to relay to a Node where it does the same
+// (ADR 0012, relay.Path).
+var LimitedCalls = map[string]bool{
+	PutRecord:            true,
+	"/maitre/relay-node": true,
 }
 
 // Handler refuses, with 403, requests a caller's role does not allow.
@@ -54,7 +65,7 @@ func Handler(roles Roles, svcHeader string, next http.Handler) http.Handler {
 				call = ""
 			}
 			switch {
-			case roles.Limited(p.Fingerprint) && call != PutRecord:
+			case roles.Limited(p.Fingerprint) && !LimitedCalls[call]:
 				http.Error(w, "the Recovery Phrase may only add a Trusted Device", http.StatusForbidden)
 				return
 			case roles.Node(p.Fingerprint) && !NodeCalls[call]:

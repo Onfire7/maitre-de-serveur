@@ -10,7 +10,7 @@ import { NodeService, FleetNodeStatusSchema, type FleetNodeStatus, type SyncGap 
 import { NodeSchema, FleetSchema, GrantSchema, TrustedDeviceSchema, UpdatePolicySchema, type Record as Rec, type Node, type TrustedDevice, type UpdatePolicy } from "@/gen/maitre/v1/fleet_pb";
 import { ServiceService, ServiceSpecSchema, type ServiceSpec, type ServiceStatus } from "@/gen/maitre/v1/service_pb";
 import { SpaceSchema, DriveRecordSchema, type Space, type DriveRecord } from "@/gen/maitre/v1/storage_pb";
-import { transportFor, type Target } from "@/transport";
+import { relayThrough, transportFor, type Target } from "@/transport";
 import { type KnownNode } from "@/state";
 import { allPicks, attemptKey, pickAnchor, type AnchorPick } from "./anchor";
 import { chooseAddress, demoteRoute, lastAnchor, pinned, rememberRoute, routeKind, routeOrder, setLastAnchor, setPinned } from "./route";
@@ -216,6 +216,7 @@ export function useFleet(known: KnownNode[]) {
           last.current = pick;
           failed.current.clear();
           setLastAnchor({ fingerprint: pick.nodeId, addr: pick.addr });
+          relayThrough({ fingerprint: pick.nodeId, addr: pick.addr });
           rememberRoute(pick.nodeId, pick.addr);
           const snap = { ...data, anchor: pick, at: Date.now() };
           rememberDomain(snap);
