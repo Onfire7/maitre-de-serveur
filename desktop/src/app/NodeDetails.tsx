@@ -24,6 +24,7 @@ import type { Node } from "@/gen/maitre/v1/fleet_pb";
 import { transportFor, type Target } from "@/transport";
 import type { FleetSnapshot } from "@/fleet/useFleet";
 import { useFleetServices } from "@/fleet/useFleet";
+import { wayLine } from "@/fleet/reach";
 import { busy, describe, enqueue, onQueue, queued, remove, type Job, type Maintenance } from "@/fleet/updateQueue";
 import type { Found } from "@/state";
 import { ServiceIcon, StatusWord } from "./status";
@@ -60,6 +61,12 @@ export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAske
           <dd>{i ? `${i.version}${i.devMode ? " (dev mode)" : ""}` : unreachable || info.error ? "unreachable" : "…"}</dd>
           <dt className="text-muted-foreground">Up for</dt>
           <dd>{i ? formatUptime(Number(i.uptimeSeconds)) : "…"}</dd>
+          {wayLine(snap, node.nodeId, Date.now()) && (
+            <>
+              <dt className="text-muted-foreground">Reached</dt>
+              <dd>{wayLine(snap, node.nodeId, Date.now())}</dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Addresses</dt>
           <dd className="font-mono text-xs">{node.addresses.join(", ")}</dd>
           {snap.status.get(node.nodeId)?.timeZone && (
