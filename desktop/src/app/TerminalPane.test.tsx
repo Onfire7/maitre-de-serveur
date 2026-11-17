@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 import type { TerminalSocket } from "@/terminal/session";
-import { getTerminal, openTerminal, resetTerminals, type HeldTerminal } from "@/terminal/terminals";
+import { getTerminal, openTerminal, resetTerminals, terminalsOf, type HeldTerminal } from "@/terminal/terminals";
 import { TerminalLayer, TerminalList } from "./TerminalPane";
 
 // The library is behind TerminalView (#10 may swap it); the pane is tested without it.
@@ -46,13 +46,14 @@ describe("a Terminal in the Service's area (ADR 0011)", () => {
   });
 
   async function opened() {
-    openTerminal("kuma", target, { url: async () => "ws://x", socket });
-    render(<TerminalLayer shown="kuma" onClose={() => {}} />);
+    const t = openTerminal("kuma", target, { url: async () => "ws://x", socket });
+    render(<TerminalLayer shown={t.key} onClose={() => {}} onList={() => {}} />);
     await flush();
     act(() => {
       sockets[0].onopen?.();
       sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "1", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
     });
+    return t;
   }
 
   it("is labelled with the container and the user", async () => {
@@ -62,13 +63,13 @@ describe("a Terminal in the Service's area (ADR 0011)", () => {
   });
 
   it("shows the exit code when the shell exits, and Run again starts a new one", async () => {
-    await opened();
+    const t = await opened();
     act(() => sockets[0].node({ case: "exit", value: { $typeName: "maitre.v1.TerminalExit", reason: TerminalExit_Reason.EXITED, code: 2, message: "" } }));
     expect(screen.getByText(/exited with code 2/)).toBeTruthy();
-    const before = getTerminal("kuma")?.session;
+    const before = getTerminal(t.key)?.session;
     fireEvent.click(screen.getByRole("button", { name: /Run again/ }));
     await flush();
-    expect(getTerminal("kuma")?.session).not.toBe(before);
+    expect(getTerminal(t.key)?.session).not.toBe(before);
     expect(sockets).toHaveLength(2);
     expect(screen.queryByText(/exited with code/)).toBeNull();
   });
@@ -81,7 +82,7 @@ describe("a Terminal in the Service's area (ADR 0011)", () => {
 
   it("keeps a Terminal that is not shown, hidden", async () => {
     openTerminal("kuma", target, { url: async () => "ws://x", socket });
-    render(<TerminalLayer shown={undefined} onClose={() => {}} />);
+    render(<TerminalLayer shown={undefined} onClose={() => {}} onList={() => {}} />);
     await flush();
     const pane = screen.getByTestId("terminal-pane");
     expect(pane.getAttribute("data-shown")).toBeNull();
@@ -94,24 +95,29 @@ describe("a Terminal held by the Node (#5)", () => {
     sockets = [];
   });
 
-  async function running() {
-    openTerminal("kuma", target, { url: async () => "ws://x", socket });
-    render(<TerminalLayer shown="kuma" onClose={() => {}} />);
+  async function running(onList: (service: string) => void = () => {}) {
+    const t = openTerminal("kuma", target, { url: async () => "ws://x", socket });
+    render(<TerminalLayer shown={t.key} onClose={() => {}} onList={onList} />);
     await flush();
     act(() => {
       sockets[0].onopen?.();
       sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "0123456789abcdef", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
     });
+    return t;
   }
 
-  it("End asks the Node to end it, and closing the view only detaches", async () => {
-    await running();
+  it("End asks the Node to end it, All Terminals leaves it open, and closing the view only detaches", async () => {
+    const listed: string[] = [];
+    const t = await running((s) => listed.push(s));
     fireEvent.click(screen.getByRole("button", { name: "End kuma's Terminal" }));
     expect(sockets[0].sent.at(-1)?.frame.case).toBe("end");
     fireEvent.click(screen.getByRole("button", { name: "All of kuma's Terminals" }));
+    expect(listed).toEqual(["kuma"]);
+    expect(sockets[0].closed).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Close kuma's Terminal" }));
     expect(sockets[0].closed).toBe(true);
     expect(sockets[0].sent.filter((f) => f.frame.case === "end")).toHaveLength(1);
-    expect(getTerminal("kuma")).toBeUndefined();
+    expect(getTerminal(t.key)).toBeUndefined();
   });
 
   it("when the connection is lost (the agent restarting, say), Reattach attaches to the same Terminal", async () => {
@@ -123,6 +129,45 @@ describe("a Terminal held by the Node (#5)", () => {
     act(() => sockets[1].onopen?.());
     const f = sockets[1].sent[0].frame;
     expect(f.case === "attach" && f.value.id).toBe("0123456789abcdef");
+  });
+});
+
+describe("several Terminals, shared (#6)", () => {
+  beforeEach(() => {
+    resetTerminals();
+    sockets = [];
+  });
+  const deps = { url: async () => "ws://x", socket };
+
+  it("keeps each open Terminal of a Service in its own view, and shows the one routed to", async () => {
+    const a = openTerminal("kuma", target, deps);
+    const b = openTerminal("kuma", target, deps);
+    render(<TerminalLayer shown={b.key} onClose={() => {}} onList={() => {}} />);
+    await flush();
+    act(() => {
+      sockets.forEach((s, i) => {
+        s.onopen?.();
+        s.node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: `${i}`.repeat(16), container: i ? "worker" : "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+      });
+    });
+    const panes = screen.getAllByTestId("terminal-pane");
+    expect(panes).toHaveLength(2);
+    const shown = panes.filter((p) => p.getAttribute("data-shown"));
+    expect(shown).toHaveLength(1);
+    expect(within(shown[0]).getByText("worker · root")).toBeTruthy();
+    expect(terminalsOf("kuma").map((t) => t.key)).toEqual([a.key, b.key]);
+  });
+
+  it("says why when the container already has its 10 Terminals", async () => {
+    const t = openTerminal("kuma", target, deps);
+    render(<TerminalLayer shown={t.key} onClose={() => {}} onList={() => {}} />);
+    await flush();
+    const why = "server already has 10 Terminals running, the most a container may hold. End one to open another.";
+    act(() => {
+      sockets[0].onopen?.();
+      sockets[0].node({ case: "exit", value: { $typeName: "maitre.v1.TerminalExit", reason: TerminalExit_Reason.FAILED, code: 0, message: why } });
+    });
+    expect(screen.getByText(why)).toBeTruthy();
   });
 });
 
@@ -144,7 +189,8 @@ describe("the Service's Terminals (#5)", () => {
       },
       terminal: { url: async () => "ws://x", socket },
     };
-    render(<TerminalList service="kuma" target={target} deps={deps} />);
+    const opened: string[] = [];
+    render(<TerminalList service="kuma" target={target} deps={deps} onOpen={(key) => opened.push(key)} />);
     await flush();
     const rows = screen.getAllByTestId("held-terminal");
     expect(rows).toHaveLength(2);
@@ -162,11 +208,13 @@ describe("the Service's Terminals (#5)", () => {
     act(() => sockets[0].onopen?.());
     const f = sockets[0].sent[0].frame;
     expect(f.case === "attach" && f.value.id).toBe("bbbbbbbbbbbbbbbb");
-    expect(getTerminal("kuma")?.session.info.id).toBe("bbbbbbbbbbbbbbbb");
+    expect(opened).toHaveLength(1);
+    expect(getTerminal(opened[0])?.session.info.id).toBe("bbbbbbbbbbbbbbbb");
   });
 
   it("starts a new Terminal where and as whom chosen (#7), and says when the Node has none", async () => {
-    render(<TerminalList service="photos" target={target} containers={["server", "database"]} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} />);
+    const opened: string[] = [];
+    render(<TerminalList service="photos" target={target} containers={["server", "database"]} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} onOpen={(key) => opened.push(key)} />);
     await flush();
     expect(screen.getByText("No Terminal is running in photos.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /New Terminal/ }));
@@ -177,5 +225,7 @@ describe("the Service's Terminals (#5)", () => {
     act(() => sockets[0].onopen?.());
     const f = sockets[0].sent[0].frame;
     expect(f.case === "start" && [f.value.component, f.value.root]).toEqual(["database", true]);
+    expect(getTerminal(opened[0])?.service).toBe("photos");
+    expect(opened).toHaveLength(1);
   });
 });

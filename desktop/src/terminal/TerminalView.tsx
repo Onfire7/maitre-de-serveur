@@ -12,12 +12,15 @@ import "@xterm/xterm/css/xterm.css";
 export interface TerminalIO {
   onOutput(l: (data: Uint8Array) => void): () => void;
   input(data: string): void;
+  /** The view's own size: it becomes the session's (#6). */
   resize(cols: number, rows: number): void;
+  /** The session's size, which another Device may have set: the view shows it. */
+  onSize(l: (cols: number, rows: number) => void): () => void;
 }
 
 export function TerminalView({ io, active, className }: { io: TerminalIO; active: boolean; className?: string }) {
   const box = useRef<HTMLDivElement>(null);
-  const term = useRef<{ t: Terminal; fit: FitAddon } | null>(null);
+  const term = useRef<{ t: Terminal; fitNow: () => void } | null>(null);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -25,18 +28,32 @@ export function TerminalView({ io, active, className }: { io: TerminalIO; active
     const fit = new FitAddon();
     t.loadAddon(fit);
     t.open(el);
-    term.current = { t, fit };
+    // The session is shared (#6): the view says its own size, which the
+    // Node makes the session's when this Device types or resizes, and
+    // shows the session at the size the Node says, which may be another's.
+    let shared: { cols: number; rows: number } | undefined;
+    const show = (cols: number, rows: number) => {
+      if (t.cols !== cols || t.rows !== rows) t.resize(cols, rows);
+    };
     const fitNow = () => {
       // A hidden view has no size to fit to.
       if (!el.offsetWidth || !el.offsetHeight) return;
+      let d: { cols: number; rows: number } | undefined;
       try {
-        fit.fit();
+        d = fit.proposeDimensions();
       } catch {
         return;
       }
-      io.resize(t.cols, t.rows);
+      if (!d || !(d.cols >= 1) || !(d.rows >= 1)) return;
+      io.resize(d.cols, d.rows);
+      if (!shared) show(d.cols, d.rows);
     };
+    term.current = { t, fitNow };
     fitNow();
+    const offSize = io.onSize((cols, rows) => {
+      shared = { cols, rows };
+      show(cols, rows);
+    });
     const off = io.onOutput((d) => t.write(d));
     const keys = t.onData((d) => io.input(d));
     const ro = new ResizeObserver(fitNow);
@@ -45,6 +62,7 @@ export function TerminalView({ io, active, className }: { io: TerminalIO; active
       ro.disconnect();
       keys.dispose();
       off();
+      offSize();
       t.dispose();
       term.current = null;
     };
@@ -52,12 +70,7 @@ export function TerminalView({ io, active, className }: { io: TerminalIO; active
   useEffect(() => {
     const cur = term.current;
     if (!active || !cur) return;
-    try {
-      cur.fit.fit();
-      io.resize(cur.t.cols, cur.t.rows);
-    } catch {
-      /* not laid out yet */
-    }
+    cur.fitNow();
     cur.t.focus();
   }, [active, io]);
   return <div ref={box} data-testid="terminal-view" className={className} />;

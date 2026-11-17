@@ -218,6 +218,10 @@ async fn next_frame(s: &mut TcpStream) -> (u64, Vec<u8>) {
 async fn output_until(s: &mut TcpStream, seen: &mut String, want: &str) {
     while !seen.contains(want) {
         let (n, body) = next_frame(s).await;
+        // 3: the session's size, which the Node says to every view (#6).
+        if n == 3 {
+            continue;
+        }
         assert_eq!(n, 5, "waiting for {want:?}, got frame {n} {:?} (output {seen:?})", fields(&body));
         seen.push_str(&String::from_utf8_lossy(&fields(&body)[0].2));
     }
@@ -280,7 +284,7 @@ async fn terminal_through_the_tunnel() {
         if n == 6 {
             break fields(&body);
         }
-        assert_eq!(n, 5);
+        assert!(n == 5 || n == 3, "frame {n} before the exit");
     };
     let reason = exit.iter().find(|f| f.0 == 1).map(|f| f.1).unwrap_or(0);
     let code = exit.iter().find(|f| f.0 == 2).map(|f| f.1).unwrap_or(0);

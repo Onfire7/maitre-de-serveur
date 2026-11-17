@@ -97,7 +97,7 @@ var pidRe = regexp.MustCompile(`pid-(\d+)`)
 func (s *session) pid() string {
 	s.t.Helper()
 	for pidRe.FindStringSubmatch(s.out.String()) == nil {
-		if f := s.next(); f.GetOutput() == nil {
+		if f := s.next(); f.GetOutput() == nil && f.GetResize() == nil {
 			s.t.Fatalf("waiting for the pid, got %v (output %q)", f, s.out.String())
 		}
 	}

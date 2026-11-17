@@ -161,6 +161,8 @@ type session struct {
 	t   *testing.T
 	c   *websocket.Conn
 	out bytes.Buffer
+	// size is the session's size, as the Node last said (#6).
+	size *maitrev1.TerminalSize
 }
 
 func open(t *testing.T, e env, service, who string) (*session, *http.Response, error) {
@@ -233,15 +235,19 @@ func (s *session) next() *maitrev1.TerminalFrame {
 		if o := f.GetOutput(); o != nil {
 			s.out.Write(o.GetData())
 		}
+		if r := f.GetResize(); r != nil {
+			s.size = r.GetSize()
+		}
 		return &f
 	}
 }
 
-// until reads output until it contains want; anything else fails.
+// until reads output, and the session's size, until the output contains
+// want; anything else fails.
 func (s *session) until(want string) {
 	s.t.Helper()
 	for !strings.Contains(s.out.String(), want) {
-		if f := s.next(); f.GetOutput() == nil {
+		if f := s.next(); f.GetOutput() == nil && f.GetResize() == nil {
 			s.t.Fatalf("waiting for %q, got %v (output %q)", want, f, s.out.String())
 		}
 	}
@@ -255,7 +261,7 @@ func (s *session) exit() *maitrev1.TerminalExit {
 		if x := f.GetExit(); x != nil {
 			return x
 		}
-		if f.GetOutput() == nil {
+		if f.GetOutput() == nil && f.GetResize() == nil {
 			s.t.Fatalf("expected the exit, got %v", f)
 		}
 	}

@@ -88,8 +88,10 @@ type HoldSpec struct {
 
 // Hold runs argv on a new PTY and serves the Terminal on ln to any number
 // of connections, each starting with what it wants (see TerminalFrame): a
-// view gets the info, about 1 MiB of recent output replayed, then output
-// as it comes and the exit last; input and resizes go to the PTY. It is
+// view gets the info, the session's size, about 1 MiB of recent output
+// replayed, then output and new sizes as they come and the exit last; its
+// input goes to the PTY. Views share the session: the one that last typed
+// or resized sets its size, and every view is told it. It is
 // what the transient unit runs (`maitre terminal-hold`), so the PTY and the
 // output, kept in memory only, outlive the agent and every connection.
 //
@@ -114,7 +116,9 @@ func Hold(ln net.Listener, spec HoldSpec) error {
 	}
 	info.Running = true
 	info.StartedUnixMs = time.Now().UnixMilli()
-	h := &holder{cmd: cmd, ptmx: ptmx, info: info, viewers: map[*viewer]bool{}, exited: make(chan struct{}), gone: make(chan struct{})}
+	ws := winsize(spec.Size)
+	h := &holder{cmd: cmd, ptmx: ptmx, info: info, size: &maitrev1.TerminalSize{Cols: uint32(ws.Cols), Rows: uint32(ws.Rows)},
+		viewers: map[*viewer]bool{}, exited: make(chan struct{}), gone: make(chan struct{})}
 	go h.accept(ln)
 
 	// The PTY's output to the replay and every view, until it closes.
@@ -155,9 +159,12 @@ type holder struct {
 	ptmx   *os.File
 	exited chan struct{}
 
-	mu       sync.Mutex
-	info     *maitrev1.TerminalInfo
-	replay   []byte
+	mu     sync.Mutex
+	info   *maitrev1.TerminalInfo
+	replay []byte
+	// size is the session's: the size of the view that last typed or
+	// resized (ADR 0011), which every view is told.
+	size     *maitrev1.TerminalSize
 	viewers  map[*viewer]bool
 	hanging  bool
 	gone     chan struct{}
@@ -167,6 +174,8 @@ type holder struct {
 type viewer struct {
 	conn net.Conn
 	out  chan *maitrev1.TerminalFrame
+	// size is the view's own size, as it last said; h.mu guards it.
+	size *maitrev1.TerminalSize
 }
 
 func outputFrame(b []byte) *maitrev1.TerminalFrame {
@@ -194,6 +203,25 @@ func (h *holder) broadcast(f *maitrev1.TerminalFrame) {
 			close(v.out)
 		}
 	}
+}
+
+func sizeFrame(s *maitrev1.TerminalSize) *maitrev1.TerminalFrame {
+	return &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Resize{Resize: &maitrev1.TerminalResize{Size: proto.Clone(s).(*maitrev1.TerminalSize)}}}
+}
+
+// sizeTo makes v's size the session's, as when v types or resizes: the PTY
+// takes it and every view is told. h.mu is held.
+func (h *holder) sizeTo(v *viewer) {
+	if v.size == nil || !h.info.GetRunning() {
+		return
+	}
+	ws := winsize(v.size)
+	if uint32(ws.Cols) == h.size.GetCols() && uint32(ws.Rows) == h.size.GetRows() {
+		return
+	}
+	h.size = &maitrev1.TerminalSize{Cols: uint32(ws.Cols), Rows: uint32(ws.Rows)}
+	pty.Setsize(h.ptmx, ws)
+	h.broadcast(sizeFrame(h.size))
 }
 
 func (h *holder) finish(code int32) {
@@ -274,19 +302,20 @@ func (h *holder) infoFrame() *maitrev1.TerminalFrame {
 // and resizes go to the PTY, and an End after the exit means it was seen.
 func (h *holder) attach(c net.Conn, a *maitrev1.TerminalAttach) {
 	defer c.Close()
-	if a.GetSize() != nil {
-		pty.Setsize(h.ptmx, winsize(a.GetSize()))
-	}
-	// The info and the replay are taken, and the view added, at one moment,
-	// so no output is missed or sent twice.
+	v := &viewer{conn: c, out: make(chan *maitrev1.TerminalFrame, viewerQueue), size: a.GetSize()}
+	// The info, the size and the replay are taken, and the view added, at
+	// one moment, so no output is missed or sent twice. A view joining
+	// others shows the session at their size; one alone gives it its own.
 	h.mu.Lock()
-	first := []*maitrev1.TerminalFrame{{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.TerminalInfo)}}}
+	if len(h.viewers) == 0 {
+		h.sizeTo(v)
+	}
+	first := []*maitrev1.TerminalFrame{{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.TerminalInfo)}}, sizeFrame(h.size)}
 	for b := h.replay; len(b) > 0; {
 		n := min(len(b), chunk)
 		first = append(first, outputFrame(append([]byte(nil), b[:n]...)))
 		b = b[n:]
 	}
-	v := &viewer{conn: c, out: make(chan *maitrev1.TerminalFrame, viewerQueue)}
 	if h.info.GetRunning() {
 		h.viewers[v] = true
 	} else {
@@ -309,14 +338,28 @@ func (h *holder) attach(c net.Conn, a *maitrev1.TerminalAttach) {
 		for {
 			f, err := ReadFrame(c)
 			if err != nil {
+				// The view has gone: it no longer shares the session.
 				c.Close()
+				h.mu.Lock()
+				if h.viewers[v] {
+					delete(h.viewers, v)
+					close(v.out)
+				}
+				h.mu.Unlock()
 				return
 			}
+			// The view that types or resizes sets the session's size.
 			switch {
 			case f.GetInput() != nil:
+				h.mu.Lock()
+				h.sizeTo(v)
+				h.mu.Unlock()
 				h.ptmx.Write(f.GetInput().GetData())
 			case f.GetResize() != nil:
-				pty.Setsize(h.ptmx, winsize(f.GetResize().GetSize()))
+				h.mu.Lock()
+				v.size = f.GetResize().GetSize()
+				h.sizeTo(v)
+				h.mu.Unlock()
 			case f.GetEnd() != nil:
 				h.end()
 			}

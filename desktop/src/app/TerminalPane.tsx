@@ -5,7 +5,8 @@
 // frames' limit (frames.ts). Drawing is TerminalView's; this is the label,
 // End, the exit and Run again around it. The Terminals belong to the Node
 // (#5): closing a view detaches, and TerminalList lists the Service's
-// running and finished Terminals to reopen.
+// running and finished Terminals to reopen. A Service may have several
+// open, one view per Terminal, and other Devices may share them (#6).
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { List, Play, Plus, RotateCw, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,20 +29,23 @@ import {
   type TerminalDeps,
 } from "@/terminal/terminals";
 
-/** Every open Terminal; `shown` names the Service whose Terminal is in view. */
-export function TerminalLayer({ shown, onClose }: { shown: string | undefined; onClose: (service: string) => void }) {
+/**
+ * Every open Terminal; `shown` is the key of the view in sight. onClose
+ * follows closing a view; onList goes to the Service's Terminals.
+ */
+export function TerminalLayer({ shown, onClose, onList }: { shown: string | undefined; onClose: (t: OpenTerminal) => void; onList: (service: string) => void }) {
   const open = useTerminals();
   return (
     <>
       {open.map((t) => (
-        <TerminalPane key={t.service} terminal={t} shown={t.service === shown} onClose={() => onClose(t.service)} />
+        <TerminalPane key={t.key} terminal={t} shown={t.key === shown} onClose={() => onClose(t)} onList={() => onList(t.service)} />
       ))}
     </>
   );
 }
 
-function TerminalPane({ terminal, shown, onClose }: { terminal: OpenTerminal; shown: boolean; onClose: () => void }) {
-  const { session, service } = terminal;
+function TerminalPane({ terminal, shown, onClose, onList }: { terminal: OpenTerminal; shown: boolean; onClose: () => void; onList: () => void }) {
+  const { session, service, key } = terminal;
   const info = useSyncExternalStore(
     (l) => session.subscribe(l),
     () => session.info,
@@ -60,11 +64,11 @@ function TerminalPane({ terminal, shown, onClose }: { terminal: OpenTerminal; sh
             <Square className="size-3.5" />
           </button>
         )}
-        <button aria-label={`All of ${service}'s Terminals`} title="All Terminals (this one keeps running)" onClick={() => closeTerminal(service)} className={iconButton}>
+        <button aria-label={`All of ${service}'s Terminals`} title="All Terminals (this one keeps running)" onClick={onList} className={iconButton}>
           <List className="size-3.5" />
         </button>
         <button aria-label={`Close ${service}'s Terminal`} title="Close the view (the Terminal keeps running)" onClick={() => {
-          closeTerminal(service);
+          closeTerminal(key);
           onClose();
         }} className={iconButton}>
           <X className="size-3.5" />
@@ -78,7 +82,7 @@ function TerminalPane({ terminal, shown, onClose }: { terminal: OpenTerminal; sh
       {info.phase === "lost" && (
         <div role="status" className="flex shrink-0 items-center gap-3 border-t border-white/10 px-3 py-2 text-sm">
           <span className="text-neutral-300">{info.message}</span>
-          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => reattach(service)}>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => reattach(key)}>
             <RotateCw /> Reattach
           </Button>
         </div>
@@ -86,7 +90,7 @@ function TerminalPane({ terminal, shown, onClose }: { terminal: OpenTerminal; sh
       {ended && info.phase !== "no-shell" && (
         <div role="status" className="flex shrink-0 items-center gap-3 border-t border-white/10 px-3 py-2 text-sm">
           <span className="text-neutral-300">{info.phase === "exited" ? `The shell exited with code ${info.code}.` : info.message}</span>
-          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => runAgain(service)}>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => runAgain(key)}>
             <Play /> Run again
           </Button>
         </div>
@@ -114,11 +118,13 @@ export function terminalState(t: HeldTerminal): string {
 /**
  * The Service's Terminals the Node holds (#5), running and finished, each
  * to reopen; a running one can be Ended. A finished one is kept, with its
- * exit code and output, until it has been opened or for 24 hours. New
- * Terminal asks where and as whom (#7); `containers` are the Service's
- * components, none for a Service of one container.
+ * exit code and output, until it has been opened or for 24 hours. There
+ * may be several per container, up to 10 running (#6), and other Devices
+ * may have opened them. New Terminal asks where and as whom (#7);
+ * `containers` are the Service's components, none for a Service of one
+ * container. onOpen goes to the view opened.
  */
-export function TerminalList({ service, target, containers = [], deps = node }: { service: string; target: Target; containers?: string[]; deps?: TerminalListDeps }) {
+export function TerminalList({ service, target, containers = [], deps = node, onOpen }: { service: string; target: Target; containers?: string[]; deps?: TerminalListDeps; onOpen: (key: string) => void }) {
   const [held, setHeld] = useState<HeldTerminal[] | undefined>();
   const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<string>();
@@ -156,7 +162,7 @@ export function TerminalList({ service, target, containers = [], deps = node }: 
               <span className="font-mono text-muted-foreground">{t.argv.join(" ")}</span>
               <span className={cn("text-muted-foreground", !t.running && "text-foreground")}>{terminalState(t)}</span>
               <span className="ml-auto" />
-              <Button size="sm" variant="secondary" onClick={() => attachTerminal(service, target, t.id, deps.terminal, heldChoice(service, t))}>
+              <Button size="sm" variant="secondary" onClick={() => onOpen(attachTerminal(service, target, t.id, deps.terminal, heldChoice(service, t)).key)}>
                 Open
               </Button>
               {t.running && (
@@ -176,7 +182,7 @@ export function TerminalList({ service, target, containers = [], deps = node }: 
           onClose={() => setChoosing(false)}
           onOpen={(choice) => {
             setChoosing(false);
-            openTerminal(service, target, deps.terminal, choice);
+            onOpen(openTerminal(service, target, deps.terminal, choice).key);
           }}
         />
       )}

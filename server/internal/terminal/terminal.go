@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -58,6 +59,10 @@ const Feature = "terminal"
 
 // NoShell is what the Console shows for a container without a shell.
 const NoShell = "This container has no shell"
+
+// MaxPerContainer is how many running Terminals one container may hold
+// (ADR 0011).
+const MaxPerContainer = 10
 
 // Shells are tried in order, after the container's declared shells.
 var Shells = []string{"/bin/bash", "/bin/sh"}
@@ -84,7 +89,12 @@ type Config struct {
 }
 
 // Handler is the Terminal endpoint.
-type Handler struct{ cfg Config }
+type Handler struct {
+	cfg Config
+	// starting is held while a Terminal is counted and launched, so two
+	// opened at once cannot both be a container's 11th.
+	starting sync.Mutex
+}
 
 // New makes the endpoint.
 func New(cfg Config) *Handler {
@@ -214,7 +224,7 @@ func (h *Handler) session(ctx context.Context, c *websocket.Conn, spec *maitrev1
 			c.Close(websocket.StatusGoingAway, "the Terminal's session ended")
 			return
 		}
-		if f.GetOutput() == nil && f.GetExit() == nil {
+		if f.GetOutput() == nil && f.GetResize() == nil && f.GetExit() == nil {
 			continue
 		}
 		if err := send(f); err != nil {
@@ -247,6 +257,11 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	ctr, comp, label, err := h.container(ctx, spec, st.GetComponent())
 	if err != nil {
 		return nil, nil, err
+	}
+	h.starting.Lock()
+	defer h.starting.Unlock()
+	if n := h.running(ctx, spec.GetName(), label); n >= MaxPerContainer {
+		return nil, nil, fmt.Errorf("%s already has %d Terminals running, the most a container may hold. End one to open another.", label, n)
 	}
 	user := "root"
 	if !st.GetRoot() {
@@ -334,6 +349,24 @@ func validID(id string) bool { return idRe.MatchString(id) }
 // it, so an agent that restarted finds the Terminals still there. Without a
 // Service, every Terminal on the Node (#9).
 func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminalsRequest) (*maitrev1.ListTerminalsResponse, error) {
+	return &maitrev1.ListTerminalsResponse{Terminals: h.held(ctx, req.GetService())}, nil
+}
+
+// running is how many of the Service's Terminals run in its container
+// named label (as TerminalInfo.container says it).
+func (h *Handler) running(ctx context.Context, service, label string) int {
+	n := 0
+	for _, t := range h.held(ctx, service) {
+		if t.GetRunning() && t.GetContainer() == label {
+			n++
+		}
+	}
+	return n
+}
+
+// held is the Service's Terminals, or with service "" the Node's, oldest
+// first.
+func (h *Handler) held(ctx context.Context, service string) []*maitrev1.TerminalInfo {
 	socks, _ := filepath.Glob(filepath.Join(h.cfg.Dir, "*.sock"))
 	res := &maitrev1.ListTerminalsResponse{}
 	for _, s := range socks {
@@ -350,14 +383,14 @@ func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminals
 			continue
 		}
 		c.Close()
-		if req.GetService() == "" || info.GetService() == req.GetService() {
+		if service == "" || info.GetService() == service {
 			res.Terminals = append(res.Terminals, info)
 		}
 	}
 	sort.Slice(res.Terminals, func(i, j int) bool {
 		return res.Terminals[i].GetStartedUnixMs() < res.Terminals[j].GetStartedUnixMs()
 	})
-	return res, nil
+	return res.Terminals
 }
 
 // EndTerminal implements TerminalService: End a running Terminal, or let a
