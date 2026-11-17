@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -84,26 +85,62 @@ func (h *Handler) update(ctx context.Context, id string, change func(*maitrev1.T
 func (h *Handler) putRecord(ctx context.Context, r *maitrev1.TerminalRecord) {
 	if _, err := h.cfg.Store.Put(context.WithoutCancel(ctx), KindRecord, r.GetId(), r, false); err != nil {
 		h.cfg.Log.Warn("terminal record not written", "id", r.GetId(), "err", err)
+		return
+	}
+	if h.unendedIDs != nil {
+		if r.GetEndedUnixMs() == 0 {
+			h.unendedIDs[r.GetId()] = true
+		} else {
+			delete(h.unendedIDs, r.GetId())
+		}
 	}
 }
 
+// KeepRecords is how long the Node keeps its record of a Terminal after it
+// ended; a running Terminal's record is kept however old.
+const KeepRecords = 30 * 24 * time.Hour
+
+// rescanEvery is how often the records are read in full: to let go of
+// those older than KeepRecords and to find again the Terminals this Node
+// has not seen end. In between, the Handler keeps that set as it writes
+// the records, the only writer of this Node's own.
+const rescanEvery = time.Hour
+
 // unended is this Node's records of Terminals it has not seen end, by id.
 func (h *Handler) unended(ctx context.Context) map[string]bool {
+	h.recording.Lock()
+	defer h.recording.Unlock()
+	if h.unendedIDs == nil || time.Since(h.scanned) > rescanEvery {
+		h.rescan(ctx)
+	}
+	return maps.Clone(h.unendedIDs)
+}
+
+// rescan reads the records, deletes this Node's of Terminals that ended
+// more than KeepRecords ago, and rebuilds the set of those not seen to
+// end; h.recording is held.
+func (h *Handler) rescan(ctx context.Context) {
 	recs, err := h.cfg.Store.List(ctx, KindRecord)
 	if err != nil {
-		return nil
+		return
 	}
-	out := map[string]bool{}
+	cutoff := time.Now().Add(-KeepRecords).UnixMilli()
+	unended := map[string]bool{}
 	for _, rec := range recs {
 		var r maitrev1.TerminalRecord
 		if rec.GetDeleted() || rec.GetOwnerNodeId() != h.cfg.Store.NodeID() || proto.Unmarshal(rec.GetBody(), &r) != nil {
 			continue
 		}
-		if r.GetEndedUnixMs() == 0 {
-			out[r.GetId()] = true
+		switch ended := r.GetEndedUnixMs(); {
+		case ended == 0:
+			unended[rec.GetId()] = true
+		case ended < cutoff:
+			if _, err := h.cfg.Store.Delete(context.WithoutCancel(ctx), KindRecord, rec.GetId(), false); err != nil {
+				h.cfg.Log.Warn("terminal record not deleted", "id", rec.GetId(), "err", err)
+			}
 		}
 	}
-	return out
+	h.unendedIDs, h.scanned = unended, time.Now()
 }
 
 // reconcile brings the records up to date with the holders found: a

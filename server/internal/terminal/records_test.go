@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
@@ -156,6 +159,8 @@ func TestATerminalLostWithItsHolderIsRecordedAsLost(t *testing.T) {
 	if _, err := e.st.Put(context.Background(), terminal.KindRecord, id, r, false); err != nil {
 		t.Fatal(err)
 	}
+	// The agent starts again.
+	e = serveAgent(t, e)
 	list(t, e, "kuma")
 	if r := record(t, e, id); !r.GetLost() || r.GetEndedUnixMs() == 0 {
 		t.Fatalf("lost: %v", r)
@@ -211,5 +216,47 @@ func TestNoKeystrokesOrOutputAreStoredAnywhere(t *testing.T) {
 			}
 			return nil
 		})
+	}
+}
+
+// The Node lets its records of finished Terminals go 30 days after they
+// ended, as the Fleet database deletes (a tombstone); a running Terminal's
+// record, a recent one, and another Node's are kept.
+func TestRecordsOfTerminalsFinishedLongAgoAreDeleted(t *testing.T) {
+	e := start(t, "kuma")
+	ctx := context.Background()
+	day := int64(24 * time.Hour / time.Millisecond)
+	now := time.Now().UnixMilli()
+	put := func(id string, r *maitrev1.TerminalRecord) {
+		t.Helper()
+		r.Id = id
+		if _, err := e.st.Put(ctx, terminal.KindRecord, id, r, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("old", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
+	put("oldlost", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day, Lost: true})
+	put("recent", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 29*day})
+	body, _ := proto.Marshal(&maitrev1.TerminalRecord{Id: "theirs", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
+	if err := e.st.Seed(ctx, &maitrev1.Record{Kind: terminal.KindRecord, Id: "theirs", OwnerNodeId: "other", Version: 1, UpdatedUnixMs: now, Body: body}); err != nil {
+		t.Fatal(err)
+	}
+	e.container(t, "kuma", "", "bash")
+	s, running := opened(t, e, "kuma")
+	defer s.typ("exit\n")
+	// A running Terminal opened long ago (the clock says so) stays.
+	r := record(t, e, running)
+	r.StartedUnixMs = now - 40*day
+	put(running, r)
+
+	list(t, e, "kuma")
+	for id, gone := range map[string]bool{"old": true, "oldlost": true, "recent": false, "theirs": false, running: false} {
+		raw, err := e.st.Raw(ctx, terminal.KindRecord, id)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		if raw.GetDeleted() != gone {
+			t.Fatalf("%s: deleted %v, want %v", id, raw.GetDeleted(), gone)
+		}
 	}
 }

@@ -96,8 +96,14 @@ type Handler struct {
 	// starting is held while a Terminal is counted and launched, so two
 	// opened at once cannot both be a container's 11th.
 	starting sync.Mutex
-	// recording is held while a Terminal's record is read and written.
+	// recording is held while a Terminal's record is read and written,
+	// and guards the two below.
 	recording sync.Mutex
+	// unendedIDs is this Node's records of Terminals not seen to end, as
+	// of the last rescan (records.go) and the writes since; nil until
+	// the first.
+	unendedIDs map[string]bool
+	scanned    time.Time
 }
 
 // New makes the endpoint.
