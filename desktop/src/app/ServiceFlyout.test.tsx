@@ -7,7 +7,7 @@ import { create } from "@bufbuild/protobuf";
 import { ServiceSpecSchema, ServiceStatusSchema } from "@/gen/maitre/v1/service_pb";
 import type { FleetService } from "@/fleet/useFleet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ServiceFlyout } from "./ServiceFlyout";
+import { ServiceFlyout, flyoutItems } from "./ServiceFlyout";
 import { reportFrame, resetFrames, setFrameHost, showFrame } from "./frames";
 
 const service: FleetService = {
@@ -70,5 +70,43 @@ describe("ServiceFlyout", () => {
     fireEvent.click(btn("Stop"));
     expect(host.stop).toHaveBeenLastCalledWith("jellyfin");
     expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
+  });
+});
+
+describe("the Terminal item (ADR 0011)", () => {
+  const stopped: FleetService = { ...service, status: create(ServiceStatusSchema, { state: 1 }), word: "Stopped" };
+  const terminal = (s: FleetService, features: string[]) => flyoutItems(s, features).find((i) => i.id === "terminal");
+  beforeEach(() => window.localStorage.removeItem("maitre.demo"));
+
+  it("opens a Terminal into a running Service on a Node that offers them", () => {
+    const it = terminal(service, ["components", "terminal"]);
+    expect(it).toMatchObject({ label: "Terminal", disabled: false });
+    expect(it?.reason).toBeUndefined();
+  });
+
+  it("is disabled, saying why, while the Service is not running", () => {
+    expect(terminal(stopped, ["terminal"])).toMatchObject({ disabled: true, reason: "The Service is stopped" });
+    const away = { ...service, nodeUnreachable: true };
+    expect(terminal(away, ["terminal"])).toMatchObject({ disabled: true });
+    expect(terminal(away, ["terminal"])?.reason).toMatch(/unreachable/);
+  });
+
+  it("is absent on a Node without Terminals, and in the demo Fleet", () => {
+    expect(terminal(service, ["components"])).toBeUndefined();
+    window.localStorage.setItem("maitre.demo", "1");
+    expect(terminal(service, ["terminal"])).toBeUndefined();
+  });
+
+  it("shows the reason under a disabled item", () => {
+    render(
+      <MotionConfig skipAnimations>
+        <TooltipProvider>
+          <ServiceFlyout service={stopped} features={["terminal"]} top={0} collapsed={false} onItem={() => {}} onEnter={() => {}} onLeave={() => {}} />
+        </TooltipProvider>
+      </MotionConfig>,
+    );
+    const item = screen.getByRole("menuitem", { name: /Terminal/ }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.textContent).toContain("The Service is stopped");
   });
 });

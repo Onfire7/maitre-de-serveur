@@ -7,7 +7,9 @@
 import { useEffect } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, SlidersHorizontal, HardDrive, ShieldAlert, Trash2, Truck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, ExternalLink, House, Play, Square, RotateCw, ArrowUpCircle, Undo2, ScrollText, Globe, Router, SlidersHorizontal, HardDrive, ShieldAlert, SquareTerminal, Trash2, Truck, X } from "lucide-react";
+import { isDemo } from "@/demo/flag";
+import { TERMINAL_FEATURE } from "@/terminal/terminals";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FleetService } from "@/fleet/useFleet";
@@ -22,10 +24,11 @@ import { useRoute } from "./routes";
 /** The panel's width, which the page slides aside by. */
 export const FLYOUT_WIDTH = 240;
 
-export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "setup" | "ports" | "storage" | "grants" | "move" | "remove";
+export type FlyoutItem = "open" | "start" | "stop" | "restart" | "update" | "rollback" | "logs" | "access" | "setup" | "ports" | "storage" | "grants" | "move" | "remove" | "terminal";
 
 export function ServiceFlyout({
   service,
+  features = [],
   top,
   collapsed,
   onItem,
@@ -33,6 +36,8 @@ export function ServiceFlyout({
   onLeave,
 }: {
   service: FleetService;
+  /** What its Node's agent offers (NodeInfo.features). */
+  features?: readonly string[];
   top: number;
   collapsed: boolean;
   onItem: (item: FlyoutItem) => void;
@@ -41,7 +46,7 @@ export function ServiceFlyout({
 }) {
   const s = service.status;
   const nw = nodeWord(service.nodeStatus, Date.now());
-  const items = flyoutItems(service);
+  const items = flyoutItems(service, features);
   useEffect(() => {
     openPanel(FLYOUT_WIDTH);
     return closePanel;
@@ -97,7 +102,10 @@ export function ServiceFlyout({
               )}
             >
               {it.icon}
-              {it.label}
+              <span className="min-w-0">
+                {it.label}
+                {it.disabled && it.reason && <span className="block truncate text-xs text-muted-foreground">{it.reason}</span>}
+              </span>
             </button>
           </li>
         ))}
@@ -183,11 +191,28 @@ export interface FlyoutEntry {
   label: string;
   icon: React.ReactNode;
   disabled?: boolean;
+  /** Why it is disabled, shown under it. */
+  reason?: string;
   danger?: boolean;
 }
 
+/** The Terminal item (ADR 0011): only on a Node that offers Terminals and
+ * not in the demo Fleet, which has no Node; disabled, saying why, while
+ * the Service is not running. */
+function terminalItem(service: FleetService, features: readonly string[]): FlyoutEntry[] {
+  if (isDemo() || !features.includes(TERMINAL_FEATURE)) return [];
+  const reason = service.nodeUnreachable
+    ? `${service.node?.name ?? "Its Node"} is unreachable`
+    : service.status?.state === 3
+      ? undefined
+      : service.word === "Stopped"
+        ? "The Service is stopped"
+        : "The Service is not running";
+  return [{ id: "terminal", label: "Terminal", icon: <SquareTerminal />, disabled: !!reason, reason }];
+}
+
 /** A Service's actions, shared by the flyout and the Services tab's menu. */
-export function flyoutItems(service: FleetService): FlyoutEntry[] {
+export function flyoutItems(service: FleetService, features: readonly string[] = []): FlyoutEntry[] {
   const s = service.status;
   const running = s?.state === 3 || s?.state === 2;
   const entry = catalogById.get(service.spec.catalogId);
@@ -199,6 +224,7 @@ export function flyoutItems(service: FleetService): FlyoutEntry[] {
     { id: "update", label: "Update", icon: <ArrowUpCircle />, disabled: service.nodeUnreachable },
     ...(canRollBack(service.spec) ? [{ id: "rollback" as const, label: "Roll back", icon: <Undo2 /> }] : []),
     { id: "logs", label: "Logs", icon: <ScrollText />, disabled: service.nodeUnreachable },
+    ...terminalItem(service, features),
     { id: "access", label: "Access…", icon: <Globe /> },
     { id: "setup", label: "Service Configuration…", icon: <SlidersHorizontal /> },
     ...(entry?.port_forward ? [{ id: "ports" as const, label: "Port forwarding…", icon: <Router /> }] : []),

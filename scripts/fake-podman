@@ -1,0 +1,32 @@
+#!/bin/sh
+# A stand-in for podman where there is none (Terminals, ADR 0011): a
+# container is a directory under MAITRE_FAKE_PODMAN_ROOT named after its
+# Service, holding the programs it has (bin/bash, bin/sh) and its image's
+# user in a file "user". `podman exec` runs the container's program on this
+# machine, so the shell is real and runs on a real PTY; only the container
+# around it is pretend. Used by internal/terminal's tests and tunnel-check.
+root=$MAITRE_FAKE_PODMAN_ROOT
+cmd=$1; shift
+case $cmd in
+ps)
+  unit=${2#label=PODMAN_SYSTEMD_UNIT=}
+  name=${unit%.service}
+  [ -d "$root/$name" ] && echo "$name"
+  exit 0;;
+inspect)
+  cat "$root/$3/user" 2>/dev/null
+  exit 0;;
+exec)
+  while :; do
+    case $1 in
+      -e) export "$2"; shift 2;;
+      -*) shift;;
+      *) break;;
+    esac
+  done
+  ctr=$1; prog=$2; shift 2
+  [ -e "$root/$ctr$prog" ] || { echo "Error: crun: executable file '$prog' not found in \$PATH" >&2; exit 127; }
+  exec "$root/$ctr$prog" "$@";;
+esac
+echo "fake podman: $cmd not understood" >&2
+exit 125

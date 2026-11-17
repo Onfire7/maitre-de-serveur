@@ -69,6 +69,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tailnet"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/terminal"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/timezone"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/tui"
@@ -253,7 +254,7 @@ func runAgent(args []string) error {
 	}
 	assignLetter()
 
-	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version, DebugBuild: debugsurface.Enabled}, st)
+	svc := nodeservice.New(id, nodeservice.Info{Name: self.GetName(), FleetID: fleet.GetFleetId(), Version: version, DebugBuild: debugsurface.Enabled, Features: []string{terminal.Feature}}, st)
 	svc.Peers = pm
 	svc.Limited = list.Limited
 	svc.Authz = policy
@@ -1233,6 +1234,11 @@ func runAgent(args []string) error {
 		Addresses: func(nodeID string) []string { return pm.Addresses()[nodeID] }})
 	defer rl.Close()
 	mux.Handle(relay.Path, rl.Anchor())
+	// ADR 0011: Terminals, on the Service tunnel, each held by a transient
+	// systemd unit of its own running `maitre terminal-hold`.
+	exe, _ := os.Executable()
+	terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log,
+		Launcher: terminal.Systemd{Self: exe, Dir: "/run/maitre/terminals"}})
 	mux.Handle(relay.InPath, rl.Target())
 	// Decision 183: file contents for the file manager, same callers as RPCs.
 	mux.Handle(files.ContentPath, fm.Handler(func(r *http.Request) bool {
@@ -1299,7 +1305,7 @@ func runAgent(args []string) error {
 				return true
 			})
 			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)
-			srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
+			srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, svcproxy.Header, terms.Wrap(svcproxy.Header, svcproxy.Handler(st, mux)))), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
 			go func() { <-ctx.Done(); _ = srv.Close() }()
 			if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Warn("tailscale serve", "err", err)
@@ -1422,7 +1428,7 @@ func runAgent(args []string) error {
 			go plainStatusPage(ctx, src)
 		}
 	}
-	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), mtls.ServerConfig(id, list), rl.Listener())
+	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, terms.Wrap(svcproxy.Header, svcproxy.Handler(st, mux)))), mtls.ServerConfig(id, list), rl.Listener())
 }
 
 // runInstaller is `maitre installer`: the mode booted from installer media.

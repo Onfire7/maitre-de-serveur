@@ -33,6 +33,8 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_WIDTH, Sidebar, sidebarNodes } from "./Sideb
 import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
 import { ServiceViews } from "./ServiceViews";
+import { TerminalLayer } from "./TerminalPane";
+import { closeTerminal, getTerminal, openTerminal, useTerminals } from "@/terminal/terminals";
 import { ToastRoom } from "./ToastRoom";
 import { forgetService } from "./frames";
 import { pageViewOf } from "@/fleet/pages";
@@ -55,6 +57,8 @@ const AUTO_COLLAPSE_PX = 900;
 
 export function Shell({ device, state, save }: { device: DeviceInfo; state: ConsoleState; save: (s: ConsoleState) => Promise<void> }) {
   const { route, go } = useRoute();
+  // Open Terminals (ADR 0011): the route to one that was closed says so.
+  useTerminals();
   const fleet = useFleet(state.nodes);
   const snap = fleet.data;
   // The Overview's trend lines (209) follow every sample, whichever tab is open.
@@ -188,6 +192,12 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         // Its network, Pages, address and container options (ADR 0010).
         go({ name: "setup", service: s.spec.name });
         return;
+      case "terminal":
+        // ADR 0011: a shell in its container, beside its Pages.
+        if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
+        openTerminal(s.spec.name, t);
+        go({ name: "terminal", service: s.spec.name });
+        return;
       case "ports":
       case "grants":
         setSheet({ kind: item, service: s.spec.name });
@@ -281,6 +291,9 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
+              {route.name === "terminal" && !getTerminal(route.service) && (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No Terminal is open for {route.service}.</div>
+              )}
               {route.name === "catalog" && <CatalogPage snap={snap} deviceId={device.fingerprint} onInstall={install} devices={(nodeId, kind) => { const t = targetFor(snap, state.nodes, nodeId); return t ? listDevices(t, kind) : Promise.resolve(undefined); }} target={(nodeId) => targetFor(snap, state.nodes, nodeId)} />}
               {route.name === "fleet" && <FleetPage tab={route.tab} nodeId={route.nodeId} files={route.files} logs={route.logs} snap={snap} state={state} device={device} found={found} notices={noticeList} onState={save} onPromote={() => go({ name: "code" })} scoped={!!scope.data} services={services} onAct={act} now={now} onRefresh={() => fleet.refresh()} connection={connectionLine(snap, state.nodes)} onConnection={() => setConnecting(true)} />}
               {route.name === "add-node" && addFound && (
@@ -315,6 +328,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             </motion.div>
           </AnimatePresence>
           <ServiceViews />
+          <TerminalLayer
+            shown={route.name === "terminal" ? route.service : undefined}
+            onClose={(service) => {
+              const s = services.find((x) => x.spec.name === service);
+              go(s && pageViewOf(s, "") ? { name: "page", service, page: "" } : { name: "fleet", tab: "services" });
+            }}
+          />
           </div>
         </main>
       </div>
@@ -370,7 +390,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   await removeService(t, s.spec.name, deleteData);
                   toast(`${s.spec.name} was removed`);
                   forgetService(s.spec.name);
-                  if ((route.name === "page" || route.name === "setup") && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
+                  closeTerminal(s.spec.name);
+                  if ((route.name === "page" || route.name === "setup" || route.name === "terminal") && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
                   fleet.refresh();
                 } catch (e) {
                   toast.error(String((e as Error).message ?? e));
@@ -398,6 +419,8 @@ function routeKey(r: ReturnType<typeof useRoute>["route"]) {
       return `service:${r.service}`;
     case "setup":
       return `setup:${r.service}`;
+    case "terminal":
+      return `terminal:${r.service}`;
     case "fleet":
       return `fleet:${r.tab}`;
     default:
