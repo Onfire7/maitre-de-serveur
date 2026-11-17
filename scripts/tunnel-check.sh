@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end check of the Console's Service tunnel (decision 71): a dev Node
-# with a built-in echo Service, and the Desktop's Rust relay driven by a test
+# with a built-in echo Service, and the Desktop's Rust proxy driven by a test
 # that sends a plain request and a WebSocket echo through it, and opens a
 # Terminal (ADR 0011) into the Service's container: once to the Node
 # directly, once through a second dev Node's Relay (ADR 0012). Without

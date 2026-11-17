@@ -178,7 +178,7 @@ Which Node the Console reads the Fleet through (the anchor, decision 159) and by
 _Avoid_: Endpoint, route, transport (for the user-facing choice)
 
 **Relay**:
-The anchor carrying a Trusted Device's connection to another Node of the Fleet, unread and unchanged, when the Device does not reach that Node itself. One hop, and only to the Fleet's own Nodes.
+The anchor carrying a Trusted Device's connection to another Node of the Fleet, unread and unchanged, when the Device does not reach that Node itself. One hop, and only to the Fleet's own Nodes. Nothing else is the Relay: a Node carrying a connection to another Node's Service (ADR 0010) carries it, and the Desktop's loopback proxies forward.
 _Avoid_: Tunnel, proxy, forward, hop
 
 **Node status**:

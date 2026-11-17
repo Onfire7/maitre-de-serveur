@@ -33,10 +33,12 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
 
-// RelayPath is where a Node's agent accepts a connection for one of its
-// Services from a peer: POST, with service and port in the query, the
-// request body carrying one direction and the response the other.
-const RelayPath = "/maitre/relay"
+// CarryPath is where a Node's agent accepts a connection carried to one of
+// its Services from a peer: POST, with service and port in the query, the
+// request body carrying one direction and the response the other. (Not the
+// Relay, ADR 0012, which carries a Device's connection: the path keeps its
+// old spelling so Nodes on earlier versions still reach each other.)
+const CarryPath = "/maitre/relay"
 
 // Iface is the dummy interface the agent holds other Nodes' Service
 // addresses on. Defined with the subnet it sits inside, since
@@ -352,7 +354,7 @@ func (m *Manager) carry(ctx context.Context, c net.Conn, t target) {
 		up, err = m.dialPeer(ctx, t)
 	}
 	if err != nil {
-		m.cfg.Log.Debug("fleet relay", "to", t.String(), "err", err)
+		m.cfg.Log.Debug("fleet carry", "to", t.String(), "err", err)
 		return
 	}
 	defer up.Close()
@@ -369,10 +371,10 @@ func (m *Manager) dialPeer(ctx context.Context, t target) (io.ReadWriteCloser, e
 	if len(addrs) == 0 {
 		return nil, fmt.Errorf("no address for Node %s", t.node)
 	}
-	return carry.Dial(ctx, m.cfg.HTTP, addrs, RelayPath, url.Values{"service": {t.service}, "port": {strconv.Itoa(t.port)}})
+	return carry.Dial(ctx, m.cfg.HTTP, addrs, CarryPath, url.Values{"service": {t.service}, "port": {strconv.Itoa(t.port)}})
 }
 
-// Handler answers RelayPath for peers: it connects to the named Service's
+// Handler answers CarryPath for peers: it connects to the named Service's
 // port on this Node and joins the two directions. The gate lets only
 // Nodes of the Fleet call it.
 func (m *Manager) Handler() http.Handler {

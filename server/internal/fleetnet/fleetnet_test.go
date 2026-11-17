@@ -128,7 +128,7 @@ func TestFleetReach(t *testing.T) {
 	// the container at 127.0.0.1. Exchanging bytes over it needs the
 	// streaming body a real peer sends, which is dialPeer's job, not this
 	// test's -- a plain POST would be refused 403 if the path were gone.
-	if res, err := srvA.Client().Post(srvA.URL+fleetnet.RelayPath+"?service=ha&port="+strconv.Itoa(port(ha.Addr().String())), "", nil); err != nil {
+	if res, err := srvA.Client().Post(srvA.URL+fleetnet.CarryPath+"?service=ha&port="+strconv.Itoa(port(ha.Addr().String())), "", nil); err != nil {
 		t.Fatal(err)
 	} else {
 		res.Body.Close()
@@ -142,7 +142,7 @@ func TestFleetReach(t *testing.T) {
 		t.Error("a private Service answered")
 	}
 	// B refuses a port the Service did not declare.
-	res, err := srv.Client().Post(srv.URL+fleetnet.RelayPath+"?service=postgres&port=22", "", nil)
+	res, err := srv.Client().Post(srv.URL+fleetnet.CarryPath+"?service=postgres&port=22", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

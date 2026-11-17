@@ -1240,7 +1240,7 @@ func runAgent(args []string) error {
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
 	// ADR 0010: a peer's connection to one of this Node's Services.
-	mux.Handle(fleetnet.RelayPath, fnet.Handler())
+	mux.Handle(fleetnet.CarryPath, fnet.Handler())
 	// ADR 0012: the Relay. As the anchor, a Trusted Device's connection
 	// carried to another Node of the Fleet; as its target, one carried
 	// here, served on the mutual-TLS listener like any other.

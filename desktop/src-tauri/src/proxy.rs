@@ -1,6 +1,6 @@
 //! Loopback proxy for the built-in browser (decision 71). Each opened
 //! Page of a Service gets a port on 127.0.0.1; the webview talks plain
-//! HTTP to it and every request is relayed over mutual TLS to the Node's
+//! HTTP to it and every request is forwarded over mutual TLS to the Node's
 //! agent with the X-Maitre-Service and X-Maitre-Page headers, which the
 //! agent routes to that Page of that Service (ADR 0010). HTTP/1.1 end to
 //! end so WebSocket upgrades (chat-style apps, dashboards) work.
@@ -8,7 +8,7 @@
 //! A Service's page is a document of its own, which the Console cannot
 //! read where it has gone, and so cannot move back and forward (decision
 //! 286). So a page proxy serves a small script at /__maitre/frame.js and
-//! adds a tag for it to every HTML document it relays (asked for without
+//! adds a tag for it to every HTML document it forwards (asked for without
 //! compression, so the document can be edited). The script sends the
 //! page's address to /__maitre/nav on each load and on pushState,
 //! replaceState and popstate, which the proxy hands to the Console
@@ -19,7 +19,7 @@
 //!
 //! A Terminal (ADR 0011) is a WebSocket to the Node's Terminal endpoint on
 //! the Service tunnel, through a proxy of its own per Node. Any program on
-//! this computer can reach 127.0.0.1, so that proxy relays nothing without
+//! this computer can reach 127.0.0.1, so that proxy forwards nothing without
 //! a one-time token in the URL, which the Desktop hands only to the
 //! Console: `ws://127.0.0.1:<port>/<token>`, good for one upgrade or 30 s.
 //! A page proxy never forwards a `/__maitre/` path, however spelled, and
@@ -92,7 +92,7 @@ impl Tokens {
     }
 }
 
-/// Where a running proxy relays to; swapped when the Node is reached another way.
+/// Where a running proxy forwards to; swapped when the Node is reached another way.
 type Upstream = Arc<RwLock<(Target, Arc<Dialer>)>>;
 
 struct Live {
@@ -210,7 +210,7 @@ impl Proxies {
     }
 
     /// Listens on the first free port of `prefer`, or on any free port when
-    /// none of them is (another program has them), and relays to `target`.
+    /// none of them is (another program has them), and forwards to `target`.
     async fn serve(&self, dialer: Arc<Dialer>, key: String, target: Target, prefer: &[u16]) -> Result<(String, u16), String> {
         let mut listener = None;
         for &p in prefer {
@@ -235,7 +235,7 @@ impl Proxies {
                 tokio::spawn(async move {
                     let svc = hyper::service::service_fn(move |req| {
                         let (target, dialer) = up.read().unwrap().clone();
-                        relay(req, target, dialer, reporter.clone())
+                        forward(req, target, dialer, reporter.clone())
                     });
                     let _ = hyper::server::conn::http1::Builder::new()
                         .preserve_header_case(true)
@@ -250,8 +250,8 @@ impl Proxies {
     }
 }
 
-/// Relay one request (and, for upgrades, the resulting byte stream).
-async fn relay(
+/// Forward one request (and, for upgrades, the resulting byte stream).
+async fn forward(
     mut req: Request<Incoming>,
     target: Target,
     dialer: Arc<Dialer>,
@@ -266,9 +266,9 @@ async fn relay(
         let pq = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_default();
         *req.uri_mut() = pq[target.token.len() + 1..].parse().unwrap();
     }
-    // A Terminal proxy relays only an upgrade bearing a good token, to the
+    // A Terminal proxy forwards only an upgrade bearing a good token, to the
     // Node's Terminal endpoint for the token's Service; the token is spent
-    // before anything is relayed.
+    // before anything is forwarded.
     let mut target = target;
     if let Some(tokens) = &target.terminals {
         let token = req.uri().path().trim_start_matches('/');
