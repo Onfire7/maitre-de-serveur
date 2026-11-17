@@ -109,6 +109,9 @@ export const TerminalFrameSchema: GenMessage<TerminalFrame> = /*@__PURE__*/
  */
 export type ListTerminalsRequest = Message<"maitre.v1.ListTerminalsRequest"> & {
   /**
+   * The Service whose Terminals to list; empty for every Terminal on the
+   * Node, as a Node's Update and Reboot warn about them (#9).
+   *
    * @generated from field: string service = 1;
    */
   service: string;

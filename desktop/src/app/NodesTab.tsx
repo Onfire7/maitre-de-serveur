@@ -29,6 +29,7 @@ import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
 import { servicesStopFor } from "./updateTimes";
+import { EndsTerminals } from "@/terminal/warning";
 
 export function NodesTab({
   snap,
@@ -298,6 +299,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirm === "reboot" && <EndsTerminals target={t} />}
           {confirm === "remove" && (
             <div className="space-y-1.5 text-sm">
               <div>

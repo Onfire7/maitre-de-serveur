@@ -29,6 +29,7 @@ import { NETWORK_HOST, NETWORK_OWN, NETWORK_SERVICE, NETWORK_TUNNEL, applySetup,
 import type { Target } from "@/transport";
 import { catalogById, ServiceIcon, StatusWord } from "./status";
 import { useRoute } from "./routes";
+import { useEndingConfirm } from "@/terminal/warning";
 
 /** What the Setup fields need of a Service: at install there is no
  * Service yet, only the Catalog entry's shape. */
@@ -59,6 +60,7 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
   const entry = catalogById.get(service.spec.catalogId);
   const [setup, setSetup] = useState<Setup>(() => setupOf(service.spec));
   const [applying, setApplying] = useState(false);
+  const [confirmEnding, endingDialog] = useEndingConfirm();
   // The spec changes under the page when the Fleet is read again; the
   // form is the person's, so only a Service of another name resets it.
   useEffect(() => setSetup(setupOf(service.spec)), [name]);
@@ -95,6 +97,8 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
 
   const apply = async () => {
     if (!target) return toast.error(`No address for ${service.node?.name ?? "its Node"}`);
+    // ADR 0011: applying restarts these Services and ends their running Terminals.
+    if (!(await confirmEnding({ title: `Apply ${name}'s Service Configuration?`, action: "Apply and restart", groups: [{ target, services: restarts.length ? restarts : [name] }] }))) return;
     setApplying(true);
     try {
       await applySetup(target, name, setup);
@@ -110,6 +114,7 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {endingDialog}
       <header className="flex shrink-0 items-center gap-3 border-b px-5 py-3">
         <Button variant="ghost" size="icon" aria-label="Back to its page" onClick={() => go({ name: "page", service: name, page: "" })}>
           <ArrowLeft />

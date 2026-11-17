@@ -105,6 +105,10 @@ type Runner struct {
 	// lookup; Check uses them to find a newer image.
 	Status func(ctx context.Context) (*maitrev1.UpdateStatus, error)
 	Digest func(ctx context.Context, ref string) (string, error)
+	// Terminals lists every Terminal the Node holds; an automatic update
+	// waits up to a day for the running ones (ADR 0011). Nil: none.
+	Terminals func(ctx context.Context) ([]*maitrev1.TerminalInfo, error)
+	wait      TerminalWait
 
 	mu    sync.Mutex
 	avail string
@@ -201,6 +205,13 @@ func (r *Runner) Tick(ctx context.Context) {
 		return
 	}
 	d := Decide(&policy, nodes, r.self, booted, newest, time.Now())
+	if d.Update && r.Terminals != nil {
+		terms, err := r.Terminals(ctx)
+		if err != nil {
+			r.log.Warn("staged rollout: listing Terminals", "err", err)
+		}
+		d = r.wait.Hold(d, terms, time.Now())
+	}
 	r.Last = d
 	if d.Update && !r.up.Busy() {
 		r.log.Info("staged rollout: updating", "reason", d.Reason, "ref", ref)
@@ -208,4 +219,72 @@ func (r *Runner) Tick(ctx context.Context) {
 			r.log.Warn("staged rollout", "err", err)
 		}
 	}
+}
+
+// terminalPatience is how long an automatic update waits for a Node's
+// running Terminals before it ends them (ADR 0011).
+const terminalPatience = 24 * time.Hour
+
+// TerminalWait holds an automatic update back while the Node's Terminals
+// run, for up to a day from when it first had to wait. Only automatic
+// rollouts wait; an update a person starts warns instead (the Console).
+type TerminalWait struct {
+	since time.Time
+}
+
+// Hold is d, or a decision to wait while any of terms is running and the
+// day is not over. It forgets the wait once none is running.
+func (w *TerminalWait) Hold(d Decision, terms []*maitrev1.TerminalInfo, now time.Time) Decision {
+	if !d.Update {
+		return d
+	}
+	var running []*maitrev1.TerminalInfo
+	for _, t := range terms {
+		if t.GetRunning() {
+			running = append(running, t)
+		}
+	}
+	if len(running) == 0 {
+		w.since = time.Time{}
+		return d
+	}
+	if w.since.IsZero() {
+		w.since = now
+	}
+	until := w.since.Add(terminalPatience)
+	if !now.Before(until) {
+		return Decision{Update: true, Reason: d.Reason + "; its Terminals ran for a day, so they end"}
+	}
+	return Decision{Reason: "an update is ready; waiting for " + terminalsIn(running) + " to finish (at most until " + until.Format("15:04") + " " + day(until, now) + ")"}
+}
+
+// terminalsIn is "a Terminal in nextcloud", "2 Terminals in kuma and vault".
+func terminalsIn(running []*maitrev1.TerminalInfo) string {
+	var services []string
+	seen := map[string]bool{}
+	for _, t := range running {
+		if !seen[t.GetService()] {
+			seen[t.GetService()] = true
+			services = append(services, t.GetService())
+		}
+	}
+	sort.Strings(services)
+	in := services[0]
+	if len(services) > 1 {
+		in = strings.Join(services[:len(services)-1], ", ") + " and " + services[len(services)-1]
+	}
+	if len(running) == 1 {
+		return "a Terminal in " + in
+	}
+	return strconv.Itoa(len(running)) + " Terminals in " + in
+}
+
+// day is "today" or "tomorrow": until is at most a day after now.
+func day(until, now time.Time) string {
+	y1, m1, d1 := until.Date()
+	y2, m2, d2 := now.Date()
+	if y1 == y2 && m1 == m2 && d1 == d2 {
+		return "today"
+	}
+	return "tomorrow"
 }

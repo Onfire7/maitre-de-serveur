@@ -13,6 +13,8 @@ import { declined } from "@/fleet/grants";
 import { moveService, planMove, stepsFor, type Step, type StepId } from "@/fleet/moveService";
 import { nodeDown, nodeWord, type FleetService, type FleetSnapshot } from "@/fleet/useFleet";
 import type { ConsoleState } from "@/state";
+import { targetFor } from "@/fleet/actions";
+import { EndsTerminals } from "@/terminal/warning";
 
 export function MoveServiceDialog({ service, snap, state, onClose, onDone }: { service: FleetService | null; snap: FleetSnapshot | undefined; state: ConsoleState; onClose: () => void; onDone: () => void }) {
   const others = useMemo(() => (snap?.nodes ?? []).filter((n) => n.nodeId !== service?.spec.nodeId).sort((a, b) => a.name.localeCompare(b.name)), [snap?.nodes, service?.spec.nodeId]);
@@ -159,6 +161,7 @@ export function MoveServiceDialog({ service, snap, state, onClose, onDone }: { s
                 <b>{name} is running.</b> It has to be turned off to move, and is started again on {toName} once there.
               </p>
             )}
+            {running && <EndsTerminals target={targetFor(snap, state.nodes, service.spec.nodeId)} services={[name]} />}
           </div>
         )}
 
