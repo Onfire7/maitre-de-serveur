@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatBytes, ago } from "@/lib/format";
 import type { FleetService, FleetSnapshot } from "@/fleet/useFleet";
 import { nodeWord, provisioningLine, STALE_MS } from "@/fleet/useFleet";
+import { wayLine } from "@/fleet/reach";
 import { spacesOf } from "@/spaces";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { colorOf } from "./StorageTab";
@@ -29,6 +30,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
   const now = Date.now();
   const st = snap.status.get(nodeId);
   const word = nodeWord(st, now);
+  const way = wayLine(snap, nodeId, now);
   const avgUpdate = averageUpdateMs(node);
   const m = st?.metrics;
   const stale = !m || now - Number(st?.metricsUnixMs ?? 0) > STALE_MS;
@@ -80,6 +82,7 @@ export function NodeFlyout({ nodeId, snap, services, bottom, onEnter, onLeave, o
           </div>
           <div className="text-xs">
             <StatusWord word={word} />
+            {(word === "Healthy" || word === "Attention") && way && <span className="text-muted-foreground"> · {way}</span>}
             {word === "Unreachable" && st && st.lastSeenUnixMs > 0n && <span className="text-muted-foreground"> · last heard {ago(Number(st.lastSeenUnixMs), now)}</span>}
             {word === "Provisioning" && <span className="text-muted-foreground"> · {provisioningLine(st)}</span>}
             {word === "Updating" && <span className="text-muted-foreground">{[st?.reachable && st.updateMessage, updatingLine(node, st?.updatingSince, now)].filter(Boolean).map((x) => ` · ${x}`)}</span>}
