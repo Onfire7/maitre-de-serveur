@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dices, RefreshCw, Trash2, Pencil, ChevronDown, ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ import { FleetTimeZone } from "./FleetTimeZone";
 import { NodeDetails } from "./NodeDetails";
 import { NodeMark, StatusWord } from "./status";
 import { useRoute } from "./routes";
+import { servicesStopFor } from "./updateTimes";
 
 export function NodesTab({
   snap,
@@ -142,6 +144,9 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
   const [askUpdate, setAskUpdate] = useState(false);
   const canUpdate = !!t && !!st?.updateAvailable && !st.updateStaged && word !== "Updating" && !nodeDown(word);
   const services = snap.specs.filter((s) => s.nodeId === node.nodeId).map((s) => s.name);
+  // The Restart dialog's downtime is the update's (the same boot), asked of
+  // the Node when the dialog opens; the key is the one its details use.
+  const upd = useQuery({ queryKey: ["update-status", node.nodeId, t?.addr], enabled: !!t && confirm === "reboot", retry: false, queryFn: async () => (await nodeClient(t!).getUpdateStatus({})).status });
   const taken = [...snap.nodes.map((n) => n.name), ...snap.drives.map((d) => d.name)];
 
   async function rename() {
@@ -276,7 +281,7 @@ function NodeCard({ node, snap, state, now, open, onOpen, onState }: { node: Nod
             <AlertDialogTitle>{confirm === "reboot" ? `Restart ${node.name}?` : `Remove ${node.name} from the Fleet?`}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirm === "reboot" ? (
-                <>Its Services ({services.length ? services.join(", ") : "none"}) stop for a minute or two while it comes back.</>
+                <>Its Services ({services.length ? services.join(", ") : "none"}) stop for {servicesStopFor(upd.data)} while it comes back.</>
               ) : state.nodes.length > 1 ? (
                 <>
                   The other Nodes stop trusting it and forget it. Reinstall it to bring it back.{" "}
