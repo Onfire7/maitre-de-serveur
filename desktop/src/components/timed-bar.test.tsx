@@ -57,4 +57,60 @@ describe("TimedBar", () => {
     expect(bar().getAttribute("aria-valuenow")).toBeNull();
     expect(screen.queryByText(hint)).toBeNull();
   });
+
+  describe("an update's three sections", () => {
+    // Usually 6 min in all, 2 of them down: 4 min of Downloading, 2 of Restarting, on an 8 min scale.
+    const sections = (progress: number, restarted: number | null) => [
+      { label: "Downloading", typicalMs: 4 * min, progress },
+      { label: "Restarting", typicalMs: 2 * min, since: restarted },
+    ];
+    const section = (label: string) => screen.getByRole("progressbar").querySelector<HTMLElement>(`[title="${label}"]`)!;
+    const fill = (label: string) => (section(label).firstElementChild as HTMLElement).style.width;
+
+    it("sizes Downloading and Restarting from the figures, the typical end marked at 75%, and labels the sections under the bar", () => {
+      render(<TimedBar since={t0} sections={sections(0, null)} />);
+      expect(screen.getByText("usually about 6 min").closest("[data-marker]")!.getAttribute("style")).toContain("left: 75%");
+      expect(section("Downloading").style.width).toBe("50%");
+      expect(section("Restarting").style.width).toBe("25%");
+      expect(section("Overtime").style.width).toBe("25%");
+      const legend = screen.getByRole("list", { name: "Sections" });
+      expect([...legend.children].map((c) => c.textContent)).toEqual(["Downloading", "Restarting", "Overtime"]);
+      expect((legend.children[0] as HTMLElement).style.width).toBe("50%");
+    });
+
+    it("fills Downloading by the staging percentage, never past its width however slow", () => {
+      const { rerender } = render(<TimedBar since={t0} sections={sections(0.5, null)} />);
+      expect(fill("Downloading")).toBe("50%");
+      expect(bar().getAttribute("aria-valuenow")).toBe("25");
+      pass(20 * min);
+      rerender(<TimedBar since={t0} sections={sections(1.4, null)} />);
+      expect(fill("Downloading")).toBe("100%");
+      expect(fill("Restarting")).toBe("0%");
+      expect(fill("Overtime")).toBe("0%");
+      expect(bar().dataset.state).toBe("running");
+      expect(screen.getByText("20 min 0 s")).toBeTruthy();
+    });
+
+    it("fills Restarting by the time since the restart began, then turns red into Overtime past its figure plus 10%", () => {
+      pass(3 * min);
+      const restarted = Date.now();
+      render(<TimedBar since={t0} sections={sections(1, restarted)} />);
+      pass(min);
+      expect(fill("Restarting")).toBe("50%");
+      expect(screen.getByText("4 min 0 s")).toBeTruthy();
+      pass(72_000); // 2 min 12 s into the restart: exactly its figure plus 10%
+      expect(bar().dataset.state).toBe("running");
+      expect(screen.queryByText(hint)).toBeNull();
+      pass(1000);
+      expect(bar().dataset.state).toBe("late");
+      expect(screen.getByText(hint)).toBeTruthy();
+      expect(fill("Restarting")).toBe("100%");
+      expect(parseFloat(fill("Overtime"))).toBeGreaterThan(0);
+      pass(10 * min);
+      expect(bar().dataset.state).toBe("late");
+      expect(fill("Overtime")).toBe("100%");
+      expect(bar().getAttribute("aria-valuenow")).toBe("100");
+    });
+  });
 });
+

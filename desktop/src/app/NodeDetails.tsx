@@ -31,6 +31,7 @@ import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
 import { servicesStopFor, updateTimesLine } from "./updateTimes";
+import { UpdateProgress } from "./UpdateProgress";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
   const { go } = useRoute();
@@ -458,7 +459,8 @@ function MaintenanceCard({ job }: { job: Job }) {
   const waiting = useUpdateQueue().filter((j) => j.phase === "waiting").length;
   const what = m.kind === "update" ? `Updating ${name} to ${m.target}` : m.kind === "rollback" ? `Rolling ${name} back` : `Restarting ${name}`;
   // A Restart, or a Roll back that restarts, is one timed section from the
-  // moment it is asked: against the Node's typical downtime.
+  // moment it is asked: against the Node's typical downtime. An update is
+  // the three-section bar.
   const restarts = m.kind === "reboot" || (m.kind === "rollback" && m.reboot);
   return (
     <div className="space-y-3">
@@ -469,7 +471,8 @@ function MaintenanceCard({ job }: { job: Job }) {
           <p className="text-sm text-muted-foreground">{phase === "down" ? "The Node is restarting. Its monitor shows the Maître banner when it is back." : "Asking the Node to restart."}</p>
         </>
       )}
-      {!restarts && phase === "working" && (
+      {m.kind === "update" && (phase === "working" || phase === "down") && <UpdateProgress job={job} />}
+      {m.kind === "rollback" && !m.reboot && phase === "working" && (
         <>
           <div className="h-1.5 overflow-hidden rounded bg-muted">
             <div className="h-full rounded bg-status-starting transition-[width]" style={{ width: `${Math.round(job.progress * 100)}%` }} />
@@ -477,7 +480,7 @@ function MaintenanceCard({ job }: { job: Job }) {
           <p className="text-sm text-muted-foreground">{job.message || "starting"}</p>
         </>
       )}
-      {!restarts && phase === "down" && (
+      {m.kind === "rollback" && !m.reboot && phase === "down" && (
         <>
           <TimedBar since={job.started} sections={[{ label: "Restarting", typicalMs: 0, since: null }]} />
           <p className="text-sm">The Node is restarting. Its monitor shows the Maître banner when it is back.</p>

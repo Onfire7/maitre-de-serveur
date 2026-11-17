@@ -19,7 +19,8 @@ export const LATE_HINT = "Taking longer than usual. Its monitor shows the Maîtr
  * "usually about 2 min"; the last quarter is overtime. Labelled with the
  * time elapsed since `since`, and ticks itself each second. Without a figure
  * (the sections' typical times sum to 0) it is the pulsing bar, labelled
- * with the elapsed time, no marker.
+ * with the elapsed time, no marker. The sections, Overtime last, are
+ * labelled under the bar.
  */
 export function TimedBar({ since, sections, className }: { since: number; sections: TimedSection[]; className?: string }) {
   const now = useNow();
@@ -82,6 +83,13 @@ export function TimedBar({ since, sections, className }: { since: number; sectio
         </div>
         <div className="absolute bottom-0 h-2.5 w-px -translate-x-1/2 bg-foreground/60" style={{ left: "75%" }} />
       </div>
+      <ul aria-label="Sections" className="flex text-[10px] text-muted-foreground">
+        {[...fills, { label: "Overtime", width: 0.25 }].map((f, i) => (
+          <li key={i} className="truncate" style={{ width: `${f.width * 100}%` }}>
+            {f.label}
+          </li>
+        ))}
+      </ul>
       <p className="text-xs text-muted-foreground tabular-nums">{label}</p>
       {late && <p className="text-xs text-destructive">{LATE_HINT}</p>}
     </div>
