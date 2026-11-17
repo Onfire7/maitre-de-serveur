@@ -33,7 +33,8 @@ export interface TerminalChoice {
 
 export const browserSocket: SocketFactory = (url) => new WebSocket(url) as unknown as TerminalSocket;
 
-export interface TerminalInfo {
+/** What a view knows of its Terminal session (not the Node's maitre.v1.TerminalInfo). */
+export interface SessionState {
   /**
    * connecting → running → exited; or no-shell, or failed with a message;
    * or lost: the connection closed while the Terminal ran on, on the Node.
@@ -60,7 +61,7 @@ const BACKLOG_BYTES = 256 * 1024;
 export class TerminalSession {
   readonly service: string;
   readonly choice: TerminalChoice;
-  info: TerminalInfo = { phase: "connecting", container: "", user: "" };
+  info: SessionState = { phase: "connecting", container: "", user: "" };
   private socket: TerminalSocket | undefined;
   private open = false;
   private closed = false;
@@ -112,7 +113,7 @@ export class TerminalSession {
     );
   }
 
-  private set(p: Partial<TerminalInfo>) {
+  private set(p: Partial<SessionState>) {
     this.info = { ...this.info, ...p };
     this.listeners.forEach((l) => l());
   }
