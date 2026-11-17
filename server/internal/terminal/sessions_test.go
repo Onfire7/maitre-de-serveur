@@ -292,3 +292,20 @@ func TestAnAgentRestartLeavesTheCommandRunningAndTheConsoleReattaches(t *testing
 		t.Fatalf("output %q", v.out.String())
 	}
 }
+
+// Without a Service, the list is every Terminal on the Node: what a Node's
+// Update and Reboot warn about, and what an automatic rollout waits for.
+func TestTheNodesListHasEveryServicesTerminals(t *testing.T) {
+	e := start(t, "kuma", "vault")
+	e.container(t, "kuma", "", "bash")
+	e.container(t, "vault", "", "bash")
+	_, k := opened(t, e, "kuma")
+	_, v := opened(t, e, "vault")
+	all := list(t, e, "")
+	if len(all) != 2 || find(all, k).GetService() != "kuma" || find(all, v).GetService() != "vault" {
+		t.Fatalf("the Node's Terminals: %v", all)
+	}
+	if only := list(t, e, "kuma"); len(only) != 1 || only[0].GetId() != k {
+		t.Fatalf("kuma's: %v", only)
+	}
+}

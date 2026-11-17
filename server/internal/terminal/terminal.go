@@ -346,7 +346,8 @@ var idRe = regexp.MustCompile(`^[0-9a-f]{16}$`)
 func validID(id string) bool { return idRe.MatchString(id) }
 
 // ListTerminals implements TerminalService: every holder's info, asked of
-// it, so an agent that restarted finds the Terminals still there.
+// it, so an agent that restarted finds the Terminals still there. Without a
+// Service, every Terminal on the Node (#9).
 func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminalsRequest) (*maitrev1.ListTerminalsResponse, error) {
 	return &maitrev1.ListTerminalsResponse{Terminals: h.held(ctx, req.GetService())}, nil
 }
@@ -363,7 +364,8 @@ func (h *Handler) running(ctx context.Context, service, label string) int {
 	return n
 }
 
-// held is the Service's Terminals, oldest first.
+// held is the Service's Terminals, or with service "" the Node's, oldest
+// first.
 func (h *Handler) held(ctx context.Context, service string) []*maitrev1.TerminalInfo {
 	socks, _ := filepath.Glob(filepath.Join(h.cfg.Dir, "*.sock"))
 	res := &maitrev1.ListTerminalsResponse{}
@@ -381,7 +383,7 @@ func (h *Handler) held(ctx context.Context, service string) []*maitrev1.Terminal
 			continue
 		}
 		c.Close()
-		if info.GetService() == service {
+		if service == "" || info.GetService() == service {
 			res.Terminals = append(res.Terminals, info)
 		}
 	}

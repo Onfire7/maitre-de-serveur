@@ -165,3 +165,55 @@ func TestNoOtherRolloutLineGainsAnEstimate(t *testing.T) {
 	policy.Paused = true
 	check("paused", Decide(policy, nodes, "bbb", "old", "new", at(4)))
 }
+
+// ADR 0011: an automatic update waits for the Node's running Terminals to
+// finish, for up to a day from when it first had to wait, then goes ahead.
+func TestAnAutomaticUpdateWaitsUpToADayForRunningTerminals(t *testing.T) {
+	now := time.Date(2026, 10, 26, 4, 0, 0, 0, time.Local)
+	take := Decision{Update: true, Reason: "first Node of the Fleet: taking the update now"}
+	migrate := &maitrev1.TerminalInfo{Service: "nextcloud", Container: "server", Argv: []string{"occ", "upgrade"}, Running: true}
+	var w TerminalWait
+
+	d := w.Hold(take, []*maitrev1.TerminalInfo{migrate}, now)
+	if d.Update {
+		t.Fatalf("updated over a running Terminal: %+v", d)
+	}
+	if want := "an update is ready; waiting for a Terminal in nextcloud to finish (at most until 04:00 tomorrow)"; d.Reason != want {
+		t.Errorf("got %q, want %q", d.Reason, want)
+	}
+	// Still running 23 hours on: still waiting, from the first wait.
+	if d := w.Hold(take, []*maitrev1.TerminalInfo{migrate, migrate}, now.Add(23*time.Hour)); d.Update {
+		t.Fatalf("updated before a day had passed: %+v", d)
+	} else if want := "an update is ready; waiting for 2 Terminals in nextcloud to finish (at most until 04:00 today)"; d.Reason != want {
+		t.Errorf("got %q, want %q", d.Reason, want)
+	}
+	// A day on, it goes ahead and says why.
+	d = w.Hold(take, []*maitrev1.TerminalInfo{migrate}, now.Add(24*time.Hour))
+	if !d.Update || d.Reason != "first Node of the Fleet: taking the update now; its Terminals ran for a day, so they end" {
+		t.Fatalf("after a day: %+v", d)
+	}
+}
+
+func TestAnUpdateGoesAheadOnceTheTerminalsFinish(t *testing.T) {
+	now := time.Date(2026, 10, 26, 4, 0, 0, 0, time.Local)
+	take := Decision{Update: true, Reason: "first Node of the Fleet: taking the update now"}
+	shell := &maitrev1.TerminalInfo{Service: "kuma", Container: "kuma", Running: true}
+	finished := &maitrev1.TerminalInfo{Service: "kuma", Container: "kuma", Running: false}
+	var w TerminalWait
+	if d := w.Hold(take, []*maitrev1.TerminalInfo{shell}, now); d.Update {
+		t.Fatalf("updated over a running Terminal: %+v", d)
+	}
+	// A finished Terminal holds nothing back.
+	if d := w.Hold(take, []*maitrev1.TerminalInfo{finished}, now.Add(time.Hour)); d != take {
+		t.Fatalf("got %+v, want %+v", d, take)
+	}
+	// The next wait starts its own day.
+	if d := w.Hold(take, []*maitrev1.TerminalInfo{shell}, now.Add(30*time.Hour)); d.Update || !strings.Contains(d.Reason, "at most until 10:00 tomorrow") {
+		t.Fatalf("a new wait: %+v", d)
+	}
+	// A decision not to update is left alone, and does not end the wait.
+	wait := Decision{Reason: "updates are paused"}
+	if d := w.Hold(wait, []*maitrev1.TerminalInfo{shell}, now.Add(31*time.Hour)); d != wait {
+		t.Fatalf("got %+v", d)
+	}
+}
