@@ -2,7 +2,11 @@
 // Console offers only what will work there: read once per Node when a
 // view needs it, and again after five minutes (a Node may have been
 // updated). Kept outside React Query so any component can ask without a
-// provider.
+// provider. The ["node-info", ...] queries elsewhere hold the same answer
+// only while their views are open (Node details, Remote, a Service's
+// sheets), keyed by node id or fingerprint, and poll every 5 s; this asks
+// at most once per Node per five minutes, so reading theirs would save
+// little and tie the Terminal button to those views.
 import { useEffect, useSyncExternalStore } from "react";
 import { createClient } from "@connectrpc/connect";
 import { NodeService } from "@/gen/maitre/v1/node_pb";
