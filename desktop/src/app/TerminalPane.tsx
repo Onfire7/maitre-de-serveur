@@ -8,7 +8,7 @@
 // running and finished Terminals to reopen. A Service may have several
 // open, one view per Terminal, and other Devices may share them (#6).
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { List, Play, Plus, RotateCw, Square, X } from "lucide-react";
+import { List, Play, Plus, RotateCw, Square, SquareTerminal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Target } from "@/transport";
@@ -22,6 +22,7 @@ import {
   closeTerminal,
   endTerminal,
   listTerminals,
+  openInYourTerminal,
   openTerminal,
   reattach,
   runAgain,
@@ -59,12 +60,22 @@ function TerminalPane({ terminal, shown, grants, onClose, onList }: { terminal: 
   // Named once the Node says which container it runs in (ADR 0011).
   const warning = info.container ? grantWarning(grants, info.container) : undefined;
   const iconButton = "rounded p-1 text-neutral-400 hover:bg-white/10 hover:text-neutral-100";
+  const [launchError, setLaunchError] = useState<string>();
+  const openInTerminal = () => {
+    setLaunchError(undefined);
+    openInYourTerminal(key).catch((e: unknown) => setLaunchError(e instanceof Error ? e.message : String(e)));
+  };
   return (
     <div data-testid="terminal-pane" data-shown={shown ? "true" : undefined} aria-hidden={!shown} className={cn("absolute inset-0 z-10 flex flex-col bg-[#101010] text-neutral-100", !shown && "invisible pointer-events-none")}>
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-white/10 px-3 text-xs">
         <span className="font-medium">{service}</span>
         <span className="font-mono text-neutral-400">{label}</span>
         <span className="ml-auto" />
+        {info.phase === "running" && info.id && (
+          <button aria-label={`Open ${service}'s Terminal in your terminal`} title="Open in your terminal (this view stays open on the same Terminal)" onClick={openInTerminal} className={iconButton}>
+            <SquareTerminal className="size-3.5" />
+          </button>
+        )}
         {info.phase === "running" && (
           <button aria-label={`End ${service}'s Terminal`} title="End the Terminal (hang it up, then kill it after 5 seconds)" onClick={() => session.end()} className={iconButton}>
             <Square className="size-3.5" />
@@ -89,6 +100,14 @@ function TerminalPane({ terminal, shown, grants, onClose, onList }: { terminal: 
         <div className="flex flex-1 items-center justify-center p-8 text-sm text-neutral-300">{info.message}</div>
       ) : (
         <TerminalView io={session} active={shown} className="min-h-0 flex-1 p-1" />
+      )}
+      {launchError && (
+        <div role="alert" className="flex shrink-0 items-center gap-3 border-t border-white/10 px-3 py-2 text-sm">
+          <span className="text-neutral-300">{launchError}</span>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setLaunchError(undefined)}>
+            Dismiss
+          </Button>
+        </div>
       )}
       {info.phase === "lost" && (
         <div role="status" className="flex shrink-0 items-center gap-3 border-t border-white/10 px-3 py-2 text-sm">
