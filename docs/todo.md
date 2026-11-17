@@ -55,8 +55,21 @@ To work out before this is broken down:
 - **Arguments.** Fixed argv only, or prompts filled from a small form (like `settings:`) before the terminal opens?
 - **Where the terminal lives.** A Console view in the Service's area, next to its Pages, with a terminal component in the Desktop. What happens on close: the command is killed, or it keeps running and you can come back to it?
 - **The container's state.** The command runs only while the Service is running. Show the item disabled, with the reason, when it is stopped?
-- **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry. A free-form shell into a container is a separate decision and not part of this. It weakens "a Node is not an administrator" (ADR 0008) and is a root channel for any container with a granted host mount.
+- **Trust.** The commands come from the signed Catalog bundle, the same as the rest of the entry. A free-form shell into a container is a separate decision, below under **Interactive Service console**.
 - **Custom Services.** Can a user add their own commands in Service Configuration, the way they can override other options?
+
+### Interactive Service console
+
+A terminal in the Console attached to one of a Service's containers: a shell, or any command typed into it, with keystrokes in, output out, and resizing. Service commands need the same machinery, a PTY in the container streamed to a terminal view in the Desktop, so building the console first gives commands their transport and their view, and a command becomes a console that starts with a fixed argv.
+
+To work out before this is broken down:
+
+- **The RPC.** A bidirectional stream: a start message (Service, component, argv or the image's shell, terminal size), then input and resize frames in and output frames out, ending with the exit code. Connect over HTTP/2 carries bidi streams, but nothing in the API uses one yet, so check the Desktop's Rust client and the loopback proxy pass it through. On the Node it is `podman exec -it` or the Podman API's exec with a TTY. Following the "Console vs older Nodes" rule, a Node without the RPC hides the console instead of failing.
+- **Which shell.** Many images have no shell at all (distroless, scratch). Fall back to `/bin/sh`, say plainly when there is none, and think about a debug sidecar with busybox that joins the container's namespaces.
+- **The terminal view.** A terminal component (xterm.js or similar) placed like a Page in the Service's area, so it can sit beside the Service's Pages. On close: kill the process, or keep the session so it can be reattached, which needs the Node to hold it.
+- **Trust.** This is the free-form shell the Service commands sketch left out. It cuts against "a Node is not an administrator" (ADR 0008): a container with a granted host mount, or one that runs privileged, is a root shell on the Node, and the Node has no terminal of its own on purpose. Options: refuse the console for Services with host grants, or warn and require typing the Service's name like other destructive actions. It is only offered to paired devices over mTLS either way, and could be left out of a shipped image like the debug tier if it should not be a product feature.
+- **Which user.** The container's default user, or a choice of root, which most images run as anyway.
+- **Records.** Whether the Node logs who opened a console on what, the same way an update run now records who asked for it.
 
 ### Typed health checks
 
