@@ -95,6 +95,9 @@ message NodeUpdate {
   // not be traced to anyone, which on 2026-11-06 took an evening to work
   // out and ended in a guess.
   string requested_by = 5;
+  // When it began restarting into the new image, its Services going down;
+  // 0 until then, and for an update that never restarts.
+  int64 restarted_unix_ms = 6;
 }
 
 // UpdateRun is one finished update.
@@ -121,6 +124,10 @@ message UpdateRun {
   string message = 7;
   // Who asked for it, as NodeUpdate.requested_by above.
   string requested_by = 8;
+  // When it began restarting, carried from NodeUpdate.restarted_unix_ms: so
+  // a run has a total (started to ended) and a downtime (restarted to
+  // ended). 0 for a run that never restarted, or from before this was kept.
+  int64 restarted_unix_ms = 9;
 }
 
 // FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"

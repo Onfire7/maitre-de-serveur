@@ -70,3 +70,31 @@ func TestARunRemembersWhoAskedForIt(t *testing.T) {
 		t.Errorf("rollout run: %q", got)
 	}
 }
+
+// When the Node begins restarting it records the moment in its update in
+// progress, and the finished run carries it: a total and a downtime.
+func TestARunRemembersWhenItRestarted(t *testing.T) {
+	n := &maitrev1.Node{}
+	t0 := time.Unix(1700000000, 0)
+	if Restarting(n, t0) {
+		t.Fatal("recorded a restart with no update in progress")
+	}
+	Begin(n, "depot/maitre:dev", "sha256:a", "boot-1", "device", t0)
+	if !Restarting(n, t0.Add(4*time.Minute)) {
+		t.Fatal("restart not recorded")
+	}
+	if got := n.GetUpdating().GetRestartedUnixMs(); got != t0.Add(4*time.Minute).UnixMilli() {
+		t.Fatalf("in progress: %d", got)
+	}
+	Back(n, "boot-2", "sha256:b", time.Time{}, t0.Add(6*time.Minute))
+	r := n.GetUpdates()[0]
+	if r.GetRestartedUnixMs() != t0.Add(4*time.Minute).UnixMilli() || r.GetEndedUnixMs()-r.GetRestartedUnixMs() != 120_000 {
+		t.Errorf("finished run: %v", r)
+	}
+	// Staged without a restart: none recorded.
+	Begin(n, "depot/maitre:dev", "sha256:b", "boot-2", "device", t0.Add(time.Hour))
+	End(n, maitrev1.UpdateRun_OUTCOME_STAGED, "sha256:c", "", t0.Add(time.Hour+time.Minute))
+	if got := n.GetUpdates()[1].GetRestartedUnixMs(); got != 0 {
+		t.Errorf("staged run restarted at %d", got)
+	}
+}
