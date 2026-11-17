@@ -7,11 +7,9 @@ package peers
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"sort"
 	"sync"
@@ -19,7 +17,6 @@ import (
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
-	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/proto"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
@@ -79,13 +76,7 @@ type Manager struct {
 func New(st *store.Store, id *identity.Identity, list *trust.List, log *slog.Logger) *Manager {
 	cfg := mtls.ClientConfig(id, list)
 	m := &Manager{st: st, id: id, list: list, log: log, peers: map[string]*peer{}, heard: map[string]*maitrev1.FleetNodeStatus{}, installs: map[string]*maitrev1.Provisioning{}}
-	m.http = &http.Client{Transport: &http2.Transport{
-		TLSClientConfig: cfg,
-		DialTLSContext: func(ctx context.Context, network, addr string, c *tls.Config) (net.Conn, error) {
-			d := &tls.Dialer{Config: c, NetDialer: &net.Dialer{Timeout: 5 * time.Second}}
-			return d.DialContext(ctx, network, addr)
-		},
-	}}
+	m.http = mtls.NodeClient(cfg)
 	return m
 }
 

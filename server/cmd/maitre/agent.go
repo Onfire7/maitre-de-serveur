@@ -1299,7 +1299,7 @@ func runAgent(args []string) error {
 				return true
 			})
 			log.Info("tailscale: reachable", "dns", stt.GetDnsName(), "addr", addr)
-			srv := &http.Server{Handler: peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), TLSConfig: mtls.ServerConfig(id, list), ReadHeaderTimeout: 10 * time.Second}
+			srv := mtls.Server(peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), mtls.ServerConfig(id, list))
 			go func() { <-ctx.Done(); _ = srv.Close() }()
 			if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Warn("tailscale serve", "err", err)
@@ -1545,12 +1545,9 @@ func runInstaller(args []string) error {
 // serve serves h over TLS at addr, and on each extra listener as well
 // (connections relayed to this Node, ADR 0012).
 func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, tlsCfg *tls.Config, extra ...net.Listener) error {
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           h,
-		TLSConfig:         tlsCfg,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
+	// No idle timeout and TCP keepalives: a Terminal or a relayed
+	// connection may be silent for hours (ADR 0012).
+	srv := mtls.Server(h, tlsCfg)
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1558,7 +1555,7 @@ func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, t
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 	// Bind before announcing, so "listening" in the log means it.
-	ln, err := net.Listen("tcp", addr)
+	ln, err := mtls.Listen(addr)
 	if err != nil {
 		return err
 	}
