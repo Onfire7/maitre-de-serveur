@@ -18,6 +18,7 @@ import { declined } from "@/fleet/grants";
 import type { ConsoleState } from "@/state";
 import { flyoutItems, type FlyoutItem } from "./ServiceFlyout";
 import { useNodeFeatures } from "@/fleet/features";
+import { useEndingConfirm } from "@/terminal/warning";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { ServiceDetails } from "./ServiceDetails";
 import { useRoute, type ServiceEdit } from "./routes";
@@ -41,6 +42,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
   const [byNode, setByNode] = useState(() => localStorage.getItem(GROUP_KEY) !== "list");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [confirmEnding, endingDialog] = useEndingConfirm();
   // One Service open at a time, with all its settings (192).
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get("expand"));
   // Access… and Storage… from a menu land here, the row open at that
@@ -86,6 +88,14 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
 
   async function bulk(action: Bulk) {
     const list = pickedServices.filter((s) => !s.nodeUnreachable);
+    if (action !== "start") {
+      // ADR 0011: name the running Terminals these end, Node by Node.
+      const byNode = new Map<string, string[]>();
+      for (const s of list) byNode.set(s.spec.nodeId, [...(byNode.get(s.spec.nodeId) ?? []), s.spec.name]);
+      const verb = { stop: "Stop", restart: "Restart", update: "Update" }[action];
+      const groups = [...byNode].map(([nodeId, services]) => ({ target: targetFor(snap, state.nodes, nodeId), services }));
+      if (!(await confirmEnding({ title: `${verb} ${list.length} ${list.length === 1 ? "Service" : "Services"}?`, action: verb, groups }))) return;
+    }
     setBusy(true);
     const failed: string[] = [];
     for (const s of list) {
@@ -123,6 +133,7 @@ export function ServicesTab({ snap, state, services, onAct, now }: { snap: Fleet
 
   return (
     <div className="space-y-4">
+      {endingDialog}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

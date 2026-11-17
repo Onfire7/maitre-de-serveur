@@ -485,8 +485,19 @@ func runAgent(args []string) error {
 	editSelf(func(n *maitrev1.Node) bool {
 		return update.Back(n, update.BootID(), booted, update.RolledBackAt(), time.Now())
 	})
+	// ADR 0011: Terminals, on the Service tunnel, each held by a transient
+	// systemd unit of its own running `maitre terminal-hold`.
+	exe, _ := os.Executable()
+	terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log,
+		Launcher: terminal.Systemd{Self: exe}, Dir: "/run/maitre/terminals"})
 	ro := rollout.New(st, svc.Updates, log, id.Fingerprint())
 	ro.Current = current
+	// #9: an automatic rollout waits up to a day for the Node's running
+	// Terminals; an update a person starts only warns (the Console).
+	ro.Terminals = func(ctx context.Context) ([]*maitrev1.TerminalInfo, error) {
+		res, err := terms.ListTerminals(ctx, &maitrev1.ListTerminalsRequest{})
+		return res.GetTerminals(), err
+	}
 	svc.Rollout = func() string { return ro.Last.Reason }
 	// This Node's own update history, out of its record, so `maitre update`
 	// can say what changed its version and who asked for it.
@@ -1223,11 +1234,6 @@ func runAgent(args []string) error {
 	// Decision 326: the debug tier is for a Device, never Node to Node.
 	svc.IsNode = list.Node
 	maitrev1connect.RegisterFilesServiceHandler(rpc, fsvc)
-	// ADR 0011: Terminals, on the Service tunnel, each held by a transient
-	// systemd unit of its own running `maitre terminal-hold`.
-	exe, _ := os.Executable()
-	terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log,
-		Launcher: terminal.Systemd{Self: exe}, Dir: "/run/maitre/terminals"})
 	// Listing and Ending them (#5): a full Trusted Device's call, as the
 	// gate and the interceptor above keep it.
 	maitrev1connect.RegisterTerminalServiceHandler(rpc, terms)

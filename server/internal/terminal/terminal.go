@@ -323,7 +323,8 @@ var idRe = regexp.MustCompile(`^[0-9a-f]{16}$`)
 func validID(id string) bool { return idRe.MatchString(id) }
 
 // ListTerminals implements TerminalService: every holder's info, asked of
-// it, so an agent that restarted finds the Terminals still there.
+// it, so an agent that restarted finds the Terminals still there. Without a
+// Service, every Terminal on the Node (#9).
 func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminalsRequest) (*maitrev1.ListTerminalsResponse, error) {
 	socks, _ := filepath.Glob(filepath.Join(h.cfg.Dir, "*.sock"))
 	res := &maitrev1.ListTerminalsResponse{}
@@ -341,7 +342,7 @@ func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminals
 			continue
 		}
 		c.Close()
-		if info.GetService() == req.GetService() {
+		if req.GetService() == "" || info.GetService() == req.GetService() {
 			res.Terminals = append(res.Terminals, info)
 		}
 	}

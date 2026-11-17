@@ -35,6 +35,7 @@ import { ServicePage } from "./ServicePage";
 import { ServiceViews } from "./ServiceViews";
 import { TerminalLayer, TerminalList } from "./TerminalPane";
 import { closeTerminal, getTerminal, listTerminals, openTerminal, useTerminals } from "@/terminal/terminals";
+import { EndsTerminals, useEndingConfirm } from "@/terminal/warning";
 import { ToastRoom } from "./ToastRoom";
 import { forgetService } from "./frames";
 import { pageViewOf } from "@/fleet/pages";
@@ -160,6 +161,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const sheetService = sheet ? services.find((s) => s.spec.name === sheet.service) : undefined;
 
   const target = (s: FleetService) => targetFor(snap, state.nodes, s.spec.nodeId);
+  // ADR 0011: Stop, Restart, Update and Roll back name the running Terminals they end.
+  const [confirmEnding, endingDialog] = useEndingConfirm();
 
   async function act(s: FleetService, item: FlyoutItem) {
     const t = target(s);
@@ -208,6 +211,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         return;
       default:
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
+        if (item !== "start") {
+          const verb = ({ stop: "Stop", restart: "Restart", update: "Update", rollback: "Roll back" } as Record<string, string>)[item] ?? "Go ahead";
+          if (!(await confirmEnding({ title: `${verb} ${s.spec.name}?`, action: verb, groups: [{ target: t, services: [s.spec.name] }] }))) return;
+        }
         try {
           await controlService(t, s.spec.name, item as ServiceAction);
           toast.success(`${s.spec.name}: ${item === "update" ? "updating" : item === "rollback" ? "rolling back" : item === "restart" ? "restarting" : item === "stop" ? "stopped" : "starting"}`);
@@ -365,6 +372,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         onUnpin={fleet.unpin}
         onAddAddress={addAddress}
       />
+      {endingDialog}
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
@@ -372,6 +380,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             <AlertDialogTitle>Remove {removing?.spec.name}?</AlertDialogTitle>
             <AlertDialogDescription>It stops and its page goes away. Its data stays in its Storage Space unless you also delete it.</AlertDialogDescription>
           </AlertDialogHeader>
+          {removing && <EndsTerminals target={target(removing)} services={[removing.spec.name]} />}
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={deleteData} onCheckedChange={(v) => setDeleteData(v === true)} /> Also delete its data
           </label>

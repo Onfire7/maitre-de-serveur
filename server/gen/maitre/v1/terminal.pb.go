@@ -291,8 +291,10 @@ func (*TerminalFrame_End) isTerminalFrame_Frame() {}
 func (*TerminalFrame_Info) isTerminalFrame_Frame() {}
 
 type ListTerminalsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Service whose Terminals to list; empty for every Terminal on the
+	// Node, as a Node's Update and Reboot warn about them (#9).
+	Service       string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
