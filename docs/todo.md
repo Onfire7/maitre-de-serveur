@@ -149,3 +149,19 @@ To work out before this is broken down:
 ### A Claude-powered video editing Service
 
 Create a video editing Service that uses Claude to do the editing. Nothing is planned yet. To work out: what the person asks for and how (a chat beside a timeline, or edits described in plain words), what Claude actually drives (ffmpeg, or an existing editor's project format), whose Claude account and API key it uses, and where the footage lives (a shared folder, so the Service works on files other Services can already see). The T3 Code entry already runs Claude Code inside a Service, which may be a starting point.
+
+### Bandwidth metering and limits
+
+Count how much each Service, each Node and the whole Fleet sends and receives, and let the person set a limit at each of those three levels. This is for an internet plan with a monthly data cap, a metered or slow uplink, and a Service such as a download client that should not take the whole connection.
+
+What exists: rates only. History keeps `node/net_rx` and `node/net_tx` (all non-loopback links), `service/<name>/net_rx` and `net_tx` from the container's own network namespace, and `service/<name>/image_pull` (`history/sample.go`, decision 317). There are no totals over a period, and a Service on the Node's own network has no figures of its own.
+
+To work out before this is broken down:
+
+- **What a limit is.** A rate (Mbit/s, shaped while it runs), a volume over a period (GB a month, then something happens), or both. For a volume, what happens at the limit: a warning only, slowing it to a crawl, or stopping the Service; and a warning at a share of it (80%) either way.
+- **Which traffic counts.** A data cap counts only internet traffic, but today's figures include the LAN: Nodes talking to each other, devices on the LAN using a Service, and the Console itself. Counting by destination (not a local or Fleet address) needs nftables counters rather than the interface totals. Image pulls are internet traffic the Node spends for a Service: whether they count against that Service's limit.
+- **Attribution.** A Service on the Node's own network can still be counted, and shaped, by its cgroup: nftables matches `socket cgroupv2` for the Service's unit, which covers the host-network case that the namespace figures miss. A Service on a Tunnel shares the Tunnel's namespace; its limit is the Tunnel's, or the Tunnel's traffic is split by cgroup the same way.
+- **Enforcement.** Shaping a rate with `tc` (CAKE or HTB) on the Service's interface, or nftables marks by cgroup on the Node's uplink. A volume limit is the agent watching its totals and acting.
+- **The Fleet limit.** Nodes on one internet connection share one cap, so the Fleet total is the sum of every Node's totals, gossiped like the rest of the status (ADR 0006). No Node knows the whole picture alone: whether the anchor decides and tells the others, or each Node takes a share of the limit. Nodes at different sites with different connections may need a limit per connection rather than per Fleet.
+- **The period.** Totals must survive reboots and updates, so they are kept on disk, not only in history. A month that starts on the plan's billing day, not the 1st.
+- **Where it is set and shown.** A Service's limit in Service Configuration, a Node's on its Node screen, the Fleet's in Fleet settings; usage against each limit beside the existing network graphs. Following the "Console vs older Nodes" rule, a Node without it shows no totals and its limits are greyed out with the reason.
