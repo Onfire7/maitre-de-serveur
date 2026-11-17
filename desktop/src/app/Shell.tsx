@@ -41,6 +41,7 @@ import { pageViewOf } from "@/fleet/pages";
 import { SetupPage } from "./SetupPage";
 import { TOAST_GAP, TOAST_WIDTH } from "./layout";
 import { MoveServiceDialog } from "./MoveServiceDialog";
+import { OpenTerminalDialog } from "./OpenTerminalDialog";
 import { CatalogPage } from "./CatalogPage";
 import { useCatalogs } from "@/fleet/catalogs";
 import { registerEntries } from "./status";
@@ -150,6 +151,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   }, []);
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [moving, setMoving] = useState<FleetService | null>(null);
+  // The Service a Terminal is being opened in: where and as whom (#7).
+  const [terminalFor, setTerminalFor] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
   const [typed, setTyped] = useState("");
   // `?sheet=ports:minecraft` opens a sheet on load (screenshot fixture).
@@ -194,9 +197,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         return;
       case "terminal":
         // ADR 0011: a shell in its container, beside its Pages.
+        // The one open is shown; a new one asks where and as whom (#7).
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
-        openTerminal(s.spec.name, t);
-        go({ name: "terminal", service: s.spec.name });
+        if (getTerminal(s.spec.name)) return go({ name: "terminal", service: s.spec.name });
+        setTerminalFor(s);
         return;
       case "ports":
       case "grants":
@@ -356,6 +360,21 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         onAddAddress={addAddress}
       />
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
+      {terminalFor && (
+        <OpenTerminalDialog
+          service={terminalFor.spec.name}
+          containers={terminalFor.spec.components.map((c) => c.name)}
+          onClose={() => setTerminalFor(null)}
+          onOpen={(choice) => {
+            const s = terminalFor;
+            const t = target(s);
+            setTerminalFor(null);
+            if (!t) return void toast.error(`No address for ${s.node?.name ?? "the Node"}`);
+            openTerminal(s.spec.name, t, undefined, choice);
+            go({ name: "terminal", service: s.spec.name });
+          }}
+        />
+      )}
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>

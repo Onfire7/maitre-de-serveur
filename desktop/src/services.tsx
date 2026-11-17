@@ -35,7 +35,9 @@ export interface CatalogEntry {
   health?: { http?: string };
   quadlet: string;
   /** A Service of several containers (plan C8): each with its own template; then image and quadlet are empty. */
-  components?: { name: string; image: string; after?: string[]; wait_healthy?: boolean; egress?: boolean; quadlet: string }[];
+  components?: { name: string; image: string; after?: string[]; wait_healthy?: boolean; egress?: boolean; shell?: string[]; quadlet: string }[];
+  /** The shell a Terminal runs in the entry's one container (ADR 0011); components declare their own. */
+  shell?: string[];
   /** "internal": the Service's own network has no route out (plan C2). */
   network?: string;
   /** The bundle's own .volume and .network units. */
@@ -169,7 +171,8 @@ export function specFor(e: CatalogEntry, name: string, settings: Record<string, 
     ports: e.ports ?? [],
     tunnel: !!e.tunnel,
     volumes: e.volumes.map((v) => ({ name: v.name, path: v.path, size: v.size ?? "", shared: !!v.shared })),
-    components: (e.components ?? []).map((c) => ({ name: c.name, image: c.image, quadlet: c.quadlet, after: c.after ?? [], waitHealthy: !!c.wait_healthy, egress: !!c.egress })),
+    components: (e.components ?? []).map((c) => ({ name: c.name, image: c.image, quadlet: c.quadlet, after: c.after ?? [], waitHealthy: !!c.wait_healthy, egress: !!c.egress, shell: c.shell ?? [] })),
+    shell: e.shell ?? [],
     webComponent: entryPages(e)[0]?.component ?? "",
     units: e.units ?? [],
     networkInternal: e.network === "internal",

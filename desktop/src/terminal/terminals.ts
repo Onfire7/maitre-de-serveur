@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Target } from "@/transport";
-import { TerminalSession, type SocketFactory } from "./session";
+import { TerminalSession, type SocketFactory, type TerminalChoice } from "./session";
 
 /** What a Node lists in NodeInfo.features when it serves Terminals. */
 export const TERMINAL_FEATURE = "terminal";
@@ -35,25 +35,26 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-function start(service: string, target: Target, deps: TerminalDeps): TerminalSession {
-  const session = new TerminalSession({ service, url: () => deps.url(target, service), socket: deps.socket });
+function start(service: string, target: Target, deps: TerminalDeps, choice: TerminalChoice): TerminalSession {
+  const session = new TerminalSession({ service, url: () => deps.url(target, service), socket: deps.socket, choice });
   session.subscribe(emit);
   open.set(service, { service, target, session, deps });
   emit();
   return session;
 }
 
-/** The Service's Terminal: the one open, else a new one. */
-export function openTerminal(service: string, target: Target, deps: TerminalDeps = desktop): TerminalSession {
-  return open.get(service)?.session ?? start(service, target, deps);
+/** The Service's Terminal: the one open, else a new one in the chosen
+ * container and as the chosen user (#7). */
+export function openTerminal(service: string, target: Target, deps: TerminalDeps = desktop, choice: TerminalChoice = {}): TerminalSession {
+  return open.get(service)?.session ?? start(service, target, deps, choice);
 }
 
-/** A new shell in place of the one that ended. */
+/** A new shell in place of the one that ended, where it ran and as whom. */
 export function runAgain(service: string): TerminalSession | undefined {
   const cur = open.get(service);
   if (!cur) return undefined;
   cur.session.close();
-  return start(service, cur.target, cur.deps);
+  return start(service, cur.target, cur.deps, cur.session.choice);
 }
 
 /** Close the view, and with it (for now) the shell. */

@@ -181,6 +181,16 @@ message Setup {
   repeated ServicePage pages = 6;
   repeated UnitOverride overrides = 7;
   bool network_internal = 8;
+  // The shells set for Terminals (ADR 0011), for a custom Service.
+  repeated ContainerShell shells = 9;
+}
+
+// ContainerShell is the shell a Terminal runs in one container, set in
+// Setup: tried after the Catalog's `shell:`, before /bin/bash and /bin/sh.
+message ContainerShell {
+  // The component; "" for a Service of one container.
+  string component = 1;
+  repeated string argv = 2;
 }
 
 message ListDevicesRequest {
@@ -308,6 +318,9 @@ message ServiceComponent {
   // Reaches the internet even when the Service network is internal (plan C2):
   // the Node puts it on a second network with a route out.
   bool egress = 7;
+  // The shell a Terminal runs in this container (ADR 0011), as an argv,
+  // from the Catalog entry's `shell:`; tried before /bin/bash and /bin/sh.
+  repeated string shell = 8;
 }
 
 // ServiceUnit is an extra Quadlet unit a bundle ships beside its containers,
@@ -494,6 +507,11 @@ message ServiceSpec {
   // be outside the router's DHCP pool, and the devices of the home are
   // pointed at it.
   string lan_address = 37;
+  // The shell a Terminal runs in a Service of one container (ADR 0011),
+  // from the Catalog entry's `shell:`; components carry their own.
+  repeated string shell = 38;
+  // The shells set in Setup, by component.
+  repeated ContainerShell shells = 39;
 }
 
 message ServiceStatus {

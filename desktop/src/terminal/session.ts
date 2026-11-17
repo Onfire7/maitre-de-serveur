@@ -20,6 +20,12 @@ export interface TerminalSocket {
 
 export type SocketFactory = (url: string) => TerminalSocket;
 
+/** Where a Terminal runs and as whom (#7): the component ("" the first) and Run as root. */
+export interface TerminalChoice {
+  component?: string;
+  root?: boolean;
+}
+
 export const browserSocket: SocketFactory = (url) => new WebSocket(url) as unknown as TerminalSocket;
 
 export interface TerminalInfo {
@@ -42,6 +48,7 @@ const BACKLOG_BYTES = 256 * 1024;
 
 export class TerminalSession {
   readonly service: string;
+  readonly choice: TerminalChoice;
   info: TerminalInfo = { phase: "connecting", container: "", user: "" };
   private socket: TerminalSocket | undefined;
   private open = false;
@@ -52,8 +59,9 @@ export class TerminalSession {
   private backlog: Uint8Array[] = [];
   private backlogBytes = 0;
 
-  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory }) {
+  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory; choice?: TerminalChoice }) {
     this.service = opts.service;
+    this.choice = opts.choice ?? {};
     const factory = opts.socket ?? browserSocket;
     opts.url().then(
       (url) => {
@@ -62,7 +70,7 @@ export class TerminalSession {
         s.binaryType = "arraybuffer";
         s.onopen = () => {
           this.open = true;
-          this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: "", size: { $typeName: "maitre.v1.TerminalSize", ...this.size } } });
+          this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: this.choice.component ?? "", root: !!this.choice.root, size: { $typeName: "maitre.v1.TerminalSize", ...this.size } } });
         };
         s.onmessage = (e) => this.receive(e.data);
         s.onclose = (e) => {

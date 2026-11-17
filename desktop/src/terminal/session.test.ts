@@ -154,6 +154,35 @@ describe("the Console's open Terminals", () => {
     expect(sockets[1].closed).toBe(true);
   });
 
+  it("starts in the chosen container, as root when asked, and Run again keeps the choice (#7)", async () => {
+    const sockets: FakeSocket[] = [];
+    const deps = {
+      url: async () => "ws://x",
+      socket: (u: string) => {
+        const f = new FakeSocket(u);
+        sockets.push(f);
+        return f;
+      },
+    };
+    openTerminal("photos", target, deps, { component: "database", root: true });
+    await flush();
+    sockets[0].onopen?.();
+    const start = (i: number) => {
+      const f = sockets[i].sent[0].frame;
+      return f.case === "start" ? [f.value.service, f.value.component, f.value.root] : f.case;
+    };
+    expect(start(0)).toEqual(["photos", "database", true]);
+    runAgain("photos");
+    await flush();
+    sockets[1].onopen?.();
+    expect(start(1)).toEqual(["photos", "database", true]);
+    // Without a choice: the first container, as the image's user.
+    openTerminal("kuma", target, deps);
+    await flush();
+    sockets[2].onopen?.();
+    expect(start(2)).toEqual(["kuma", "", false]);
+  });
+
   it("an open Terminal is neither dropped by the frames' idle timer nor counted in their limit", async () => {
     openTerminal("kuma", target, { url: async () => "ws://x", socket: (u) => new FakeSocket(u) });
     for (let i = 0; i < MAX_LIVE; i++) {

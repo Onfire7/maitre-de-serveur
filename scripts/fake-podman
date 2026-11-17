@@ -4,7 +4,9 @@
 # Service, holding the programs it has (bin/bash, bin/sh) and its image's
 # user in a file "user". `podman exec` runs the container's program on this
 # machine, so the shell is real and runs on a real PTY; only the container
-# around it is pretend. Used by internal/terminal's tests and tunnel-check.
+# around it is pretend: the program finds its container's directory in
+# MAITRE_FAKE_PODMAN_CONTAINER and the --user it was given, if any, in
+# MAITRE_FAKE_PODMAN_USER. Used by internal/terminal's tests and tunnel-check.
 root=$MAITRE_FAKE_PODMAN_ROOT
 cmd=$1; shift
 case $cmd in
@@ -20,11 +22,13 @@ exec)
   while :; do
     case $1 in
       -e) export "$2"; shift 2;;
+      -u|--user) export MAITRE_FAKE_PODMAN_USER="$2"; shift 2;;
       -*) shift;;
       *) break;;
     esac
   done
   ctr=$1; prog=$2; shift 2
+  export MAITRE_FAKE_PODMAN_CONTAINER="$root/$ctr"
   [ -e "$root/$ctr$prog" ] || { echo "Error: crun: executable file '$prog' not found in \$PATH" >&2; exit 127; }
   exec "$root/$ctr$prog" "$@";;
 esac

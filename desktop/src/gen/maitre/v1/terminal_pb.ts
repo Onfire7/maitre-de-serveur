@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/terminal.proto.
  */
 export const file_maitre_v1_terminal: GenFile = /*@__PURE__*/
-  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKgAgoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIAEIHCgVmcmFtZSIqCgxUZXJtaW5hbFNpemUSDAoEY29scxgBIAEoDRIMCgRyb3dzGAIgASgNIloKDVRlcm1pbmFsU3RhcnQSDwoHc2VydmljZRgBIAEoCRIlCgRzaXplGAIgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsU2l6ZRIRCgljb21wb25lbnQYAyABKAkiHQoNVGVybWluYWxJbnB1dBIMCgRkYXRhGAEgASgMIjcKDlRlcm1pbmFsUmVzaXplEiUKBHNpemUYASABKAsyFy5tYWl0cmUudjEuVGVybWluYWxTaXplIkwKD1Rlcm1pbmFsU3RhcnRlZBIKCgJpZBgBIAEoCRIRCgljb250YWluZXIYAiABKAkSDAoEdXNlchgDIAEoCRIMCgRhcmd2GAQgAygJIh4KDlRlcm1pbmFsT3V0cHV0EgwKBGRhdGEYASABKAwiugEKDFRlcm1pbmFsRXhpdBIuCgZyZWFzb24YASABKA4yHi5tYWl0cmUudjEuVGVybWluYWxFeGl0LlJlYXNvbhIMCgRjb2RlGAIgASgFEg8KB21lc3NhZ2UYAyABKAkiWwoGUmVhc29uEhYKElJFQVNPTl9VTlNQRUNJRklFRBAAEhEKDVJFQVNPTl9FWElURUQQARITCg9SRUFTT05fTk9fU0hFTEwQAhIRCg1SRUFTT05fRkFJTEVEEANCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
+  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKgAgoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIAEIHCgVmcmFtZSIqCgxUZXJtaW5hbFNpemUSDAoEY29scxgBIAEoDRIMCgRyb3dzGAIgASgNImgKDVRlcm1pbmFsU3RhcnQSDwoHc2VydmljZRgBIAEoCRIlCgRzaXplGAIgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsU2l6ZRIRCgljb21wb25lbnQYAyABKAkSDAoEcm9vdBgEIAEoCCIdCg1UZXJtaW5hbElucHV0EgwKBGRhdGEYASABKAwiNwoOVGVybWluYWxSZXNpemUSJQoEc2l6ZRgBIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUiTAoPVGVybWluYWxTdGFydGVkEgoKAmlkGAEgASgJEhEKCWNvbnRhaW5lchgCIAEoCRIMCgR1c2VyGAMgASgJEgwKBGFyZ3YYBCADKAkiHgoOVGVybWluYWxPdXRwdXQSDAoEZGF0YRgBIAEoDCK6AQoMVGVybWluYWxFeGl0Ei4KBnJlYXNvbhgBIAEoDjIeLm1haXRyZS52MS5UZXJtaW5hbEV4aXQuUmVhc29uEgwKBGNvZGUYAiABKAUSDwoHbWVzc2FnZRgDIAEoCSJbCgZSZWFzb24SFgoSUkVBU09OX1VOU1BFQ0lGSUVEEAASEQoNUkVBU09OX0VYSVRFRBABEhMKD1JFQVNPTl9OT19TSEVMTBACEhEKDVJFQVNPTl9GQUlMRUQQA0JEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
 
 /**
  * A Terminal (ADR 0011) is a shell or command inside one of a Service's
@@ -103,8 +103,8 @@ export const TerminalSizeSchema: GenMessage<TerminalSize> = /*@__PURE__*/
   messageDesc(file_maitre_v1_terminal, 1);
 
 /**
- * TerminalStart opens a new Terminal: the Service's shell, as the image's
- * default user, in its container.
+ * TerminalStart opens a new Terminal: the shell of one of the Service's
+ * containers, as the image's default user or as root.
  *
  * @generated from message maitre.v1.TerminalStart
  */
@@ -123,11 +123,17 @@ export type TerminalStart = Message<"maitre.v1.TerminalStart"> & {
 
   /**
    * The component, in a Service of several; "" is the Service's first.
-   * Not yet chosen by the Console.
    *
    * @generated from field: string component = 3;
    */
   component: string;
+
+  /**
+   * Run as root (uid 0) instead of the image's default user.
+   *
+   * @generated from field: bool root = 4;
+   */
+  root: boolean;
 };
 
 /**
@@ -198,14 +204,15 @@ export type TerminalStarted = Message<"maitre.v1.TerminalStarted"> & {
 
   /**
    * Who the process runs as: the image's default user ("root" when it
-   * names none).
+   * names none, or when the start asked for root).
    *
    * @generated from field: string user = 3;
    */
   user: string;
 
   /**
-   * The command that runs, the shell found in the container.
+   * The command that runs: the first shell the container has, of the
+   * Catalog's `shell:`, the one set in Setup, /bin/bash and /bin/sh.
    *
    * @generated from field: repeated string argv = 4;
    */
@@ -286,7 +293,7 @@ export enum TerminalExit_Reason {
   EXITED = 1,
 
   /**
-   * The container has neither /bin/bash nor /bin/sh.
+   * The container has none of the shells tried.
    *
    * @generated from enum value: REASON_NO_SHELL = 2;
    */
