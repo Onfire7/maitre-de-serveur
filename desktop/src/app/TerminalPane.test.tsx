@@ -165,13 +165,17 @@ describe("the Service's Terminals (#5)", () => {
     expect(getTerminal("kuma")?.session.info.id).toBe("bbbbbbbbbbbbbbbb");
   });
 
-  it("starts a new Terminal, and says when the Node has none", async () => {
-    render(<TerminalList service="kuma" target={target} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} />);
+  it("starts a new Terminal where and as whom chosen (#7), and says when the Node has none", async () => {
+    render(<TerminalList service="photos" target={target} containers={["server", "database"]} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} />);
     await flush();
-    expect(screen.getByText("No Terminal is running in kuma.")).toBeTruthy();
+    expect(screen.getByText("No Terminal is running in photos.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /New Terminal/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "database" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Run as root/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
     await flush();
     act(() => sockets[0].onopen?.());
-    expect(sockets[0].sent[0].frame.case).toBe("start");
+    const f = sockets[0].sent[0].frame;
+    expect(f.case === "start" && [f.value.component, f.value.root]).toEqual(["database", true]);
   });
 });

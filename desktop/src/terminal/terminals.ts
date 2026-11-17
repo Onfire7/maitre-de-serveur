@@ -9,7 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createClient } from "@connectrpc/connect";
 import { TerminalService, type TerminalInfo as HeldTerminal } from "@/gen/maitre/v1/terminal_pb";
 import { transportFor, type Target } from "@/transport";
-import { TerminalSession, type SocketFactory } from "./session";
+import { TerminalSession, type SocketFactory, type TerminalChoice } from "./session";
 
 export type { HeldTerminal };
 
@@ -41,39 +41,44 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-function start(service: string, target: Target, deps: TerminalDeps, attach?: string): TerminalSession {
+function start(service: string, target: Target, deps: TerminalDeps, choice: TerminalChoice, attach?: string): TerminalSession {
   open.get(service)?.session.close();
-  const session = new TerminalSession({ service, url: () => deps.url(target, service), socket: deps.socket, attach });
+  const session = new TerminalSession({ service, url: () => deps.url(target, service), socket: deps.socket, attach, choice });
   session.subscribe(emit);
   open.set(service, { service, target, session, deps });
   emit();
   return session;
 }
 
-/** The Service's Terminal: the one open, else a new one. */
-export function openTerminal(service: string, target: Target, deps: TerminalDeps = desktop): TerminalSession {
-  return open.get(service)?.session ?? start(service, target, deps);
+/** The Service's Terminal: the one open, else a new one in the chosen
+ * container and as the chosen user (#7). */
+export function openTerminal(service: string, target: Target, deps: TerminalDeps = desktop, choice: TerminalChoice = {}): TerminalSession {
+  return open.get(service)?.session ?? start(service, target, deps, choice);
 }
 
-/** The view of a Terminal the Node holds, by its id, in place of the Service's open one. */
-export function attachTerminal(service: string, target: Target, id: string, deps: TerminalDeps = desktop): TerminalSession {
+/**
+ * The view of a Terminal the Node holds, by its id, in place of the
+ * Service's open one. choice: where it runs and as whom, as far as known,
+ * for Run again once it ends.
+ */
+export function attachTerminal(service: string, target: Target, id: string, deps: TerminalDeps = desktop, choice: TerminalChoice = {}): TerminalSession {
   const cur = open.get(service);
   if (cur && cur.session.info.id === id && cur.session.info.phase !== "lost") return cur.session;
-  return start(service, target, deps, id);
+  return start(service, target, deps, choice, id);
 }
 
 /** Attach again to the Terminal whose connection was lost. */
 export function reattach(service: string): TerminalSession | undefined {
   const cur = open.get(service);
   if (!cur?.session.info.id) return undefined;
-  return start(service, cur.target, cur.deps, cur.session.info.id);
+  return start(service, cur.target, cur.deps, cur.session.choice, cur.session.info.id);
 }
 
-/** A new shell in place of the one that ended. */
+/** A new shell in place of the one that ended, where it ran and as whom. */
 export function runAgain(service: string): TerminalSession | undefined {
   const cur = open.get(service);
   if (!cur) return undefined;
-  return start(service, cur.target, cur.deps);
+  return start(service, cur.target, cur.deps, cur.session.choice);
 }
 
 /** Close the view. The Terminal runs on, on the Node. */

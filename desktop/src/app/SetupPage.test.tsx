@@ -107,6 +107,31 @@ describe("the Setup page (ADR 0010)", () => {
     expect(got.units.length).toBeGreaterThan(0);
   });
 
+  it("sets the shell a Terminal runs in each container, kept with the Service (#7)", async () => {
+    renderSetup("immich");
+    // Each container has its field; empty, the Node tries /bin/bash then /bin/sh.
+    const server = screen.getByLabelText("Shell in server") as HTMLInputElement;
+    expect(server.value).toBe("");
+    await act(async () => {
+      fireEvent.change(server, { target: { value: "/usr/bin/fish  -l" } });
+    });
+    const apply = () => screen.getByRole("button", { name: /Apply and restart/ }) as HTMLButtonElement;
+    await waitFor(() => expect(apply().disabled).toBe(false));
+    await act(async () => {
+      fireEvent.click(apply());
+    });
+    await waitFor(() => expect(fleet.services.find((s) => s.spec.name === "immich")!.spec.shells.map((x) => [x.component, ...x.argv])).toEqual([["server", "/usr/bin/fish", "-l"]]));
+  });
+
+  it("a Service of one container has one shell field, and a relative program is refused", async () => {
+    renderSetup("qbittorrent");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Shell"), { target: { value: "bash" } });
+    });
+    await waitFor(() => expect(screen.getByText(/absolute path/)).toBeTruthy());
+    expect((screen.getByRole("button", { name: /Apply and restart/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("a Tunnel keeps its own network and says so", async () => {
     renderSetup("vpn");
     expect(screen.getByText(/This is a Tunnel/)).toBeTruthy();

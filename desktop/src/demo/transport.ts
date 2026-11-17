@@ -36,6 +36,7 @@ interface DemoSetup {
   networkInternal?: boolean;
   pages?: { name: string; label?: string; component?: string; port?: number; path?: string; exposure?: string; publicHost?: string; healthHttp?: string; hostPort?: number }[];
   overrides?: { component?: string; key: string; value?: string; remove?: boolean }[];
+  shells?: { component?: string; argv?: string[] }[];
 }
 
 /** The spec a Setup would leave, checked as the Node checks it (ADR 0010). */
@@ -64,6 +65,11 @@ function withSetup(f: DemoFleet, cur: ServiceSpec, setup: DemoSetup): ServiceSpe
     return { ...p, hostPort: had.get(p.name) ?? 20090 + i, $typeName: "maitre.v1.ServicePage" as const };
   });
   for (const o of setup.overrides ?? []) if (!/^[A-Za-z][A-Za-z0-9]{0,40}$/.test(o.key)) throw fail(Code.InvalidArgument, `option "${o.key}": a [Container] key is letters and digits`);
+  const shells = (setup.shells ?? []).filter((s) => s.argv?.length);
+  for (const s of shells) {
+    if (!s.argv![0].startsWith("/")) throw fail(Code.InvalidArgument, `a Terminal's shell is an absolute path, such as /bin/bash; not "${s.argv![0]}"`);
+    if (cur.components.length ? !cur.components.some((c) => c.name === s.component) : s.component) throw fail(Code.InvalidArgument, `${cur.name} has no container named "${s.component}" for a shell`);
+  }
   return create(ServiceSpecSchema, {
     ...cur,
     $typeName: undefined,
@@ -79,6 +85,7 @@ function withSetup(f: DemoFleet, cur: ServiceSpec, setup: DemoSetup): ServiceSpe
     webComponent: pages[0]?.component ?? "",
     webHostPort: pages[0]?.hostPort ?? 0,
     overrides: (setup.overrides ?? []).map((o) => ({ component: o.component ?? "", key: o.key, value: o.value ?? "", remove: !!o.remove })),
+    shells: shells.map((s) => ({ component: s.component ?? "", argv: s.argv })),
   } as never);
 }
 

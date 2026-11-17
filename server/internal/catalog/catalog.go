@@ -67,6 +67,9 @@ type Manifest struct {
 	// (plan C8): one <name>.container template each, and no image or
 	// <id>.container of the entry's own.
 	Components []Component `yaml:"components,omitempty" json:"components,omitempty"`
+	// Shell is the shell a Terminal runs in the entry's one container
+	// (ADR 0011), as an argv; an entry of components declares it on each.
+	Shell []string `yaml:"shell,omitempty" json:"shell,omitempty"`
 	// Network "internal" gives the Service's own network no route out; its
 	// components marked egress still have one (plan C2).
 	Network string `yaml:"network,omitempty" json:"network,omitempty"`
@@ -99,6 +102,8 @@ type Component struct {
 	WaitHealthy bool     `yaml:"wait_healthy,omitempty" json:"wait_healthy,omitempty"`
 	// Egress keeps a route out when the entry's network is internal.
 	Egress bool `yaml:"egress,omitempty" json:"egress,omitempty"`
+	// Shell is the shell a Terminal runs in this container (ADR 0011).
+	Shell []string `yaml:"shell,omitempty" json:"shell,omitempty"`
 	// Quadlet is the [Container] template, filled from <name>.container.
 	Quadlet string `yaml:"-" json:"quadlet"`
 }
@@ -484,10 +489,13 @@ func (m *Manifest) validateComponents() error {
 		case m.Network != "":
 			return fmt.Errorf("network: internal needs components")
 		}
-		return nil
+		return validShell(m.Shell)
 	}
 	if m.Image != "" {
 		return fmt.Errorf("an entry of components has no image of its own; each component names its image")
+	}
+	if len(m.Shell) > 0 {
+		return fmt.Errorf("an entry of components declares shell: on each component")
 	}
 	names := map[string]bool{}
 	for _, c := range m.Components {
@@ -500,6 +508,9 @@ func (m *Manifest) validateComponents() error {
 			return fmt.Errorf("component %s: image must be pinned by @sha256 digest", c.Name)
 		case !strings.Contains(c.Quadlet, "[Container]"):
 			return fmt.Errorf("component %s: quadlet template needs a [Container] section", c.Name)
+		}
+		if err := validShell(c.Shell); err != nil {
+			return fmt.Errorf("component %s: %w", c.Name, err)
 		}
 		names[c.Name] = true
 	}
@@ -525,6 +536,15 @@ func (m *Manifest) validateComponents() error {
 		if !unitRe.MatchString(u.Name) {
 			return fmt.Errorf("unit %q: name it <name>.volume or <name>.network", u.Name)
 		}
+	}
+	return nil
+}
+
+// validShell checks a declared shell: none, or an absolute program and its
+// arguments.
+func validShell(argv []string) error {
+	if len(argv) > 0 && !strings.HasPrefix(argv[0], "/") {
+		return fmt.Errorf("shell: the program is an absolute path, as in [/bin/bash, -l]")
 	}
 	return nil
 }
@@ -749,6 +769,7 @@ func SpecWithout(e *Manifest, name string, settings map[string]string, exposure 
 		Quadlet:         e.Quadlet,
 		Infrastructure:  e.Infrastructure,
 		NetworkInternal: e.Network == "internal",
+		Shell:           e.Shell,
 	}
 	// Every optional feature on, unless the person turned it off (G9).
 	for _, f := range e.Features() {
@@ -758,7 +779,7 @@ func SpecWithout(e *Manifest, name string, settings map[string]string, exposure 
 		spec.OptionalGrants[f] = !off[f]
 	}
 	for _, c := range e.Components {
-		spec.Components = append(spec.Components, &maitrev1.ServiceComponent{Name: c.Name, Image: c.Image, Quadlet: c.Quadlet, After: c.After, WaitHealthy: c.WaitHealthy, Egress: c.Egress})
+		spec.Components = append(spec.Components, &maitrev1.ServiceComponent{Name: c.Name, Image: c.Image, Quadlet: c.Quadlet, After: c.After, WaitHealthy: c.WaitHealthy, Egress: c.Egress, Shell: c.Shell})
 	}
 	for _, u := range e.Units {
 		spec.Units = append(spec.Units, &maitrev1.ServiceUnit{Name: u.Name, Body: u.Body})

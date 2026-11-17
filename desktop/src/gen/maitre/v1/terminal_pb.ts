@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/terminal.proto.
  */
 export const file_maitre_v1_terminal: GenFile = /*@__PURE__*/
-  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKdAwoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIABIrCgZhdHRhY2gYByABKAsyGS5tYWl0cmUudjEuVGVybWluYWxBdHRhY2hIABIlCgNlbmQYCCABKAsyFi5tYWl0cmUudjEuVGVybWluYWxFbmRIABInCgRpbmZvGAkgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsSW5mb0gAQgcKBWZyYW1lIicKFExpc3RUZXJtaW5hbHNSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkiQwoVTGlzdFRlcm1pbmFsc1Jlc3BvbnNlEioKCXRlcm1pbmFscxgBIAMoCzIXLm1haXRyZS52MS5UZXJtaW5hbEluZm8iMQoSRW5kVGVybWluYWxSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkSCgoCaWQYAiABKAkiFQoTRW5kVGVybWluYWxSZXNwb25zZSKpAQoMVGVybWluYWxJbmZvEgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSEQoJY29udGFpbmVyGAMgASgJEgwKBHVzZXIYBCABKAkSDAoEYXJndhgFIAMoCRIXCg9zdGFydGVkX3VuaXhfbXMYBiABKAMSDwoHcnVubmluZxgHIAEoCBIMCgRjb2RlGAggASgFEhUKDWVuZGVkX3VuaXhfbXMYCSABKAMiQwoOVGVybWluYWxBdHRhY2gSCgoCaWQYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUiDQoLVGVybWluYWxFbmQiKgoMVGVybWluYWxTaXplEgwKBGNvbHMYASABKA0SDAoEcm93cxgCIAEoDSJaCg1UZXJtaW5hbFN0YXJ0Eg8KB3NlcnZpY2UYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUSEQoJY29tcG9uZW50GAMgASgJIh0KDVRlcm1pbmFsSW5wdXQSDAoEZGF0YRgBIAEoDCI3Cg5UZXJtaW5hbFJlc2l6ZRIlCgRzaXplGAEgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsU2l6ZSJlCg9UZXJtaW5hbFN0YXJ0ZWQSCgoCaWQYASABKAkSEQoJY29udGFpbmVyGAIgASgJEgwKBHVzZXIYAyABKAkSDAoEYXJndhgEIAMoCRIXCg9zdGFydGVkX3VuaXhfbXMYBSABKAMiHgoOVGVybWluYWxPdXRwdXQSDAoEZGF0YRgBIAEoDCK6AQoMVGVybWluYWxFeGl0Ei4KBnJlYXNvbhgBIAEoDjIeLm1haXRyZS52MS5UZXJtaW5hbEV4aXQuUmVhc29uEgwKBGNvZGUYAiABKAUSDwoHbWVzc2FnZRgDIAEoCSJbCgZSZWFzb24SFgoSUkVBU09OX1VOU1BFQ0lGSUVEEAASEQoNUkVBU09OX0VYSVRFRBABEhMKD1JFQVNPTl9OT19TSEVMTBACEhEKDVJFQVNPTl9GQUlMRUQQAzK3AQoPVGVybWluYWxTZXJ2aWNlElQKDUxpc3RUZXJtaW5hbHMSHy5tYWl0cmUudjEuTGlzdFRlcm1pbmFsc1JlcXVlc3QaIC5tYWl0cmUudjEuTGlzdFRlcm1pbmFsc1Jlc3BvbnNlIgASTgoLRW5kVGVybWluYWwSHS5tYWl0cmUudjEuRW5kVGVybWluYWxSZXF1ZXN0Gh4ubWFpdHJlLnYxLkVuZFRlcm1pbmFsUmVzcG9uc2UiAEJEWkJnaXRodWIuY29tL09uZmlyZTcvbWFpdHJlLWRlLXNlcnZldXIvc2VydmVyL2dlbi9tYWl0cmUvdjE7bWFpdHJldjFiBnByb3RvMw");
+  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKdAwoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIABIrCgZhdHRhY2gYByABKAsyGS5tYWl0cmUudjEuVGVybWluYWxBdHRhY2hIABIlCgNlbmQYCCABKAsyFi5tYWl0cmUudjEuVGVybWluYWxFbmRIABInCgRpbmZvGAkgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsSW5mb0gAQgcKBWZyYW1lIicKFExpc3RUZXJtaW5hbHNSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkiQwoVTGlzdFRlcm1pbmFsc1Jlc3BvbnNlEioKCXRlcm1pbmFscxgBIAMoCzIXLm1haXRyZS52MS5UZXJtaW5hbEluZm8iMQoSRW5kVGVybWluYWxSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkSCgoCaWQYAiABKAkiFQoTRW5kVGVybWluYWxSZXNwb25zZSKpAQoMVGVybWluYWxJbmZvEgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSEQoJY29udGFpbmVyGAMgASgJEgwKBHVzZXIYBCABKAkSDAoEYXJndhgFIAMoCRIXCg9zdGFydGVkX3VuaXhfbXMYBiABKAMSDwoHcnVubmluZxgHIAEoCBIMCgRjb2RlGAggASgFEhUKDWVuZGVkX3VuaXhfbXMYCSABKAMiQwoOVGVybWluYWxBdHRhY2gSCgoCaWQYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUiDQoLVGVybWluYWxFbmQiKgoMVGVybWluYWxTaXplEgwKBGNvbHMYASABKA0SDAoEcm93cxgCIAEoDSJoCg1UZXJtaW5hbFN0YXJ0Eg8KB3NlcnZpY2UYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUSEQoJY29tcG9uZW50GAMgASgJEgwKBHJvb3QYBCABKAgiHQoNVGVybWluYWxJbnB1dBIMCgRkYXRhGAEgASgMIjcKDlRlcm1pbmFsUmVzaXplEiUKBHNpemUYASABKAsyFy5tYWl0cmUudjEuVGVybWluYWxTaXplImUKD1Rlcm1pbmFsU3RhcnRlZBIKCgJpZBgBIAEoCRIRCgljb250YWluZXIYAiABKAkSDAoEdXNlchgDIAEoCRIMCgRhcmd2GAQgAygJEhcKD3N0YXJ0ZWRfdW5peF9tcxgFIAEoAyIeCg5UZXJtaW5hbE91dHB1dBIMCgRkYXRhGAEgASgMIroBCgxUZXJtaW5hbEV4aXQSLgoGcmVhc29uGAEgASgOMh4ubWFpdHJlLnYxLlRlcm1pbmFsRXhpdC5SZWFzb24SDAoEY29kZRgCIAEoBRIPCgdtZXNzYWdlGAMgASgJIlsKBlJlYXNvbhIWChJSRUFTT05fVU5TUEVDSUZJRUQQABIRCg1SRUFTT05fRVhJVEVEEAESEwoPUkVBU09OX05PX1NIRUxMEAISEQoNUkVBU09OX0ZBSUxFRBADMrcBCg9UZXJtaW5hbFNlcnZpY2USVAoNTGlzdFRlcm1pbmFscxIfLm1haXRyZS52MS5MaXN0VGVybWluYWxzUmVxdWVzdBogLm1haXRyZS52MS5MaXN0VGVybWluYWxzUmVzcG9uc2UiABJOCgtFbmRUZXJtaW5hbBIdLm1haXRyZS52MS5FbmRUZXJtaW5hbFJlcXVlc3QaHi5tYWl0cmUudjEuRW5kVGVybWluYWxSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
 
 /**
  * A Terminal (ADR 0011) is a shell or command inside one of a Service's
@@ -309,8 +309,8 @@ export const TerminalSizeSchema: GenMessage<TerminalSize> = /*@__PURE__*/
   messageDesc(file_maitre_v1_terminal, 8);
 
 /**
- * TerminalStart opens a new Terminal: the Service's shell, as the image's
- * default user, in its container.
+ * TerminalStart opens a new Terminal: the shell of one of the Service's
+ * containers, as the image's default user or as root.
  *
  * @generated from message maitre.v1.TerminalStart
  */
@@ -329,11 +329,17 @@ export type TerminalStart = Message<"maitre.v1.TerminalStart"> & {
 
   /**
    * The component, in a Service of several; "" is the Service's first.
-   * Not yet chosen by the Console.
    *
    * @generated from field: string component = 3;
    */
   component: string;
+
+  /**
+   * Run as root (uid 0) instead of the image's default user.
+   *
+   * @generated from field: bool root = 4;
+   */
+  root: boolean;
 };
 
 /**
@@ -404,14 +410,15 @@ export type TerminalStarted = Message<"maitre.v1.TerminalStarted"> & {
 
   /**
    * Who the process runs as: the image's default user ("root" when it
-   * names none).
+   * names none, or when the start asked for root).
    *
    * @generated from field: string user = 3;
    */
   user: string;
 
   /**
-   * The command that runs, the shell found in the container.
+   * The command that runs: the first shell the container has, of the
+   * Catalog's `shell:`, the one set in Setup, /bin/bash and /bin/sh.
    *
    * @generated from field: repeated string argv = 4;
    */
@@ -499,7 +506,7 @@ export enum TerminalExit_Reason {
   EXITED = 1,
 
   /**
-   * The container has neither /bin/bash nor /bin/sh.
+   * The container has none of the shells tried.
    *
    * @generated from enum value: REASON_NO_SHELL = 2;
    */
