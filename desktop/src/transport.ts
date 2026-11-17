@@ -38,11 +38,22 @@ function alternatives(fingerprint: string, addr: string): string[] {
 }
 
 /**
+ * Whether the call never reached the Node: the Rust side says "<addr>
+ * could not be reached". A call whose connection dropped after it was
+ * sent ("dropped the call before answering") may have been carried out,
+ * so it is not sent again elsewhere; the Rust side already retried it
+ * once if it only reads (ADR 0012).
+ */
+function unreached(e: unknown): boolean {
+  return String(e).includes(" could not be reached: ");
+}
+
+/**
  * Send one RPC to the Node. When the address does not answer at all (the
  * Rust side could not reach it) and `fallback` is on, the address goes
  * last in line for this Node and the call tries its other ways in turn,
- * remembering the one that answers; a Node that answered with an error is
- * not retried.
+ * remembering the one that answers; a Node that answered with an error,
+ * or dropped the call after taking it, is not retried.
  */
 async function send(addr: string, fingerprint: string, procedure: string, body: Uint8Array, fallback: boolean): Promise<RpcResponse> {
   const tried = [addr, ...(fallback ? alternatives(fingerprint, addr) : [])];
@@ -54,7 +65,8 @@ async function send(addr: string, fingerprint: string, procedure: string, body: 
       return res;
     } catch (e) {
       lastErr = e;
-      if (fallback) demoteRoute(fingerprint, a);
+      if (!fallback || !unreached(e)) break;
+      demoteRoute(fingerprint, a);
     }
   }
   throw lastErr;

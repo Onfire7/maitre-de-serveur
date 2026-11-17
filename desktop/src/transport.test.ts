@@ -60,6 +60,16 @@ describe("transportFor", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
+  it("does not send a call again elsewhere once the Node may have taken it (ADR 0012)", async () => {
+    const fp = "ab".repeat(32);
+    noteAddresses(fp, ["192.168.4.4:7443", "100.74.111.122:7443"]);
+    invoke.mockRejectedValueOnce("192.168.4.4:7443 dropped the call before answering: connection error: the anchor this connection was relayed through changed");
+    const client = createClient(NodeService, transportFor({ addr: "192.168.4.4:7443", fingerprint: fp }));
+    await expect(client.reboot({})).rejects.toThrow(/dropped the call before answering/);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(demotedRoutes(fp)).toEqual([]);
+  });
+
   it("stays on one address for the Fleet read, which tries every way itself", async () => {
     const fp = "bb".repeat(32);
     noteAddresses(fp, ["192.168.4.4:7443", "100.74.111.122:7443"]);
