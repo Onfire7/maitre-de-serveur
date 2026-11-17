@@ -452,9 +452,12 @@ type NodeUpdate struct {
 	// a Node too old to record it. Without this a version that changed could
 	// not be traced to anyone, which on 2026-11-06 took an evening to work
 	// out and ended in a guess.
-	RequestedBy   string `protobuf:"bytes,5,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RequestedBy string `protobuf:"bytes,5,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
+	// When it began restarting into the new image, its Services going down;
+	// 0 until then, and for an update that never restarts.
+	RestartedUnixMs int64 `protobuf:"varint,6,opt,name=restarted_unix_ms,json=restartedUnixMs,proto3" json:"restarted_unix_ms,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *NodeUpdate) Reset() {
@@ -522,6 +525,13 @@ func (x *NodeUpdate) GetRequestedBy() string {
 	return ""
 }
 
+func (x *NodeUpdate) GetRestartedUnixMs() int64 {
+	if x != nil {
+		return x.RestartedUnixMs
+	}
+	return 0
+}
+
 // UpdateRun is one finished update.
 type UpdateRun struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -535,9 +545,13 @@ type UpdateRun struct {
 	Outcome  UpdateRun_Outcome `protobuf:"varint,6,opt,name=outcome,proto3,enum=maitre.v1.UpdateRun_Outcome" json:"outcome,omitempty"`
 	Message  string            `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
 	// Who asked for it, as NodeUpdate.requested_by above.
-	RequestedBy   string `protobuf:"bytes,8,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RequestedBy string `protobuf:"bytes,8,opt,name=requested_by,json=requestedBy,proto3" json:"requested_by,omitempty"`
+	// When it began restarting, carried from NodeUpdate.restarted_unix_ms: so
+	// a run has a total (started to ended) and a downtime (restarted to
+	// ended). 0 for a run that never restarted, or from before this was kept.
+	RestartedUnixMs int64 `protobuf:"varint,9,opt,name=restarted_unix_ms,json=restartedUnixMs,proto3" json:"restarted_unix_ms,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateRun) Reset() {
@@ -624,6 +638,13 @@ func (x *UpdateRun) GetRequestedBy() string {
 		return x.RequestedBy
 	}
 	return ""
+}
+
+func (x *UpdateRun) GetRestartedUnixMs() int64 {
+	if x != nil {
+		return x.RestartedUnixMs
+	}
+	return 0
 }
 
 // FleetDomain is the Fleet-wide kind "fleet_domain" Record, id "fleet"
@@ -1312,7 +1333,7 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	" \x01(\tR\x11nfsCertificatePem\x12:\n" +
 	"\x19nfs_certificate_signature\x18\v \x01(\fR\x17nfsCertificateSignature\x121\n" +
 	"\bupdating\x18\f \x01(\v2\x15.maitre.v1.NodeUpdateR\bupdating\x12.\n" +
-	"\aupdates\x18\r \x03(\v2\x14.maitre.v1.UpdateRunR\aupdates\"\xa9\x01\n" +
+	"\aupdates\x18\r \x03(\v2\x14.maitre.v1.UpdateRunR\aupdates\"\xd5\x01\n" +
 	"\n" +
 	"NodeUpdate\x12&\n" +
 	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\x16\n" +
@@ -1320,7 +1341,8 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\vfrom_digest\x18\x03 \x01(\tR\n" +
 	"fromDigest\x12\x17\n" +
 	"\aboot_id\x18\x04 \x01(\tR\x06bootId\x12!\n" +
-	"\frequested_by\x18\x05 \x01(\tR\vrequestedBy\"\x9c\x03\n" +
+	"\frequested_by\x18\x05 \x01(\tR\vrequestedBy\x12*\n" +
+	"\x11restarted_unix_ms\x18\x06 \x01(\x03R\x0frestartedUnixMs\"\xc8\x03\n" +
 	"\tUpdateRun\x12&\n" +
 	"\x0fstarted_unix_ms\x18\x01 \x01(\x03R\rstartedUnixMs\x12\"\n" +
 	"\rended_unix_ms\x18\x02 \x01(\x03R\vendedUnixMs\x12\x16\n" +
@@ -1330,7 +1352,8 @@ const file_maitre_v1_fleet_proto_rawDesc = "" +
 	"\tto_digest\x18\x05 \x01(\tR\btoDigest\x126\n" +
 	"\aoutcome\x18\x06 \x01(\x0e2\x1c.maitre.v1.UpdateRun.OutcomeR\aoutcome\x12\x18\n" +
 	"\amessage\x18\a \x01(\tR\amessage\x12!\n" +
-	"\frequested_by\x18\b \x01(\tR\vrequestedBy\"x\n" +
+	"\frequested_by\x18\b \x01(\tR\vrequestedBy\x12*\n" +
+	"\x11restarted_unix_ms\x18\t \x01(\x03R\x0frestartedUnixMs\"x\n" +
 	"\aOutcome\x12\x17\n" +
 	"\x13OUTCOME_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fOUTCOME_UPDATED\x10\x01\x12\x17\n" +

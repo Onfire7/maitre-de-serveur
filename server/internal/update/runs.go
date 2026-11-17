@@ -34,6 +34,17 @@ func Begin(n *maitrev1.Node, target, fromDigest, bootID, by string, now time.Tim
 	n.Updating = &maitrev1.NodeUpdate{StartedUnixMs: now.UnixMilli(), Target: target, FromDigest: fromDigest, BootId: bootID, RequestedBy: by}
 }
 
+// Restarting records that n's update in progress began restarting now,
+// its Services going down; false when there was none.
+func Restarting(n *maitrev1.Node, now time.Time) bool {
+	u := n.GetUpdating()
+	if u == nil {
+		return false
+	}
+	u.RestartedUnixMs = now.UnixMilli()
+	return true
+}
+
 // End closes n's update in progress, if any, as outcome; false when there
 // was none.
 func End(n *maitrev1.Node, outcome maitrev1.UpdateRun_Outcome, toDigest, msg string, now time.Time) bool {
@@ -44,7 +55,7 @@ func End(n *maitrev1.Node, outcome maitrev1.UpdateRun_Outcome, toDigest, msg str
 	n.Updates = append(n.Updates, &maitrev1.UpdateRun{
 		StartedUnixMs: u.GetStartedUnixMs(), EndedUnixMs: now.UnixMilli(), Target: u.GetTarget(),
 		FromDigest: u.GetFromDigest(), ToDigest: toDigest, Outcome: outcome, Message: msg,
-		RequestedBy: u.GetRequestedBy(),
+		RequestedBy: u.GetRequestedBy(), RestartedUnixMs: u.GetRestartedUnixMs(),
 	})
 	if len(n.Updates) > KeepRuns {
 		n.Updates = n.Updates[len(n.Updates)-KeepRuns:]

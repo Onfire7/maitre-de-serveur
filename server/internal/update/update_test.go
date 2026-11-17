@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -296,5 +297,49 @@ func TestPlainHTTPFollowsTheRegistryHost(t *testing.T) {
 		if got := PlainHTTP(in); got != want {
 			t.Errorf("PlainHTTP(%q) = %v, want %v", in, got, want)
 		}
+	}
+}
+
+// The Node says when it begins restarting, before the reboot, so the run
+// has a downtime as well as a total; an update staged without a restart,
+// or one that fails, never says it.
+func TestOnRestartComesJustBeforeTheReboot(t *testing.T) {
+	for _, c := range []struct {
+		name          string
+		fail, reboot  bool
+		wantRestarted bool
+	}{
+		{"reboots", false, true, true},
+		{"staged", false, false, false},
+		{"fails", true, true, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := &fakeRunner{fail: c.fail}
+			m := New(f, nil)
+			restarted := make(chan []string, 1)
+			// Called on the update's own goroutine, as Run is, so the
+			// calls so far can be read here.
+			m.OnRestart = func() { restarted <- slices.Clone(f.calls) }
+			ended := make(chan struct{}, 1)
+			m.OnEnd = func(maitrev1.UpdateRun_Outcome, string) { ended <- struct{}{} }
+			if err := m.Start("ghcr.io/onfire7/maitre-server:main", c.reboot, false, "test-device"); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case calls := <-restarted:
+				if !c.wantRestarted {
+					t.Fatal("said it was restarting")
+				}
+				if strings.Contains(strings.Join(calls, "\n"), "systemctl reboot") {
+					t.Errorf("said so only after the reboot: %v", calls)
+				}
+			case <-ended:
+				if c.wantRestarted {
+					t.Fatal("ended without restarting")
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("neither restarted nor ended")
+			}
+		})
 	}
 }

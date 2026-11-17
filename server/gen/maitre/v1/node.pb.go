@@ -1431,9 +1431,17 @@ type UpdateStatus struct {
 	// it boots from and every Depot announcing itself on its network, so a
 	// Console away from home still sees them and can pick one. Newest first;
 	// empty from a Node that reaches no Depot, or one from before this field.
-	DepotImages   []*DepotImage `protobuf:"bytes,13,rep,name=depot_images,json=depotImages,proto3" json:"depot_images,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DepotImages []*DepotImage `protobuf:"bytes,13,rep,name=depot_images,json=depotImages,proto3" json:"depot_images,omitempty"`
+	// How long this Node's updates usually take, from its own runs and never
+	// another Node's (machines differ): the median of its last 5 runs that
+	// ended updated, start to back up. 0 when it has fewer than 3 (no figure).
+	TypicalUpdateMs int64 `protobuf:"varint,15,opt,name=typical_update_ms,json=typicalUpdateMs,proto3" json:"typical_update_ms,omitempty"`
+	// How long its Services are usually down in one, restart to back up: the
+	// median of its last 5 updated runs that recorded the restart. 0 when
+	// fewer than 3 did.
+	TypicalDowntimeMs int64 `protobuf:"varint,16,opt,name=typical_downtime_ms,json=typicalDowntimeMs,proto3" json:"typical_downtime_ms,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UpdateStatus) Reset() {
@@ -1562,6 +1570,20 @@ func (x *UpdateStatus) GetDepotImages() []*DepotImage {
 		return x.DepotImages
 	}
 	return nil
+}
+
+func (x *UpdateStatus) GetTypicalUpdateMs() int64 {
+	if x != nil {
+		return x.TypicalUpdateMs
+	}
+	return 0
+}
+
+func (x *UpdateStatus) GetTypicalDowntimeMs() int64 {
+	if x != nil {
+		return x.TypicalDowntimeMs
+	}
+	return 0
 }
 
 // DepotImage is one image a Depot offers, as the Node saw it.
@@ -3183,7 +3205,7 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\xa4\x05\n" +
+	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"\x80\x06\n" +
 	"\fUpdateStatus\x122\n" +
 	"\x06booted\x18\x01 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06booted\x122\n" +
 	"\x06staged\x18\x02 \x01(\v2\x1a.maitre.v1.ImageDeploymentR\x06staged\x126\n" +
@@ -3199,7 +3221,9 @@ const file_maitre_v1_node_proto_rawDesc = "" +
 	" \x01(\tR\flastRollback\x12\x18\n" +
 	"\arollout\x18\v \x01(\tR\arollout\x12\x1c\n" +
 	"\tavailable\x18\f \x01(\tR\tavailable\x128\n" +
-	"\fdepot_images\x18\r \x03(\v2\x15.maitre.v1.DepotImageR\vdepotImages\"i\n" +
+	"\fdepot_images\x18\r \x03(\v2\x15.maitre.v1.DepotImageR\vdepotImages\x12*\n" +
+	"\x11typical_update_ms\x18\x0f \x01(\x03R\x0ftypicalUpdateMs\x12.\n" +
+	"\x13typical_downtime_ms\x18\x10 \x01(\x03R\x11typicalDowntimeMs\"i\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

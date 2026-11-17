@@ -475,6 +475,9 @@ func runAgent(args []string) error {
 		_, digest := current()
 		editSelf(func(n *maitrev1.Node) bool { return update.End(n, outcome, digest, msg, time.Now()) })
 	}
+	svc.Updates.OnRestart = func() {
+		editSelf(func(n *maitrev1.Node) bool { return update.Restarting(n, time.Now()) })
+	}
 	// Back up: close the update this Node was in, if any.
 	_, booted := current()
 	editSelf(func(n *maitrev1.Node) bool {

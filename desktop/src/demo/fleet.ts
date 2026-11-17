@@ -206,10 +206,11 @@ export function protectedOptions(quadlet: string, networkKind = ""): string[] {
 const TiB = 1024 ** 4;
 
 /** Past updates that took these many seconds, a week apart, ending before `until`. */
-function pastRuns(until: number, secs: number[]): MessageInitShape<typeof UpdateRunSchema>[] {
+/** Weekly updated runs ending at until: secs from start to back up, down of them restarting. */
+function pastRuns(until: number, secs: number[], down: number[]): MessageInitShape<typeof UpdateRunSchema>[] {
   return secs.map((d, i) => {
     const end = until - (secs.length - 1 - i) * 7 * 86400_000;
-    return { startedUnixMs: BigInt(end - d * 1000), endedUnixMs: BigInt(end), target: "ghcr.io/onfire7/maitre-server:stable", outcome: UpdateRun_Outcome.UPDATED };
+    return { startedUnixMs: BigInt(end - d * 1000), restartedUnixMs: BigInt(end - down[i] * 1000), endedUnixMs: BigInt(end), target: "ghcr.io/onfire7/maitre-server:stable", outcome: UpdateRun_Outcome.UPDATED };
   });
 }
 
@@ -331,6 +332,8 @@ function idle(image: string, digest: string): UpdateStatus {
     rollout: "",
     available: "",
     rollbackQueued: false,
+    typicalUpdateMs: 0n,
+    typicalDowntimeMs: 0n,
     rollback: { image, digest: "sha256:" + "7e".repeat(32), version: "0.9.2", timestamp: "2026-10-13T03:10:00Z" },
   } as UpdateStatus;
 }
@@ -461,13 +464,14 @@ export class DemoFleet {
         lastSeenUnixMs: t,
         metrics: metrics({ cpuPercent: 12, memoryTotalBytes: 32 * GiB, memoryUsedBytes: 9.5 * GiB, poolTotalBytes: 3.6 * TiB, poolUsedBytes: 1.9 * TiB, temperatureC: 47, load1m: 0.8, netRxBytesPerSec: 1.2e6, netTxBytesPerSec: 4.8e6 }),
         metricsUnixMs: t,
-        update: idle("ghcr.io/onfire7/maitre-server:stable", "sha256:" + "3a".repeat(32)),
+        // The Node's own medians of the runs below (Basalt has too few).
+        update: { ...idle("ghcr.io/onfire7/maitre-server:stable", "sha256:" + "3a".repeat(32)), typicalUpdateMs: 262_000n, typicalDowntimeMs: 95_000n } as UpdateStatus,
         imageRef: "ghcr.io/onfire7/maitre-server:stable",
         imageDigest: "sha256:" + "3a".repeat(32),
         bootedUnixMs: t - 6 * 86400_000,
         publicIp: "203.0.113.5",
         portMapping: "router: eero",
-        runs: pastRuns(t - 6 * 86400_000, [262, 301, 248]),
+        runs: pastRuns(t - 6 * 86400_000, [262, 301, 248], [95, 110, 88]),
       },
       {
         nodeId: NODE_B,
@@ -485,7 +489,7 @@ export class DemoFleet {
         bootedUnixMs: t - 2 * 3600_000,
         publicIp: "203.0.113.5",
         portMapping: "router: eero",
-        runs: pastRuns(t - 2 * 3600_000, [412, 377]),
+        runs: pastRuns(t - 2 * 3600_000, [412, 377], [140, 122]),
       },
     ];
     this.spaces = [
