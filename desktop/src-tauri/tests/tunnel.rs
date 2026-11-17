@@ -289,3 +289,110 @@ async fn terminal_through_the_tunnel() {
     let (_, again) = upgrade(port, &path).await;
     assert!(again.starts_with("HTTP/1.1 403"), "a token used twice: {again}");
 }
+
+/// Open in your terminal (#11): with MAITRE_TUNNEL_BRIDGE (the bundled
+/// `maitre`), a view opens a Terminal through the Terminal proxy, then the
+/// bridge attaches to the same Node-held Terminal with a ticket holding a
+/// second one-time token, as the person's own terminal app would run it.
+/// Each sees what the other typed; the bridge refuses to run without a
+/// ticket; closing the bridge leaves the Terminal running.
+#[tokio::test]
+#[ignore]
+async fn open_in_your_terminal_through_the_tunnel() {
+    let (Ok(bridge), Ok(_)) = (std::env::var("MAITRE_TUNNEL_BRIDGE"), std::env::var("MAITRE_TUNNEL_TERMINAL")) else { return };
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+    let node = std::env::var("MAITRE_TUNNEL_NODE").expect("MAITRE_TUNNEL_NODE");
+    let fp = std::env::var("MAITRE_TUNNEL_FP").expect("MAITRE_TUNNEL_FP");
+    let dir = std::env::var("MAITRE_TUNNEL_IDENTITY").expect("MAITRE_TUNNEL_IDENTITY");
+    let id = Arc::new(Identity::load_or_generate(Path::new(&dir)).unwrap());
+    let dialer = Arc::new(Dialer::new(id));
+    if let (Ok(addr), Ok(fingerprint)) = (std::env::var("MAITRE_TUNNEL_ANCHOR"), std::env::var("MAITRE_TUNNEL_ANCHOR_FP")) {
+        dialer.relay_through(Some(Anchor { addr, fingerprint }));
+    }
+    let proxies = Proxies::default();
+
+    // The embedded view.
+    let url = proxies.open_terminal(dialer.clone(), node.clone(), fp.clone(), "echo".into()).await.expect("terminal url");
+    let (port, token) = url.strip_prefix("ws://127.0.0.1:").unwrap().split_once('/').unwrap();
+    let (mut view, h) = upgrade(port.parse().unwrap(), &format!("/{token}")).await;
+    assert!(h.starts_with("HTTP/1.1 101"), "upgrade: {h}");
+    ws_send(&mut view, &start_frame("echo", 80, 24)).await;
+    let (n, started) = next_frame(&mut view).await;
+    assert_eq!(n, 4, "started first");
+    let terminal = fields(&started).iter().find(|f| f.0 == 1).map(|f| String::from_utf8_lossy(&f.2).into_owned()).expect("the Terminal's id");
+    let mut seen = String::new();
+    ws_send(&mut view, &input_frame("echo pid-$$\n")).await;
+    // The shell's pid, past the echo of the command ("pid-$$").
+    let pid = loop {
+        if let Some(p) = seen.split("pid-").skip(1).map(|r| r.chars().take_while(|c| c.is_ascii_digit()).collect::<String>()).find(|p| !p.is_empty()) {
+            break p;
+        }
+        let (n, body) = next_frame(&mut view).await;
+        if n == 5 {
+            seen.push_str(&String::from_utf8_lossy(&fields(&body)[0].2));
+        }
+    };
+
+    // No ticket: refused before connecting anywhere.
+    let out = Command::new(&bridge).arg("terminal-bridge").output().unwrap();
+    assert_eq!(out.status.code(), Some(2), "without a ticket: {out:?}");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("ticket"), "{out:?}");
+
+    // The person's own terminal app, as Open in your terminal runs it.
+    let url = proxies.open_terminal(dialer, node, fp, "echo".into()).await.expect("terminal url");
+    let tickets = std::env::temp_dir().join(format!("maitre-tickets-e2e-{}", std::process::id()));
+    let ticket = maitre_desktop_lib::launch::write_ticket(&tickets, &url, &terminal).unwrap();
+    let mut child = Command::new(&bridge).args(["terminal-bridge", "--ticket"]).arg(&ticket).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+    let screen = Arc::new(std::sync::Mutex::new(String::new()));
+    let mut stdout = child.stdout.take().unwrap();
+    let s2 = screen.clone();
+    std::thread::spawn(move || {
+        let mut b = [0u8; 4096];
+        while let Ok(n) = stdout.read(&mut b) {
+            if n == 0 {
+                break;
+            }
+            s2.lock().unwrap().push_str(&String::from_utf8_lossy(&b[..n]));
+        }
+    });
+    shows(&screen, &format!("pid-{pid}")).await; // the replay
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(b"echo from-the-br''idge-$$\n").unwrap();
+    shows(&screen, "from-the-bridge-").await;
+    view_until(&mut view, &mut seen, "from-the-bridge-").await;
+    shows(&screen, &format!("from-the-bridge-{pid}")).await; // the same shell
+    ws_send(&mut view, &input_frame("echo from-the-v''iew\n")).await;
+    shows(&screen, "from-the-view").await;
+    assert!(!ticket.exists(), "the bridge left its ticket");
+
+    // Closing the person's terminal leaves the Terminal running.
+    child.kill().unwrap();
+    child.wait().unwrap();
+    ws_send(&mut view, &input_frame("echo still-h''ere\n")).await;
+    view_until(&mut view, &mut seen, "still-here").await;
+    ws_send(&mut view, &input_frame("exit 0\n")).await;
+    let _ = std::fs::remove_dir_all(&tickets);
+}
+
+/// output_until, past the session-size frames a Node with #6 sends.
+async fn view_until(s: &mut TcpStream, seen: &mut String, want: &str) {
+    while !seen.contains(want) {
+        let (n, body) = next_frame(s).await;
+        if n == 3 {
+            continue;
+        }
+        assert_eq!(n, 5, "waiting for {want:?}, got frame {n} (output {seen:?})");
+        seen.push_str(&String::from_utf8_lossy(&fields(&body)[0].2));
+    }
+}
+
+/// Waits, without blocking the runtime the proxy runs on, until the
+/// bridge's terminal shows `want`.
+async fn shows(screen: &std::sync::Mutex<String>, want: &str) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    while !screen.lock().unwrap().contains(want) {
+        assert!(std::time::Instant::now() < deadline, "the bridge never showed {want:?}: {:?}", screen.lock().unwrap());
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}

@@ -126,6 +126,52 @@ describe("a Terminal held by the Node (#5)", () => {
   });
 });
 
+describe("Open in your terminal (#11)", () => {
+  beforeEach(() => {
+    resetTerminals();
+    sockets = [];
+  });
+
+  async function running(openIn: (t: typeof target, service: string, id: string) => Promise<void>) {
+    openTerminal("kuma", target, { url: async () => "ws://x", socket, openInTerminal: openIn });
+    render(<TerminalLayer shown="kuma" onClose={() => {}} />);
+    await flush();
+    act(() => {
+      sockets[0].onopen?.();
+      sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "0123456789abcdef", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    });
+  }
+
+  it("opens the same Terminal in the person's own terminal app, and this view stays", async () => {
+    const calls: unknown[][] = [];
+    await running(async (...a) => {
+      calls.push(a);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open kuma's Terminal in your terminal" }));
+    await flush();
+    expect(calls).toEqual([[target, "kuma", "0123456789abcdef"]]);
+    expect(sockets[0].closed).toBe(false);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says plainly when no terminal app can be found", async () => {
+    await running(async () => {
+      throw "No terminal app was found on this computer. Install one, such as GNOME Terminal, Konsole or xterm, and try again; the Terminal is still open here.";
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open kuma's Terminal in your terminal" }));
+    await flush();
+    expect(screen.getByRole("alert").textContent).toMatch(/^No terminal app was found on this computer\./);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("is offered only while the Terminal runs", async () => {
+    await running(async () => {});
+    act(() => sockets[0].node({ case: "exit", value: { $typeName: "maitre.v1.TerminalExit", reason: TerminalExit_Reason.EXITED, code: 0, message: "" } }));
+    expect(screen.queryByRole("button", { name: "Open kuma's Terminal in your terminal" })).toBeNull();
+  });
+});
+
 describe("the Service's Terminals (#5)", () => {
   beforeEach(() => {
     resetTerminals();

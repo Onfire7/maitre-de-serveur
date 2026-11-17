@@ -68,6 +68,8 @@ func main() {
 		err = runInfo(append([]string{"-drives"}, os.Args[2:]...))
 	case "terminal-hold":
 		err = runTerminalHold(os.Args[2:])
+	case "terminal-bridge":
+		os.Exit(terminal.BridgeMain(os.Args[2:]))
 	case "agent":
 		err = runAgent(os.Args[2:])
 	case "installer":

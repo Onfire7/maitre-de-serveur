@@ -26,10 +26,19 @@ export interface TerminalDeps {
   /** A one-time URL for one Terminal connection (the Desktop's `terminal_url`). */
   url: (t: Target, service: string) => Promise<string>;
   socket?: SocketFactory;
+  /** Open in your terminal (#11): the Desktop's `open_in_terminal`. */
+  openInTerminal?: (t: Target, service: string, id: string) => Promise<void>;
 }
+
+/** Runs the Desktop's bridge in the person's own terminal app, attached to
+ * Terminal `id` with a one-time token; rejects with the Console's words
+ * (e.g. that no terminal app was found). */
+const openInTerminal = (t: Target, service: string, terminal: string) =>
+  invoke<void>("open_in_terminal", { addr: t.addr, fingerprint: t.fingerprint, service, terminal });
 
 const desktop: TerminalDeps = {
   url: (t, service) => invoke<string>("terminal_url", { addr: t.addr, fingerprint: t.fingerprint, service }),
+  openInTerminal,
 };
 
 const open = new Map<string, OpenTerminal & { deps: TerminalDeps }>();
@@ -88,6 +97,18 @@ export function closeTerminal(service: string) {
   cur.session.close();
   open.delete(service);
   emit();
+}
+
+/**
+ * Open in your terminal (#11): attach the person's own terminal app to the
+ * Terminal this view shows. The view stays open; both show the same
+ * session. Rejects with a message for the Console.
+ */
+export async function openInYourTerminal(service: string): Promise<void> {
+  const cur = open.get(service);
+  const id = cur?.session.info.id;
+  if (!cur || !id) throw new Error("This Terminal is not running.");
+  await (cur.deps.openInTerminal ?? openInTerminal)(cur.target, service, id);
 }
 
 /** The Service's Terminals the Node holds, running and finished, oldest first. */
