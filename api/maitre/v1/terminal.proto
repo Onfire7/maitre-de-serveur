@@ -90,6 +90,48 @@ message TerminalInfo {
   // Once finished: the exit code (128+n for signal n) and when.
   int32 code = 8;
   int64 ended_unix_ms = 9;
+  // Started with Run as root (#8): Run again starts it as root too.
+  bool root = 10;
+  // The name of the Trusted Device that opened it (#8), for the Console's
+  // list: "opened by Laptop, 14:02, exit 0".
+  string opened_by = 11;
+}
+
+// TerminalRecord is the Node's record of one Terminal (ADR 0011, #8): a
+// Fleet Record of kind "terminal", id the Terminal's id, owned and signed
+// by the Node that held it. It says who opened it and who attached to it,
+// where, with what argv and user, when it started and ended, and its exit
+// code. It never holds keystrokes or output, which include passwords typed
+// at prompts.
+message TerminalRecord {
+  string id = 1;
+  string service = 2;
+  // As in TerminalInfo.
+  string container = 3;
+  string user = 4;
+  repeated string argv = 5;
+  bool root = 6;
+  // The Trusted Device that opened it.
+  TerminalVisit opened = 7;
+  // Each later attach, oldest first.
+  repeated TerminalVisit attaches = 8;
+  int64 started_unix_ms = 9;
+  // Zero while it runs. Once ended: when, and its exit code (128+n for
+  // signal n).
+  int64 ended_unix_ms = 10;
+  int32 code = 11;
+  // The Node lost the Terminal without seeing it end (it restarted, or the
+  // holder went away); ended_unix_ms is when the Node noticed, and code
+  // means nothing.
+  bool lost = 12;
+}
+
+// TerminalVisit is a Trusted Device opening or attaching to a Terminal.
+message TerminalVisit {
+  // The Device's key fingerprint, and its name when the Node knows it.
+  string device = 1;
+  string device_name = 2;
+  int64 unix_ms = 3;
 }
 
 // TerminalAttach attaches to a Terminal the Node holds, by its id, beside
