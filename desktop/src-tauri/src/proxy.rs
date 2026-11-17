@@ -17,6 +17,14 @@
 //! Content-Security-Policy refuses the script works as before, without
 //! the history controls.
 //!
+//! A Terminal (ADR 0011) is a WebSocket to the Node's Terminal endpoint on
+//! the Service tunnel, through a proxy of its own per Node. Any program on
+//! this computer can reach 127.0.0.1, so that proxy relays nothing without
+//! a one-time token in the URL, which the Desktop hands only to the
+//! Console: `ws://127.0.0.1:<port>/<token>`, good for one upgrade or 30 s.
+//! A page proxy never relays a `/__maitre/` path, so a Service's own page
+//! cannot open one either.
+//!
 //! A Page's port is the same from one launch to the next and whichever
 //! way its Node is reached (decision 288): the webview's HTTP cache, cookies
 //! and local storage are per origin, and a port chosen afresh each launch
@@ -35,6 +43,7 @@ use hyper_util::rt::TokioIo;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 
 #[derive(Clone)]
@@ -49,6 +58,37 @@ struct Target {
     /// or for anything but GET/HEAD of file contents, the proxy refuses, so
     /// other programs on this computer cannot use the device's identity.
     token: String,
+    /// A Terminal proxy's one-time tokens (ADR 0011), each naming the
+    /// Service it opens a Terminal into; None for any other proxy.
+    terminals: Option<Tokens>,
+}
+
+/// How long a Terminal's token is good for, if it is not used first.
+pub const TERMINAL_TOKEN_TTL: Duration = Duration::from_secs(30);
+
+/// Where the Node's Terminal endpoint is on the Service tunnel.
+const TERMINAL_PATH: &str = "/__maitre/terminal";
+
+/// One-time tokens for Terminal connections, each for one Service.
+#[derive(Clone, Default)]
+pub struct Tokens(Arc<Mutex<HashMap<String, (String, Instant)>>>);
+
+impl Tokens {
+    /// A new token for a Terminal into `service`, minted at `now`.
+    pub fn mint_at(&self, service: &str, now: Instant) -> String {
+        let token = format!("{:032x}", rand::random::<u128>());
+        let mut m = self.0.lock().unwrap();
+        m.retain(|_, (_, at)| now.duration_since(*at) < TERMINAL_TOKEN_TTL);
+        m.insert(token.clone(), (service.to_string(), now));
+        token
+    }
+
+    /// The Service a token was minted for, if it is still good at `now`;
+    /// either way it is spent.
+    pub fn take_at(&self, token: &str, now: Instant) -> Option<String> {
+        let (service, at) = self.0.lock().unwrap().remove(token)?;
+        (now.duration_since(at) < TERMINAL_TOKEN_TTL).then_some(service)
+    }
 }
 
 /// Where a running proxy relays to; swapped when the Node is reached another way.
@@ -68,6 +108,7 @@ pub type Reporter = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 pub struct Proxies {
     ports: Mutex<HashMap<String, Live>>,
     files: Mutex<HashMap<String, String>>,
+    terminals: Mutex<HashMap<String, (String, Tokens)>>,
     reporter: Mutex<Option<Reporter>>,
 }
 
@@ -106,7 +147,7 @@ impl Proxies {
     /// running for that Page is pointed at `addr` if it was reaching the
     /// Node another way.
     pub async fn open(&self, dialer: Arc<Dialer>, addr: String, fingerprint: String, view: String, service: String, page: String, remembered: Option<u16>) -> Result<(String, u16), String> {
-        let target = Target { addr, fingerprint, service, page, token: String::new() };
+        let target = Target { addr, fingerprint, service, page, token: String::new(), terminals: None };
         let live = self.ports.lock().unwrap().get(&view).map(|l| (l.port, l.upstream.clone()));
         if let Some((port, upstream)) = live {
             let same = {
@@ -130,11 +171,41 @@ impl Proxies {
             return Ok(base.clone());
         }
         let token = format!("{:032x}", rand::random::<u128>());
-        let target = Target { addr, fingerprint, service: String::new(), page: String::new(), token: token.clone() };
+        let target = Target { addr, fingerprint, service: String::new(), page: String::new(), token: token.clone(), terminals: None };
         let (root, _) = self.serve(dialer, key.clone(), target, &[]).await?;
         let base = format!("{root}{token}");
         self.files.lock().unwrap().insert(key, base.clone());
         Ok(base)
+    }
+
+    /// A URL for one Terminal connection into `service` (ADR 0011):
+    /// `ws://127.0.0.1:<port>/<token>`, the token good for one upgrade or
+    /// 30 s. The Node's Terminal proxy is started if needed, and follows
+    /// the Node to `addr`.
+    pub async fn open_terminal(&self, dialer: Arc<Dialer>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
+        let key = format!("{fingerprint}#terminal");
+        let live = self.terminals.lock().unwrap().get(&key).cloned();
+        let (root, tokens) = match live {
+            Some((root, tokens)) => {
+                if let Some(l) = self.ports.lock().unwrap().get(&key) {
+                    let mut up = l.upstream.write().unwrap();
+                    if up.0.addr != addr {
+                        up.0.addr = addr;
+                        up.1 = dialer;
+                    }
+                }
+                (root, tokens)
+            }
+            None => {
+                let tokens = Tokens::default();
+                let target = Target { addr, fingerprint, service: String::new(), page: String::new(), token: String::new(), terminals: Some(tokens.clone()) };
+                let (root, _) = self.serve(dialer, key.clone(), target, &[]).await?;
+                self.terminals.lock().unwrap().insert(key, (root.clone(), tokens.clone()));
+                (root, tokens)
+            }
+        };
+        let token = tokens.mint_at(&service, Instant::now());
+        Ok(format!("{}{token}", root.replacen("http://", "ws://", 1)))
     }
 
     /// Listens on the first free port of `prefer`, or on any free port when
@@ -194,7 +265,29 @@ async fn relay(
         let pq = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_default();
         *req.uri_mut() = pq[target.token.len() + 1..].parse().unwrap();
     }
-    let is_page = !target.service.is_empty();
+    // A Terminal proxy relays only an upgrade bearing a good token, to the
+    // Node's Terminal endpoint for the token's Service; the token is spent
+    // before anything is relayed.
+    let mut target = target;
+    if let Some(tokens) = &target.terminals {
+        let token = req.uri().path().trim_start_matches('/');
+        let upgrade = req.headers().contains_key(hyper::header::UPGRADE);
+        let service = if token.is_empty() { None } else { tokens.take_at(token, Instant::now()) };
+        let Some(service) = service.filter(|_| upgrade) else {
+            return Ok(text(403, "not allowed".into()));
+        };
+        *req.uri_mut() = TERMINAL_PATH.parse().unwrap();
+        target.service = service;
+        target.page.clear();
+    }
+    let is_terminal = target.terminals.is_some();
+    let is_page = !target.service.is_empty() && !is_terminal;
+    // The Console's own paths on a page's proxy (frame.js and nav, below)
+    // are answered here; no other /__maitre/ path goes to the Node, so a
+    // page cannot reach the Terminal endpoint (ADR 0011).
+    if is_page && req.uri().path().starts_with("/__maitre/") && req.uri().path() != FRAME_SCRIPT_PATH && req.uri().path() != NAV_PATH {
+        return Ok(text(404, "not found".into()));
+    }
     if is_page && req.uri().path() == FRAME_SCRIPT_PATH {
         return Ok(Response::builder()
             .status(200)
@@ -225,7 +318,7 @@ async fn relay(
         Ok(mut sender) => {
             let client_upgrade = hyper::upgrade::on(&mut req);
             let wants_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
-            if is_page {
+            if is_page || is_terminal {
                 req.headers_mut().insert(
                     HeaderName::from_static("x-maitre-service"),
                     HeaderValue::from_str(&target.service).unwrap(),
@@ -413,6 +506,91 @@ mod tests {
         assert_eq!(*node.clients.lock().unwrap(), vec![me.fingerprint()]);
     }
 
+    /// A stand-in Node that answers every request with its method, path
+    /// and the Service it names, and counts them.
+    async fn echo_node() -> fake::FakeNode {
+        fake::start(|tls| async move {
+            let svc = hyper::service::service_fn(|req: Request<Incoming>| async move {
+                let service = req.headers().get("x-maitre-service").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+                let body = format!("{} {} service={service}", req.method(), req.uri());
+                Ok::<_, hyper::Error>(Response::new(http_body_util::Full::new(Bytes::from(body))))
+            });
+            let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(tls), svc).await;
+        })
+        .await
+    }
+
+    /// A WebSocket upgrade request to the proxy, read to its end.
+    async fn get(port: u16, path: &str) -> String {
+        let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        s.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade, close\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n").as_bytes()).await.unwrap();
+        let mut out = String::new();
+        s.read_to_string(&mut out).await.unwrap();
+        out
+    }
+
+    fn port_and_path(url: &str) -> (u16, String) {
+        let rest = url.strip_prefix("ws://127.0.0.1:").expect(url);
+        let (port, path) = rest.split_once('/').unwrap();
+        (port.parse().unwrap(), format!("/{path}"))
+    }
+
+    // ADR 0011: other programs on this computer may reach the loopback
+    // proxy, so a Terminal connection carries a one-time token from the
+    // Desktop. Without it, or with one already used, the proxy refuses and
+    // the Node never hears of it; with it, the request goes to the Node's
+    // Terminal endpoint on the Service tunnel.
+    #[tokio::test]
+    async fn a_terminal_connection_needs_a_token_that_works_once() {
+        let node = echo_node().await;
+        let me = fake::temp_identity("device");
+        let proxies = Proxies::default();
+        let dialer = Arc::new(Dialer::new(me.clone()));
+        let url = proxies.open_terminal(dialer.clone(), node.addr.clone(), node.fingerprint.clone(), "kuma".into()).await.unwrap();
+        let (port, path) = port_and_path(&url);
+        for bad in ["/", "/0123456789abcdef0123456789abcdef", "/__maitre/terminal"] {
+            let out = get(port, bad).await;
+            assert!(out.starts_with("HTTP/1.1 403"), "{bad}: {out}");
+        }
+        assert!(node.clients.lock().unwrap().is_empty(), "the Node heard of a refused connection");
+        let out = get(port, &path).await;
+        assert!(out.starts_with("HTTP/1.1 200"), "{out}");
+        assert!(out.ends_with("GET /__maitre/terminal service=kuma"), "{out}");
+        let out = get(port, &path).await;
+        assert!(out.starts_with("HTTP/1.1 403"), "a token used twice: {out}");
+        // Each Terminal gets a token of its own, on the same Node's proxy.
+        let again = proxies.open_terminal(dialer, node.addr.clone(), node.fingerprint.clone(), "kuma".into()).await.unwrap();
+        let (port2, path2) = port_and_path(&again);
+        assert_eq!(port2, port);
+        assert_ne!(path2, path);
+    }
+
+    #[test]
+    fn a_terminal_token_lasts_thirty_seconds() {
+        let tokens = Tokens::default();
+        let t0 = Instant::now();
+        let a = tokens.mint_at("kuma", t0);
+        let b = tokens.mint_at("memos", t0);
+        assert_eq!(tokens.take_at(&a, t0 + Duration::from_secs(29)), Some("kuma".to_string()));
+        assert_eq!(tokens.take_at(&b, t0 + Duration::from_secs(31)), None);
+    }
+
+    // A Service's own page is on the same kind of proxy; it never reaches
+    // the Terminal endpoint, token or not.
+    #[tokio::test]
+    async fn a_page_proxy_does_not_relay_the_terminal_path() {
+        let node = echo_node().await;
+        let me = fake::temp_identity("device");
+        let proxies = Proxies::default();
+        let (_, port) = proxies
+            .open(Arc::new(Dialer::new(me)), node.addr.clone(), node.fingerprint.clone(), "kuma".into(), "kuma".into(), String::new(), None)
+            .await
+            .unwrap();
+        let out = get(port, "/__maitre/terminal").await;
+        assert!(out.starts_with("HTTP/1.1 404"), "{out}");
+        assert!(node.clients.lock().unwrap().is_empty());
+    }
+
     #[test]
     fn script_goes_after_head_whatever_its_case() {
         let out = inject_frame_script(b"<!doctype html><HTML><Head lang=\"en\"><title>x</title></Head></HTML>");
@@ -434,7 +612,7 @@ mod tests {
 
     #[test]
     fn a_pages_view_key_is_its_host_name() {
-        let t = |service: &str, page: &str| view_key(&Target { addr: String::new(), fingerprint: String::new(), service: service.into(), page: page.into(), token: String::new() });
+        let t = |service: &str, page: &str| view_key(&Target { addr: String::new(), fingerprint: String::new(), service: service.into(), page: page.into(), token: String::new(), terminals: None });
         assert_eq!(t("immich", ""), "immich");
         assert_eq!(t("immich", "admin"), "immich-admin");
     }

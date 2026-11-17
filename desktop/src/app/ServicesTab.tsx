@@ -17,6 +17,7 @@ import { controlService, targetFor } from "@/fleet/actions";
 import { declined } from "@/fleet/grants";
 import type { ConsoleState } from "@/state";
 import { flyoutItems, type FlyoutItem } from "./ServiceFlyout";
+import { useNodeFeatures } from "@/fleet/features";
 import { NodeMark, ServiceIcon, StatusWord } from "./status";
 import { ServiceDetails } from "./ServiceDetails";
 import { useRoute, type ServiceEdit } from "./routes";
@@ -213,7 +214,7 @@ function ServiceRow({ service: s, snap, open, edit, onToggle, picked, onPick, on
   // Its main Page's address, at the domain when the Fleet asks (329).
   const shown = mainPage(s)?.link || st?.url || "";
   const running = st?.state === 3 || st?.state === 2;
-  const items = flyoutItems(s);
+  const items = flyoutItems(s, useNodeFeatures(snap ? targetFor(snap, [], s.spec.nodeId) : undefined));
   const up = running && st?.startedUnixMs ? Math.max(0, Math.floor((now - Number(st.startedUnixMs)) / 1000)) : 0;
   return (
     <li>

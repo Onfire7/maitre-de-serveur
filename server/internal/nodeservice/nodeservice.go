@@ -37,6 +37,9 @@ type Info struct {
 	// DebugBuild is decision 323: this image carries the debug console's
 	// remote surface, which the Console advertises in amber.
 	DebugBuild bool
+	// Features this agent serves beyond the ones every agent has, listed
+	// in NodeInfo.features ("terminal", ADR 0011).
+	Features []string
 }
 
 // Service answers NodeService calls.
@@ -148,7 +151,7 @@ func (s *Service) GetNodeInfo(ctx context.Context, _ *maitrev1.GetNodeInfoReques
 		DevMode:       s.info.DevMode,
 		DebugBuild:    s.info.DebugBuild,
 		// Capabilities the Console checks before offering a feature (plan C5).
-		Features: []string{"components", "setup"},
+		Features: append([]string{"components", "setup"}, s.info.Features...),
 	}
 	if s.Peers != nil {
 		info.Peers = s.Peers.Status(ctx)

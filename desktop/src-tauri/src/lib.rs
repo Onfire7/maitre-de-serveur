@@ -195,6 +195,14 @@ async fn files_url(state: State<'_, AppState>, addr: String, fingerprint: String
     state.proxies.open_files(state.dialer.clone(), addr, fingerprint).await
 }
 
+/// A URL for one Terminal connection into `service` on the Node (ADR
+/// 0011): `ws://127.0.0.1:<port>/<token>`, the token good for one upgrade
+/// or 30 s, so no other program on this computer can use the proxy.
+#[tauri::command]
+async fn terminal_url(state: State<'_, AppState>, addr: String, fingerprint: String, service: String) -> Result<String, String> {
+    state.proxies.open_terminal(state.dialer.clone(), addr, fingerprint, service).await
+}
+
 /// A Service's Page in a view of its own (decision 294, src/views.rs):
 /// opened at `url` where the Console says, placed again as the Console's
 /// layout moves, shown or hidden, driven and asked for its colours.
@@ -553,6 +561,7 @@ pub fn run() {
             discover,
             peek_installer,
             service_url,
+            terminal_url,
             view_open,
             view_place,
             view_show,

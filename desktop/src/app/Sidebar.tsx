@@ -16,6 +16,7 @@ import {
   PanelLeftOpen,
   Settings2,
   Boxes,
+  SquareTerminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,9 @@ import { ServiceIcon, NodeMark, type NodeWord } from "./status";
 import { ServiceFlyout, type FlyoutItem } from "./ServiceFlyout";
 import { NodeFlyout } from "./NodeFlyout";
 import { useRoute } from "./routes";
+import { targetFor } from "@/fleet/actions";
+import { useNodeFeatures } from "@/fleet/features";
+import { useTerminals } from "@/terminal/terminals";
 import { idleRemaining, useFrames } from "./frames";
 
 export const SIDEBAR_WIDTH = 240;
@@ -73,6 +77,7 @@ export function Sidebar({
   // background drains over the hour before its frame is dropped. A
   // Service's own row drains with whichever of its Pages idles longest.
   const frames = useFrames();
+  const terminals = useTerminals();
   const idleOf = (host: string) => idleRemaining(frames.find((f) => f.key === host));
   const idleOfAny = (hosts: string[]) => {
     const left = hosts.map(idleOf).filter((x): x is number => x !== null);
@@ -88,6 +93,8 @@ export function Sidebar({
     el: HTMLElement;
     top: number;
   } | null>(null);
+  // What the flyout's Service's Node offers (a Terminal, ADR 0011).
+  const flyFeatures = useNodeFeatures(fly && snap ? targetFor(snap, [], fly.service.spec.nodeId) : undefined);
   // The Node flyout grows upward from its row, since the Nodes sit at the
   // bottom of the sidebar: its position is a distance from the bottom.
   const [nodeFly, setNodeFly] = useState<{ nodeId: string; el: HTMLElement; bottom: number } | null>(null);
@@ -188,13 +195,14 @@ export function Sidebar({
 
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
   const fleetOpen = route.name === "fleet";
-  const selectedService = route.name === "page" || route.name === "setup" ? route.service : undefined;
+  const selectedService = route.name === "page" || route.name === "setup" || route.name === "terminal" ? route.service : undefined;
   const selectedPage = route.name === "page" ? route.page : undefined;
   const selectedNode = route.name === "fleet" ? route.nodeId : undefined;
-  // Only Services that offer a Page are listed here.
+  // Only Services that offer a Page, or have a Terminal open, are listed here.
   const listed = services.flatMap((s) => {
     const pages = pageViews(s);
-    return pages.length ? [{ service: s, pages }] : [];
+    const terminal = terminals.find((t) => t.service === s.spec.name);
+    return pages.length || terminal ? [{ service: s, pages, terminal }] : [];
   });
 
   return (
@@ -255,7 +263,7 @@ export function Sidebar({
           onMouseEnter={keepOpen}
         >
           <ul className="px-1.5">
-            {listed.map(({ service: s, pages }, i) => {
+            {listed.map(({ service: s, pages, terminal }, i) => {
               const here = selectedService === s.spec.name;
               const several = pages.length > 1;
               return (
@@ -268,9 +276,9 @@ export function Sidebar({
                 <ServiceRow
                   service={s}
                   collapsed={collapsed}
-                  selected={here && (!several || route.name === "setup")}
+                  selected={here && route.name !== "terminal" && (!several || route.name === "setup")}
                   idle={here ? null : idleOfAny(pages.map((p) => p.host))}
-                  onClick={() => go({ name: "page", service: s.spec.name, page: pages[0].page.name })}
+                  onClick={() => go(pages.length ? { name: "page", service: s.spec.name, page: pages[0].page.name } : { name: "terminal", service: s.spec.name })}
                   onEnter={(el) => rowEnter(s, el)}
                   onChevron={(el) => {
                     clearTimers();
@@ -291,6 +299,16 @@ export function Sidebar({
                     </motion.ul>
                   )}
                 </AnimatePresence>
+                {/* Its open Terminal, beside its Pages (ADR 0011). */}
+                {terminal && (
+                  <TerminalRow
+                    label={terminal.session.info.container ? `${terminal.session.info.container} · ${terminal.session.info.user}` : "Terminal"}
+                    collapsed={collapsed}
+                    selected={route.name === "terminal" && here}
+                    onClick={() => go({ name: "terminal", service: s.spec.name })}
+                    onEnter={scheduleClose}
+                  />
+                )}
               </motion.li>
               );
             })}
@@ -425,6 +443,7 @@ export function Sidebar({
               services.find((s) => s.spec.name === fly.service.spec.name) ??
               fly.service
             }
+            features={flyFeatures}
             top={fly.top}
             collapsed={collapsed}
             onEnter={keepOpen}
@@ -557,6 +576,24 @@ function PageRow({ page, collapsed, selected, idle, onClick, onEnter }: { page: 
       {idle !== null && !selected && <span aria-hidden data-idle={Math.round(idle * 100)} className="pointer-events-none absolute inset-y-0 left-0 bg-sidebar-accent/60 transition-[width] duration-1000 ease-linear" style={{ width: `${Math.round(idle * 1000) / 10}%` }} />}
       <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", selected ? "bg-foreground" : "bg-muted-foreground/50")} />
       {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{page.label}</span>}
+    </button>
+  );
+}
+
+/** A Service's open Terminal: a nested row under its Service's, labelled
+ * with the container and user it runs as (ADR 0011). */
+function TerminalRow({ label, collapsed, selected, onClick, onEnter }: { label: string; collapsed: boolean; selected: boolean; onClick: () => void; onEnter: () => void }) {
+  return (
+    <button
+      data-terminal
+      onClick={onClick}
+      onMouseEnter={onEnter}
+      aria-current={selected ? "page" : undefined}
+      aria-label={`Terminal: ${label}`}
+      className={cn("relative flex w-full items-center gap-2 overflow-hidden rounded-md py-1 pr-1.5 text-sm hover:bg-sidebar-accent", selected && "bg-sidebar-accent", collapsed ? "justify-center pl-1.5" : "pl-3")}
+    >
+      <SquareTerminal aria-hidden className={cn("size-3.5 shrink-0", selected ? "text-foreground" : "text-muted-foreground")} />
+      {!collapsed && <span className="min-w-0 flex-1 truncate text-left font-mono text-xs">{label}</span>}
     </button>
   );
 }
