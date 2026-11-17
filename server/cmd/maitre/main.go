@@ -33,10 +33,12 @@ import (
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
 	"github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1/maitrev1connect"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/debugsurface"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/gate"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/identity"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/mtls"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/nodeservice"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/peer"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/relay"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
@@ -127,6 +129,16 @@ func runDev(args []string) error {
 	listen := fs.String("listen", "127.0.0.1:7443", "address to listen on")
 	name := fs.String("name", hostname(), "Node name to report")
 	fake := fs.String("fake-service", "", "register a Service of this name backed by a built-in echo server (HTTP and WebSocket), to exercise the Console's tunnel")
+	relayNodes := map[string][]string{}
+	fs.Func("relay-node", "`id=host:port`: another dev Node of this pretend Fleet, which the Relay (ADR 0012) reaches at that address and accepts relayed connections from; repeatable", func(v string) error {
+		nodeID, addr, ok := strings.Cut(v, "=")
+		if !ok || nodeID == "" || addr == "" {
+			return fmt.Errorf("want id=host:port, got %q", v)
+		}
+		nodeID = strings.ToLower(strings.TrimSpace(nodeID))
+		relayNodes[nodeID] = append(relayNodes[nodeID], addr)
+		return nil
+	})
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -139,6 +151,14 @@ func runDev(args []string) error {
 	trustDir := filepath.Join(*state, "trusted")
 	if err := list.LoadDir(trustDir); err != nil {
 		return err
+	}
+
+	if len(relayNodes) > 0 {
+		nodes := make([]string, 0, len(relayNodes))
+		for n := range relayNodes {
+			nodes = append(nodes, n)
+		}
+		list.ReplaceRoles(list.Fingerprints(), nil, nodes)
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -160,6 +180,11 @@ func runDev(args []string) error {
 	}, nil))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
+	rl := relay.New(relay.Config{Log: log, Self: id.Fingerprint(), Roles: list, HTTP: NewHTTPClient(mtls.ClientConfig(id, list)),
+		Addresses: func(nodeID string) []string { return relayNodes[nodeID] }})
+	defer rl.Close()
+	mux.Handle(relay.Path, rl.Anchor())
+	mux.Handle(relay.InPath, rl.Target())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -180,7 +205,7 @@ func runDev(args []string) error {
 		log.Info("fake service registered", "name", *fake, "port", port)
 		h = svcproxy.Handler(st, mux)
 	}
-	return serve(ctx, log, *listen, peer.Middleware(h), mtls.ServerConfig(id, list))
+	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, h)), mtls.ServerConfig(id, list), rl.Listener())
 }
 
 // startEchoService serves a stand-in Service on a loopback port: GET /path

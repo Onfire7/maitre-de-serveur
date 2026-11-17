@@ -77,6 +77,22 @@ async function tauriFetch(input: RequestInfo | URL, init?: RequestInit, fallback
   });
 }
 
+let relayAnchor: string | undefined;
+
+/**
+ * Tell the Desktop which Node the Console reads the Fleet through, at the
+ * address that answered: a Node it cannot reach itself is reached through
+ * that anchor's Relay (ADR 0012). Sent only when it changes.
+ */
+export function relayThrough(anchor: Target | undefined) {
+  const key = anchor ? `${anchor.fingerprint}@${anchor.addr}` : "";
+  if (isDemo() || key === (relayAnchor ?? "")) return;
+  relayAnchor = key;
+  void invoke("relay_through", { anchor: anchor ? { addr: anchor.addr, fingerprint: anchor.fingerprint } : null }).catch(() => {
+    relayAnchor = undefined;
+  });
+}
+
 const cache = new Map<string, Transport>();
 
 /**

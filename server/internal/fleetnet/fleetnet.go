@@ -29,6 +29,7 @@ import (
 	"time"
 
 	maitrev1 "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/carry"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 )
 
@@ -355,30 +356,10 @@ func (m *Manager) carry(ctx context.Context, c net.Conn, t target) {
 		return
 	}
 	defer up.Close()
-	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(up, c); done <- struct{}{} }()
-	go func() { _, _ = io.Copy(c, up); done <- struct{}{} }()
-	select {
-	case <-done:
-	case <-ctx.Done():
-	}
+	carry.Join(ctx, c, up)
 }
 
-// peerConn is a relayed connection: writes go up the request body, reads
-// come down the response body.
-type peerConn struct {
-	w   *io.PipeWriter
-	res *http.Response
-}
-
-func (p *peerConn) Read(b []byte) (int, error)  { return p.res.Body.Read(b) }
-func (p *peerConn) Write(b []byte) (int, error) { return p.w.Write(b) }
-func (p *peerConn) Close() error {
-	_ = p.w.Close()
-	return p.res.Body.Close()
-}
-
-// dialPeer opens a relayed connection to a Service on another Node,
+// dialPeer opens a carried connection to a Service on another Node,
 // trying the peer's addresses in turn.
 func (m *Manager) dialPeer(ctx context.Context, t target) (io.ReadWriteCloser, error) {
 	if m.cfg.HTTP == nil || m.cfg.PeerAddresses == nil {
@@ -388,29 +369,7 @@ func (m *Manager) dialPeer(ctx context.Context, t target) (io.ReadWriteCloser, e
 	if len(addrs) == 0 {
 		return nil, fmt.Errorf("no address for Node %s", t.node)
 	}
-	var last error
-	for _, addr := range addrs {
-		pr, pw := io.Pipe()
-		u := url.URL{Scheme: "https", Host: addr, Path: RelayPath, RawQuery: url.Values{"service": {t.service}, "port": {strconv.Itoa(t.port)}}.Encode()}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), pr)
-		if err != nil {
-			return nil, err
-		}
-		res, err := m.cfg.HTTP.Do(req)
-		if err != nil {
-			_ = pw.Close()
-			last = err
-			continue
-		}
-		if res.StatusCode != http.StatusOK {
-			msg, _ := io.ReadAll(io.LimitReader(res.Body, 1024))
-			_ = res.Body.Close()
-			_ = pw.Close()
-			return nil, fmt.Errorf("%s: %s", res.Status, strings.TrimSpace(string(msg)))
-		}
-		return &peerConn{w: pw, res: res}, nil
-	}
-	return nil, last
+	return carry.Dial(ctx, m.cfg.HTTP, addrs, RelayPath, url.Values{"service": {t.service}, "port": {strconv.Itoa(t.port)}})
 }
 
 // Handler answers RelayPath for peers: it connects to the named Service's
@@ -449,33 +408,7 @@ func (m *Manager) Handler() http.Handler {
 			return
 		}
 		defer up.Close()
-		rc := http.NewResponseController(w)
-		_ = rc.EnableFullDuplex()
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.WriteHeader(http.StatusOK)
-		_ = rc.Flush()
-		done := make(chan struct{}, 2)
-		go func() { _, _ = io.Copy(up, r.Body); done <- struct{}{} }()
-		go func() {
-			buf := make([]byte, 32*1024)
-			for {
-				n, err := up.Read(buf)
-				if n > 0 {
-					if _, werr := w.Write(buf[:n]); werr != nil {
-						break
-					}
-					_ = rc.Flush()
-				}
-				if err != nil {
-					break
-				}
-			}
-			done <- struct{}{}
-		}()
-		select {
-		case <-done:
-		case <-r.Context().Done():
-		}
+		carry.Join(r.Context(), carry.Answer(w, r), up)
 	})
 }
 

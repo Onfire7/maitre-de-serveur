@@ -59,6 +59,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/pool"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/portmap"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/recoverymode"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/relay"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/remote"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/rollout"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
@@ -1225,6 +1226,14 @@ func runAgent(args []string) error {
 	connecthttp.Mount(mux, rpc)
 	// ADR 0010: a peer's connection to one of this Node's Services.
 	mux.Handle(fleetnet.RelayPath, fnet.Handler())
+	// ADR 0012: the Relay. As the anchor, a Trusted Device's connection
+	// carried to another Node of the Fleet; as its target, one carried
+	// here, served on the mutual-TLS listener like any other.
+	rl := relay.New(relay.Config{Log: log, Self: id.Fingerprint(), Roles: list, HTTP: pm.HTTPClient(),
+		Addresses: func(nodeID string) []string { return pm.Addresses()[nodeID] }})
+	defer rl.Close()
+	mux.Handle(relay.Path, rl.Anchor())
+	mux.Handle(relay.InPath, rl.Target())
 	// Decision 183: file contents for the file manager, same callers as RPCs.
 	mux.Handle(files.ContentPath, fm.Handler(func(r *http.Request) bool {
 		p, ok := peer.From(r.Context())
@@ -1413,7 +1422,7 @@ func runAgent(args []string) error {
 			go plainStatusPage(ctx, src)
 		}
 	}
-	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), mtls.ServerConfig(id, list))
+	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, svcproxy.Handler(st, mux))), mtls.ServerConfig(id, list), rl.Listener())
 }
 
 // runInstaller is `maitre installer`: the mode booted from installer media.
@@ -1533,7 +1542,9 @@ func runInstaller(args []string) error {
 }
 
 // serve runs an HTTPS server until ctx is done.
-func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, tlsCfg *tls.Config) error {
+// serve serves h over TLS at addr, and on each extra listener as well
+// (connections relayed to this Node, ADR 0012).
+func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, tlsCfg *tls.Config, extra ...net.Listener) error {
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           h,
@@ -1552,6 +1563,9 @@ func serve(ctx context.Context, log *slog.Logger, addr string, h http.Handler, t
 		return err
 	}
 	log.Info("listening", "addr", addr)
+	for _, l := range extra {
+		go func() { _ = srv.ServeTLS(l, "", "") }()
+	}
 	// Certificates come from TLSConfig, so the file arguments are empty.
 	if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err

@@ -7,7 +7,7 @@ beforeEach(() => invoke.mockClear());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 
 import { NodeService, GetNodeInfoResponseSchema } from "./gen/maitre/v1/node_pb";
-import { noteAddresses, transportFor } from "./transport";
+import { noteAddresses, relayThrough, transportFor } from "./transport";
 import { demotedRoutes, routeFor } from "./fleet/route";
 import { GrantsNeededSchema } from "./gen/maitre/v1/fleet_pb";
 
@@ -85,5 +85,22 @@ describe("transportFor", () => {
     expect(got).toHaveLength(1);
     expect(got[0].options).toEqual(["AddDevice=/dev/dri"]);
     expect(got[0].grantIds).toEqual(["g1"]);
+  });
+});
+
+describe("relayThrough", () => {
+  it("tells the Desktop which anchor relays to the Nodes it cannot reach, once per change (ADR 0012)", async () => {
+    invoke.mockResolvedValue(undefined);
+    const anchor = { addr: "boulder.example.com:7443", fingerprint: "bb".repeat(32) };
+    relayThrough(anchor);
+    relayThrough({ ...anchor });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("relay_through", { anchor });
+    relayThrough({ addr: "192.168.1.20:7443", fingerprint: anchor.fingerprint });
+    expect(invoke).toHaveBeenLastCalledWith("relay_through", { anchor: { addr: "192.168.1.20:7443", fingerprint: anchor.fingerprint } });
+    relayThrough(undefined);
+    expect(invoke).toHaveBeenLastCalledWith("relay_through", { anchor: null });
+    expect(invoke).toHaveBeenCalledTimes(3);
+    invoke.mockReset();
   });
 });

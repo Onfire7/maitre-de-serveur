@@ -11,7 +11,7 @@ pub mod views;
 #[cfg(target_os = "linux")]
 mod webkit;
 mod recovery;
-mod rpc;
+pub mod rpc;
 pub mod sign;
 
 use discovery::{Discovery, Found};
@@ -374,6 +374,20 @@ fn withdraw_join(state: State<'_, AppState>, fullname: String) {
     state.discovery.withdraw(&fullname)
 }
 
+/// The Node the Console now reads the Fleet through, at the address that
+/// answered (decision 159): Nodes this Device cannot reach itself are
+/// reached through its Relay (ADR 0012). None forgets it.
+#[tauri::command]
+fn relay_through(state: State<'_, AppState>, anchor: Option<RelayAnchor>) {
+    state.dialer.relay_through(anchor.map(|a| dial::Anchor { addr: a.addr, fingerprint: a.fingerprint }));
+}
+
+#[derive(Deserialize)]
+struct RelayAnchor {
+    addr: String,
+    fingerprint: String,
+}
+
 /// The Recovery Phrase path (decision 100): with the phrase's key, ask a Node
 /// to add this Console's own key as a Trusted Device. Returns the recovery
 /// public key PEM for the Console's Fleet state.
@@ -546,6 +560,7 @@ pub fn run() {
             files_download,
             files_upload,
             rpc,
+            relay_through,
             device_code,
             announce_join,
             withdraw_join,

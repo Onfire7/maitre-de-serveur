@@ -1,21 +1,35 @@
 #!/usr/bin/env bash
 # End-to-end check of the Console's Service tunnel (decision 71): a dev Node
 # with a built-in echo Service, and the Desktop's Rust relay driven by a test
-# that sends a plain request and a WebSocket echo through it.
+# that sends a plain request and a WebSocket echo through it: once to the
+# Node directly, once through a second dev Node's Relay (ADR 0012).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MAITRE=${MAITRE:-./server/bin/maitre}
 T=$(mktemp -d)
-trap 'kill $(cat "$T/pid" 2>/dev/null) 2>/dev/null || true; rm -rf "$T"' EXIT
-mkdir -p "$T/node/trusted" "$T/device"
+trap 'kill $(cat "$T/pid" "$T/anchor.pid" 2>/dev/null) 2>/dev/null || true; rm -rf "$T"' EXIT
+mkdir -p "$T/node/trusted" "$T/device" "$T/anchor/trusted"
 # The test's identity must be trusted before the Node starts; create it first.
 MAITRE_TUNNEL_NODE=127.0.0.1:1 MAITRE_TUNNEL_FP=x MAITRE_TUNNEL_IDENTITY="$T/device" \
   cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml --test tunnel -- --ignored >/dev/null 2>&1 || true
 cp "$T/device/identity.pub" "$T/node/trusted/device.pub"
-"$MAITRE" dev --state "$T/node" --listen 127.0.0.1:17999 --fake-service echo >"$T/node.log" 2>&1 &
+cp "$T/device/identity.pub" "$T/anchor/trusted/device.pub"
+# A second dev Node is the anchor whose Relay (ADR 0012) reaches the first.
+AFP=$("$MAITRE" keygen --out "$T/anchor/node" | sed -n 's/^identity //p')
+"$MAITRE" dev --state "$T/node" --listen 127.0.0.1:17999 --fake-service echo --relay-node "$AFP=127.0.0.1:17998" >"$T/node.log" 2>&1 &
 echo $! >"$T/pid"
 for _ in $(seq 1 50); do grep -q listening "$T/node.log" && break; sleep 0.1; done
 FP=$(grep -o 'node_id=[^ ]*' "$T/node.log" | head -1 | cut -d= -f2)
 MAITRE_TUNNEL_NODE=127.0.0.1:17999 MAITRE_TUNNEL_FP="$FP" MAITRE_TUNNEL_IDENTITY="$T/device" \
   cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml --test tunnel -- --ignored
-echo "tunnel-check: OK (HTTP and WebSocket through Desktop relay -> Node mTLS -> Service)"
+"$MAITRE" dev --state "$T/anchor" --listen 127.0.0.1:17998 --relay-node "$FP=127.0.0.1:17999" >"$T/anchor.log" 2>&1 &
+echo $! >"$T/anchor.pid"
+for _ in $(seq 1 50); do grep -q listening "$T/anchor.log" && break; sleep 0.1; done
+# The Node's own address does not answer for the Desktop; only the anchor does.
+MAITRE_TUNNEL_NODE=127.0.0.1:1 MAITRE_TUNNEL_FP="$FP" MAITRE_TUNNEL_IDENTITY="$T/device" \
+MAITRE_TUNNEL_ANCHOR=127.0.0.1:17998 MAITRE_TUNNEL_ANCHOR_FP="$AFP" \
+  cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml --test tunnel -- --ignored
+# The anchor journals each relayed connection when it closes.
+for _ in $(seq 1 50); do grep -q "relayed connection" "$T/anchor.log" && break; sleep 0.1; done
+grep -q "relayed connection" "$T/anchor.log"
+echo "tunnel-check: OK (HTTP and WebSocket through Desktop proxy -> Node mTLS -> Service, directly and through the anchor's Relay)"
