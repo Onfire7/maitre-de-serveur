@@ -22,6 +22,12 @@ export interface TerminalSocket {
 
 export type SocketFactory = (url: string) => TerminalSocket;
 
+/** Where a Terminal runs and as whom (#7): the component ("" the first) and Run as root. */
+export interface TerminalChoice {
+  component?: string;
+  root?: boolean;
+}
+
 export const browserSocket: SocketFactory = (url) => new WebSocket(url) as unknown as TerminalSocket;
 
 export interface TerminalInfo {
@@ -49,6 +55,7 @@ const BACKLOG_BYTES = 256 * 1024;
 
 export class TerminalSession {
   readonly service: string;
+  readonly choice: TerminalChoice;
   info: TerminalInfo = { phase: "connecting", container: "", user: "" };
   private socket: TerminalSocket | undefined;
   private open = false;
@@ -59,9 +66,14 @@ export class TerminalSession {
   private backlog: Uint8Array[] = [];
   private backlogBytes = 0;
 
-  /** attach: the id of a Terminal the Node holds, to reattach to it rather than start one. */
-  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory; attach?: string }) {
+  /**
+   * attach: the id of a Terminal the Node holds, to reattach to it rather
+   * than start one. choice: where a new one runs and as whom (#7); kept
+   * for Run again.
+   */
+  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory; attach?: string; choice?: TerminalChoice }) {
     this.service = opts.service;
+    this.choice = opts.choice ?? {};
     if (opts.attach) this.info = { ...this.info, id: opts.attach };
     const factory = opts.socket ?? browserSocket;
     opts.url().then(
@@ -73,7 +85,7 @@ export class TerminalSession {
           this.open = true;
           const size = { $typeName: "maitre.v1.TerminalSize", ...this.size } as const;
           if (opts.attach) this.send({ case: "attach", value: { $typeName: "maitre.v1.TerminalAttach", id: opts.attach, size } });
-          else this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: "", size } });
+          else this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: this.choice.component ?? "", root: !!this.choice.root, size } });
         };
         s.onmessage = (e) => this.receive(e.data);
         s.onclose = (e) => {

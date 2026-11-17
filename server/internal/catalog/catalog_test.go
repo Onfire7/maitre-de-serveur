@@ -225,3 +225,78 @@ func TestLanEntriesValidate(t *testing.T) {
 		t.Errorf("spec: kind %q address %q", spec.GetNetworkKind(), spec.GetLanAddress())
 	}
 }
+
+// An entry may say which shell a Terminal runs (ADR 0011): an argv, on the
+// entry for one container or on each component; the Service carries it.
+func TestShellIsDeclaredAndCarriedToTheService(t *testing.T) {
+	pin := "@sha256:" + repeat("a", 64)
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("manifest.yaml", "id: xy\nname: X\nsummary: s\nexposure: private\ncomponents:\n  - name: app\n    image: docker.io/x/app:1"+pin+"\n    shell: [/bin/bash, -l]\n  - name: db\n    image: docker.io/x/db:1"+pin+"\n")
+	write("app.container", "[Container]\nImage={{ .Image }}\n")
+	write("db.container", "[Container]\nImage={{ .Image }}\n")
+	m, err := catalog.LoadEntry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := catalog.SpecFor(m, "", nil, "")
+	if got := spec.GetComponents()[0].GetShell(); strings.Join(got, " ") != "/bin/bash -l" || len(spec.GetComponents()[1].GetShell()) != 0 {
+		t.Fatalf("components' shells %v, %v", got, spec.GetComponents()[1].GetShell())
+	}
+
+	one := t.TempDir()
+	os.WriteFile(filepath.Join(one, "manifest.yaml"), []byte("id: xy\nname: X\nsummary: s\nexposure: private\nimage: docker.io/x/x:1"+pin+"\nshell: [/usr/bin/fish]\n"), 0o644)
+	os.WriteFile(filepath.Join(one, "xy.container"), []byte("[Container]\n"), 0o644)
+	m, err = catalog.LoadEntry(one)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := catalog.SpecFor(m, "", nil, "").GetShell(); len(got) != 1 || got[0] != "/usr/bin/fish" {
+		t.Fatalf("the entry's shell %v", got)
+	}
+	// It survives the index the Console bundles.
+	raw, _ := json.Marshal(&catalog.Index{Format: 1, Entries: []catalog.Manifest{*m}})
+	back, err := catalog.ParseIndex(raw)
+	if err != nil || len(back.Entries[0].Shell) != 1 {
+		t.Fatalf("round trip: %v %+v", err, back)
+	}
+}
+
+// A shell is an absolute program and its arguments, declared where it runs.
+func TestABadShellIsRefused(t *testing.T) {
+	pin := "@sha256:" + repeat("a", 64)
+	one := func() catalog.Manifest {
+		return catalog.Manifest{ID: "xy", Name: "X", Summary: "s", Image: "docker.io/x/x:1" + pin, Exposure: "remote", Quadlet: "[Container]\n"}
+	}
+	several := func() catalog.Manifest {
+		return catalog.Manifest{ID: "xy", Name: "X", Summary: "s", Exposure: "remote",
+			Components: []catalog.Component{{Name: "app", Image: "docker.io/x/app:1" + pin, Quadlet: "[Container]\n"}}}
+	}
+	for name, m := range map[string]catalog.Manifest{
+		"a relative program": func() catalog.Manifest { m := one(); m.Shell = []string{"bash"}; return m }(),
+		"an empty program":   func() catalog.Manifest { m := one(); m.Shell = []string{""}; return m }(),
+		"on the entry of components": func() catalog.Manifest {
+			m := several()
+			m.Shell = []string{"/bin/sh"}
+			return m
+		}(),
+		"a component's relative program": func() catalog.Manifest {
+			m := several()
+			m.Components[0].Shell = []string{"sh", "-l"}
+			return m
+		}(),
+	} {
+		if m.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	m := one()
+	m.Shell = []string{"/bin/ash", "-l"}
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

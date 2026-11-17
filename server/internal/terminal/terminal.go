@@ -3,9 +3,10 @@
 //
 // The Console opens a WebSocket on the Service tunnel (decision 71): a
 // request naming the Service in X-Maitre-Service, to Path. Every binary
-// message is one maitre.v1.TerminalFrame. The Node finds the Service's
-// running container, its shell (/bin/bash, else /bin/sh) and its image's
-// user, and starts `podman exec -it` through a Launcher, which in the agent
+// message is one maitre.v1.TerminalFrame. The Node finds the running
+// container the start names, its shell (the Catalog's `shell:`, the one set
+// in Service Configuration, /bin/bash, /bin/sh) and its image's user or
+// root, and starts `podman exec -it` through a Launcher, which in the agent
 // puts it in a transient systemd unit of its own (Hold, `maitre
 // terminal-hold`) that holds the PTY and serves the session on a unix
 // socket. The agent connects to that socket and passes frames both ways, so
@@ -58,7 +59,7 @@ const Feature = "terminal"
 // NoShell is what the Console shows for a container without a shell.
 const NoShell = "This container has no shell"
 
-// Shells are tried in order (#7 adds the Catalog's `shell:` before them).
+// Shells are tried in order, after the container's declared shells.
 var Shells = []string{"/bin/bash", "/bin/sh"}
 
 // Roles is what the endpoint needs from the trust list.
@@ -243,21 +244,28 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	if st.GetService() != spec.GetName() {
 		return nil, nil, fmt.Errorf("this connection is for %s, not %s", spec.GetName(), st.GetService())
 	}
-	ctr, label, err := h.container(ctx, spec, st.GetComponent())
+	ctr, comp, label, err := h.container(ctx, spec, st.GetComponent())
 	if err != nil {
 		return nil, nil, err
 	}
-	user := h.user(ctx, ctr)
-	shell := h.shell(ctx, ctr)
-	if shell == "" {
+	user := "root"
+	if !st.GetRoot() {
+		user = h.user(ctx, ctr)
+	}
+	shell := h.shell(ctx, ctr, shellsFor(spec, comp))
+	if shell == nil {
 		return nil, nil, failure{maitrev1.TerminalExit_REASON_NO_SHELL, NoShell}
 	}
 	id := newID()
-	argv := []string{h.cfg.Podman, "exec", "-it", "-e", "TERM=xterm-256color", ctr, shell}
+	argv := []string{h.cfg.Podman, "exec", "-it", "-e", "TERM=xterm-256color"}
+	if st.GetRoot() {
+		argv = append(argv, "--user", "0")
+	}
+	argv = append(append(argv, ctr), shell...)
 	if err := os.MkdirAll(h.cfg.Dir, 0o700); err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
-	hold := HoldSpec{Argv: argv, Size: st.GetSize(), Info: &maitrev1.TerminalInfo{Id: id, Service: spec.GetName(), Container: label, User: user, Argv: []string{shell}}}
+	hold := HoldSpec{Argv: argv, Size: st.GetSize(), Info: &maitrev1.TerminalInfo{Id: id, Service: spec.GetName(), Container: label, User: user, Argv: shell}}
 	if err := h.cfg.Launcher.Launch(ctx, h.socket(id), hold); err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
@@ -265,7 +273,7 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	if err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
-	h.cfg.Log.Info("terminal opened", "id", id, "device", device, "service", spec.GetName(), "container", ctr, "user", user, "argv", shell)
+	h.cfg.Log.Info("terminal opened", "id", id, "device", device, "service", spec.GetName(), "container", ctr, "user", user, "argv", strings.Join(shell, " "))
 	return held, info, nil
 }
 
@@ -396,8 +404,9 @@ func readWS(ctx context.Context, c *websocket.Conn) (*maitrev1.TerminalFrame, er
 }
 
 // container is the running container of the Service's component, found by
-// the unit Quadlet labels it with, and the name the Console shows for it.
-func (h *Handler) container(ctx context.Context, spec *maitrev1.ServiceSpec, component string) (string, string, error) {
+// the unit Quadlet labels it with, the component ("" in a Service of one
+// container) and the name the Console shows for it.
+func (h *Handler) container(ctx context.Context, spec *maitrev1.ServiceSpec, component string) (name, comp, label string, err error) {
 	unit, label := spec.GetName()+".service", spec.GetName()
 	if comps := spec.GetComponents(); len(comps) > 0 {
 		if component == "" {
@@ -408,19 +417,20 @@ func (h *Handler) container(ctx context.Context, spec *maitrev1.ServiceSpec, com
 			found = found || c.GetName() == component
 		}
 		if !found {
-			return "", "", fmt.Errorf("%s has no container named %s", spec.GetName(), component)
+			return "", "", "", fmt.Errorf("%s has no container named %s", spec.GetName(), component)
 		}
+		comp = component
 		unit, label = spec.GetName()+"-"+component+".service", component
 	}
 	out, err := h.cfg.Run(ctx, h.cfg.Podman, "ps", "--filter", "label=PODMAN_SYSTEMD_UNIT="+unit, "--format", "{{.Names}}")
 	if err != nil {
-		return "", "", fmt.Errorf("could not ask podman for %s's container: %w", spec.GetName(), err)
+		return "", "", "", fmt.Errorf("could not ask podman for %s's container: %w", spec.GetName(), err)
 	}
-	name := strings.TrimSpace(strings.SplitN(strings.TrimSpace(out), "\n", 2)[0])
+	name = strings.TrimSpace(strings.SplitN(strings.TrimSpace(out), "\n", 2)[0])
 	if name == "" {
-		return "", "", fmt.Errorf("%s is not running", spec.GetName())
+		return "", "", "", fmt.Errorf("%s is not running", spec.GetName())
 	}
-	return name, label, nil
+	return name, comp, label, nil
 }
 
 // user is the image's default user, as the image names it; "root" when it
@@ -433,14 +443,40 @@ func (h *Handler) user(ctx context.Context, ctr string) string {
 	return "root"
 }
 
-// shell is the first of Shells the container can run, or "".
-func (h *Handler) shell(ctx context.Context, ctr string) string {
+// shellsFor are the shells to try in a component's container ("" in a
+// Service of one container), in order (ADR 0011): the Catalog entry's
+// `shell:`, the one set in Service Configuration, then Shells.
+func shellsFor(spec *maitrev1.ServiceSpec, comp string) [][]string {
+	var out [][]string
+	declared := spec.GetShell()
+	for _, c := range spec.GetComponents() {
+		if comp != "" && c.GetName() == comp {
+			declared = c.GetShell()
+		}
+	}
+	if len(declared) > 0 {
+		out = append(out, declared)
+	}
+	for _, s := range spec.GetShells() {
+		if s.GetComponent() == comp && len(s.GetArgv()) > 0 {
+			out = append(out, s.GetArgv())
+		}
+	}
 	for _, s := range Shells {
-		if _, err := h.cfg.Run(ctx, h.cfg.Podman, "exec", ctr, s, "-c", "exit 0"); err == nil {
+		out = append(out, []string{s})
+	}
+	return out
+}
+
+// shell is the first of shells whose program the container can run, or
+// nil.
+func (h *Handler) shell(ctx context.Context, ctr string, shells [][]string) []string {
+	for _, s := range shells {
+		if _, err := h.cfg.Run(ctx, h.cfg.Podman, "exec", ctr, s[0], "-c", "exit 0"); err == nil {
 			return s
 		}
 	}
-	return ""
+	return nil
 }
 
 func newID() string {

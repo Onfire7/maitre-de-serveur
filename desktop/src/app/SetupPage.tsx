@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { SetupSchema, ServicePageSchema, UnitOverrideSchema, type RenderedUnit, type Setup } from "@/gen/maitre/v1/service_pb";
+import { ContainerShellSchema, SetupSchema, ServicePageSchema, UnitOverrideSchema, type RenderedUnit, type ServiceSpec, type Setup } from "@/gen/maitre/v1/service_pb";
 import type { FleetService } from "@/fleet/useFleet";
 import { declined } from "@/fleet/grants";
 import { lineDiff, diffCount, type DiffLine } from "@/fleet/diff";
@@ -143,6 +143,7 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
             </div>
           )}
           <SetupFields setup={setup} edit={edit} subject={subjectOf(service, services)} choices={choices} movesTo={movesTo} stack={stackOf(name, services)} />
+          <ShellCard key={name} setup={setup} edit={edit} spec={service.spec} />
         </div>
         <div className="min-w-0 space-y-3">
           <UnitsPanel units={units} before={current.data?.units ?? []} loading={proposed.isFetching || current.isLoading} />
@@ -159,6 +160,50 @@ export function SetupPage({ service, services, target, onDone }: { service: Flee
         </div>
       </div>
     </div>
+  );
+}
+
+/** The shell a Terminal runs in each container (ADR 0011, #7), for a
+ * custom Service above all: the Node tries the Catalog entry's `shell:`
+ * first, then this, then /bin/bash and /bin/sh. Written as the program and
+ * its arguments separated by spaces. */
+function ShellCard({ setup, edit, spec }: { setup: Setup; edit: (f: (s: Setup) => void) => void; spec: ServiceSpec }) {
+  const containers = spec.components.length ? spec.components.map((c) => ({ name: c.name, declared: c.shell })) : [{ name: "", declared: spec.shell }];
+  const saved = (c: string) => setup.shells.find((s) => s.component === c)?.argv.join(" ") ?? "";
+  // What is typed, kept as typed (spaces and all) while the Setup holds the argv.
+  const [text, setText] = useState<Record<string, string>>(() => Object.fromEntries(containers.map((c) => [c.name, saved(c.name)])));
+  const argvOf = (value: string) => value.trim().split(/\s+/).filter(Boolean);
+  // The typed text while it says what the Setup holds; the Setup's after a Discard.
+  const shown = (c: string) => (argvOf(text[c] ?? "").join(" ") === saved(c) ? (text[c] ?? "") : saved(c));
+  const change = (component: string, value: string) => {
+    setText((t) => ({ ...t, [component]: value }));
+    const argv = argvOf(value);
+    edit((s) => {
+      s.shells = s.shells.filter((x) => x.component !== component);
+      if (argv.length) s.shells.push(create(ContainerShellSchema, { component, argv }));
+    });
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Terminal shell</CardTitle>
+        <CardDescription>The shell a Terminal opens in {containers.length > 1 ? "each container" : "the container"}, such as /bin/ash -l. Left empty, it is /bin/bash, else /bin/sh.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {containers.map((c) => {
+          const label = c.name ? `Shell in ${c.name}` : "Shell";
+          return (
+            <div key={c.name} className="space-y-1">
+              <Label htmlFor={`shell-${c.name}`} className={cn(!c.name && "sr-only")}>
+                {label}
+              </Label>
+              <Input id={`shell-${c.name}`} aria-label={label} value={shown(c.name)} placeholder="/bin/bash" className="font-mono" onChange={(e) => change(c.name, e.target.value)} />
+              {c.declared.length > 0 && <p className="text-xs text-muted-foreground">Its Catalog entry's shell, {c.declared.join(" ")}, is tried first.</p>}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 

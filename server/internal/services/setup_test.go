@@ -359,3 +359,40 @@ func TestStartingAHeldDownServiceClearsItsLimit(t *testing.T) {
 		t.Errorf("reset-failed must come before start: %v", run.cmds)
 	}
 }
+
+// Service Configuration sets the shell a Terminal runs in a container (ADR
+// 0011): kept on the Service, replaced with the rest of the Setup; it is an
+// absolute program, for a container the Service has.
+func TestSetupSetsATerminalsShell(t *testing.T) {
+	ctx := context.Background()
+	m, st, _, _ := newManager(t)
+	spec := single("kuma", 3001)
+	if _, err := m.Install(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	set := &maitrev1.Setup{Pages: spec.Pages, Shells: []*maitrev1.ContainerShell{{Argv: []string{"/usr/bin/fish", "-l"}}}}
+	if _, err := m.SetSetup(ctx, "kuma", set); err != nil {
+		t.Fatal(err)
+	}
+	var got maitrev1.ServiceSpec
+	st.Get(ctx, services.KindService, "kuma", &got)
+	if sh := got.GetShells(); len(sh) != 1 || strings.Join(sh[0].GetArgv(), " ") != "/usr/bin/fish -l" {
+		t.Fatalf("shells %v", sh)
+	}
+	for name, bad := range map[string]*maitrev1.ContainerShell{
+		"a relative program": {Argv: []string{"fish"}},
+		"no container":       {Component: "db", Argv: []string{"/bin/sh"}},
+	} {
+		if _, err := m.SetSetup(ctx, "kuma", &maitrev1.Setup{Pages: spec.Pages, Shells: []*maitrev1.ContainerShell{bad}}); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	// An empty argv is no shell: left out.
+	if _, err := m.SetSetup(ctx, "kuma", &maitrev1.Setup{Pages: spec.Pages, Shells: []*maitrev1.ContainerShell{{}}}); err != nil {
+		t.Fatal(err)
+	}
+	st.Get(ctx, services.KindService, "kuma", &got)
+	if len(got.GetShells()) != 0 {
+		t.Fatalf("shells %v", got.GetShells())
+	}
+}

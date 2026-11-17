@@ -11,6 +11,8 @@ import { List, Play, Plus, RotateCw, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Target } from "@/transport";
+import type { TerminalChoice } from "@/terminal/session";
+import { OpenTerminalDialog } from "./OpenTerminalDialog";
 import { TerminalView } from "@/terminal/TerminalView";
 import {
   attachTerminal,
@@ -112,10 +114,13 @@ export function terminalState(t: HeldTerminal): string {
 /**
  * The Service's Terminals the Node holds (#5), running and finished, each
  * to reopen; a running one can be Ended. A finished one is kept, with its
- * exit code and output, until it has been opened or for 24 hours.
+ * exit code and output, until it has been opened or for 24 hours. New
+ * Terminal asks where and as whom (#7); `containers` are the Service's
+ * components, none for a Service of one container.
  */
-export function TerminalList({ service, target, deps = node }: { service: string; target: Target; deps?: TerminalListDeps }) {
+export function TerminalList({ service, target, containers = [], deps = node }: { service: string; target: Target; containers?: string[]; deps?: TerminalListDeps }) {
   const [held, setHeld] = useState<HeldTerminal[] | undefined>();
+  const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<string>();
   const refresh = useCallback(() => {
     deps.list(target, service).then(
@@ -136,7 +141,7 @@ export function TerminalList({ service, target, deps = node }: { service: string
       <div className="mx-auto max-w-2xl">
         <div className="mb-3 flex items-center gap-2">
           <h2 className="text-sm font-medium">{service}'s Terminals</h2>
-          <Button size="sm" className="ml-auto" onClick={() => openTerminal(service, target, deps.terminal)}>
+          <Button size="sm" className="ml-auto" onClick={() => setChoosing(true)}>
             <Plus /> New Terminal
           </Button>
         </div>
@@ -151,7 +156,7 @@ export function TerminalList({ service, target, deps = node }: { service: string
               <span className="font-mono text-muted-foreground">{t.argv.join(" ")}</span>
               <span className={cn("text-muted-foreground", !t.running && "text-foreground")}>{terminalState(t)}</span>
               <span className="ml-auto" />
-              <Button size="sm" variant="secondary" onClick={() => attachTerminal(service, target, t.id, deps.terminal)}>
+              <Button size="sm" variant="secondary" onClick={() => attachTerminal(service, target, t.id, deps.terminal, heldChoice(service, t))}>
                 Open
               </Button>
               {t.running && (
@@ -164,6 +169,27 @@ export function TerminalList({ service, target, deps = node }: { service: string
         </ul>
         )}
       </div>
+      {choosing && (
+        <OpenTerminalDialog
+          service={service}
+          containers={containers}
+          onClose={() => setChoosing(false)}
+          onOpen={(choice) => {
+            setChoosing(false);
+            openTerminal(service, target, deps.terminal, choice);
+          }}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * Where a held Terminal ran and as whom, as far as its info tells, for Run
+ * again once it ends: its container is the component's name in a Service
+ * of several (the Service's own name otherwise), and a shell that ran as
+ * "root" runs again as root (uid 0 either way).
+ */
+function heldChoice(service: string, t: HeldTerminal): TerminalChoice {
+  return { ...(t.container && t.container !== service ? { component: t.container } : {}), ...(t.user === "root" ? { root: true } : {}) };
 }
