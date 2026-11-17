@@ -70,6 +70,13 @@ describe("the update queue", () => {
     expect(log).toEqual(["start a", "start b"]);
   });
 
+  it("keeps the Node's typical times, asked before it goes down, on its job", () => {
+    pump(snapWith(["c"]));
+    enqueue("a", "A", { kind: "reboot" }, node([], "a"), { updateMs: 262_000, downtimeMs: 95_000 });
+    enqueue("b", "B", update, node([], "b"));
+    expect(queued().map((j) => j.typical)).toEqual([{ updateMs: 262_000, downtimeMs: 95_000 }, { updateMs: 0, downtimeMs: 0 }]);
+  });
+
   it("cancels a waiting job and asks a Node only once", async () => {
     const log: string[] = [];
     pump(snapWith(["c"]));
