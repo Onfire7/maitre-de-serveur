@@ -4,7 +4,9 @@
 # Service, holding the programs it has (bin/bash, bin/sh) and its image's
 # user in a file "user". `podman exec` runs the container's program on this
 # machine, so the shell is real and runs on a real PTY; only the container
-# around it is pretend. Used by internal/terminal's tests and tunnel-check.
+# around it is pretend. `podman stop` kills what exec started in it, as
+# stopping a real container does. Used by internal/terminal's tests and
+# tunnel-check.
 root=$MAITRE_FAKE_PODMAN_ROOT
 cmd=$1; shift
 case $cmd in
@@ -26,7 +28,13 @@ exec)
   done
   ctr=$1; prog=$2; shift 2
   [ -e "$root/$ctr$prog" ] || { echo "Error: crun: executable file '$prog' not found in \$PATH" >&2; exit 127; }
+  echo $$ >>"$root/$ctr/pids"
   exec "$root/$ctr$prog" "$@";;
+stop)
+  ctr=$1
+  [ -f "$root/$ctr/pids" ] && xargs kill -KILL <"$root/$ctr/pids" 2>/dev/null
+  rm -f "$root/$ctr/pids"
+  exit 0;;
 esac
 echo "fake podman: $cmd not understood" >&2
 exit 125

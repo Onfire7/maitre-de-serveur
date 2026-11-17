@@ -1,9 +1,11 @@
-// One Terminal's connection (ADR 0011): a WebSocket to the Desktop's
+// One view's connection to a Terminal (ADR 0011): a WebSocket to the Desktop's
 // Terminal proxy, at a URL with a one-time token, which relays it over
 // the Service tunnel to the Node's Terminal endpoint. Every binary message
 // is one TerminalFrame (api/maitre/v1/terminal.proto). The session knows
 // nothing of how it is drawn: the view (TerminalView) listens to its
-// output and sends what is typed and its size.
+// output and sends what is typed and its size. The Terminal belongs to the
+// Node: closing this connection only detaches, and a new session can attach
+// to it again by its id, getting its recent output replayed first.
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 
@@ -23,8 +25,13 @@ export type SocketFactory = (url: string) => TerminalSocket;
 export const browserSocket: SocketFactory = (url) => new WebSocket(url) as unknown as TerminalSocket;
 
 export interface TerminalInfo {
-  /** connecting → running → exited; or no-shell, or failed with a message. */
-  phase: "connecting" | "running" | "exited" | "no-shell" | "failed";
+  /**
+   * connecting → running → exited; or no-shell, or failed with a message;
+   * or lost: the connection closed while the Terminal ran on, on the Node.
+   */
+  phase: "connecting" | "running" | "exited" | "no-shell" | "failed" | "lost";
+  /** The Node's id for the Terminal, once it says. */
+  id?: string;
   /** Where it runs and as whom, once the Node says (the view's label). */
   container: string;
   user: string;
@@ -52,8 +59,10 @@ export class TerminalSession {
   private backlog: Uint8Array[] = [];
   private backlogBytes = 0;
 
-  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory }) {
+  /** attach: the id of a Terminal the Node holds, to reattach to it rather than start one. */
+  constructor(opts: { service: string; url: () => Promise<string>; socket?: SocketFactory; attach?: string }) {
     this.service = opts.service;
+    if (opts.attach) this.info = { ...this.info, id: opts.attach };
     const factory = opts.socket ?? browserSocket;
     opts.url().then(
       (url) => {
@@ -62,13 +71,19 @@ export class TerminalSession {
         s.binaryType = "arraybuffer";
         s.onopen = () => {
           this.open = true;
-          this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: "", size: { $typeName: "maitre.v1.TerminalSize", ...this.size } } });
+          const size = { $typeName: "maitre.v1.TerminalSize", ...this.size } as const;
+          if (opts.attach) this.send({ case: "attach", value: { $typeName: "maitre.v1.TerminalAttach", id: opts.attach, size } });
+          else this.send({ case: "start", value: { $typeName: "maitre.v1.TerminalStart", service: this.service, component: "", size } });
         };
         s.onmessage = (e) => this.receive(e.data);
         s.onclose = (e) => {
           this.open = false;
-          if (this.info.phase === "connecting" || this.info.phase === "running") {
-            this.set({ phase: "failed", message: e.reason ? `The connection to the Node closed: ${e.reason}` : "The connection to the Node closed before the shell ended." });
+          if (this.closed) return;
+          if (this.info.phase === "running") {
+            // The Terminal runs on, on the Node; the view can reattach.
+            this.set({ phase: "lost", message: "The connection to the Node was lost. The Terminal is still running there." });
+          } else if (this.info.phase === "connecting") {
+            this.set({ phase: "failed", message: e.reason ? `The connection to the Node closed: ${e.reason}` : "The connection to the Node closed before the Terminal started." });
           }
         };
         s.onerror = () => {};
@@ -97,7 +112,7 @@ export class TerminalSession {
     }
     switch (f.frame.case) {
       case "started":
-        this.set({ phase: "running", container: f.frame.value.container, user: f.frame.value.user });
+        this.set({ phase: "running", id: f.frame.value.id, container: f.frame.value.container, user: f.frame.value.user });
         return;
       case "output": {
         const d = f.frame.value.data;
@@ -140,11 +155,17 @@ export class TerminalSession {
     return () => this.outputs.delete(l);
   }
 
+  /** End the Terminal on the Node: SIGHUP, then SIGKILL after 5 seconds. Its exit comes back. */
+  end() {
+    this.send({ case: "end", value: { $typeName: "maitre.v1.TerminalEnd" } });
+  }
+
   subscribe(l: Listener): () => void {
     this.listeners.add(l);
     return () => this.listeners.delete(l);
   }
 
+  /** Detach: the Terminal runs on, on the Node. */
   close() {
     this.closed = true;
     this.socket?.close();

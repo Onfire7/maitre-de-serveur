@@ -183,7 +183,6 @@ func runDev(args []string) error {
 		Features:   devFeatures(*fake),
 	}, nil))
 	mux := http.NewServeMux()
-	connecthttp.Mount(mux, rpc)
 	rl := relay.New(relay.Config{Log: log, Self: id.Fingerprint(), Roles: list, HTTP: NewHTTPClient(mtls.ClientConfig(id, list)),
 		Addresses: func(nodeID string) []string { return relayNodes[nodeID] }})
 	defer rl.Close()
@@ -212,9 +211,12 @@ func runDev(args []string) error {
 		// process of its own, a dev Node having no systemd to ask.
 		self, _ := os.Executable()
 		terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log, Podman: os.Getenv("MAITRE_PODMAN"),
-			Launcher: terminal.Process{Self: self, Dir: filepath.Join(*state, "terminals")}})
+			Launcher: terminal.Process{Self: self}, Dir: filepath.Join(*state, "terminals")})
+		maitrev1connect.RegisterTerminalServiceHandler(rpc, terms)
 		h = terms.Wrap(svcproxy.Header, svcproxy.Handler(st, mux))
 	}
+	// Every procedure is registered by now: Mount routes only those.
+	connecthttp.Mount(mux, rpc)
 	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, h)), mtls.ServerConfig(id, list), rl.Listener())
 }
 
@@ -422,17 +424,5 @@ func devFeatures(fake string) []string {
 }
 
 // runTerminalHold is what a Terminal's transient unit runs (ADR 0011): it
-// holds the PTY of `-- argv...` and serves the session on --socket.
-func runTerminalHold(args []string) error {
-	fs := flag.NewFlagSet("terminal-hold", flag.ExitOnError)
-	socket := fs.String("socket", "", "unix socket the agent connects to")
-	cols := fs.Uint("cols", 80, "columns")
-	rows := fs.Uint("rows", 24, "rows")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *socket == "" || fs.NArg() == 0 {
-		return fmt.Errorf("usage: maitre terminal-hold --socket path [--cols n --rows n] -- argv...")
-	}
-	return terminal.Serve(*socket, fs.Args(), &maitrev1.TerminalSize{Cols: uint32(*cols), Rows: uint32(*rows)})
-}
+// holds the PTY of `-- argv...` and serves the Terminal on --socket.
+func runTerminalHold(args []string) error { return terminal.HoldMain(args) }

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 import { TerminalSession, type TerminalSocket } from "./session";
-import { closeTerminal, getTerminal, openTerminal, resetTerminals, runAgain } from "./terminals";
+import { attachTerminal, closeTerminal, getTerminal, openTerminal, reattach, resetTerminals, runAgain } from "./terminals";
 import { IDLE_MS, MAX_LIVE, getFrame, resetFrames, showFrame, hideFrame, tick } from "@/app/frames";
 
 /** A WebSocket the test plays the Node's end of. */
@@ -29,10 +29,11 @@ class FakeSocket implements TerminalSocket {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-function session(urls: string[] = ["ws://127.0.0.1:41000/t1"]) {
+function session(urls: string[] = ["ws://127.0.0.1:41000/t1"], attach?: string) {
   const sockets: FakeSocket[] = [];
   const s = new TerminalSession({
     service: "kuma",
+    attach,
     url: async () => urls.shift() ?? "ws://none",
     socket: (url) => {
       const f = new FakeSocket(url);
@@ -55,7 +56,7 @@ describe("a Terminal's session (ADR 0011)", () => {
     const start = sockets[0].sent[0].frame;
     expect(start.case).toBe("start");
     expect(start.case === "start" && [start.value.service, start.value.size?.cols, start.value.size?.rows]).toEqual(["kuma", 120, 40]);
-    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "ab", container: "server", user: "root", argv: ["/bin/bash"] } });
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "ab", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
     expect(s.info).toMatchObject({ phase: "running", container: "server", user: "root" });
   });
 
@@ -114,6 +115,45 @@ describe("a Terminal's session (ADR 0011)", () => {
   });
 });
 
+describe("a Terminal held by the Node (#5)", () => {
+  it("reattaches by its id at the view's size, and the Node's replay comes first", async () => {
+    const { s, sockets } = session(undefined, "0123456789abcdef");
+    s.resize(100, 30);
+    await flush();
+    sockets[0].onopen?.();
+    const attach = sockets[0].sent[0].frame;
+    expect(attach.case === "attach" && [attach.value.id, attach.value.size?.cols, attach.value.size?.rows]).toEqual(["0123456789abcdef", 100, 30]);
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "0123456789abcdef", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    sockets[0].node({ case: "output", value: { $typeName: "maitre.v1.TerminalOutput", data: new TextEncoder().encode("earlier\r\n") } });
+    const seen: string[] = [];
+    s.onOutput((d) => seen.push(new TextDecoder().decode(d)));
+    expect(seen).toEqual(["earlier\r\n"]);
+    expect(s.info).toMatchObject({ phase: "running", id: "0123456789abcdef" });
+  });
+
+  it("knows the Terminal ran on when the connection drops, and End asks the Node to end it", async () => {
+    const { s, sockets } = session();
+    await flush();
+    sockets[0].onopen?.();
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "ab12", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    s.end();
+    expect(sockets[0].sent.at(-1)?.frame.case).toBe("end");
+    sockets[0].onclose?.({ code: 1001, reason: "" });
+    expect(s.info).toMatchObject({ phase: "lost", id: "ab12" });
+  });
+
+  it("closing it only detaches, quietly", async () => {
+    const { s, sockets } = session();
+    await flush();
+    sockets[0].onopen?.();
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "ab12", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    s.close();
+    sockets[0].onclose?.({ code: 1000, reason: "" });
+    expect(sockets[0].sent.some((f) => f.frame.case === "end")).toBe(false);
+    expect(s.info.phase).toBe("running");
+  });
+});
+
 describe("the Console's open Terminals", () => {
   const target = { addr: "192.168.1.5:7443", fingerprint: "ab".repeat(32) };
   beforeEach(() => {
@@ -152,6 +192,23 @@ describe("the Console's open Terminals", () => {
     closeTerminal("kuma");
     expect(getTerminal("kuma")).toBeUndefined();
     expect(sockets[1].closed).toBe(true);
+  });
+
+  it("opens a Terminal the Node holds by its id, and reattaches to the one whose connection was lost", async () => {
+    const sockets: FakeSocket[] = [];
+    const deps = { url: async () => "ws://x", socket: (u: string) => { const f = new FakeSocket(u); sockets.push(f); return f; } };
+    const first = attachTerminal("kuma", target, "0123456789abcdef", deps);
+    await flush();
+    sockets[0].onopen?.();
+    expect(sockets[0].sent[0].frame.case).toBe("attach");
+    sockets[0].node({ case: "started", value: { $typeName: "maitre.v1.TerminalStarted", id: "0123456789abcdef", container: "server", user: "root", argv: ["/bin/bash"], startedUnixMs: 1n } });
+    sockets[0].onclose?.({ code: 1001, reason: "" });
+    const again = reattach("kuma");
+    expect(again).not.toBe(first);
+    await flush();
+    sockets[1].onopen?.();
+    const f = sockets[1].sent[0].frame;
+    expect(f.case === "attach" && f.value.id).toBe("0123456789abcdef");
   });
 
   it("an open Terminal is neither dropped by the frames' idle timer nor counted in their limit", async () => {

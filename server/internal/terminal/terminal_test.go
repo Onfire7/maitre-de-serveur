@@ -36,6 +36,13 @@ func (r roles) Limited(fp string) bool { return r.limited[fp] }
 type env struct {
 	url  string
 	root string
+	h    *terminal.Handler
+	dir  string
+	st   *store.Store
+	srv  *httptest.Server
+
+	podman   string
+	launcher terminal.Launcher
 }
 
 // container makes a pretend container for Service name with the given
@@ -65,6 +72,13 @@ func (e env) container(t *testing.T, name, user string, shells ...string) {
 // X-Test-Peer names.
 func start(t *testing.T, svcs ...string) env {
 	t.Helper()
+	return startWith(t, terminal.InProcess(), "", svcs...)
+}
+
+// startWith is start with a given launcher and sessions directory ("" is a
+// new one).
+func startWith(t *testing.T, launcher terminal.Launcher, sock string, svcs ...string) env {
+	t.Helper()
 	dir := t.TempDir()
 	podman, err := filepath.Abs(fakePodman)
 	if err != nil {
@@ -83,18 +97,24 @@ func start(t *testing.T, svcs ...string) env {
 	for _, s := range svcs {
 		st.Put(ctx, services.KindService, s, &maitrev1.ServiceSpec{Name: s}, false)
 	}
-	sock, err := os.MkdirTemp("", "mt")
-	if err != nil {
-		t.Fatal(err)
+	if sock == "" {
+		sock = sockets(t)
 	}
-	t.Cleanup(func() { os.RemoveAll(sock) })
+	return serveAgent(t, env{root: root, dir: sock, st: st, podman: podman, launcher: launcher})
+}
+
+// serveAgent serves the endpoint for e's store, containers and sockets, as
+// a (new) agent would.
+func serveAgent(t *testing.T, e env) env {
+	t.Helper()
 	h := terminal.New(terminal.Config{
-		Store:    st,
+		Store:    e.st,
 		Roles:    roles{nodes: map[string]bool{"node": true}, limited: map[string]bool{"phrase": true}},
-		Podman:   podman,
-		Launcher: terminal.InProcess(sock),
+		Podman:   e.podman,
+		Launcher: e.launcher,
+		Dir:      e.dir,
 	})
-	inner := h.Wrap(svcproxy.Header, svcproxy.Handler(st, http.NotFoundHandler()))
+	inner := h.Wrap(svcproxy.Header, svcproxy.Handler(e.st, http.NotFoundHandler()))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fp := r.Header.Get("X-Test-Peer"); fp != "" {
 			r = r.WithContext(peer.WithInfo(r.Context(), peer.Info{Fingerprint: fp}))
@@ -102,7 +122,20 @@ func start(t *testing.T, svcs ...string) env {
 		inner.ServeHTTP(w, r)
 	}))
 	t.Cleanup(srv.Close)
-	return env{url: srv.URL, root: root}
+	e.url, e.h, e.srv = srv.URL, h, srv
+	return e
+}
+
+// sockets is a directory for the holders' sockets, short enough for a
+// unix socket's path.
+func sockets(t *testing.T) string {
+	t.Helper()
+	sock, err := os.MkdirTemp("", "mt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(sock) })
+	return sock
 }
 
 type session struct {
