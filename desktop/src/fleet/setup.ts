@@ -28,6 +28,7 @@ export function setupOf(spec: ServiceSpec): Setup {
     networkInternal: spec.networkInternal,
     pages: pagesOf(spec).map((p) => ({ ...p })),
     overrides: spec.overrides.map((o) => ({ ...o })),
+    shells: spec.shells.map((s) => ({ component: s.component, argv: [...s.argv] })),
   });
 }
 

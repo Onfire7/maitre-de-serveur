@@ -107,15 +107,16 @@ message TerminalSize {
   uint32 rows = 2;
 }
 
-// TerminalStart opens a new Terminal: the Service's shell, as the image's
-// default user, in its container.
+// TerminalStart opens a new Terminal: the shell of one of the Service's
+// containers, as the image's default user or as root.
 message TerminalStart {
   // The Service; it must be the one the WebSocket's X-Maitre-Service names.
   string service = 1;
   TerminalSize size = 2;
   // The component, in a Service of several; "" is the Service's first.
-  // Not yet chosen by the Console.
   string component = 3;
+  // Run as root (uid 0) instead of the image's default user.
+  bool root = 4;
 }
 
 // TerminalInput is what was typed, as the bytes a terminal sends.
@@ -138,9 +139,10 @@ message TerminalStarted {
   // the Service's for a Service of one container.
   string container = 2;
   // Who the process runs as: the image's default user ("root" when it
-  // names none).
+  // names none, or when the start asked for root).
   string user = 3;
-  // The command that runs, the shell found in the container.
+  // The command that runs: the first shell the container has, of the
+  // Catalog's `shell:`, the one set in Setup, /bin/bash and /bin/sh.
   repeated string argv = 4;
   // When it started; on an attach, possibly long ago.
   int64 started_unix_ms = 5;
@@ -157,7 +159,7 @@ message TerminalExit {
     REASON_UNSPECIFIED = 0;
     // The process exited; code is its exit code (128+n for signal n).
     REASON_EXITED = 1;
-    // The container has neither /bin/bash nor /bin/sh.
+    // The container has none of the shells tried.
     REASON_NO_SHELL = 2;
     // No process could start; message says why.
     REASON_FAILED = 3;

@@ -27,7 +27,7 @@ const (
 	TerminalExit_REASON_UNSPECIFIED TerminalExit_Reason = 0
 	// The process exited; code is its exit code (128+n for signal n).
 	TerminalExit_REASON_EXITED TerminalExit_Reason = 1
-	// The container has neither /bin/bash nor /bin/sh.
+	// The container has none of the shells tried.
 	TerminalExit_REASON_NO_SHELL TerminalExit_Reason = 2
 	// No process could start; message says why.
 	TerminalExit_REASON_FAILED TerminalExit_Reason = 3
@@ -734,16 +734,17 @@ func (x *TerminalSize) GetRows() uint32 {
 	return 0
 }
 
-// TerminalStart opens a new Terminal: the Service's shell, as the image's
-// default user, in its container.
+// TerminalStart opens a new Terminal: the shell of one of the Service's
+// containers, as the image's default user or as root.
 type TerminalStart struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The Service; it must be the one the WebSocket's X-Maitre-Service names.
 	Service string        `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
 	Size    *TerminalSize `protobuf:"bytes,2,opt,name=size,proto3" json:"size,omitempty"`
 	// The component, in a Service of several; "" is the Service's first.
-	// Not yet chosen by the Console.
-	Component     string `protobuf:"bytes,3,opt,name=component,proto3" json:"component,omitempty"`
+	Component string `protobuf:"bytes,3,opt,name=component,proto3" json:"component,omitempty"`
+	// Run as root (uid 0) instead of the image's default user.
+	Root          bool `protobuf:"varint,4,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -797,6 +798,13 @@ func (x *TerminalStart) GetComponent() string {
 		return x.Component
 	}
 	return ""
+}
+
+func (x *TerminalStart) GetRoot() bool {
+	if x != nil {
+		return x.Root
+	}
+	return false
 }
 
 // TerminalInput is what was typed, as the bytes a terminal sends.
@@ -900,9 +908,10 @@ type TerminalStarted struct {
 	// the Service's for a Service of one container.
 	Container string `protobuf:"bytes,2,opt,name=container,proto3" json:"container,omitempty"`
 	// Who the process runs as: the image's default user ("root" when it
-	// names none).
+	// names none, or when the start asked for root).
 	User string `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
-	// The command that runs, the shell found in the container.
+	// The command that runs: the first shell the container has, of the
+	// Catalog's `shell:`, the one set in Setup, /bin/bash and /bin/sh.
 	Argv []string `protobuf:"bytes,4,rep,name=argv,proto3" json:"argv,omitempty"`
 	// When it started; on an attach, possibly long ago.
 	StartedUnixMs int64 `protobuf:"varint,5,opt,name=started_unix_ms,json=startedUnixMs,proto3" json:"started_unix_ms,omitempty"`
@@ -1122,11 +1131,12 @@ const file_maitre_v1_terminal_proto_rawDesc = "" +
 	"\vTerminalEnd\"6\n" +
 	"\fTerminalSize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\rR\x04rows\"t\n" +
+	"\x04rows\x18\x02 \x01(\rR\x04rows\"\x88\x01\n" +
 	"\rTerminalStart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12+\n" +
 	"\x04size\x18\x02 \x01(\v2\x17.maitre.v1.TerminalSizeR\x04size\x12\x1c\n" +
-	"\tcomponent\x18\x03 \x01(\tR\tcomponent\"#\n" +
+	"\tcomponent\x18\x03 \x01(\tR\tcomponent\x12\x12\n" +
+	"\x04root\x18\x04 \x01(\bR\x04root\"#\n" +
 	"\rTerminalInput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"=\n" +
 	"\x0eTerminalResize\x12+\n" +

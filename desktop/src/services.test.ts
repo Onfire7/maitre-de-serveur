@@ -14,6 +14,14 @@ describe("specFor", () => {
     expect(spec.units).toEqual([]);
   });
 
+  it("carries the shell a Terminal runs, the entry's or each component's (#7)", () => {
+    const one = { ...entry("jellyfin"), shell: ["/bin/ash", "-l"] };
+    expect(specFor(one, "", {}).shell).toEqual(["/bin/ash", "-l"]);
+    const im = entry("immich");
+    const several = { ...im, components: im.components!.map((c, i) => (i === 0 ? { ...c, shell: ["/bin/bash", "-l"] } : c)) };
+    expect(specFor(several, "", {}).components.map((c) => c.shell)).toEqual([["/bin/bash", "-l"], [], [], []]);
+  });
+
   it("carries an entry's components, its bundle units and which one serves the page", () => {
     const spec = specFor(entry("immich"), "photos", {});
     expect(spec.image).toBe("");

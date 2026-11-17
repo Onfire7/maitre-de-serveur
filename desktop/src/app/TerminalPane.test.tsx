@@ -212,15 +212,20 @@ describe("the Service's Terminals (#5)", () => {
     expect(getTerminal(opened[0])?.session.info.id).toBe("bbbbbbbbbbbbbbbb");
   });
 
-  it("starts a new Terminal, and says when the Node has none", async () => {
+  it("starts a new Terminal where and as whom chosen (#7), and says when the Node has none", async () => {
     const opened: string[] = [];
-    render(<TerminalList service="kuma" target={target} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} onOpen={(key) => opened.push(key)} />);
+    render(<TerminalList service="photos" target={target} containers={["server", "database"]} deps={{ list: async () => [], end: async () => {}, terminal: { url: async () => "ws://x", socket } }} onOpen={(key) => opened.push(key)} />);
     await flush();
-    expect(screen.getByText("No Terminal is running in kuma.")).toBeTruthy();
+    expect(screen.getByText("No Terminal is running in photos.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /New Terminal/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "database" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Run as root/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
     await flush();
     act(() => sockets[0].onopen?.());
-    expect(sockets[0].sent[0].frame.case).toBe("start");
-    expect(getTerminal(opened[0])?.session).toBeDefined();
+    const f = sockets[0].sent[0].frame;
+    expect(f.case === "start" && [f.value.component, f.value.root]).toEqual(["database", true]);
+    expect(getTerminal(opened[0])?.service).toBe("photos");
+    expect(opened).toHaveLength(1);
   });
 });

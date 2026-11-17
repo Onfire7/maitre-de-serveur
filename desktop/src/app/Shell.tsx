@@ -41,6 +41,7 @@ import { pageViewOf } from "@/fleet/pages";
 import { SetupPage } from "./SetupPage";
 import { TOAST_GAP, TOAST_WIDTH } from "./layout";
 import { MoveServiceDialog } from "./MoveServiceDialog";
+import { OpenTerminalDialog } from "./OpenTerminalDialog";
 import { CatalogPage } from "./CatalogPage";
 import { useCatalogs } from "@/fleet/catalogs";
 import { registerEntries } from "./status";
@@ -150,6 +151,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   }, []);
   const [removing, setRemoving] = useState<FleetService | null>(null);
   const [moving, setMoving] = useState<FleetService | null>(null);
+  // The Service a Terminal is being opened in: where and as whom (#7).
+  const [terminalFor, setTerminalFor] = useState<FleetService | null>(null);
   const [deleteData, setDeleteData] = useState(false);
   const [typed, setTyped] = useState("");
   // `?sheet=ports:minecraft` opens a sheet on load (screenshot fixture).
@@ -195,12 +198,13 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "terminal":
         // ADR 0011: a shell in its container, beside its Pages.
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
-        // An open view, else the Service's Terminals on the Node (#5), else a new one.
+        // An open view, else the Service's Terminals on the Node (#5), else
+        // a new one, which asks where and as whom (#7).
         {
           const view = terminalsOf(s.spec.name)[0];
           if (view) return go({ name: "terminal", service: s.spec.name, view: view.key });
-          const held = await listTerminals(t, s.spec.name).catch(() => []);
-          go({ name: "terminal", service: s.spec.name, view: held.length ? undefined : openTerminal(s.spec.name, t).key });
+          if ((await listTerminals(t, s.spec.name).catch(() => [])).length) return go({ name: "terminal", service: s.spec.name });
+          setTerminalFor(s);
         }
         return;
       case "ports":
@@ -300,7 +304,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 const s = services.find((x) => x.spec.name === route.service);
                 const t = s && target(s);
                 return t ? (
-                  <TerminalList service={route.service} target={t} onOpen={(view) => go({ name: "terminal", service: route.service, view })} />
+                  <TerminalList service={route.service} target={t} containers={s.spec.components.map((c) => c.name)} onOpen={(view) => go({ name: "terminal", service: route.service, view })} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 );
@@ -371,6 +375,20 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         onAddAddress={addAddress}
       />
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
+      {terminalFor && (
+        <OpenTerminalDialog
+          service={terminalFor.spec.name}
+          containers={terminalFor.spec.components.map((c) => c.name)}
+          onClose={() => setTerminalFor(null)}
+          onOpen={(choice) => {
+            const s = terminalFor;
+            const t = target(s);
+            setTerminalFor(null);
+            if (!t) return void toast.error(`No address for ${s.node?.name ?? "the Node"}`);
+            go({ name: "terminal", service: s.spec.name, view: openTerminal(s.spec.name, t, undefined, choice).key });
+          }}
+        />
+      )}
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && (setRemoving(null), setDeleteData(false), setTyped(""))}>
         <AlertDialogContent>
           <AlertDialogHeader>

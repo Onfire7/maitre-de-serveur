@@ -51,6 +51,12 @@ func withSetup(spec *maitrev1.ServiceSpec, setup *maitrev1.Setup) *maitrev1.Serv
 	out.FleetReach, out.Ports = setup.GetFleetReach(), append([]string(nil), setup.GetPorts()...)
 	out.Address = setup.GetAddress()
 	out.NetworkInternal = setup.GetNetworkInternal()
+	out.Shells = nil
+	for _, sh := range setup.GetShells() {
+		if len(sh.GetArgv()) > 0 {
+			out.Shells = append(out.Shells, proto.Clone(sh).(*maitrev1.ContainerShell))
+		}
+	}
 	out.Overrides = nil
 	for _, o := range setup.GetOverrides() {
 		out.Overrides = append(out.Overrides, proto.Clone(o).(*maitrev1.UnitOverride))
@@ -79,6 +85,9 @@ func (m *Manager) checkSetup(ctx context.Context, spec *maitrev1.ServiceSpec) er
 	if err := validateOverrides(spec); err != nil {
 		return err
 	}
+	if err := validateShells(spec); err != nil {
+		return err
+	}
 	liftLANAddress(spec)
 	if err := m.validateNetwork(ctx, spec); err != nil {
 		return err
@@ -103,6 +112,24 @@ func (m *Manager) checkSetup(ctx context.Context, spec *maitrev1.ServiceSpec) er
 		}
 	}
 	return m.assignHostPorts(ctx, spec)
+}
+
+// validateShells checks the shells set for Terminals (ADR 0011): each an
+// absolute program, for a container the Service has.
+func validateShells(spec *maitrev1.ServiceSpec) error {
+	for _, sh := range spec.GetShells() {
+		if !strings.HasPrefix(sh.GetArgv()[0], "/") {
+			return fmt.Errorf("a Terminal's shell is an absolute path, such as /bin/bash; not %q", sh.GetArgv()[0])
+		}
+		found := sh.GetComponent() == "" && !isMulti(spec)
+		for _, c := range spec.GetComponents() {
+			found = found || c.GetName() == sh.GetComponent()
+		}
+		if !found {
+			return fmt.Errorf("%s has no container named %q for a shell", spec.GetName(), sh.GetComponent())
+		}
+	}
+	return nil
 }
 
 // restartsFor lists the Services that restart when spec replaces cur:

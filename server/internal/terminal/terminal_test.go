@@ -45,6 +45,25 @@ type env struct {
 	launcher terminal.Launcher
 }
 
+// put records a Service as the Node knows it.
+func (e env) put(t *testing.T, spec *maitrev1.ServiceSpec) {
+	t.Helper()
+	if _, err := e.st.Put(context.Background(), services.KindService, spec.GetName(), spec, false); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// program puts a program at path in a pretend container: this machine's
+// real one.
+func (e env) program(t *testing.T, ctr, path, real string) {
+	t.Helper()
+	at := filepath.Join(e.root, ctr, path)
+	os.MkdirAll(filepath.Dir(at), 0o755)
+	if err := os.Symlink(real, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // container makes a pretend container for Service name with the given
 // shells, each the real program of this machine.
 func (e env) container(t *testing.T, name, user string, shells ...string) {
@@ -175,7 +194,21 @@ func (s *session) send(f *maitrev1.TerminalFrame) {
 }
 
 func (s *session) start(service string, cols, rows uint32) {
-	s.send(&maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Start{Start: &maitrev1.TerminalStart{Service: service, Size: &maitrev1.TerminalSize{Cols: cols, Rows: rows}}}})
+	s.startWith(&maitrev1.TerminalStart{Service: service, Size: &maitrev1.TerminalSize{Cols: cols, Rows: rows}})
+}
+
+func (s *session) startWith(st *maitrev1.TerminalStart) {
+	s.send(&maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Start{Start: st}})
+}
+
+// started reads the started frame, failing on anything else.
+func (s *session) started() *maitrev1.TerminalStarted {
+	s.t.Helper()
+	f := s.next()
+	if f.GetStarted() == nil {
+		s.t.Fatalf("expected started, got %v", f)
+	}
+	return f.GetStarted()
 }
 
 func (s *session) typ(text string) {
@@ -367,5 +400,155 @@ func TestOtherPathsStillReachTheService(t *testing.T) {
 	// kuma has no Page, so svcproxy answers it has none: the Terminal did not take it.
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+// In a Service of several containers, the Terminal opens in the one the
+// start names, the first when it names none, and says which.
+func TestATerminalOpensInTheChosenContainer(t *testing.T) {
+	e := start(t)
+	e.put(t, &maitrev1.ServiceSpec{Name: "photos", Components: []*maitrev1.ServiceComponent{{Name: "server"}, {Name: "database"}}})
+	e.container(t, "photos-server", "", "sh")
+	e.container(t, "photos-database", "999", "sh")
+	os.WriteFile(filepath.Join(e.root, "photos-database", "marker"), nil, 0o644)
+
+	s, _, err := open(t, e, "photos", "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.startWith(&maitrev1.TerminalStart{Service: "photos", Component: "database", Size: &maitrev1.TerminalSize{Cols: 80, Rows: 24}})
+	if st := s.started(); st.GetContainer() != "database" || st.GetUser() != "999" {
+		t.Fatalf("started: %v", st)
+	}
+	// It runs in that container: the pretend container's directory.
+	s.typ("echo in=$(basename $MAITRE_FAKE_PODMAN_CONTAINER)\n")
+	s.until("in=photos-database")
+
+	first, _, err := open(t, e, "photos", "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.start("photos", 80, 24)
+	if st := first.started(); st.GetContainer() != "server" {
+		t.Fatalf("started: %v", st)
+	}
+
+	other, _, err := open(t, e, "photos", "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.startWith(&maitrev1.TerminalStart{Service: "photos", Component: "cache"})
+	if x := other.next().GetExit(); x.GetReason() != maitrev1.TerminalExit_REASON_FAILED || !strings.Contains(x.GetMessage(), "cache") {
+		t.Fatalf("exit %v", x)
+	}
+}
+
+// Run as root runs the shell as uid 0, whatever user the image names;
+// without it the image's user is used.
+func TestRunAsRootOverridesTheImagesUser(t *testing.T) {
+	e := start(t, "memos")
+	e.container(t, "memos", "1000", "sh")
+	s, _, err := open(t, e, "memos", "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.startWith(&maitrev1.TerminalStart{Service: "memos", Root: true, Size: &maitrev1.TerminalSize{Cols: 80, Rows: 24}})
+	if st := s.started(); st.GetUser() != "root" {
+		t.Fatalf("started: %v", st)
+	}
+	// The fake podman says what --user it was given.
+	s.typ("echo as=[$MAITRE_FAKE_PODMAN_USER]\n")
+	s.until("as=[0]")
+
+	plain, _, err := open(t, e, "memos", "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain.start("memos", 80, 24)
+	if st := plain.started(); st.GetUser() != "1000" {
+		t.Fatalf("started: %v", st)
+	}
+	plain.typ("echo as=[$MAITRE_FAKE_PODMAN_USER]\n")
+	plain.until("as=[]")
+}
+
+// The shell is the Catalog's `shell:` when the container has it, else the
+// one set in Service Configuration, else /bin/bash, else /bin/sh, else
+// none; the started frame names the whole argv.
+func TestTheShellsAreTriedInOrder(t *testing.T) {
+	sh := "/bin/sh"
+	if _, err := os.Stat(sh); err != nil {
+		sh = "/usr/bin/sh"
+	}
+	for _, c := range []struct {
+		name     string
+		catalog  []string
+		set      []string
+		programs []string
+		want     []string
+	}{
+		{"the Catalog's first", []string{"/opt/a/sh", "-i"}, []string{"/opt/b/sh"}, []string{"/opt/a/sh", "/opt/b/sh", "/bin/bash", "/bin/sh"}, []string{"/opt/a/sh", "-i"}},
+		{"then the one set", []string{"/opt/a/sh", "-i"}, []string{"/opt/b/sh", "-i"}, []string{"/opt/b/sh", "/bin/bash", "/bin/sh"}, []string{"/opt/b/sh", "-i"}},
+		{"then bash", []string{"/opt/a/sh"}, []string{"/opt/b/sh"}, []string{"/bin/bash", "/bin/sh"}, []string{"/bin/bash"}},
+		{"then sh", nil, []string{"/opt/b/sh"}, []string{"/bin/sh"}, []string{"/bin/sh"}},
+		{"else none", []string{"/opt/a/sh"}, []string{"/opt/b/sh"}, nil, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := start(t)
+			spec := &maitrev1.ServiceSpec{Name: "app", Shell: c.catalog}
+			if c.set != nil {
+				spec.Shells = []*maitrev1.ContainerShell{{Argv: c.set}}
+			}
+			e.put(t, spec)
+			os.MkdirAll(filepath.Join(e.root, "app"), 0o755)
+			for _, p := range c.programs {
+				e.program(t, "app", p, sh)
+			}
+			s, _, err := open(t, e, "app", "laptop")
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.start("app", 80, 24)
+			f := s.next()
+			if c.want == nil {
+				if x := f.GetExit(); x.GetReason() != maitrev1.TerminalExit_REASON_NO_SHELL {
+					t.Fatalf("got %v", f)
+				}
+				return
+			}
+			if got := f.GetStarted().GetArgv(); strings.Join(got, " ") != strings.Join(c.want, " ") {
+				t.Fatalf("argv %v, want %v (%v)", got, c.want, f)
+			}
+			s.typ("echo ran-$((1+1))\n")
+			s.until("ran-2")
+		})
+	}
+}
+
+// A component's shells are its own: the Catalog's on the component, and
+// the one set for that component.
+func TestAComponentsShellIsItsOwn(t *testing.T) {
+	sh := "/bin/sh"
+	if _, err := os.Stat(sh); err != nil {
+		sh = "/usr/bin/sh"
+	}
+	e := start(t)
+	e.put(t, &maitrev1.ServiceSpec{Name: "photos",
+		Components: []*maitrev1.ServiceComponent{{Name: "server", Shell: []string{"/opt/server/sh"}}, {Name: "database"}},
+		Shells:     []*maitrev1.ContainerShell{{Component: "database", Argv: []string{"/opt/db/sh"}}, {Component: "server", Argv: []string{"/opt/wrong/sh"}}},
+	})
+	e.program(t, "photos-server", "/opt/server/sh", sh)
+	e.program(t, "photos-server", "/opt/db/sh", sh)
+	e.program(t, "photos-database", "/opt/server/sh", sh)
+	e.program(t, "photos-database", "/opt/db/sh", sh)
+	for comp, want := range map[string]string{"server": "/opt/server/sh", "database": "/opt/db/sh"} {
+		s, _, err := open(t, e, "photos", "laptop")
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.startWith(&maitrev1.TerminalStart{Service: "photos", Component: comp})
+		if got := s.started().GetArgv(); len(got) != 1 || got[0] != want {
+			t.Fatalf("%s: argv %v", comp, got)
+		}
 	}
 }
