@@ -34,7 +34,8 @@ import type { FlyoutItem } from "./ServiceFlyout";
 import { ServicePage } from "./ServicePage";
 import { ServiceViews } from "./ServiceViews";
 import { TerminalLayer, TerminalList } from "./TerminalPane";
-import { closeTerminal, getTerminal, listTerminals, openTerminal, useTerminals } from "@/terminal/terminals";
+import { closeServiceTerminals, getTerminal, listTerminals, openTerminal, terminalsOf, useTerminals } from "@/terminal/terminals";
+import { EndsTerminals, useEndingConfirm } from "@/terminal/warning";
 import { ToastRoom } from "./ToastRoom";
 import { forgetService } from "./frames";
 import { pageViewOf } from "@/fleet/pages";
@@ -163,6 +164,8 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
   const sheetService = sheet ? services.find((s) => s.spec.name === sheet.service) : undefined;
 
   const target = (s: FleetService) => targetFor(snap, state.nodes, s.spec.nodeId);
+  // ADR 0011: Stop, Restart, Update and Roll back name the running Terminals they end.
+  const [confirmEnding, endingDialog] = useEndingConfirm();
 
   async function act(s: FleetService, item: FlyoutItem) {
     const t = target(s);
@@ -198,11 +201,14 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
       case "terminal":
         // ADR 0011: a shell in its container, beside its Pages.
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
-        // The open view, else the Service's Terminals on the Node (#5), else
+        // An open view, else the Service's Terminals on the Node (#5), else
         // a new one, which asks where and as whom (#7).
-        if (getTerminal(s.spec.name)) return go({ name: "terminal", service: s.spec.name });
-        if ((await listTerminals(t, s.spec.name).catch(() => [])).length) return go({ name: "terminal", service: s.spec.name });
-        setTerminalFor(s);
+        {
+          const view = terminalsOf(s.spec.name)[0];
+          if (view) return go({ name: "terminal", service: s.spec.name, view: view.key });
+          if ((await listTerminals(t, s.spec.name).catch(() => [])).length) return go({ name: "terminal", service: s.spec.name });
+          setTerminalFor(s);
+        }
         return;
       case "ports":
       case "grants":
@@ -210,6 +216,10 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         return;
       default:
         if (!t) return toast.error(`No address for ${s.node?.name ?? "the Node"}`);
+        if (item !== "start") {
+          const verb = ({ stop: "Stop", restart: "Restart", update: "Update", rollback: "Roll back" } as Record<string, string>)[item] ?? "Go ahead";
+          if (!(await confirmEnding({ title: `${verb} ${s.spec.name}?`, action: verb, groups: [{ target: t, services: [s.spec.name] }] }))) return;
+        }
         try {
           await controlService(t, s.spec.name, item as ServiceAction);
           toast.success(`${s.spec.name}: ${item === "update" ? "updating" : item === "rollback" ? "rolling back" : item === "restart" ? "restarting" : item === "stop" ? "stopped" : "starting"}`);
@@ -297,11 +307,11 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 ))}
-              {route.name === "terminal" && !getTerminal(route.service) && (() => {
+              {route.name === "terminal" && !(route.view && getTerminal(route.view)) && (() => {
                 const s = services.find((x) => x.spec.name === route.service);
                 const t = s && target(s);
                 return t ? (
-                  <TerminalList service={route.service} target={t} containers={s.spec.components.map((c) => c.name)} />
+                  <TerminalList service={route.service} target={t} containers={s.spec.components.map((c) => c.name)} onOpen={(view) => go({ name: "terminal", service: route.service, view })} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{snap ? `There is no Service named ${route.service}.` : "Reaching the Fleet…"}</div>
                 );
@@ -341,11 +351,15 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
           </AnimatePresence>
           <ServiceViews />
           <TerminalLayer
-            shown={route.name === "terminal" ? route.service : undefined}
-            onClose={(service) => {
+            shown={route.name === "terminal" ? route.view : undefined}
+            onClose={({ service, key }) => {
+              // Another of its open Terminals, else its first Page, else its list.
+              if (route.name === "terminal" && route.view !== key) return;
+              const other = terminalsOf(service)[0];
               const s = services.find((x) => x.spec.name === service);
-              go(s && pageViewOf(s, "") ? { name: "page", service, page: "" } : { name: "fleet", tab: "services" });
+              go(other ? { name: "terminal", service, view: other.key } : s && pageViewOf(s, "") ? { name: "page", service, page: "" } : { name: "fleet", tab: "services" });
             }}
+            onList={(service) => go({ name: "terminal", service })}
           />
           </div>
         </main>
@@ -367,6 +381,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
         onUnpin={fleet.unpin}
         onAddAddress={addAddress}
       />
+      {endingDialog}
       <MoveServiceDialog service={moving} snap={snap} state={state} onClose={() => setMoving(null)} onDone={() => fleet.refresh()} />
       {terminalFor && (
         <OpenTerminalDialog
@@ -378,8 +393,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             const t = target(s);
             setTerminalFor(null);
             if (!t) return void toast.error(`No address for ${s.node?.name ?? "the Node"}`);
-            openTerminal(s.spec.name, t, undefined, choice);
-            go({ name: "terminal", service: s.spec.name });
+            go({ name: "terminal", service: s.spec.name, view: openTerminal(s.spec.name, t, undefined, choice).key });
           }}
         />
       )}
@@ -389,6 +403,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
             <AlertDialogTitle>Remove {removing?.spec.name}?</AlertDialogTitle>
             <AlertDialogDescription>It stops and its page goes away. Its data stays in its Storage Space unless you also delete it.</AlertDialogDescription>
           </AlertDialogHeader>
+          {removing && <EndsTerminals target={target(removing)} services={[removing.spec.name]} />}
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={deleteData} onCheckedChange={(v) => setDeleteData(v === true)} /> Also delete its data
           </label>
@@ -417,7 +432,7 @@ export function Shell({ device, state, save }: { device: DeviceInfo; state: Cons
                   await removeService(t, s.spec.name, deleteData);
                   toast(`${s.spec.name} was removed`);
                   forgetService(s.spec.name);
-                  closeTerminal(s.spec.name);
+                  closeServiceTerminals(s.spec.name);
                   if ((route.name === "page" || route.name === "setup" || route.name === "terminal") && route.service === s.spec.name) go({ name: "fleet", tab: "overview" });
                   fleet.refresh();
                 } catch (e) {

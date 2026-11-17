@@ -32,6 +32,7 @@ import { useRoute } from "./routes";
 import { useNodeLogs } from "./LogsTab";
 import { NodeUsage } from "./Usage";
 import { servicesStopFor, updateTimesLine } from "./updateTimes";
+import { EndsTerminals } from "@/terminal/warning";
 import { UpdateProgress } from "./UpdateProgress";
 
 export function NodeDetails({ node, target, snap, unreachable, askUpdate, onAsked }: { node: Node; target: Target | undefined; snap: FleetSnapshot; unreachable: boolean; askUpdate?: boolean; onAsked?: () => void }) {
@@ -289,7 +290,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
         )}
       </section>
 
-      {client && st && <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} status={st} queue={busy(snap)} onRun={async (image, reboot, insecure) => run(() => client.updateImage({ image, reboot, insecureRegistry: insecure }), { kind: "update", target: image, reboot })} />}
+      {client && st && <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} status={st} target={target} queue={busy(snap)} onRun={async (image, reboot, insecure) => run(() => client.updateImage({ image, reboot, insecureRegistry: insecure }), { kind: "update", target: image, reboot })} />}
       <AlertDialog open={rollbackOpen} onOpenChange={setRollbackOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -299,6 +300,7 @@ export function ServerImage({ node, target, snap, askUpdate, onAsked, title = "M
               {st?.rollback?.timestamp && `, built ${new Date(st.rollback.timestamp).toLocaleDateString()}`}. Its Services stop for {servicesStopFor(st)}.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {rollbackOpen && <EndsTerminals target={target} downtime={servicesStopFor(st)} />}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <HoldButton
@@ -340,7 +342,7 @@ interface DepotImage {
 }
 
 /** Decisions 82, 91, 96: pick an image (Depots on the LAN offer theirs), restart now or later. */
-function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; onClose: () => void; status: UpdateStatus; queue: boolean; onRun: (image: string, reboot: boolean, insecure: boolean) => Promise<void> }) {
+function UpdateDialog({ open, onClose, status, target, queue, onRun }: { open: boolean; onClose: () => void; status: UpdateStatus; target: Target | undefined; queue: boolean; onRun: (image: string, reboot: boolean, insecure: boolean) => Promise<void> }) {
   const [image, setImage] = useState(status.booted?.image ?? "");
   const [reboot, setReboot] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -412,6 +414,7 @@ function UpdateDialog({ open, onClose, status, queue, onRun }: { open: boolean; 
             <Switch checked={reboot} onCheckedChange={setReboot} />
           </label>
           <p className="text-xs text-muted-foreground">{updateTimesLine(status, reboot)}</p>
+          {open && reboot && <EndsTerminals target={target} downtime={servicesStopFor(status)} />}
           {queue && <p className="text-xs text-muted-foreground">Another Node is updating. This one joins the queue and starts once none is.</p>}
         </div>
         <DialogFooter>
