@@ -42,6 +42,7 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/services"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/svcproxy"
+	"github.com/Onfire7/maitre-de-serveur/server/internal/terminal"
 	"github.com/Onfire7/maitre-de-serveur/server/internal/trust"
 )
 
@@ -65,6 +66,8 @@ func main() {
 		err = runInfo(append([]string{"-metrics"}, os.Args[2:]...))
 	case "drives":
 		err = runInfo(append([]string{"-drives"}, os.Args[2:]...))
+	case "terminal-hold":
+		err = runTerminalHold(os.Args[2:])
 	case "agent":
 		err = runAgent(os.Args[2:])
 	case "installer":
@@ -177,6 +180,7 @@ func runDev(args []string) error {
 		// answers the debug procedures while telling every caller it
 		// cannot, which is the one thing that tier must never do.
 		DebugBuild: debugsurface.Enabled,
+		Features:   devFeatures(*fake),
 	}, nil))
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, rpc)
@@ -203,7 +207,13 @@ func runDev(args []string) error {
 			return err
 		}
 		log.Info("fake service registered", "name", *fake, "port", port)
-		h = svcproxy.Handler(st, mux)
+		// Terminals into it (ADR 0011): podman is whatever MAITRE_PODMAN
+		// names (a stand-in, where there is none), and each session is a
+		// process of its own, a dev Node having no systemd to ask.
+		self, _ := os.Executable()
+		terms := terminal.New(terminal.Config{Store: st, Roles: list, Log: log, Podman: os.Getenv("MAITRE_PODMAN"),
+			Launcher: terminal.Process{Self: self, Dir: filepath.Join(*state, "terminals")}})
+		h = terms.Wrap(svcproxy.Header, svcproxy.Handler(st, mux))
 	}
 	return serve(ctx, log, *listen, peer.Middleware(gate.Handler(list, svcproxy.Header, h)), mtls.ServerConfig(id, list), rl.Listener())
 }
@@ -401,4 +411,28 @@ func hostname() string {
 		return "dev-node"
 	}
 	return h
+}
+
+// devFeatures: a dev Node serves Terminals only into its fake Service.
+func devFeatures(fake string) []string {
+	if fake == "" {
+		return nil
+	}
+	return []string{terminal.Feature}
+}
+
+// runTerminalHold is what a Terminal's transient unit runs (ADR 0011): it
+// holds the PTY of `-- argv...` and serves the session on --socket.
+func runTerminalHold(args []string) error {
+	fs := flag.NewFlagSet("terminal-hold", flag.ExitOnError)
+	socket := fs.String("socket", "", "unix socket the agent connects to")
+	cols := fs.Uint("cols", 80, "columns")
+	rows := fs.Uint("rows", 24, "rows")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *socket == "" || fs.NArg() == 0 {
+		return fmt.Errorf("usage: maitre terminal-hold --socket path [--cols n --rows n] -- argv...")
+	}
+	return terminal.Serve(*socket, fs.Args(), &maitrev1.TerminalSize{Cols: uint32(*cols), Rows: uint32(*rows)})
 }

@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package maitre.v1;
+
+option go_package = "github.com/Onfire7/maitre-de-serveur/server/gen/maitre/v1;maitrev1";
+
+// A Terminal (ADR 0011) is a shell or command inside one of a Service's
+// containers, held by the Service's Node. It is not a Connect RPC: the
+// Console opens a WebSocket on the Service tunnel (the request carries
+// X-Maitre-Service and goes to TERMINAL_PATH, "/__maitre/terminal") and
+// every binary message either way is one TerminalFrame. A Node that offers
+// it lists "terminal" in NodeInfo.features.
+//
+// The Console's first frame is `start`; then it sends `input` and `resize`.
+// The Node answers `started` once the process runs, then `output`, and
+// `exit` last, after which it closes the WebSocket. The Node also keeps the
+// session between the agent and the unit that holds the PTY in these
+// frames, length-prefixed.
+message TerminalFrame {
+  oneof frame {
+    TerminalStart start = 1;
+    TerminalInput input = 2;
+    TerminalResize resize = 3;
+    TerminalStarted started = 4;
+    TerminalOutput output = 5;
+    TerminalExit exit = 6;
+  }
+}
+
+// TerminalSize is the view's size in character cells.
+message TerminalSize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+// TerminalStart opens a new Terminal: the Service's shell, as the image's
+// default user, in its container.
+message TerminalStart {
+  // The Service; it must be the one the WebSocket's X-Maitre-Service names.
+  string service = 1;
+  TerminalSize size = 2;
+  // The component, in a Service of several; "" is the Service's first.
+  // Not yet chosen by the Console.
+  string component = 3;
+}
+
+// TerminalInput is what was typed, as the bytes a terminal sends.
+message TerminalInput {
+  bytes data = 1;
+}
+
+// TerminalResize is a new size for the session.
+message TerminalResize {
+  TerminalSize size = 1;
+}
+
+// TerminalStarted says the process runs, and where: the view's label.
+message TerminalStarted {
+  // The Node's id for this Terminal (its transient unit is named after it).
+  string id = 1;
+  // The container's name as the Console says it: the component's name, or
+  // the Service's for a Service of one container.
+  string container = 2;
+  // Who the process runs as: the image's default user ("root" when it
+  // names none).
+  string user = 3;
+  // The command that runs, the shell found in the container.
+  repeated string argv = 4;
+}
+
+// TerminalOutput is what the process wrote to its terminal.
+message TerminalOutput {
+  bytes data = 1;
+}
+
+// TerminalExit is the last frame: the process ended, or none could run.
+message TerminalExit {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    // The process exited; code is its exit code (128+n for signal n).
+    REASON_EXITED = 1;
+    // The container has neither /bin/bash nor /bin/sh.
+    REASON_NO_SHELL = 2;
+    // No process could start; message says why.
+    REASON_FAILED = 3;
+  }
+  Reason reason = 1;
+  int32 code = 2;
+  // In the Console's words, for REASON_NO_SHELL and REASON_FAILED.
+  string message = 3;
+}

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # End-to-end check of the Console's Service tunnel (decision 71): a dev Node
 # with a built-in echo Service, and the Desktop's Rust relay driven by a test
-# that sends a plain request and a WebSocket echo through it: once to the
-# Node directly, once through a second dev Node's Relay (ADR 0012).
+# that sends a plain request and a WebSocket echo through it, and opens a
+# Terminal (ADR 0011) into the Service's container: once to the Node
+# directly, once through a second dev Node's Relay (ADR 0012). Without
+# podman here, the container is scripts/fake-podman's: a real shell on a
+# real PTY, held by `maitre terminal-hold`, only the container pretend.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MAITRE=${MAITRE:-./server/bin/maitre}
@@ -10,11 +13,15 @@ T=$(mktemp -d)
 trap 'kill $(cat "$T/pid" "$T/anchor.pid" 2>/dev/null) 2>/dev/null || true; rm -rf "$T"' EXIT
 mkdir -p "$T/node/trusted" "$T/device" "$T/anchor/trusted"
 # The test's identity must be trusted before the Node starts; create it first.
-MAITRE_TUNNEL_NODE=127.0.0.1:1 MAITRE_TUNNEL_FP=x MAITRE_TUNNEL_IDENTITY="$T/device" \
+MAITRE_TUNNEL_TERMINAL= MAITRE_TUNNEL_NODE=127.0.0.1:1 MAITRE_TUNNEL_FP=x MAITRE_TUNNEL_IDENTITY="$T/device" \
   cargo test --quiet --manifest-path desktop/src-tauri/Cargo.toml --test tunnel -- --ignored >/dev/null 2>&1 || true
 cp "$T/device/identity.pub" "$T/node/trusted/device.pub"
 cp "$T/device/identity.pub" "$T/anchor/trusted/device.pub"
 # A second dev Node is the anchor whose Relay (ADR 0012) reaches the first.
+# The echo Service's container, with bash, for its Terminal.
+mkdir -p "$T/containers/echo/bin"
+ln -s "$(command -v bash)" "$T/containers/echo/bin/bash"
+export MAITRE_PODMAN="$PWD/scripts/fake-podman" MAITRE_FAKE_PODMAN_ROOT="$T/containers" MAITRE_TUNNEL_TERMINAL=1
 AFP=$("$MAITRE" keygen --out "$T/anchor/node" | sed -n 's/^identity //p')
 "$MAITRE" dev --state "$T/node" --listen 127.0.0.1:17999 --fake-service echo --relay-node "$AFP=127.0.0.1:17998" >"$T/node.log" 2>&1 &
 echo $! >"$T/pid"
@@ -32,4 +39,4 @@ MAITRE_TUNNEL_ANCHOR=127.0.0.1:17998 MAITRE_TUNNEL_ANCHOR_FP="$AFP" \
 # The anchor journals each relayed connection when it closes.
 for _ in $(seq 1 50); do grep -q "relayed connection" "$T/anchor.log" && break; sleep 0.1; done
 grep -q "relayed connection" "$T/anchor.log"
-echo "tunnel-check: OK (HTTP and WebSocket through Desktop proxy -> Node mTLS -> Service, directly and through the anchor's Relay)"
+echo "tunnel-check: OK (HTTP, WebSocket and a Terminal through Desktop proxy -> Node mTLS -> Service, directly and through the anchor's Relay)"
