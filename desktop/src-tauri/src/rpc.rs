@@ -224,12 +224,17 @@ impl NodeClient {
     /// at `addr`. Fails, saying the address could not be reached, when no
     /// answer came back; an answer of any status is Ok.
     pub async fn send(&self, addr: &str, fingerprint: &str, req: Request<Body>) -> Result<Response<Incoming>, String> {
-        let unreachable = |why: String| format!("{addr} could not be reached: {why}");
+        self.attempt(addr, fingerprint, req).await.map_err(|f| f.why)
+    }
+
+    async fn attempt(&self, addr: &str, fingerprint: &str, req: Request<Body>) -> Result<Response<Incoming>, Failure> {
+        let unreachable = |why: String| Failure { sent: false, why: format!("{addr} could not be reached: {why}") };
+        let dropped = |why: String| Failure { sent: true, why: format!("{addr} dropped the call before answering: {why}") };
         let key = (fingerprint.trim().to_lowercase(), addr.to_string());
         let (mut parts, body) = req.into_parts();
         let pq = parts.uri.path_and_query().map(|p| p.as_str()).unwrap_or("/");
         // HTTP/2 needs a scheme and authority; the Node routes by path alone.
-        parts.uri = format!("https://{addr}{pq}").parse().map_err(|e: hyper::http::uri::InvalidUri| e.to_string())?;
+        parts.uri = format!("https://{addr}{pq}").parse().map_err(|e: hyper::http::uri::InvalidUri| Failure { sent: false, why: e.to_string() })?;
         let mut req = Request::from_parts(parts, body);
         let pooled = self.conns.lock().unwrap().get(&key).filter(|s| s.is_ready()).cloned();
         if let Some(mut sender) = pooled {
@@ -240,37 +245,78 @@ impl NodeClient {
                     Some(r) => req = r,
                     None => {
                         self.conns.lock().unwrap().remove(&key);
-                        return Err(unreachable(why(e.error())));
+                        return Err(dropped(why(e.error())));
                     }
                 },
             }
         }
         self.conns.lock().unwrap().remove(&key);
         let mut sender = self.connect(addr, fingerprint).await.map_err(unreachable)?;
-        self.conns.lock().unwrap().insert(key, sender.clone());
-        sender.send_request(req).await.map_err(|e| unreachable(why(&e)))
+        self.conns.lock().unwrap().insert(key.clone(), sender.clone());
+        match sender.try_send_request(req).await {
+            Ok(res) => Ok(res),
+            Err(mut e) => {
+                self.conns.lock().unwrap().remove(&key);
+                let why = why(e.error());
+                Err(if e.take_message().is_some() { unreachable(why) } else { dropped(why) })
+            }
+        }
     }
 
     /// One Connect-protocol unary call: `procedure` is like
-    /// "/maitre.v1.NodeService/GetNodeInfo".
+    /// "/maitre.v1.NodeService/GetNodeInfo". A call that only reads (see
+    /// `idempotent`) is sent once more when the connection drops before
+    /// the answer, as connections relayed through an anchor that failed
+    /// over do (ADR 0012); any other call is not, since the Node may have
+    /// carried it out.
     pub async fn call(&self, addr: &str, fingerprint: &str, procedure: &str, body: Vec<u8>) -> Result<RpcResponse, String> {
+        match self.call_once(addr, fingerprint, procedure, body.clone()).await {
+            Err(f) if f.sent && idempotent(procedure) => self.call_once(addr, fingerprint, procedure, body).await.map_err(|f| f.why),
+            r => r.map_err(|f| f.why),
+        }
+    }
+
+    async fn call_once(&self, addr: &str, fingerprint: &str, procedure: &str, body: Vec<u8>) -> Result<RpcResponse, Failure> {
         let req = Request::post(procedure)
             .header("content-type", "application/proto")
             .header("connect-protocol-version", "1")
             .body(full_body(body))
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Failure { sent: false, why: e.to_string() })?;
         let call = async {
-            let res = self.send(addr, fingerprint, req).await?;
+            let res = self.attempt(addr, fingerprint, req).await?;
             let status = res.status().as_u16();
             let content_type = res.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
-            let body = res.into_body().collect().await.map_err(|e| why(&e))?.to_bytes().to_vec();
+            let body = res
+                .into_body()
+                .collect()
+                .await
+                .map_err(|e| Failure { sent: true, why: format!("{addr} dropped the call before answering: {}", why(&e)) })?
+                .to_bytes()
+                .to_vec();
             Ok(RpcResponse { status, content_type, body })
         };
         match tokio::time::timeout(CALL_TIMEOUT, call).await {
             Ok(r) => r,
-            Err(_) => Err(format!("{addr} could not be reached: did not answer in {} s", CALL_TIMEOUT.as_secs())),
+            Err(_) => Err(Failure { sent: false, why: format!("{addr} could not be reached: did not answer in {} s", CALL_TIMEOUT.as_secs()) }),
         }
     }
+}
+
+/// Why a request failed, and whether it had reached the Node first.
+struct Failure {
+    sent: bool,
+    why: String,
+}
+
+/// Whether the procedure only reads, so sending it twice is harmless: the
+/// Get and List calls, and the reads named otherwise. The protos declare no
+/// idempotency level, so it is by name; a new read that fits neither is
+/// simply not retried.
+fn idempotent(procedure: &str) -> bool {
+    const READS: &[&str] = &["Usage", "DriveContents", "PlanDrain", "PreviewSetup", "CheckService", "DebugReadFile"];
+    let method = procedure.rsplit('/').next().unwrap_or_default();
+    let prefixed = |p: &str| method.strip_prefix(p).and_then(|rest| rest.chars().next()).is_some_and(|c| c.is_ascii_uppercase());
+    prefixed("Get") || prefixed("List") || READS.contains(&method)
 }
 
 /// An error with its causes: hyper's own words ("connection error") hide
@@ -388,6 +434,88 @@ mod tests {
         let (client, _) = client();
         let err = client.call(&node.addr, &"00".repeat(32), "/p", vec![]).await.err().expect("refused");
         assert!(err.contains("trust list"), "{err}");
+    }
+
+    /// A Node that holds each request `hold` before answering it, noting
+    /// the procedures asked for.
+    async fn slow_h2_node(hold: std::time::Duration, asked: Arc<Mutex<Vec<String>>>) -> fake::FakeNode {
+        fake::start(move |tls| {
+            let asked = asked.clone();
+            async move {
+                let svc = hyper::service::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+                    let asked = asked.clone();
+                    async move {
+                        asked.lock().unwrap().push(req.uri().path().to_string());
+                        tokio::time::sleep(hold).await;
+                        Ok::<_, hyper::Error>(hyper::Response::new(http_body_util::Full::new(Bytes::from("ok"))))
+                    }
+                });
+                let _ = hyper::server::conn::http2::Builder::new(TokioExecutor::new()).serve_connection(TokioIo::new(tls), svc).await;
+            }
+        })
+        .await
+    }
+
+    /// A Node reached only through `anchor`'s Relay, and another anchor
+    /// that relays to it too, to fail over to.
+    async fn relayed_node(asked: Arc<Mutex<Vec<String>>>) -> (fake::FakeNode, fake::FakeNode, fake::FakeNode, String) {
+        let node = slow_h2_node(std::time::Duration::from_millis(600), asked).await;
+        let anchor = fake::anchor_to(node.addr.clone(), Arc::new(Mutex::new(Vec::new()))).await;
+        let next = fake::anchor_to(node.addr.clone(), Arc::new(Mutex::new(Vec::new()))).await;
+        (node, anchor, next, fake::dead_addr().await)
+    }
+
+    fn anchor(n: &fake::FakeNode) -> Option<crate::dial::Anchor> {
+        Some(crate::dial::Anchor { addr: n.addr.clone(), fingerprint: n.fingerprint.clone() })
+    }
+
+    #[tokio::test]
+    async fn after_the_anchor_fails_over_an_idempotent_rpc_in_flight_is_retried_once_through_the_new_anchor() {
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let (node, old, new, dead) = relayed_node(asked.clone()).await;
+        let dialer = Arc::new(Dialer::new(fake::temp_identity("device")));
+        dialer.relay_through(anchor(&old));
+        let client = NodeClient::new(dialer.clone());
+        let call = client.call(&dead, &node.fingerprint, "/maitre.v1.NodeService/GetNodeInfo", vec![]);
+        let fail_over = async {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            dialer.relay_through(anchor(&new));
+        };
+        let (res, _) = tokio::join!(call, fail_over);
+        assert_eq!(res.expect("retried").status, 200);
+        assert_eq!(*asked.lock().unwrap(), vec!["/maitre.v1.NodeService/GetNodeInfo"; 2]);
+        assert_eq!(new.connections.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn after_the_anchor_fails_over_an_rpc_that_is_not_idempotent_is_not_retried() {
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let (node, old, new, dead) = relayed_node(asked.clone()).await;
+        let dialer = Arc::new(Dialer::new(fake::temp_identity("device")));
+        dialer.relay_through(anchor(&old));
+        let client = NodeClient::new(dialer.clone());
+        let call = client.call(&dead, &node.fingerprint, "/maitre.v1.NodeService/Reboot", vec![]);
+        let fail_over = async {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            dialer.relay_through(anchor(&new));
+        };
+        let (res, _) = tokio::join!(call, fail_over);
+        let err = res.err().expect("not retried");
+        // Not "could not be reached", which would have the Console try the
+        // Node's other addresses: the call may have been carried out.
+        assert!(err.starts_with(&format!("{dead} dropped the call before answering: ")), "{err}");
+        assert_eq!(*asked.lock().unwrap(), vec!["/maitre.v1.NodeService/Reboot"]);
+        assert_eq!(new.connections.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn reads_are_idempotent_and_changes_are_not() {
+        for p in ["/maitre.v1.NodeService/GetNodeInfo", "/maitre.v1.StorageService/ListDrives", "/maitre.v1.FilesService/ListDir", "/maitre.v1.FilesService/Usage", "/maitre.v1.StorageService/DriveContents", "/maitre.v1.StorageService/PlanDrain", "/maitre.v1.ServiceService/PreviewSetup"] {
+            assert!(idempotent(p), "{p}");
+        }
+        for p in ["/maitre.v1.NodeService/Reboot", "/maitre.v1.NodeService/PutRecord", "/maitre.v1.FilesService/Delete", "/maitre.v1.ServiceService/InstallService", "/maitre.v1.NodeService/DebugExec", "/maitre.v1.NodeService/Restart", "/x/Get", "/x/Listen"] {
+            assert!(!idempotent(p), "{p}");
+        }
     }
 
     // Cross-language check against a running `maitre dev`. Skipped unless

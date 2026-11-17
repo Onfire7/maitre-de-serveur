@@ -390,6 +390,14 @@ fn relay_through(state: State<'_, AppState>, anchor: Option<RelayAnchor>) {
     state.dialer.relay_through(anchor.map(|a| dial::Anchor { addr: a.addr, fingerprint: a.fingerprint }));
 }
 
+/// How this Device last reached the Node `fingerprint`: "direct",
+/// "relayed" (through the anchor's Relay), or null when no way is
+/// remembered (none yet, it failed, or the anchor changed).
+#[tauri::command]
+fn node_way(state: State<'_, AppState>, fingerprint: String) -> Option<dial::Way> {
+    state.dialer.way(&fingerprint)
+}
+
 #[derive(Deserialize)]
 struct RelayAnchor {
     addr: String,
@@ -570,6 +578,7 @@ pub fn run() {
             files_upload,
             rpc,
             relay_through,
+            node_way,
             device_code,
             announce_join,
             withdraw_join,
