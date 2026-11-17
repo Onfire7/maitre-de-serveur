@@ -9,6 +9,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import type { Transport } from "@connectrpc/connect";
 import { isDemo } from "./demo/flag";
 import { createDemoTransport } from "./demo/transport";
+import { demoFleet } from "./demo/fleet";
 import { demoteRoute, rememberRoute, routeOrder } from "./fleet/route";
 
 interface RpcResponse {
@@ -103,6 +104,15 @@ export function relayThrough(anchor: Target | undefined) {
   void invoke("relay_through", { anchor: anchor ? { addr: anchor.addr, fingerprint: anchor.fingerprint } : null }).catch(() => {
     relayAnchor = undefined;
   });
+}
+
+/**
+ * How the Desktop's dial last reached this Node: straight, or through the
+ * anchor's Relay (ADR 0012); null when it has not, or that way failed.
+ */
+export async function nodeWay(fingerprint: string): Promise<"direct" | "relayed" | null> {
+  if (isDemo()) return demoFleet().wayOf(fingerprint);
+  return invoke<"direct" | "relayed" | null>("node_way", { fingerprint });
 }
 
 const cache = new Map<string, Transport>();

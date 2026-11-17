@@ -57,6 +57,13 @@ describe("ConnectionDialog", () => {
     expect(onUnpin).toHaveBeenCalled();
   });
 
+  it("says how each Node is reached, through the anchor's Relay included (ADR 0012)", () => {
+    const s = { ...snap("192.168.4.74:7443"), status: new Map([[B, { nodeId: B, reachable: true, lastSeenUnixMs: BigInt(Date.now()), problems: [], way: "relayed" }]]) } as unknown as FleetSnapshot;
+    mount({ snap: s });
+    expect(screen.getByLabelText("Alder is reached").textContent).toBe("at home");
+    expect(screen.getByLabelText("Boulder is reached").textContent).toBe("through Alder");
+  });
+
   it("keeps a typed address under the Node picked and uses it", async () => {
     const { onChoose, onAddAddress } = mount();
     const use = screen.getAllByText("Use").at(-1)!.closest("button")!;

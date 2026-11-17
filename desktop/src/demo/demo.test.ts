@@ -6,7 +6,8 @@ import { ServiceService, ServiceStatus_State, ControlServiceRequest_Action } fro
 import { FilesService } from "@/gen/maitre/v1/files_pb";
 import { GrantSchema, GrantsNeededSchema, NodeSchema } from "@/gen/maitre/v1/fleet_pb";
 import { InstallerService, Provisioning_Phase } from "@/gen/maitre/v1/installer_pb";
-import { gapLine, nodeDown, nodeWord, provisioningLine, syncGaps } from "@/fleet/useFleet";
+import { gapLine, nodeDown, nodeWord, provisioningLine, readFleet, syncGaps } from "@/fleet/useFleet";
+import { createReach, wayLine } from "@/fleet/reach";
 import { notices } from "@/app/notices";
 import { DemoFleet, INSTALLER_ID, NODE_A, NODE_B } from "./fleet";
 import { createDemoTransport } from "./transport";
@@ -121,6 +122,34 @@ describe("ADR 0007", () => {
     expect(st?.reachable).toBe(true);
     expect(nodeWord(st, fleet.now)).toBe("Attention");
     expect(nodeDown(nodeWord(st, fleet.now))).toBe(false);
+  });
+});
+
+describe("ADR 0012", () => {
+  /** One round of the Console: read the Fleet through Alder, then see how each Node is reached. */
+  async function round(reach: ReturnType<typeof createReach>) {
+    const anchor = { nodeId: NODE_A, addr: A };
+    const snap = { ...(await readFleet(anchor, [], (t) => createDemoTransport(t.addr, fleet))), anchor, at: fleet.now };
+    return { ...snap, status: await reach(anchor, snap.status, [{ fingerprint: NODE_B, addr: B }], fleet.now) };
+  }
+  const demoReach = () => createReach({ wayOf: async (id) => fleet.wayOf(id), probe: async (t) => void (await at(t.addr).node.getNodeInfo({})) });
+
+  it("reaches Basalt through Alder's Relay, and Basalt is Healthy", async () => {
+    const snap = await round(demoReach());
+    expect(wayLine(snap, NODE_A, fleet.now)).toBe("at home");
+    expect(wayLine(snap, NODE_B, fleet.now)).toBe("through Alder");
+    expect(nodeWord(snap.status.get(NODE_B), fleet.now)).toBe("Healthy");
+  });
+
+  it("calls Basalt unreachable once neither this device nor Alder reaches it", async () => {
+    const reach = demoReach();
+    fleet.setReachable(NODE_B, false);
+    fleet.tick(fleet.now + 61_000);
+    await round(reach);
+    await new Promise((r) => setTimeout(r, 0));
+    const snap = await round(reach);
+    expect(nodeWord(snap.status.get(NODE_B), fleet.now)).toBe("Unreachable");
+    expect(wayLine(snap, NODE_B, fleet.now)).toBe("unreachable");
   });
 });
 

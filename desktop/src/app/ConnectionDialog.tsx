@@ -1,7 +1,8 @@
 // The connection chooser (decision 284): which Node the Console reads the
 // Fleet through and by which way (at home, over Tailscale, at the Fleet's
 // domain, or an address typed here), what each way answered on the last
-// round, and a pin that holds the choice until it fails.
+// round, a pin that holds the choice until it fails, and how this device
+// reaches each Node now, through the anchor's Relay included (ADR 0012).
 import { useState } from "react";
 import { Globe, Home, Link2, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import type { Attempt, FleetSnapshot } from "@/fleet/useFleet";
 import type { Candidate } from "@/fleet/anchor";
 import { domainAddr } from "@/fleet/domain";
 import { routeKind, routeLabel, type RouteKind } from "@/fleet/route";
+import { wayLine } from "@/fleet/reach";
 import type { KnownNode } from "@/state";
 import type { Target } from "@/transport";
 
@@ -42,6 +44,7 @@ export function connectionLine(snap: FleetSnapshot | undefined, known: KnownNode
 
 export function ConnectionDialog({ open, onOpenChange, snap, error, known, candidates, attempts, pin, onChoose, onUnpin, onAddAddress }: ConnectionProps & { open: boolean; onOpenChange: (o: boolean) => void }) {
   const dom = domainAddr();
+  const now = Date.now();
   const nameOf = (id: string) => snap?.nodes.find((n) => n.nodeId === id)?.name ?? known.find((n) => n.node_id === id)?.name ?? id.slice(0, 8);
   const letterOf = (id: string) => snap?.nodes.find((n) => n.nodeId === id)?.letter ?? "";
   const nodes = [...candidates].sort((a, b) => (letterOf(a.nodeId) || "~").localeCompare(letterOf(b.nodeId) || "~") || nameOf(a.nodeId).localeCompare(nameOf(b.nodeId)));
@@ -87,6 +90,11 @@ export function ConnectionDialog({ open, onOpenChange, snap, error, known, candi
               <div className="flex items-center gap-2 border-b px-3 py-1.5 text-sm font-medium">
                 {letterOf(n.nodeId) && <span className="rounded bg-muted px-1.5 text-xs font-medium text-muted-foreground">{letterOf(n.nodeId)}</span>}
                 {nameOf(n.nodeId)}
+                {wayLine(snap, n.nodeId, now) && (
+                  <span className="ml-auto text-xs font-normal text-muted-foreground" aria-label={`${nameOf(n.nodeId)} is reached`}>
+                    {wayLine(snap, n.nodeId, now)}
+                  </span>
+                )}
               </div>
               <ul className="divide-y">
                 {n.addresses.length === 0 && <li className="px-3 py-1.5 text-xs text-muted-foreground">No address known.</li>}
