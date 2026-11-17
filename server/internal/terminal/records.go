@@ -11,13 +11,13 @@ import (
 	"github.com/Onfire7/maitre-de-serveur/server/internal/store"
 )
 
-// KindRecord is the Fleet Record kind of the Node's record of a Terminal
+// KindTerminal is the Fleet Record kind of the Node's record of a Terminal
 // (maitrev1.TerminalRecord, ADR 0011): who opened it and who attached,
 // where, with what argv and user, when it started and ended, and its exit
 // code. Never keystrokes or output. The Node that held the Terminal owns
 // and signs it, so it reaches the Fleet's other Nodes and the Console like
 // any Record.
-const KindRecord = "terminal"
+const KindTerminal = "terminal"
 
 // deviceName is the name the Node knows a Trusted Device by, or "" when
 // it has none (the record keeps the fingerprint beside it, and the list
@@ -73,7 +73,7 @@ func (h *Handler) update(ctx context.Context, id string, change func(*maitrev1.T
 	h.recording.Lock()
 	defer h.recording.Unlock()
 	var r maitrev1.TerminalRecord
-	if _, err := h.cfg.Store.Get(ctx, KindRecord, id, &r); err != nil {
+	if _, err := h.cfg.Store.Get(ctx, KindTerminal, id, &r); err != nil {
 		return
 	}
 	if change(&r) {
@@ -84,7 +84,7 @@ func (h *Handler) update(ctx context.Context, id string, change func(*maitrev1.T
 // putRecord stores r; h.recording is held. A record that cannot be written
 // is logged: the Terminal still serves.
 func (h *Handler) putRecord(ctx context.Context, r *maitrev1.TerminalRecord) {
-	if _, err := h.cfg.Store.Put(context.WithoutCancel(ctx), KindRecord, r.GetId(), r, false); err != nil {
+	if _, err := h.cfg.Store.Put(context.WithoutCancel(ctx), KindTerminal, r.GetId(), r, false); err != nil {
 		h.cfg.Log.Warn("terminal record not written", "id", r.GetId(), "err", err)
 		return
 	}
@@ -121,7 +121,7 @@ func (h *Handler) unended(ctx context.Context) map[string]bool {
 // more than KeepRecords ago, and rebuilds the set of those not seen to
 // end; h.recording is held.
 func (h *Handler) rescan(ctx context.Context) {
-	recs, err := h.cfg.Store.List(ctx, KindRecord)
+	recs, err := h.cfg.Store.List(ctx, KindTerminal)
 	if err != nil {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Handler) rescan(ctx context.Context) {
 		case ended == 0:
 			unended[rec.GetId()] = true
 		case ended < cutoff:
-			if _, err := h.cfg.Store.Delete(context.WithoutCancel(ctx), KindRecord, rec.GetId(), false); err != nil {
+			if _, err := h.cfg.Store.Delete(context.WithoutCancel(ctx), KindTerminal, rec.GetId(), false); err != nil {
 				h.cfg.Log.Warn("terminal record not deleted", "id", rec.GetId(), "err", err)
 			}
 		}

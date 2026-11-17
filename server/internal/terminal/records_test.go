@@ -28,7 +28,7 @@ func (e env) device(t *testing.T, fp, name string) {
 func record(t *testing.T, e env, id string) *maitrev1.TerminalRecord {
 	t.Helper()
 	var r maitrev1.TerminalRecord
-	if _, err := e.st.Get(context.Background(), terminal.KindRecord, id, &r); err != nil {
+	if _, err := e.st.Get(context.Background(), terminal.KindTerminal, id, &r); err != nil {
 		t.Fatalf("the record of %s: %v", id, err)
 	}
 	return &r
@@ -156,7 +156,7 @@ func TestATerminalLostWithItsHolderIsRecordedAsLost(t *testing.T) {
 	// Node had gone down before it could.
 	r := record(t, e, id)
 	r.EndedUnixMs, r.Code = 0, 0
-	if _, err := e.st.Put(context.Background(), terminal.KindRecord, id, r, false); err != nil {
+	if _, err := e.st.Put(context.Background(), terminal.KindTerminal, id, r, false); err != nil {
 		t.Fatal(err)
 	}
 	// The agent starts again.
@@ -190,7 +190,7 @@ func TestNoKeystrokesOrOutputAreStoredAnywhere(t *testing.T) {
 		t.Fatalf("not ended: %v", r)
 	}
 	// Every record, as stored and as it would be sent to another Node.
-	recs, err := e.st.List(context.Background(), terminal.KindRecord)
+	recs, err := e.st.List(context.Background(), terminal.KindTerminal)
 	if err != nil || len(recs) == 0 {
 		t.Fatalf("records %v: %v", recs, err)
 	}
@@ -230,7 +230,7 @@ func TestRecordsOfTerminalsFinishedLongAgoAreDeleted(t *testing.T) {
 	put := func(id string, r *maitrev1.TerminalRecord) {
 		t.Helper()
 		r.Id = id
-		if _, err := e.st.Put(ctx, terminal.KindRecord, id, r, false); err != nil {
+		if _, err := e.st.Put(ctx, terminal.KindTerminal, id, r, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -238,7 +238,7 @@ func TestRecordsOfTerminalsFinishedLongAgoAreDeleted(t *testing.T) {
 	put("oldlost", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day, Lost: true})
 	put("recent", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 29*day})
 	body, _ := proto.Marshal(&maitrev1.TerminalRecord{Id: "theirs", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
-	if err := e.st.Seed(ctx, &maitrev1.Record{Kind: terminal.KindRecord, Id: "theirs", OwnerNodeId: "other", Version: 1, UpdatedUnixMs: now, Body: body}); err != nil {
+	if err := e.st.Seed(ctx, &maitrev1.Record{Kind: terminal.KindTerminal, Id: "theirs", OwnerNodeId: "other", Version: 1, UpdatedUnixMs: now, Body: body}); err != nil {
 		t.Fatal(err)
 	}
 	e.container(t, "kuma", "", "bash")
@@ -251,7 +251,7 @@ func TestRecordsOfTerminalsFinishedLongAgoAreDeleted(t *testing.T) {
 
 	list(t, e, "kuma")
 	for id, gone := range map[string]bool{"old": true, "oldlost": true, "recent": false, "theirs": false, running: false} {
-		raw, err := e.st.Raw(ctx, terminal.KindRecord, id)
+		raw, err := e.st.Raw(ctx, terminal.KindTerminal, id)
 		if err != nil {
 			t.Fatalf("%s: %v", id, err)
 		}
