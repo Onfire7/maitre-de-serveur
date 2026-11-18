@@ -8,7 +8,7 @@
 import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { createClient } from "@connectrpc/connect";
-import { TerminalService, type TerminalInfo as HeldTerminal } from "@/gen/maitre/v1/terminal_pb";
+import { TerminalService, type Terminal as HeldTerminal } from "@/gen/maitre/v1/terminal_pb";
 import { transportFor, type Target } from "@/transport";
 import { TerminalSession, type SocketFactory, type TerminalChoice } from "./session";
 

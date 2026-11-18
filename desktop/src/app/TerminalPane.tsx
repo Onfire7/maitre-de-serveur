@@ -142,10 +142,12 @@ const time = (ms: bigint) => new Date(Number(ms)).toLocaleTimeString([], { hour:
 
 /**
  * The Node's record of a Terminal it holds, briefly (#8): who opened it,
- * when, and how it ended, "Opened by Laptop, 14:02, exit 0 at 14:05".
+ * when, and how it ended, "Opened by Laptop, 14:02, exit 0 at 14:05". A
+ * Device the Node has no name for is named by its key's fingerprint.
  */
 export function terminalState(t: HeldTerminal): string {
-  const opened = t.openedBy ? `Opened by ${t.openedBy}, ${time(t.startedUnixMs)}` : `Opened ${time(t.startedUnixMs)}`;
+  const by = t.opened?.deviceName || t.opened?.device;
+  const opened = by ? `Opened by ${by}, ${time(t.startedUnixMs)}` : `Opened ${time(t.startedUnixMs)}`;
   return `${opened}, ${t.running ? "running" : `exit ${t.code} at ${time(t.endedUnixMs)}`}`;
 }
 

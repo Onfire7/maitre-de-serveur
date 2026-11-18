@@ -25,9 +25,9 @@ func (e env) device(t *testing.T, fp, name string) {
 }
 
 // record is the Node's record of Terminal id.
-func record(t *testing.T, e env, id string) *maitrev1.TerminalRecord {
+func record(t *testing.T, e env, id string) *maitrev1.Terminal {
 	t.Helper()
-	var r maitrev1.TerminalRecord
+	var r maitrev1.Terminal
 	if _, err := e.st.Get(context.Background(), terminal.KindTerminal, id, &r); err != nil {
 		t.Fatalf("the record of %s: %v", id, err)
 	}
@@ -52,7 +52,7 @@ func TestTheNodeRecordsWhoOpenedAttachedAndHowItEnded(t *testing.T) {
 	if o := r.GetOpened(); o.GetDevice() != "laptop" || o.GetDeviceName() != "Laptop" || o.GetUnixMs() == 0 {
 		t.Fatalf("opened by: %v", o)
 	}
-	if r.GetStartedUnixMs() == 0 || r.GetEndedUnixMs() != 0 || len(r.GetAttaches()) != 0 {
+	if r.GetStartedUnixMs() == 0 || !r.GetRunning() || r.GetEndedUnixMs() != 0 || len(r.GetAttaches()) != 0 {
 		t.Fatalf("a running Terminal's record: %v", r)
 	}
 
@@ -68,7 +68,7 @@ func TestTheNodeRecordsWhoOpenedAttachedAndHowItEnded(t *testing.T) {
 	}
 	p.exit()
 	r = record(t, e, id)
-	if r.GetEndedUnixMs() < r.GetStartedUnixMs() || r.GetCode() != 3 || r.GetLost() {
+	if r.GetRunning() || r.GetEndedUnixMs() < r.GetStartedUnixMs() || r.GetCode() != 3 || r.GetLost() {
 		t.Fatalf("ended: %v", r)
 	}
 }
@@ -90,10 +90,10 @@ func TestTheListSaysWhoOpenedATerminalAndWhetherAsRoot(t *testing.T) {
 	defer s.typ("exit\n")
 
 	ts := list(t, e, "kuma")
-	if i := find(ts, id); !i.GetRoot() || i.GetUser() != "root" || i.GetOpenedBy() != "Laptop" {
+	if i := find(ts, id); !i.GetRoot() || i.GetUser() != "root" || i.GetOpened().GetDeviceName() != "Laptop" {
 		t.Fatalf("as root: %v", i)
 	}
-	if i := find(ts, plainID); i.GetRoot() || i.GetUser() != "1000" || i.GetOpenedBy() != "Laptop" {
+	if i := find(ts, plainID); i.GetRoot() || i.GetUser() != "1000" || i.GetOpened().GetDeviceName() != "Laptop" {
 		t.Fatalf("as the image's user: %v", i)
 	}
 	if !record(t, e, id).GetRoot() || record(t, e, plainID).GetRoot() {
@@ -110,8 +110,8 @@ func TestAnUnnamedDeviceIsRecordedByItsFingerprint(t *testing.T) {
 	if o := record(t, e, id).GetOpened(); o.GetDevice() != "laptop" || o.GetDeviceName() != "" {
 		t.Fatalf("opened by: %v", o)
 	}
-	if i := find(list(t, e, "kuma"), id); i.GetOpenedBy() != "laptop" {
-		t.Fatalf("info: %v", i)
+	if o := find(list(t, e, "kuma"), id).GetOpened(); o.GetDevice() != "laptop" || o.GetDeviceName() != "" {
+		t.Fatalf("info: %v", o)
 	}
 }
 
@@ -155,14 +155,14 @@ func TestATerminalLostWithItsHolderIsRecordedAsLost(t *testing.T) {
 	// Its end was recorded by the list on the way; forget that, as if the
 	// Node had gone down before it could.
 	r := record(t, e, id)
-	r.EndedUnixMs, r.Code = 0, 0
+	r.Running, r.EndedUnixMs, r.Code = true, 0, 0
 	if _, err := e.st.Put(context.Background(), terminal.KindTerminal, id, r, false); err != nil {
 		t.Fatal(err)
 	}
 	// The agent starts again.
 	e = serveAgent(t, e)
 	list(t, e, "kuma")
-	if r := record(t, e, id); !r.GetLost() || r.GetEndedUnixMs() == 0 {
+	if r := record(t, e, id); !r.GetLost() || r.GetRunning() || r.GetEndedUnixMs() == 0 {
 		t.Fatalf("lost: %v", r)
 	}
 }
@@ -227,17 +227,17 @@ func TestRecordsOfTerminalsFinishedLongAgoAreDeleted(t *testing.T) {
 	ctx := context.Background()
 	day := int64(24 * time.Hour / time.Millisecond)
 	now := time.Now().UnixMilli()
-	put := func(id string, r *maitrev1.TerminalRecord) {
+	put := func(id string, r *maitrev1.Terminal) {
 		t.Helper()
 		r.Id = id
 		if _, err := e.st.Put(ctx, terminal.KindTerminal, id, r, false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	put("old", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
-	put("oldlost", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day, Lost: true})
-	put("recent", &maitrev1.TerminalRecord{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 29*day})
-	body, _ := proto.Marshal(&maitrev1.TerminalRecord{Id: "theirs", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
+	put("old", &maitrev1.Terminal{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
+	put("oldlost", &maitrev1.Terminal{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day, Lost: true})
+	put("recent", &maitrev1.Terminal{Service: "kuma", StartedUnixMs: now - 40*day, EndedUnixMs: now - 29*day})
+	body, _ := proto.Marshal(&maitrev1.Terminal{Id: "theirs", StartedUnixMs: now - 40*day, EndedUnixMs: now - 31*day})
 	if err := e.st.Seed(ctx, &maitrev1.Record{Kind: terminal.KindTerminal, Id: "theirs", OwnerNodeId: "other", Version: 1, UpdatedUnixMs: now, Body: body}); err != nil {
 		t.Fatal(err)
 	}

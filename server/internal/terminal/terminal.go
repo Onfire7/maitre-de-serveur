@@ -199,7 +199,7 @@ func (h *Handler) session(ctx context.Context, c *websocket.Conn, spec *maitrev1
 	}
 	var (
 		held net.Conn
-		info *maitrev1.TerminalInfo
+		info *maitrev1.Terminal
 	)
 	switch {
 	case f.GetStart() != nil:
@@ -282,7 +282,7 @@ func (f failure) Error() string { return f.msg }
 
 // start launches a new Terminal: the Service's shell in its container, in a
 // holder of its own. It returns the view's connection to it.
-func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *maitrev1.TerminalStart, device string) (net.Conn, *maitrev1.TerminalInfo, error) {
+func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *maitrev1.TerminalStart, device string) (net.Conn, *maitrev1.Terminal, error) {
 	if st.GetService() != spec.GetName() {
 		return nil, nil, fmt.Errorf("this connection is for %s, not %s", spec.GetName(), st.GetService())
 	}
@@ -304,11 +304,6 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 		return nil, nil, failure{maitrev1.TerminalExit_REASON_NO_SHELL, NoShell}
 	}
 	id := newID()
-	opened := h.visit(ctx, device)
-	openedBy := opened.GetDeviceName()
-	if openedBy == "" {
-		openedBy = device
-	}
 	argv := []string{h.cfg.Podman, "exec", "-it", "-e", "TERM=xterm-256color"}
 	if st.GetRoot() {
 		argv = append(argv, "--user", "0")
@@ -317,8 +312,8 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	if err := os.MkdirAll(h.cfg.Dir, 0o700); err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
-	hold := HoldSpec{Argv: argv, Size: st.GetSize(), Info: &maitrev1.TerminalInfo{Id: id, Service: spec.GetName(), Container: label, User: user, Argv: shell,
-		Root: st.GetRoot(), OpenedBy: openedBy}}
+	hold := HoldSpec{Argv: argv, Size: st.GetSize(), Info: &maitrev1.Terminal{Id: id, Service: spec.GetName(), Container: label, User: user, Argv: shell,
+		Root: st.GetRoot(), Opened: h.visit(ctx, device)}}
 	if err := h.cfg.Launcher.Launch(ctx, h.socket(id), hold); err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
@@ -326,13 +321,13 @@ func (h *Handler) start(ctx context.Context, spec *maitrev1.ServiceSpec, st *mai
 	if err != nil {
 		return nil, nil, fmt.Errorf("the Terminal could not start: %w", err)
 	}
-	h.recordOpened(ctx, info, opened)
+	h.recordOpened(ctx, info)
 	h.cfg.Log.Info("terminal opened", "id", id, "device", device, "service", spec.GetName(), "container", ctr, "user", user, "argv", strings.Join(shell, " "))
 	return held, info, nil
 }
 
 // attach connects a view to a Terminal the Node holds, the Service's own.
-func (h *Handler) attach(ctx context.Context, service string, a *maitrev1.TerminalAttach) (net.Conn, *maitrev1.TerminalInfo, error) {
+func (h *Handler) attach(ctx context.Context, service string, a *maitrev1.TerminalAttach) (net.Conn, *maitrev1.Terminal, error) {
 	gone := failure{maitrev1.TerminalExit_REASON_FAILED, Gone}
 	if !validID(a.GetId()) {
 		return nil, nil, gone
@@ -350,7 +345,7 @@ func (h *Handler) attach(ctx context.Context, service string, a *maitrev1.Termin
 
 // dial connects to Terminal id's holder, says what it wants (first), and
 // reads its info. wait is how long to wait for a holder just launched.
-func (h *Handler) dial(ctx context.Context, id string, first *maitrev1.TerminalFrame, wait time.Duration) (net.Conn, *maitrev1.TerminalInfo, error) {
+func (h *Handler) dial(ctx context.Context, id string, first *maitrev1.TerminalFrame, wait time.Duration) (net.Conn, *maitrev1.Terminal, error) {
 	deadline := time.Now().Add(wait)
 	var c net.Conn
 	for {
@@ -392,7 +387,7 @@ func (h *Handler) ListTerminals(ctx context.Context, req *maitrev1.ListTerminals
 }
 
 // running is how many of the Service's Terminals run in its container
-// named label (as TerminalInfo.container says it).
+// named label (as Terminal.container says it).
 func (h *Handler) running(ctx context.Context, service, label string) int {
 	n := 0
 	for _, t := range h.held(ctx, service) {
@@ -410,11 +405,11 @@ func (h *Handler) running(ctx context.Context, service, label string) int {
 // seen and holders lost (records.go). The records are read before the
 // sockets are looked for, so a Terminal opened meanwhile is not taken for
 // lost.
-func (h *Handler) held(ctx context.Context, service string) []*maitrev1.TerminalInfo {
+func (h *Handler) held(ctx context.Context, service string) []*maitrev1.Terminal {
 	unended := h.unended(ctx)
 	socks, _ := filepath.Glob(filepath.Join(h.cfg.Dir, "*.sock"))
 	res := &maitrev1.ListTerminalsResponse{}
-	found, alive := map[string]*maitrev1.TerminalInfo{}, map[string]bool{}
+	found, alive := map[string]*maitrev1.Terminal{}, map[string]bool{}
 	defer func() { h.reconcile(ctx, unended, found, alive) }()
 	for _, s := range socks {
 		id := strings.TrimSuffix(filepath.Base(s), ".sock")
@@ -422,7 +417,7 @@ func (h *Handler) held(ctx context.Context, service string) []*maitrev1.Terminal
 			continue
 		}
 		alive[id] = true
-		c, info, err := h.dial(ctx, id, &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: &maitrev1.TerminalInfo{}}}, 0)
+		c, info, err := h.dial(ctx, id, &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: &maitrev1.Terminal{}}}, 0)
 		if err != nil {
 			// A holder that is gone without cleaning up after itself.
 			if errors.Is(err, syscall.ECONNREFUSED) {
@@ -450,7 +445,7 @@ func (h *Handler) EndTerminal(ctx context.Context, req *maitrev1.EndTerminalRequ
 	if !validID(req.GetId()) {
 		return nil, notFound
 	}
-	c, info, err := h.dial(ctx, req.GetId(), &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: &maitrev1.TerminalInfo{}}}, 0)
+	c, info, err := h.dial(ctx, req.GetId(), &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: &maitrev1.Terminal{}}}, 0)
 	if err != nil {
 		return nil, notFound
 	}

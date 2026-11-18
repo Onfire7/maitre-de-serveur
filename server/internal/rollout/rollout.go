@@ -111,7 +111,7 @@ type Runner struct {
 	Digest func(ctx context.Context, ref string) (string, error)
 	// Terminals lists every Terminal the Node holds; an automatic update
 	// waits up to a day for the running ones (ADR 0011). Nil: none.
-	Terminals func(ctx context.Context) ([]*maitrev1.TerminalInfo, error)
+	Terminals func(ctx context.Context) ([]*maitrev1.Terminal, error)
 	wait      TerminalWait
 
 	mu    sync.Mutex
@@ -238,11 +238,11 @@ type TerminalWait struct {
 
 // Hold is d, or a decision to wait while any of terms is running and the
 // day is not over. It forgets the wait once none is running.
-func (w *TerminalWait) Hold(d Decision, terms []*maitrev1.TerminalInfo, now time.Time) Decision {
+func (w *TerminalWait) Hold(d Decision, terms []*maitrev1.Terminal, now time.Time) Decision {
 	if !d.Update {
 		return d
 	}
-	var running []*maitrev1.TerminalInfo
+	var running []*maitrev1.Terminal
 	for _, t := range terms {
 		if t.GetRunning() {
 			running = append(running, t)
@@ -263,7 +263,7 @@ func (w *TerminalWait) Hold(d Decision, terms []*maitrev1.TerminalInfo, now time
 }
 
 // terminalsIn is "a Terminal in nextcloud", "2 Terminals in kuma and vault".
-func terminalsIn(running []*maitrev1.TerminalInfo) string {
+func terminalsIn(running []*maitrev1.Terminal) string {
 	var services []string
 	seen := map[string]bool{}
 	for _, t := range running {

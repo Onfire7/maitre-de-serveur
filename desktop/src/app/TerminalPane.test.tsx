@@ -2,8 +2,8 @@
 import "@/test/dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { TerminalExit_Reason, TerminalFrameSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
+import { create, fromBinary, toBinary, type MessageInitShape } from "@bufbuild/protobuf";
+import { TerminalExit_Reason, TerminalFrameSchema, TerminalSchema, TerminalVisitSchema, type TerminalFrame } from "@/gen/maitre/v1/terminal_pb";
 import type { TerminalSocket } from "@/terminal/session";
 import { getTerminal, openTerminal, resetTerminals, terminalsOf, type HeldTerminal } from "@/terminal/terminals";
 import { GrantSchema } from "@/gen/maitre/v1/fleet_pb";
@@ -255,13 +255,15 @@ describe("the Service's Terminals (#5)", () => {
     resetTerminals();
     sockets = [];
   });
-  const held = (p: Partial<HeldTerminal>): HeldTerminal => ({ $typeName: "maitre.v1.TerminalInfo", id: "", service: "kuma", container: "kuma", user: "root", argv: ["/bin/bash"], startedUnixMs: 0n, running: false, code: 0, endedUnixMs: 0n, root: false, openedBy: "", ...p });
+  const held = (p: MessageInitShape<typeof TerminalSchema>): HeldTerminal => create(TerminalSchema, { service: "kuma", container: "kuma", user: "root", argv: ["/bin/bash"], ...p });
+  const by = (device: string, deviceName = "") => create(TerminalVisitSchema, { device, deviceName });
 
   it("says who opened each Terminal, when, and its exit code (#8)", async () => {
     const at = (h: number, m: number) => BigInt(new Date(2026, 10, 17, h, m).getTime());
     const list = [
-      held({ id: "aaaaaaaaaaaaaaaa", running: true, startedUnixMs: at(14, 2), openedBy: "Laptop" }),
-      held({ id: "bbbbbbbbbbbbbbbb", code: 0, startedUnixMs: at(9, 30), endedUnixMs: at(9, 41), openedBy: "Phone" }),
+      held({ id: "aaaaaaaaaaaaaaaa", running: true, startedUnixMs: at(14, 2), opened: by("laptop", "Laptop") }),
+      held({ id: "bbbbbbbbbbbbbbbb", code: 0, startedUnixMs: at(9, 30), endedUnixMs: at(9, 41), opened: by("phone", "Phone") }),
+      held({ id: "cccccccccccccccc", running: true, startedUnixMs: at(10, 5), opened: by("SHA256:abc") }),
     ];
     render(<TerminalList service="kuma" target={target} deps={{ list: async () => list, end: async () => {} }} onOpen={() => {}} />);
     await flush();
@@ -269,6 +271,8 @@ describe("the Service's Terminals (#5)", () => {
     // In the person's own clock: 14:02, or 02:02 PM.
     expect(rows[0].textContent).toMatch(/Opened by Laptop, (14:02|02:02\s?PM), running/);
     expect(rows[1].textContent).toMatch(/Opened by Phone, 09:30( AM)?, exit 0 at 09:41/);
+    // A Device the Node has no name for, by its key's fingerprint.
+    expect(rows[2].textContent).toMatch(/Opened by SHA256:abc, 10:05( AM)?, running/);
   });
 
   it("reopens a Terminal started with Run as root as root, and one whose image runs as root as the image's user (#8)", async () => {

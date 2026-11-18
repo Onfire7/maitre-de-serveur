@@ -36,16 +36,16 @@ func HoldMain(args []string) error {
 	socket := fs.String("socket", "", "unix socket the agent connects to")
 	cols := fs.Uint("cols", 80, "columns")
 	rows := fs.Uint("rows", 24, "rows")
-	info := fs.String("info", "", "the Terminal's TerminalInfo, protobuf in unpadded base64url")
+	info := fs.String("info", "", "the Terminal, a maitre.v1.Terminal, protobuf in unpadded base64url")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *socket == "" || fs.NArg() == 0 {
 		return fmt.Errorf("usage: maitre terminal-hold --socket path [--cols n --rows n --info b64] -- argv...")
 	}
-	spec := HoldSpec{Argv: fs.Args(), Size: &maitrev1.TerminalSize{Cols: uint32(*cols), Rows: uint32(*rows)}, Info: &maitrev1.TerminalInfo{}}
+	spec := HoldSpec{Argv: fs.Args(), Size: &maitrev1.TerminalSize{Cols: uint32(*cols), Rows: uint32(*rows)}, Info: &maitrev1.Terminal{}}
 	if b, err := base64.RawURLEncoding.DecodeString(*info); err != nil || proto.Unmarshal(b, spec.Info) != nil {
-		return fmt.Errorf("terminal-hold: --info is not a TerminalInfo")
+		return fmt.Errorf("terminal-hold: --info is not a Terminal")
 	}
 	return Serve(*socket, spec)
 }

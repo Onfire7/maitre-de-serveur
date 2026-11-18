@@ -83,7 +83,7 @@ type HoldSpec struct {
 	Size *maitrev1.TerminalSize
 	// Info is the Terminal's id, Service, container, user and argv as the
 	// Console shows them; the holder fills in its times and state.
-	Info *maitrev1.TerminalInfo
+	Info *maitrev1.Terminal
 }
 
 // Hold runs argv on a new PTY and serves the Terminal on ln to any number
@@ -110,9 +110,9 @@ func Hold(ln net.Listener, spec HoldSpec) error {
 		return err
 	}
 	defer ptmx.Close()
-	info := proto.Clone(spec.Info).(*maitrev1.TerminalInfo)
+	info := proto.Clone(spec.Info).(*maitrev1.Terminal)
 	if info == nil {
-		info = &maitrev1.TerminalInfo{}
+		info = &maitrev1.Terminal{}
 	}
 	info.Running = true
 	info.StartedUnixMs = time.Now().UnixMilli()
@@ -160,7 +160,7 @@ type holder struct {
 	exited chan struct{}
 
 	mu     sync.Mutex
-	info   *maitrev1.TerminalInfo
+	info   *maitrev1.Terminal
 	replay []byte
 	// size is the session's: the size of the view that last typed or
 	// resized (ADR 0011), which every view is told.
@@ -295,7 +295,7 @@ func (h *holder) serve(c net.Conn) {
 func (h *holder) infoFrame() *maitrev1.TerminalFrame {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.TerminalInfo)}}
+	return &maitrev1.TerminalFrame{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.Terminal)}}
 }
 
 // attach serves a view: the info, the replay, then what comes; its input
@@ -310,7 +310,7 @@ func (h *holder) attach(c net.Conn, a *maitrev1.TerminalAttach) {
 	if len(h.viewers) == 0 {
 		h.sizeTo(v)
 	}
-	first := []*maitrev1.TerminalFrame{{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.TerminalInfo)}}, sizeFrame(h.size)}
+	first := []*maitrev1.TerminalFrame{{Frame: &maitrev1.TerminalFrame_Info{Info: proto.Clone(h.info).(*maitrev1.Terminal)}}, sizeFrame(h.size)}
 	for b := h.replay; len(b) > 0; {
 		n := min(len(b), chunk)
 		first = append(first, outputFrame(append([]byte(nil), b[:n]...)))
