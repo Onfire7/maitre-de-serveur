@@ -33,6 +33,9 @@ const (
 	MinReserve = int64(2252) << 20
 )
 
+// minReserve is MinReserve, a variable so a test need not allocate 2 GB.
+var minReserve = MinReserve
+
 // EnsureReserve holds room for the next update, idempotently. imageBytes
 // is the booted image's installed size; 0 uses MinReserve.
 //
@@ -41,7 +44,7 @@ const (
 // and refusing to start over that would help nobody. It says so instead,
 // and the greenboot space check says it again on every boot.
 func EnsureReserve(log *slog.Logger, imageBytes int64) {
-	want := MinReserve
+	want := minReserve
 	if imageBytes > 0 {
 		if n := int64(float64(imageBytes) * ReserveFactor); n > want {
 			want = n

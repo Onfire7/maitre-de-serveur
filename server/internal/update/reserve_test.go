@@ -16,9 +16,14 @@ func TestTheReserveIsHeldAndHandedBack(t *testing.T) {
 	old := ReservePath
 	defer func() { ReservePath = old }()
 	ReservePath = filepath.Join(t.TempDir(), "reserve")
+	// Megabytes, not the gigabytes of a real image and MinReserve, so the
+	// test fits a small disk.
+	oldMin := minReserve
+	defer func() { minReserve = oldMin }()
+	minReserve = int64(1) << 20
 
-	// 110% of the image, and the constant when it cannot be measured.
-	image := int64(4) << 30
+	// 110% of the image, and the minimum when it cannot be measured.
+	image := int64(4) << 20
 	EnsureReserve(quiet, image)
 	st, err := os.Stat(ReservePath)
 	if err != nil {
@@ -42,7 +47,7 @@ func TestTheReserveIsHeldAndHandedBack(t *testing.T) {
 	DropReserve(quiet)
 
 	EnsureReserve(quiet, 0)
-	if st, err = os.Stat(ReservePath); err != nil || st.Size() != MinReserve {
+	if st, err = os.Stat(ReservePath); err != nil || st.Size() != minReserve {
 		t.Fatalf("unmeasured image: %v %v", st, err)
 	}
 }
