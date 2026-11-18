@@ -33,7 +33,7 @@ export interface TerminalChoice {
 
 export const browserSocket: SocketFactory = (url) => new WebSocket(url) as unknown as TerminalSocket;
 
-/** What a view knows of its Terminal session (not the Node's maitre.v1.TerminalInfo). */
+/** What a view knows of its Terminal session (not the Node's maitre.v1.Terminal). */
 export interface SessionState {
   /**
    * connecting → running → exited; or no-shell, or failed with a message;

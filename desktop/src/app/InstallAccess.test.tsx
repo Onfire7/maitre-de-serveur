@@ -3,6 +3,7 @@
 // host box and the public acknowledgement the Access editor has, and the
 // installed Service carries the choice.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ beforeAll(() => {
   window.history.replaceState({}, "", "/?route=catalog");
 });
 
-describe("install sheet access (287)", () => {
+describe("install sheet access (287)", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("offers the four choices, needs a host and the acknowledgement for a public address, and installs with them", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
@@ -49,5 +50,5 @@ describe("install sheet access (287)", () => {
 
     // Installed: the Service takes its place in the sidebar.
     await waitFor(() => expect(document.querySelector('[data-service="memos"]')).toBeTruthy(), { timeout: 5000 });
-  }, 20000);
+  });
 });

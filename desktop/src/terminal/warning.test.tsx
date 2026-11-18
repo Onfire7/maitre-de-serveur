@@ -3,10 +3,10 @@ import "@/test/dom";
 import { describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { create } from "@bufbuild/protobuf";
-import { TerminalInfoSchema } from "@/gen/maitre/v1/terminal_pb";
+import { TerminalSchema } from "@/gen/maitre/v1/terminal_pb";
 import { EndsTerminals, terminalWarning, useEndingConfirm } from "./warning";
 
-const held = (service: string, container: string, argv: string[], running = true) => create(TerminalInfoSchema, { id: `${service}-${argv.join("-")}`, service, container, user: "root", argv, running });
+const held = (service: string, container: string, argv: string[], running = true) => create(TerminalSchema, { id: `${service}-${argv.join("-")}`, service, container, user: "root", argv, running });
 const target = { addr: "127.0.0.1:7443", fingerprint: "ab".repeat(32) };
 
 describe("the warning before an action that ends running Terminals (ADR 0011)", () => {

@@ -43,7 +43,7 @@ message TerminalFrame {
     TerminalExit exit = 6;
     TerminalAttach attach = 7;
     TerminalEnd end = 8;
-    TerminalInfo info = 9;
+    Terminal info = 9;
   }
 }
 
@@ -65,7 +65,7 @@ message ListTerminalsRequest {
 
 message ListTerminalsResponse {
   // Oldest first.
-  repeated TerminalInfo terminals = 1;
+  repeated Terminal terminals = 1;
 }
 
 message EndTerminalRequest {
@@ -75,55 +75,37 @@ message EndTerminalRequest {
 
 message EndTerminalResponse {}
 
-// TerminalInfo is one Terminal the Node holds, running or finished. A
-// finished one is kept, with its exit code and its output to replay, until
-// a Device has seen it or for 24 hours.
-message TerminalInfo {
+// Terminal is one Terminal: what its holder answers, what ListTerminals
+// returns, and the body of the Node's record of it (ADR 0011, #8), a Fleet
+// Record of kind "terminal", id the Terminal's id, owned and signed by the
+// Node that held it. It says where the Terminal runs, with what argv and
+// user, who opened it and who attached, when it started and ended, and its
+// exit code. It has no field for keystrokes or output, which include
+// passwords typed at prompts: the holder keeps a finished Terminal's output
+// to replay, apart from this, until a Device has seen it or for 24 hours.
+message Terminal {
   string id = 1;
   string service = 2;
   // As in TerminalStarted.
   string container = 3;
   string user = 4;
   repeated string argv = 5;
-  int64 started_unix_ms = 6;
-  bool running = 7;
-  // Once finished: the exit code (128+n for signal n) and when.
-  int32 code = 8;
-  int64 ended_unix_ms = 9;
   // Started with Run as root (#8): Run again starts it as root too.
-  bool root = 10;
-  // The name of the Trusted Device that opened it (#8), for the Console's
-  // list: "opened by Laptop, 14:02, exit 0".
-  string opened_by = 11;
-}
-
-// TerminalRecord is the Node's record of one Terminal (ADR 0011, #8): a
-// Fleet Record of kind "terminal", id the Terminal's id, owned and signed
-// by the Node that held it. It says who opened it and who attached to it,
-// where, with what argv and user, when it started and ended, and its exit
-// code. It never holds keystrokes or output, which include passwords typed
-// at prompts.
-message TerminalRecord {
-  string id = 1;
-  string service = 2;
-  // As in TerminalInfo.
-  string container = 3;
-  string user = 4;
-  repeated string argv = 5;
   bool root = 6;
-  // The Trusted Device that opened it.
+  // The Trusted Device that opened it; the Console's list says "Opened by
+  // Laptop, 14:02, exit 0" with its name, or its fingerprint without one.
   TerminalVisit opened = 7;
-  // Each later attach, oldest first.
+  // Each later attach, oldest first: in the record only.
   repeated TerminalVisit attaches = 8;
   int64 started_unix_ms = 9;
-  // Zero while it runs. Once ended: when, and its exit code (128+n for
-  // signal n).
-  int64 ended_unix_ms = 10;
-  int32 code = 11;
-  // The Node lost the Terminal without seeing it end (it restarted, or the
-  // holder went away); ended_unix_ms is when the Node noticed, and code
-  // means nothing.
-  bool lost = 12;
+  bool running = 10;
+  // Once finished: when, and its exit code (128+n for signal n).
+  int64 ended_unix_ms = 11;
+  int32 code = 12;
+  // In the record only: the Node lost the Terminal without seeing it end
+  // (it restarted, or the holder went away); ended_unix_ms is when the Node
+  // noticed, and code means nothing.
+  bool lost = 13;
 }
 
 // TerminalVisit is a Trusted Device opening or attaching to a Terminal.

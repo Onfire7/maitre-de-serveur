@@ -6,11 +6,11 @@ import "@/test/dom";
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { create } from "@bufbuild/protobuf";
-import { TerminalInfoSchema } from "@/gen/maitre/v1/terminal_pb";
+import { TerminalSchema } from "@/gen/maitre/v1/terminal_pb";
 import { RestartStaged } from "./NodeDetails";
 
 const target = { addr: "127.0.0.1:7443", fingerprint: "ab".repeat(32) };
-const held = create(TerminalInfoSchema, { id: "t1", service: "nextcloud", container: "server", user: "root", argv: ["occ", "upgrade"], running: true });
+const held = create(TerminalSchema, { id: "t1", service: "nextcloud", container: "server", user: "root", argv: ["occ", "upgrade"], running: true });
 
 describe("Restart now for a staged update", () => {
   it("asks first, naming the downtime and the Terminals it ends, and restarts only when held", async () => {

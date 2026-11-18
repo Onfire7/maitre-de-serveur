@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maitre/v1/terminal.proto.
  */
 export const file_maitre_v1_terminal: GenFile = /*@__PURE__*/
-  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKdAwoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIABIrCgZhdHRhY2gYByABKAsyGS5tYWl0cmUudjEuVGVybWluYWxBdHRhY2hIABIlCgNlbmQYCCABKAsyFi5tYWl0cmUudjEuVGVybWluYWxFbmRIABInCgRpbmZvGAkgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsSW5mb0gAQgcKBWZyYW1lIicKFExpc3RUZXJtaW5hbHNSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkiQwoVTGlzdFRlcm1pbmFsc1Jlc3BvbnNlEioKCXRlcm1pbmFscxgBIAMoCzIXLm1haXRyZS52MS5UZXJtaW5hbEluZm8iMQoSRW5kVGVybWluYWxSZXF1ZXN0Eg8KB3NlcnZpY2UYASABKAkSCgoCaWQYAiABKAkiFQoTRW5kVGVybWluYWxSZXNwb25zZSLKAQoMVGVybWluYWxJbmZvEgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSEQoJY29udGFpbmVyGAMgASgJEgwKBHVzZXIYBCABKAkSDAoEYXJndhgFIAMoCRIXCg9zdGFydGVkX3VuaXhfbXMYBiABKAMSDwoHcnVubmluZxgHIAEoCBIMCgRjb2RlGAggASgFEhUKDWVuZGVkX3VuaXhfbXMYCSABKAMSDAoEcm9vdBgKIAEoCBIRCglvcGVuZWRfYnkYCyABKAkijAIKDlRlcm1pbmFsUmVjb3JkEgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSEQoJY29udGFpbmVyGAMgASgJEgwKBHVzZXIYBCABKAkSDAoEYXJndhgFIAMoCRIMCgRyb290GAYgASgIEigKBm9wZW5lZBgHIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFZpc2l0EioKCGF0dGFjaGVzGAggAygLMhgubWFpdHJlLnYxLlRlcm1pbmFsVmlzaXQSFwoPc3RhcnRlZF91bml4X21zGAkgASgDEhUKDWVuZGVkX3VuaXhfbXMYCiABKAMSDAoEY29kZRgLIAEoBRIMCgRsb3N0GAwgASgIIkUKDVRlcm1pbmFsVmlzaXQSDgoGZGV2aWNlGAEgASgJEhMKC2RldmljZV9uYW1lGAIgASgJEg8KB3VuaXhfbXMYAyABKAMiQwoOVGVybWluYWxBdHRhY2gSCgoCaWQYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUiDQoLVGVybWluYWxFbmQiKgoMVGVybWluYWxTaXplEgwKBGNvbHMYASABKA0SDAoEcm93cxgCIAEoDSJoCg1UZXJtaW5hbFN0YXJ0Eg8KB3NlcnZpY2UYASABKAkSJQoEc2l6ZRgCIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUSEQoJY29tcG9uZW50GAMgASgJEgwKBHJvb3QYBCABKAgiHQoNVGVybWluYWxJbnB1dBIMCgRkYXRhGAEgASgMIjcKDlRlcm1pbmFsUmVzaXplEiUKBHNpemUYASABKAsyFy5tYWl0cmUudjEuVGVybWluYWxTaXplImUKD1Rlcm1pbmFsU3RhcnRlZBIKCgJpZBgBIAEoCRIRCgljb250YWluZXIYAiABKAkSDAoEdXNlchgDIAEoCRIMCgRhcmd2GAQgAygJEhcKD3N0YXJ0ZWRfdW5peF9tcxgFIAEoAyIeCg5UZXJtaW5hbE91dHB1dBIMCgRkYXRhGAEgASgMIroBCgxUZXJtaW5hbEV4aXQSLgoGcmVhc29uGAEgASgOMh4ubWFpdHJlLnYxLlRlcm1pbmFsRXhpdC5SZWFzb24SDAoEY29kZRgCIAEoBRIPCgdtZXNzYWdlGAMgASgJIlsKBlJlYXNvbhIWChJSRUFTT05fVU5TUEVDSUZJRUQQABIRCg1SRUFTT05fRVhJVEVEEAESEwoPUkVBU09OX05PX1NIRUxMEAISEQoNUkVBU09OX0ZBSUxFRBADMrcBCg9UZXJtaW5hbFNlcnZpY2USVAoNTGlzdFRlcm1pbmFscxIfLm1haXRyZS52MS5MaXN0VGVybWluYWxzUmVxdWVzdBogLm1haXRyZS52MS5MaXN0VGVybWluYWxzUmVzcG9uc2UiABJOCgtFbmRUZXJtaW5hbBIdLm1haXRyZS52MS5FbmRUZXJtaW5hbFJlcXVlc3QaHi5tYWl0cmUudjEuRW5kVGVybWluYWxSZXNwb25zZSIAQkRaQmdpdGh1Yi5jb20vT25maXJlNy9tYWl0cmUtZGUtc2VydmV1ci9zZXJ2ZXIvZ2VuL21haXRyZS92MTttYWl0cmV2MWIGcHJvdG8z");
+  fileDesc("ChhtYWl0cmUvdjEvdGVybWluYWwucHJvdG8SCW1haXRyZS52MSKZAwoNVGVybWluYWxGcmFtZRIpCgVzdGFydBgBIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFN0YXJ0SAASKQoFaW5wdXQYAiABKAsyGC5tYWl0cmUudjEuVGVybWluYWxJbnB1dEgAEisKBnJlc2l6ZRgDIAEoCzIZLm1haXRyZS52MS5UZXJtaW5hbFJlc2l6ZUgAEi0KB3N0YXJ0ZWQYBCABKAsyGi5tYWl0cmUudjEuVGVybWluYWxTdGFydGVkSAASKwoGb3V0cHV0GAUgASgLMhkubWFpdHJlLnYxLlRlcm1pbmFsT3V0cHV0SAASJwoEZXhpdBgGIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbEV4aXRIABIrCgZhdHRhY2gYByABKAsyGS5tYWl0cmUudjEuVGVybWluYWxBdHRhY2hIABIlCgNlbmQYCCABKAsyFi5tYWl0cmUudjEuVGVybWluYWxFbmRIABIjCgRpbmZvGAkgASgLMhMubWFpdHJlLnYxLlRlcm1pbmFsSABCBwoFZnJhbWUiJwoUTGlzdFRlcm1pbmFsc1JlcXVlc3QSDwoHc2VydmljZRgBIAEoCSI/ChVMaXN0VGVybWluYWxzUmVzcG9uc2USJgoJdGVybWluYWxzGAEgAygLMhMubWFpdHJlLnYxLlRlcm1pbmFsIjEKEkVuZFRlcm1pbmFsUmVxdWVzdBIPCgdzZXJ2aWNlGAEgASgJEgoKAmlkGAIgASgJIhUKE0VuZFRlcm1pbmFsUmVzcG9uc2UilwIKCFRlcm1pbmFsEgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSEQoJY29udGFpbmVyGAMgASgJEgwKBHVzZXIYBCABKAkSDAoEYXJndhgFIAMoCRIMCgRyb290GAYgASgIEigKBm9wZW5lZBgHIAEoCzIYLm1haXRyZS52MS5UZXJtaW5hbFZpc2l0EioKCGF0dGFjaGVzGAggAygLMhgubWFpdHJlLnYxLlRlcm1pbmFsVmlzaXQSFwoPc3RhcnRlZF91bml4X21zGAkgASgDEg8KB3J1bm5pbmcYCiABKAgSFQoNZW5kZWRfdW5peF9tcxgLIAEoAxIMCgRjb2RlGAwgASgFEgwKBGxvc3QYDSABKAgiRQoNVGVybWluYWxWaXNpdBIOCgZkZXZpY2UYASABKAkSEwoLZGV2aWNlX25hbWUYAiABKAkSDwoHdW5peF9tcxgDIAEoAyJDCg5UZXJtaW5hbEF0dGFjaBIKCgJpZBgBIAEoCRIlCgRzaXplGAIgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsU2l6ZSINCgtUZXJtaW5hbEVuZCIqCgxUZXJtaW5hbFNpemUSDAoEY29scxgBIAEoDRIMCgRyb3dzGAIgASgNImgKDVRlcm1pbmFsU3RhcnQSDwoHc2VydmljZRgBIAEoCRIlCgRzaXplGAIgASgLMhcubWFpdHJlLnYxLlRlcm1pbmFsU2l6ZRIRCgljb21wb25lbnQYAyABKAkSDAoEcm9vdBgEIAEoCCIdCg1UZXJtaW5hbElucHV0EgwKBGRhdGEYASABKAwiNwoOVGVybWluYWxSZXNpemUSJQoEc2l6ZRgBIAEoCzIXLm1haXRyZS52MS5UZXJtaW5hbFNpemUiZQoPVGVybWluYWxTdGFydGVkEgoKAmlkGAEgASgJEhEKCWNvbnRhaW5lchgCIAEoCRIMCgR1c2VyGAMgASgJEgwKBGFyZ3YYBCADKAkSFwoPc3RhcnRlZF91bml4X21zGAUgASgDIh4KDlRlcm1pbmFsT3V0cHV0EgwKBGRhdGEYASABKAwiugEKDFRlcm1pbmFsRXhpdBIuCgZyZWFzb24YASABKA4yHi5tYWl0cmUudjEuVGVybWluYWxFeGl0LlJlYXNvbhIMCgRjb2RlGAIgASgFEg8KB21lc3NhZ2UYAyABKAkiWwoGUmVhc29uEhYKElJFQVNPTl9VTlNQRUNJRklFRBAAEhEKDVJFQVNPTl9FWElURUQQARITCg9SRUFTT05fTk9fU0hFTEwQAhIRCg1SRUFTT05fRkFJTEVEEAMytwEKD1Rlcm1pbmFsU2VydmljZRJUCg1MaXN0VGVybWluYWxzEh8ubWFpdHJlLnYxLkxpc3RUZXJtaW5hbHNSZXF1ZXN0GiAubWFpdHJlLnYxLkxpc3RUZXJtaW5hbHNSZXNwb25zZSIAEk4KC0VuZFRlcm1pbmFsEh0ubWFpdHJlLnYxLkVuZFRlcm1pbmFsUmVxdWVzdBoeLm1haXRyZS52MS5FbmRUZXJtaW5hbFJlc3BvbnNlIgBCRFpCZ2l0aHViLmNvbS9PbmZpcmU3L21haXRyZS1kZS1zZXJ2ZXVyL3NlcnZlci9nZW4vbWFpdHJlL3YxO21haXRyZXYxYgZwcm90bzM");
 
 /**
  * A Terminal (ADR 0011) is a shell or command inside one of a Service's
@@ -99,9 +99,9 @@ export type TerminalFrame = Message<"maitre.v1.TerminalFrame"> & {
     case: "end";
   } | {
     /**
-     * @generated from field: maitre.v1.TerminalInfo info = 9;
+     * @generated from field: maitre.v1.Terminal info = 9;
      */
-    value: TerminalInfo;
+    value: Terminal;
     case: "info";
   } | { case: undefined; value?: undefined };
 };
@@ -140,9 +140,9 @@ export type ListTerminalsResponse = Message<"maitre.v1.ListTerminalsResponse"> &
   /**
    * Oldest first.
    *
-   * @generated from field: repeated maitre.v1.TerminalInfo terminals = 1;
+   * @generated from field: repeated maitre.v1.Terminal terminals = 1;
    */
-  terminals: TerminalInfo[];
+  terminals: Terminal[];
 };
 
 /**
@@ -188,13 +188,18 @@ export const EndTerminalResponseSchema: GenMessage<EndTerminalResponse> = /*@__P
   messageDesc(file_maitre_v1_terminal, 4);
 
 /**
- * TerminalInfo is one Terminal the Node holds, running or finished. A
- * finished one is kept, with its exit code and its output to replay, until
- * a Device has seen it or for 24 hours.
+ * Terminal is one Terminal: what its holder answers, what ListTerminals
+ * returns, and the body of the Node's record of it (ADR 0011, #8), a Fleet
+ * Record of kind "terminal", id the Terminal's id, owned and signed by the
+ * Node that held it. It says where the Terminal runs, with what argv and
+ * user, who opened it and who attached, when it started and ended, and its
+ * exit code. It has no field for keystrokes or output, which include
+ * passwords typed at prompts: the holder keeps a finished Terminal's output
+ * to replay, apart from this, until a Device has seen it or for 24 hours.
  *
- * @generated from message maitre.v1.TerminalInfo
+ * @generated from message maitre.v1.Terminal
  */
-export type TerminalInfo = Message<"maitre.v1.TerminalInfo"> & {
+export type Terminal = Message<"maitre.v1.Terminal"> & {
   /**
    * @generated from field: string id = 1;
    */
@@ -223,102 +228,22 @@ export type TerminalInfo = Message<"maitre.v1.TerminalInfo"> & {
   argv: string[];
 
   /**
-   * @generated from field: int64 started_unix_ms = 6;
-   */
-  startedUnixMs: bigint;
-
-  /**
-   * @generated from field: bool running = 7;
-   */
-  running: boolean;
-
-  /**
-   * Once finished: the exit code (128+n for signal n) and when.
-   *
-   * @generated from field: int32 code = 8;
-   */
-  code: number;
-
-  /**
-   * @generated from field: int64 ended_unix_ms = 9;
-   */
-  endedUnixMs: bigint;
-
-  /**
    * Started with Run as root (#8): Run again starts it as root too.
    *
-   * @generated from field: bool root = 10;
-   */
-  root: boolean;
-
-  /**
-   * The name of the Trusted Device that opened it (#8), for the Console's
-   * list: "opened by Laptop, 14:02, exit 0".
-   *
-   * @generated from field: string opened_by = 11;
-   */
-  openedBy: string;
-};
-
-/**
- * Describes the message maitre.v1.TerminalInfo.
- * Use `create(TerminalInfoSchema)` to create a new message.
- */
-export const TerminalInfoSchema: GenMessage<TerminalInfo> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 5);
-
-/**
- * TerminalRecord is the Node's record of one Terminal (ADR 0011, #8): a
- * Fleet Record of kind "terminal", id the Terminal's id, owned and signed
- * by the Node that held it. It says who opened it and who attached to it,
- * where, with what argv and user, when it started and ended, and its exit
- * code. It never holds keystrokes or output, which include passwords typed
- * at prompts.
- *
- * @generated from message maitre.v1.TerminalRecord
- */
-export type TerminalRecord = Message<"maitre.v1.TerminalRecord"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: string service = 2;
-   */
-  service: string;
-
-  /**
-   * As in TerminalInfo.
-   *
-   * @generated from field: string container = 3;
-   */
-  container: string;
-
-  /**
-   * @generated from field: string user = 4;
-   */
-  user: string;
-
-  /**
-   * @generated from field: repeated string argv = 5;
-   */
-  argv: string[];
-
-  /**
    * @generated from field: bool root = 6;
    */
   root: boolean;
 
   /**
-   * The Trusted Device that opened it.
+   * The Trusted Device that opened it; the Console's list says "Opened by
+   * Laptop, 14:02, exit 0" with its name, or its fingerprint without one.
    *
    * @generated from field: maitre.v1.TerminalVisit opened = 7;
    */
   opened?: TerminalVisit | undefined;
 
   /**
-   * Each later attach, oldest first.
+   * Each later attach, oldest first: in the record only.
    *
    * @generated from field: repeated maitre.v1.TerminalVisit attaches = 8;
    */
@@ -330,34 +255,38 @@ export type TerminalRecord = Message<"maitre.v1.TerminalRecord"> & {
   startedUnixMs: bigint;
 
   /**
-   * Zero while it runs. Once ended: when, and its exit code (128+n for
-   * signal n).
+   * @generated from field: bool running = 10;
+   */
+  running: boolean;
+
+  /**
+   * Once finished: when, and its exit code (128+n for signal n).
    *
-   * @generated from field: int64 ended_unix_ms = 10;
+   * @generated from field: int64 ended_unix_ms = 11;
    */
   endedUnixMs: bigint;
 
   /**
-   * @generated from field: int32 code = 11;
+   * @generated from field: int32 code = 12;
    */
   code: number;
 
   /**
-   * The Node lost the Terminal without seeing it end (it restarted, or the
-   * holder went away); ended_unix_ms is when the Node noticed, and code
-   * means nothing.
+   * In the record only: the Node lost the Terminal without seeing it end
+   * (it restarted, or the holder went away); ended_unix_ms is when the Node
+   * noticed, and code means nothing.
    *
-   * @generated from field: bool lost = 12;
+   * @generated from field: bool lost = 13;
    */
   lost: boolean;
 };
 
 /**
- * Describes the message maitre.v1.TerminalRecord.
- * Use `create(TerminalRecordSchema)` to create a new message.
+ * Describes the message maitre.v1.Terminal.
+ * Use `create(TerminalSchema)` to create a new message.
  */
-export const TerminalRecordSchema: GenMessage<TerminalRecord> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 6);
+export const TerminalSchema: GenMessage<Terminal> = /*@__PURE__*/
+  messageDesc(file_maitre_v1_terminal, 5);
 
 /**
  * TerminalVisit is a Trusted Device opening or attaching to a Terminal.
@@ -388,7 +317,7 @@ export type TerminalVisit = Message<"maitre.v1.TerminalVisit"> & {
  * Use `create(TerminalVisitSchema)` to create a new message.
  */
 export const TerminalVisitSchema: GenMessage<TerminalVisit> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 7);
+  messageDesc(file_maitre_v1_terminal, 6);
 
 /**
  * TerminalAttach attaches to a Terminal the Node holds, by its id, beside
@@ -413,7 +342,7 @@ export type TerminalAttach = Message<"maitre.v1.TerminalAttach"> & {
  * Use `create(TerminalAttachSchema)` to create a new message.
  */
 export const TerminalAttachSchema: GenMessage<TerminalAttach> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 8);
+  messageDesc(file_maitre_v1_terminal, 7);
 
 /**
  * TerminalEnd Ends the attached Terminal: SIGHUP, then SIGKILL after 5
@@ -429,7 +358,7 @@ export type TerminalEnd = Message<"maitre.v1.TerminalEnd"> & {
  * Use `create(TerminalEndSchema)` to create a new message.
  */
 export const TerminalEndSchema: GenMessage<TerminalEnd> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 9);
+  messageDesc(file_maitre_v1_terminal, 8);
 
 /**
  * TerminalSize is a size in character cells: a view's, or the session's.
@@ -453,7 +382,7 @@ export type TerminalSize = Message<"maitre.v1.TerminalSize"> & {
  * Use `create(TerminalSizeSchema)` to create a new message.
  */
 export const TerminalSizeSchema: GenMessage<TerminalSize> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 10);
+  messageDesc(file_maitre_v1_terminal, 9);
 
 /**
  * TerminalStart opens a new Terminal: the shell of one of the Service's
@@ -494,7 +423,7 @@ export type TerminalStart = Message<"maitre.v1.TerminalStart"> & {
  * Use `create(TerminalStartSchema)` to create a new message.
  */
 export const TerminalStartSchema: GenMessage<TerminalStart> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 11);
+  messageDesc(file_maitre_v1_terminal, 10);
 
 /**
  * TerminalInput is what was typed, as the bytes a terminal sends.
@@ -513,7 +442,7 @@ export type TerminalInput = Message<"maitre.v1.TerminalInput"> & {
  * Use `create(TerminalInputSchema)` to create a new message.
  */
 export const TerminalInputSchema: GenMessage<TerminalInput> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 12);
+  messageDesc(file_maitre_v1_terminal, 11);
 
 /**
  * TerminalResize, from the Console, is the view's new size, which becomes
@@ -534,7 +463,7 @@ export type TerminalResize = Message<"maitre.v1.TerminalResize"> & {
  * Use `create(TerminalResizeSchema)` to create a new message.
  */
 export const TerminalResizeSchema: GenMessage<TerminalResize> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 13);
+  messageDesc(file_maitre_v1_terminal, 12);
 
 /**
  * TerminalStarted says the process runs, and where: the view's label.
@@ -586,7 +515,7 @@ export type TerminalStarted = Message<"maitre.v1.TerminalStarted"> & {
  * Use `create(TerminalStartedSchema)` to create a new message.
  */
 export const TerminalStartedSchema: GenMessage<TerminalStarted> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 14);
+  messageDesc(file_maitre_v1_terminal, 13);
 
 /**
  * TerminalOutput is what the process wrote to its terminal.
@@ -605,7 +534,7 @@ export type TerminalOutput = Message<"maitre.v1.TerminalOutput"> & {
  * Use `create(TerminalOutputSchema)` to create a new message.
  */
 export const TerminalOutputSchema: GenMessage<TerminalOutput> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 15);
+  messageDesc(file_maitre_v1_terminal, 14);
 
 /**
  * TerminalExit is the last frame: the process ended, or none could run.
@@ -636,7 +565,7 @@ export type TerminalExit = Message<"maitre.v1.TerminalExit"> & {
  * Use `create(TerminalExitSchema)` to create a new message.
  */
 export const TerminalExitSchema: GenMessage<TerminalExit> = /*@__PURE__*/
-  messageDesc(file_maitre_v1_terminal, 16);
+  messageDesc(file_maitre_v1_terminal, 15);
 
 /**
  * @generated from enum maitre.v1.TerminalExit.Reason
@@ -673,7 +602,7 @@ export enum TerminalExit_Reason {
  * Describes the enum maitre.v1.TerminalExit.Reason.
  */
 export const TerminalExit_ReasonSchema: GenEnum<TerminalExit_Reason> = /*@__PURE__*/
-  enumDesc(file_maitre_v1_terminal, 16, 0);
+  enumDesc(file_maitre_v1_terminal, 15, 0);
 
 /**
  * TerminalService lists a Service's Terminals and Ends them. Only a full

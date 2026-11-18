@@ -3,6 +3,7 @@
 // against its typical downtime, on the demo Fleet: Alder's is 95 s, so the
 // marker says "usually about 2 min". The old guess is gone.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ beforeAll(() => {
   localStorage.setItem("maitre.demo", "1");
 });
 
-describe("a Roll back's progress", () => {
+describe("a Roll back's progress", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("is the timed bar with the Node's typical downtime marked", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();

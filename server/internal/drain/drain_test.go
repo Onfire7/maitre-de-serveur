@@ -109,9 +109,12 @@ func setup(t *testing.T) (*Manager, *store.Store, *fakeServices, map[string]uint
 	return m, st, svcs, free
 }
 
+// wait is job id once it is done or failed. A drain of a few files takes
+// milliseconds, but far longer on a loaded machine: the minute is only
+// how long to wait for one that never finishes.
 func wait(t *testing.T, m *Manager, id string) *maitrev1.DrainJob {
 	t.Helper()
-	for i := 0; i < 200; i++ {
+	for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); {
 		for _, j := range m.Jobs() {
 			if j.GetJobId() == id && j.GetState() != "queued" && j.GetState() != "running" {
 				return j

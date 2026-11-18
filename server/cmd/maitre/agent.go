@@ -494,7 +494,7 @@ func runAgent(args []string) error {
 	ro.Current = current
 	// #9: an automatic rollout waits up to a day for the Node's running
 	// Terminals; an update a person starts only warns (the Console).
-	ro.Terminals = func(ctx context.Context) ([]*maitrev1.TerminalInfo, error) {
+	ro.Terminals = func(ctx context.Context) ([]*maitrev1.Terminal, error) {
 		res, err := terms.ListTerminals(ctx, &maitrev1.ListTerminalsRequest{})
 		return res.GetTerminals(), err
 	}

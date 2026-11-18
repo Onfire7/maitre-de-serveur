@@ -4,6 +4,7 @@
 // downtime figure. On the demo Fleet Alder has one (95 s, about 2 minutes);
 // Basalt has too few updated runs, so "a few minutes".
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ function card(name: string): HTMLElement {
   return screen.getByRole("button", { name: `Rename ${name}` }).closest("div.rounded-xl") as HTMLElement;
 }
 
-describe("the Restart and Roll back dialogs", () => {
+describe("the Restart and Roll back dialogs", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("give the Node's typical downtime, or a few minutes without one", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
@@ -50,5 +51,5 @@ describe("the Restart and Roll back dialogs", () => {
       expect(dialog.textContent).not.toContain("a minute or two");
       fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     }
-  }, 120_000);
+  });
 });

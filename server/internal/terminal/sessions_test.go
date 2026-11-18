@@ -62,7 +62,7 @@ func reattached(t *testing.T, e env, service, id string) (*session, *maitrev1.Te
 	return s, f.GetStarted()
 }
 
-func list(t *testing.T, e env, service string) []*maitrev1.TerminalInfo {
+func list(t *testing.T, e env, service string) []*maitrev1.Terminal {
 	t.Helper()
 	res, err := e.h.ListTerminals(context.Background(), &maitrev1.ListTerminalsRequest{Service: service})
 	if err != nil {
@@ -82,7 +82,7 @@ func eventually(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-func find(ts []*maitrev1.TerminalInfo, id string) *maitrev1.TerminalInfo {
+func find(ts []*maitrev1.Terminal, id string) *maitrev1.Terminal {
 	for _, t := range ts {
 		if t.GetId() == id {
 			return t

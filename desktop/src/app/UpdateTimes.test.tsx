@@ -5,6 +5,7 @@
 // on the Updates page and in its details, and in the Update confirmation,
 // which says the Services keep running when restarting is unticked.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ beforeAll(() => {
 const alder = "Updates usually take about 4 minutes; its Services are down for about 2.";
 const basalt = "Updates usually take a few minutes; its Services are down for a few minutes.";
 
-describe("how long a Node's updates take", () => {
+describe("how long a Node's updates take", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("is on each Node's card, its details and the Update confirmation", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
