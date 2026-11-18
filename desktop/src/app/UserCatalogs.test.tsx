@@ -4,6 +4,7 @@
 // Compose file added to a folder Catalog, its report shown at once and
 // checked by a Node.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ beforeAll(() => {
   );
 });
 
-describe("user Catalogs", () => {
+describe("user Catalogs", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("shows their entries, what changed, and adds a Compose file with its report", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
@@ -63,5 +64,5 @@ describe("user Catalogs", () => {
     expect(within(report).getByText(/Written, but unfinished/)).toBeTruthy();
     expect(within(report).getByText("Needs a person")).toBeTruthy();
     expect(within(report).getByText(/Podman's Quadlet on the Node accepts every unit/)).toBeTruthy();
-  }, 30_000);
+  });
 });

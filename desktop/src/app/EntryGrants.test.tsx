@@ -4,6 +4,7 @@
 // with its reason, and installs without that feature when the person
 // switches it off, with no grant signed.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ beforeAll(() => {
   window.history.replaceState({}, "", "/?route=catalog&install=home-assistant");
 });
 
-describe("declared grants", () => {
+describe("declared grants", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("asks with the entry's reasons and installs without an optional feature", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
@@ -43,5 +44,5 @@ describe("declared grants", () => {
     const ha = f.services.find((s) => s.spec.name === "home-assistant");
     expect(ha?.spec.optionalGrants).toEqual({ discovery: false });
     expect(f.records.some((r) => r.kind === "grant" && !r.deleted && r.id.includes("home-assistant"))).toBe(false);
-  }, 30_000);
+  });
 });

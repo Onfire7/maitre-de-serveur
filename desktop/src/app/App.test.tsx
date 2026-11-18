@@ -2,6 +2,7 @@
 // The whole Console against the demo Fleet: first answer through the anchor,
 // sidebar filled from GetFleetStatus, tabs reachable.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { describe, expect, it, beforeAll } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,7 +11,7 @@ beforeAll(() => {
   localStorage.setItem("maitre.demo", "1");
 });
 
-describe("Console on the demo Fleet", () => {
+describe("Console on the demo Fleet", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("shows every Service in the sidebar and the Fleet Overview with its notices", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();

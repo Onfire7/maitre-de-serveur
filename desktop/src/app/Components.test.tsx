@@ -3,6 +3,7 @@
 // demo Fleet's Immich: its open row lists each container with its state,
 // changes one container's image, and opens one container's logs.
 import "@/test/dom";
+import { WHOLE_APP_TIMEOUT } from "@/test/app";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ beforeAll(() => {
   localStorage.setItem("maitre.demo", "1");
 });
 
-describe("a Service of several containers", () => {
+describe("a Service of several containers", { timeout: WHOLE_APP_TIMEOUT }, () => {
   it("lists its containers, changes one's image and opens one's logs", async () => {
     const { installTauriShim } = await import("@/demo/shim");
     installTauriShim();
@@ -50,5 +51,5 @@ describe("a Service of several containers", () => {
     const log = await within(main).findByRole("log", { name: "Alder: immich: redis" }, { timeout: 5000 });
     expect(await within(log).findAllByText(/immich-redis\[\d+\]: DB saved on disk/, {}, { timeout: 5000 })).not.toHaveLength(0);
     expect(within(log).queryByText(/immich-server/)).toBeNull();
-  }, 30_000);
+  });
 });

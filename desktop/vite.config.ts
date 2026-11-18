@@ -10,9 +10,10 @@ export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 
-  // The Console tests render the whole app against the demo Fleet and walk
-  // its tabs; on a shared CI runner with every test file's worker starting at
-  // once, one takes over vitest's default 5 s.
+  // On a shared CI runner with every test file's worker starting at once, a
+  // Console test can take over vitest's default 5 s. Those that render the
+  // whole app on the demo Fleet take longer still: src/test/app.ts's
+  // WHOLE_APP_TIMEOUT.
   test: { testTimeout: 30_000 },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
